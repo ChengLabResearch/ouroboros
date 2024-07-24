@@ -7,9 +7,9 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <meta name="generator" content="mkdocs-1.6.0, mkdocs-terminal-4.4.0">
     
-    <meta name="description" content="Quickly extract ROIs from cloud-hosted medical scans."> 
+    <meta name="description" content="Quickly extract long ROIs (e.g. blood vessels, nerves) from cloud-hosted medical scans."> 
     
-    <meta name="author" content="We-Gold"> 
+    <meta name="author" content="Weaver Goldman"> 
     
     <link rel="canonical" href="https://wegold.me/ouroboros/"><link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png" />
@@ -103,6 +103,8 @@
                 
                 
                 
+                
+                
                 <li property="itemListElement" typeof="ListItem">
                     <a href="https://github.com/We-Gold/ouroboros/releases" class="menu-item " property="item" typeof="WebPage">
                         <span property="name">Releases</span>
@@ -178,7 +180,7 @@
         
     
 
-    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Guide</span>
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Usage Guide</span>
         
     
     
@@ -247,6 +249,89 @@
 <li class="terminal-mkdocs-side-nav-li">
     
     
+        
+        
+
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    
+
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Development</span>
+        
+    
+    
+        
+      
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="
+
+    terminal-mkdocs-side-nav-item" href="https://github.com/We-Gold/ouroboros/blob/main/README.md">App</a>
+        
+    
+    </li>
+            
+        
+            
+            
+
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="
+
+    terminal-mkdocs-side-nav-item" href="https://github.com/We-Gold/ouroboros/blob/main/python/README.md">Python</a>
+        
+    
+    </li>
+            
+        
+            
+            
+
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="
+
+    terminal-mkdocs-side-nav-item" href="https://github.com/We-Gold/ouroboros/blob/main/plugins/plugin-template/README.md">Plugins</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+  </li>
+        
+          
+
+
+
+<li class="terminal-mkdocs-side-nav-li">
+    
+    
     
         
         
@@ -284,25 +369,28 @@
 <nav>
     <ul>
         <li><a href="#ouroboros">Ouroboros</a></li>
-        <li><a href="#documentation">Documentation</a></li><li><a href="#basic-ouroboros-usage">Basic Ouroboros Usage</a></li>
+        <li><a href="#usage-guide">Usage Guide</a></li><li><a href="#ouroboros-explanation">Ouroboros Explanation</a></li>
     </ul>
 </nav>
 </aside>
             <main id="terminal-mkdocs-main-content">
 <section id="mkdocs-terminal-content">
     <h1 id="ouroboros">Ouroboros</h1>
-<p>Quickly extract ROIs from cloud-hosted medical scans.</p>
+<p><code>or-uh-bore-us</code></p>
+<p><img alt="" src="assets/slicing/long-slice.png" /></p>
+<p>Extract ROIs from cloud-hosted medical scans.</p>
 <p>Ouroboros is a desktop app (built with Electron) and a Python package (with a CLI). </p>
 <p>The desktop app comes with a pre-compiled Python server (from the Python package). It runs the server in the background to handle all processing and calculations.</p>
 <p>If you are interested in using the Python package for its CLI or for a custom usecase, check out the <a href="https://github.com/We-Gold/ouroboros/tree/main/python">python</a> folder in the main repository.</p>
-<h2 id="documentation">Documentation</h2>
+<p>Ouroboros also supports a plugin system. A plugin usage guide is forthcoming.</p>
+<h2 id="usage-guide">Usage Guide</h2>
 <p><em>It is recommended that you read these pages in order.</em></p>
 <ul>
 <li><a href="guide/downloading/">Download and Install Ouroboros</a></li>
 <li><a href="guide/slicing/">Slicing</a></li>
 <li><a href="guide/backproject/">Backprojection</a></li>
 </ul>
-<h2 id="basic-ouroboros-usage">Basic Ouroboros Usage</h2>
+<h2 id="ouroboros-explanation">Ouroboros Explanation</h2>
 <p>A user of Ouroboros may have a multi-terabyte volumetric scan, hosted with the Neuroglancer family of tools (i.e. <a href="https://github.com/seung-lab/cloud-volume">cloud-volume</a>). </p>
 <p>Perhaps there is a long, relatively sparse structure (ROI), like a nerve or a blood vessel that crosses the entire scan. Even with a well-equipped computer, it would be difficult to segment the entire stucture in one pass due to RAM limitations.</p>
 <p>Ouroboros provides a solution. A user first traces the structure in Neuroglancer with sequential annotation points, and then saves the JSON configuration to a file.</p>

@@ -232,6 +232,22 @@
     
     </li>
             
+        
+            
+            
+
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="
+
+    terminal-mkdocs-side-nav-item" href="../plugins/">Plugins</a>
+        
+    
+    </li>
+            
             
     </ul>
         
@@ -378,6 +394,18 @@
 <p><img alt="Basic Usage Demo" src="../../assets/backproject/Backproject%20Page%20Demo.gif" /></p>
 <p><strong>Reusing Options from a Previous Run</strong></p>
 <p>See the same section under <a href="../slicing/">Slice Page</a>.</p>
+<p><strong>Compression Options</strong></p>
+<p>One of the options on the Backproject page allows the user to configure the output compression format.</p>
+<p>Common options</p>
+<ul>
+<li><code>zlib</code></li>
+<li><code>zstd</code></li>
+<li><code>none</code> (no compression, not recommended)</li>
+</ul>
+<p>For more information, see <a href="https://github.com/cgohlke/tifffile/blob/166092f3e7b38cd1af430846157711f916ed5200/tifffile/tifffile.py#L13068C9-L13068C20">Tifffile</a>, the Python package responsible for the compression.</p>
+<p><strong>Output Position Offset</strong></p>
+<p>By default, the slicing output tiff image is backprojected into the space of its minimum bounding box, rather than the space of the entire source scan.</p>
+<p>The offset of the minimum bounding box is stored in the output tiff's description metadata. It is also stored in the configuration file (which is modified by the backproject step).</p>
 <h3 id="how-does-backprojection-work">How Does Backprojection Work?</h3>
 <p>A large amount of helpful data is saved in <code>*-configuration.json</code> file after the slicing process. This data contains all of the rectangle corners from slicing, and the bounding boxes the slices are associated with. With this data, Ouroboros recalculates the 2D coordinate grids of 3D points for each slice.</p>
 <p><strong>Trilinear Interpolation</strong></p>
@@ -402,7 +430,8 @@
         <div id="terminal-mkdocs-footer-prev-next">
             <nav class="btn-group">
                 <a href="../slicing/" title="Slicing">Previous</a>
-                
+                |
+                <a href="../plugins/" title="Plugins">Next</a>
             </nav>
         </div>
     </div>

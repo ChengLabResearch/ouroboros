@@ -381,7 +381,7 @@
 <nav>
     <ul>
         <li><a href="#slicing">Slicing</a></li>
-        <li><a href="#using-the-slice-page">Using the Slice Page</a></li><li><a href="#how-does-slicing-work">How Does Slicing Work?</a></li>
+        <li><a href="#using-the-slice-page">Using the Slice Page</a></li><li><a href="#slicing-options">Slicing Options</a></li><li><a href="#how-does-slicing-work">How Does Slicing Work?</a></li>
     </ul>
 </nav>
 </aside>
@@ -395,6 +395,28 @@
 <p><img alt="Basic Usage Demo" src="../../assets/slicing/Slice%20Page%20Demo.gif" /></p>
 <p><strong>Reusing Options from a Previous Run</strong></p>
 <p><img alt="Reusing Options from a Previous Run" src="../../assets/slicing/Slice%20Page%20Options%20Demo.gif" /></p>
+<h3 id="slicing-options">Slicing Options</h3>
+<p>📁 - Drag and drop files from File Explorer panel into this option.</p>
+<ul>
+<li>📁 <code>Neuroglancer JSON</code> - Path to the Neuroglancer configuration JSON file (exported from Neuroglancer with <code>{}</code> icon, or through the Neuroglancer Plugin)</li>
+<li><code>Neuroglancer Image Layer</code> - Select Neuroglancer image layer to slice from.</li>
+<li><code>Neuroglancer Annotation Layer</code> - Select Neuroglancer annotation layer to slice from.</li>
+<li><code>Slice Width</code> - The output width of each slice image.</li>
+<li><code>Slice Height</code> - The output height of each slice image.</li>
+<li>📁 <code>Output File Folder</code> - The folder to save all the resulting files into.</li>
+<li><code>Output File Name</code> - Base name for all output files.</li>
+<li><code>Annotation MIP Level</code> - The annotation layer's MIP level. </li>
+<li><code>Output MIP Level</code> - The mip level to output slices in (essentially a downsample option).</li>
+<li><code>Distance Between Slices</code> - The distance between each slice along the annotation path.</li>
+<li><code>Output Single File</code> - Whether to output one tiff stack file or a folder of files.</li>
+<li><code>Connect Endpoints</code> - Connect the first point in the path to the last point. This is not recommended.</li>
+<li><code>Bounding Box Parameters</code><ul>
+<li><code>Max Depth</code> - The maximum depth for binary space partitioning. It is not recommended to change this option unless you encounter RAM issues.</li>
+<li><code>Target Slices Per Box</code> - If you are running on a low-RAM system, or you are taking very large slices, you may want to decrease this.</li>
+</ul>
+</li>
+<li><code>Max RAM (GB)</code> - 0 indicates no RAM limit. Setting a RAM limit allows Ouroboros to optimize performance and avoid overusing RAM.</li>
+</ul>
 <h3 id="how-does-slicing-work">How Does Slicing Work?</h3>
 <p><strong>Spline Fitting</strong></p>
 <p>Ouroboros fits a spline curve to the annotation path from the Neuroglancer JSON file. This produces a smooth, differentiable curve along the length of the annotations. </p>

@@ -396,9 +396,9 @@
 <p><img alt="" src="assets/slicing/long-slice.png" /></p>
 <p>Extract ROIs from cloud-hosted medical scans.</p>
 <p>Ouroboros is a desktop app (built with Electron) and a Python package (with a CLI). </p>
-<p>The desktop app comes with a pre-compiled Python server (from the Python package). It runs the server in the background to handle all processing and calculations.</p>
+<p>The desktop app uses Docker to build and run its Python server. For this reason, <strong>Docker is required</strong> to run Ouroboros.</p>
 <p>If you are interested in using the Python package for its CLI or for a custom usecase, check out the <a href="https://github.com/We-Gold/ouroboros/tree/main/python">python</a> folder in the main repository.</p>
-<p>Ouroboros also supports a plugin system. A plugin usage guide is forthcoming.</p>
+<p>Ouroboros also has a <a href="guide/plugins/">Plugin System</a>. Plugin servers are also run in Docker.</p>
 <h2 id="usage-guide">Usage Guide</h2>
 <p><em>It is recommended that you read these pages in order.</em></p>
 <ul>

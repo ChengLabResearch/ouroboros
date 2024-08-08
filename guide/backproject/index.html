@@ -419,6 +419,7 @@
 <li><code>Output Single File</code> - Whether to output one tiff stack file or a folder of files.</li>
 <li><code>Output Min Bounding Box</code> - Save only the minimum volume needed to contain the backprojected slices. The offset will be stored in the <code>-configuration.json</code> file under <code>backprojection_offset</code>. This value is the (x_min, y_min, z_min).</li>
 <li><code>Binary Backprojection</code> - Whether or not to binarize all the values of the backprojection. Enable this to backproject a segmentation.</li>
+<li><code>Offset in Filename</code> - Whether or not to include the (x_min, y_min, z_min) offset for min bounding box in the output file name. Only applies if <code>Output Min Bounding Box</code> is true.</li>
 <li><code>Max RAM (GB)</code> - 0 indicates no RAM limit. Setting a RAM limit allows Ouroboros to optimize performance and avoid overusing RAM.</li>
 </ul>
 <h3 id="how-does-backprojection-work">How Does Backprojection Work?</h3>

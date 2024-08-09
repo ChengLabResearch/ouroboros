@@ -407,7 +407,12 @@
 <li><code>Output File Name</code> - Base name for all output files.</li>
 <li><code>Annotation MIP Level</code> - The annotation layer's MIP level. </li>
 <li><code>Output MIP Level</code> - The mip level to output slices in (essentially a downsample option).</li>
+<li><code>Slicing Parameters</code><ul>
 <li><code>Distance Between Slices</code> - The distance between each slice along the annotation path.</li>
+<li><code>Use Adaptive Slicing</code> - Rather than just using equidistant slices, add more slices in more curved areas.</li>
+<li><code>Adaptive Slicing Ratio</code> - 1 means consider distance and curvature equally, 0.5 is biased towards distance, and 2 is biased towards curvature.</li>
+</ul>
+</li>
 <li><code>Output Single File</code> - Whether to output one tiff stack file or a folder of files.</li>
 <li><code>Connect Endpoints</code> - Connect the first point in the path to the last point. This is not recommended.</li>
 <li><code>Bounding Box Parameters</code><ul>

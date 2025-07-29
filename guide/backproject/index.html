@@ -427,10 +427,12 @@
 <p><strong>Trilinear Interpolation</strong></p>
 <p>Backprojection iterates through 3D chunks of the straightened volume, as follows following order:</p>
 <ol>
-<li>The slices are loaded from a memmory map of the straightened volume.</li>
+<li>The chunks are loaded from a memory map of the straightened volume.</li>
 <li>A custom rapid trilinear interpolation implementation is used to map the slice data into a sparse representation of the backprojected volume, limited to a bounding box containing only points associated with the chunk.  </li>
-<li>As slices are completed, they are written to an uncompressed memory map of the final volume.</li>
-<li>Once all slices are completed, the final volume is compressed as either a single image or tiff stack. </li>
+<li>These sparse representations are written to disk intermediates, with individual files for each slice of the backprojected volume they are associated with.</li>
+<li>As chunks are completed, it evaluates which slices of the backprojected volume can be fully written by completed chunks.</li>
+<li>The data for these slices are loaded from the intermediates, then written to disk in the target folder as they are completed.</li>
+<li>Once all slices are completed, they are converted to a single file if this configuration option is enabled.</li>
 </ol>
 <p><strong>Why Is Interpolation Needed?</strong></p>
 <p>The slices in the straightened volume were originally produced through interpolation. Each slice has a 2D grid of 3D points, and the values at these points were approximated through interpolation.</p>

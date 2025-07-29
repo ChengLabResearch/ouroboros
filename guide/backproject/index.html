@@ -9,7 +9,7 @@
     
     <meta name="description" content="Quickly extract long ROIs (e.g. blood vessels, nerves) from cloud-hosted medical scans."> 
     
-    <meta name="author" content="Weaver Goldman"> 
+    <meta name="author" content="Weaver Goldman and David Northover"> 
     
     <link rel="canonical" href="https://wegold.me/ouroboros/guide/backproject/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="../../img/android-chrome-512x512.png" />
@@ -106,7 +106,7 @@
                 
                 
                 <li property="itemListElement" typeof="ListItem">
-                    <a href="https://github.com/We-Gold/ouroboros/releases" class="menu-item " property="item" typeof="WebPage">
+                    <a href="https://github.com/ChengLabResearch/ouroboros/releases" class="menu-item " property="item" typeof="WebPage">
                         <span property="name">Releases</span>
                     </a>
                     <meta property="position" content="1">
@@ -114,7 +114,7 @@
                 
                 
                 <li property="itemListElement" typeof="ListItem">
-                    <a href="https://github.com/We-Gold/ouroboros" class="menu-item " property="item" typeof="WebPage">
+                    <a href="https://github.com/ChengLabResearch/ouroboros" class="menu-item " property="item" typeof="WebPage">
                         <span property="name">Repository</span>
                     </a>
                     <meta property="position" content="2">
@@ -294,7 +294,7 @@
         
             <a class="
 
-    terminal-mkdocs-side-nav-item" href="https://github.com/We-Gold/ouroboros/blob/main/README.md">App</a>
+    terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/README.md">App</a>
         
     
     </li>
@@ -310,7 +310,7 @@
         
             <a class="
 
-    terminal-mkdocs-side-nav-item" href="https://github.com/We-Gold/ouroboros/blob/main/python/README.md">Python</a>
+    terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/README.md">Python</a>
         
     
     </li>
@@ -326,7 +326,7 @@
         
             <a class="
 
-    terminal-mkdocs-side-nav-item" href="https://github.com/We-Gold/ouroboros/blob/main/plugins/plugin-template/README.md">Plugins</a>
+    terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md">Plugins</a>
         
     
     </li>
@@ -349,7 +349,7 @@
         
             <a class="
 
-    terminal-mkdocs-side-nav-item" href="https://github.com/We-Gold/ouroboros/releases">Releases</a>
+    terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/releases">Releases</a>
         
     
     
@@ -368,7 +368,7 @@
         
             <a class="
 
-    terminal-mkdocs-side-nav-item" href="https://github.com/We-Gold/ouroboros">Repository</a>
+    terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros">Repository</a>
         
     
     
@@ -425,10 +425,13 @@
 <h3 id="how-does-backprojection-work">How Does Backprojection Work?</h3>
 <p>A large amount of helpful data is saved in <code>*-configuration.json</code> file after the slicing process. This data contains all of the rectangle corners from slicing, and the bounding boxes the slices are associated with. With this data, Ouroboros recalculates the 2D coordinate grids of 3D points for each slice.</p>
 <p><strong>Trilinear Interpolation</strong></p>
-<p>The straightened volume slices are loaded in as a memmap (an in-memory reference to the tiff image on the hard-drive or SSD). </p>
-<p>Then, an empty volume is created with the same dimensions as the bounding box. A custom trilinear interpolation implementation is used to copy the slice data into the empty volume. </p>
-<p>These volumes are saved to local tiff images. After all volumes have been calculated, Ouroboros creates chunks of an empty volume (same size as the original volume) and copies the data from the smaller volumes into the chunk, and then saves that chunk as a tiff with compression. </p>
-<p>Finally, all chunks are combined to produce either a minimum bounding box in the space of the original volume with all of the backprojected data, or a full-size volume with the backprojected data.</p>
+<p>Backprojection iterates through 3D chunks of the straightened volume, as follows following order:</p>
+<ol>
+<li>The slices are loaded from a memmory map of the straightened volume.</li>
+<li>A custom rapid trilinear interpolation implementation is used to map the slice data into a sparse representation of the backprojected volume, limited to a bounding box containing only points associated with the chunk.  </li>
+<li>As slices are completed, they are written to an uncompressed memory map of the final volume.</li>
+<li>Once all slices are completed, the final volume is compressed as either a single image or tiff stack. </li>
+</ol>
 <p><strong>Why Is Interpolation Needed?</strong></p>
 <p>The slices in the straightened volume were originally produced through interpolation. Each slice has a 2D grid of 3D points, and the values at these points were approximated through interpolation.</p>
 <p>In order to put the data back, we have to interpolate in the opposite direction. Each point contributes to the value of its neighbors based on how close it is to them. </p>
@@ -440,7 +443,7 @@
     <div class="terminal-mkdocs-footer-grid">
         <div id="terminal-mkdocs-footer-copyright-info">
             
-            <p class="text-center text-muted">Copyright 2024 Weaver Goldman, All rights reserved</p>
+            <p class="text-center text-muted">Copyright 2024=2025 Weaver Goldman and David Northover, All rights reserved</p>
              Site built with <a href="http://www.mkdocs.org">MkDocs</a> and <a href="https://github.com/ntno/mkdocs-terminal">Terminal for MkDocs</a>.
         </div>
         <div id="terminal-mkdocs-footer-prev-next">

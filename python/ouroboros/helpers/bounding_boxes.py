@@ -297,6 +297,25 @@ class BoundingBox:
         return faces
 
 
+def boxes_dim_range(boxes: list[BoundingBox], dim="z"):
+    """
+    Calculate the range of values in a specified dimension for a set of bounding boxes.
+
+    Paramters:
+    ----------
+        boxes (list[BoundingBox]): A list of the bounding boxes making up the scope.
+        dim (str): A string ('x', 'y', 'z')
+    """
+    if dim not in ["x", "y", "z"]:
+        raise ValueError("Dim parameter must be one of 'x', 'y' or 'z'")
+    if len(boxes):
+        return np.arange(np.min(np.floor([getattr(box, f"{dim}_min") for box in boxes]).astype(int)),
+                         np.max(np.floor([getattr(box, f"{dim}_max") for box in boxes]).astype(int)) + 2,
+                         dtype=int)
+    else:
+        return np.arange(0)
+
+
 def calculate_bounding_boxes_bsp_link_rects(
     rects: np.ndarray,
     target_slices_per_box: int = DEFAULT_TARGET_SLICES_PER_BOX,

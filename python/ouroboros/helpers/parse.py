@@ -1,7 +1,26 @@
-import numpy as np
+from enum import Enum
 
-from pydantic import BaseModel
+import numpy as np
+from pydantic import BaseModel, ValidatorFunctionWrapHandler, field_validator
+
 from ouroboros.helpers.models import model_with_json
+
+
+# Supported cloudvolume formats to map from NG adapter format to cloudvolume format.
+class CV_FORMAT(Enum):
+    PRECOMPUTED = ["neuroglancer-precomputed"]
+    ZARR = ["zarr", "zarr2", "zarr3"]
+    N5 = ["n5"]
+    
+    def __str__(self):
+        return f"{self.name.lower()}://"
+    
+    @classmethod
+    def get(cls, suffix):
+        for e in cls:
+            if suffix in e.value:
+                return e
+        raise ValueError(f"No cloudvolume format type found for {suffix}")
 
 
 class LayerModel(BaseModel):
@@ -28,6 +47,18 @@ class ImageLayerModel(LayerModel):
     source: str | SourceModel
     type: str
     name: str
+
+    @field_validator("source", mode="wrap")
+    @classmethod
+    def parse_source(cls, value, handler: ValidatorFunctionWrapHandler) -> str:
+        source = handler(value)
+        base_source = source.url if isinstance(source, SourceModel) else source
+        split_source = base_source.split("|")
+        if len(split_source) > 1:
+            kv_store = split_source[1].split(":")
+            base_source = f"{CV_FORMAT.get(kv_store[0])}{split_source[0]}{kv_store[1]}"        
+        
+        return SourceModel(url=base_source) if isinstance(source, SourceModel) else base_source
 
 
 @model_with_json
@@ -134,6 +165,8 @@ def neuroglancer_config_to_source(
                 elif isinstance(layer.source, SourceModel):
                     return layer.source.url, None
                 else:
+                    # Don't think you can hit this as image layer types only build
+                    # from str or SourceModel
                     return None, "Invalid source format in the file."
     except BaseException as e:
         return None, f"Error extracting source URL: {e}"

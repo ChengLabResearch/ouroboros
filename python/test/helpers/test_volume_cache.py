@@ -4,8 +4,10 @@ from ouroboros.helpers.volume_cache import (
     VolumeCache,
     CloudVolumeInterface,
     get_mip_volume_sizes,
+    update_writable_boxes,
+    update_writable_rects
 )
-from ouroboros.helpers.bounding_boxes import BoundingBox
+from ouroboros.helpers.bounding_boxes import BoundingBox, boxes_dim_range
 
 
 @pytest.fixture
@@ -39,7 +41,7 @@ def volume_cache(bounding_boxes, cloud_volume_interface):
         bounding_boxes=bounding_boxes,
         link_rects=[0, 1],
         cloud_volume_interface=cloud_volume_interface,
-        mip=0,
+        mip=None,
         flush_cache=True,
     )
 
@@ -52,6 +54,11 @@ def test_volume_cache_init(volume_cache, bounding_boxes):
     assert volume_cache.flush_cache is True
     assert volume_cache.volumes == [None, None]
     assert volume_cache.cache_volume == [False, False]
+    assert volume_cache.volume_index(1) == 1
+    assert volume_cache.get_num_channels() == 3
+
+    volume_cache.set_volume_mip(3)
+    assert volume_cache.mip == 3
 
 
 def test_volume_cache_to_dict(volume_cache):
@@ -206,3 +213,109 @@ def test_get_mip_volume_sizes_error(mock_cloud_volume):
         sizes = get_mip_volume_sizes("test_source_url")
 
         assert sizes == {}
+
+
+def test_cloud_volume_interface_from_dict(mock_cloud_volume):
+    cvi = CloudVolumeInterface.from_dict({"source_url": "test_source_url"})
+    assert cvi.source_url == "test_source_url"
+    assert cvi.available_mips == [0, 1, 2]
+    assert cvi.dtype == "uint8"
+
+
+def test_cloud_volume_channels(cloud_volume_interface):
+    assert cloud_volume_interface.num_channels == 3
+
+
+def test_volume_cache_remove_volume(volume_cache):
+    slice_index = 1
+    with patch.object(
+        volume_cache, "volume_index", return_value=1
+    ) as mock_volume_index:
+        volume_data, bounding_box = volume_cache.request_volume_for_slice(slice_index)
+
+        mock_volume_index.assert_called_once_with(slice_index)
+        assert volume_data == volume_cache.volumes[1]
+        volume_cache.remove_volume(1)
+        assert volume_cache.volumes[1] is None
+
+
+def test_boxes_dim_range(volume_cache):
+    import numpy as np
+
+    remaining = volume_cache.bounding_boxes.copy()
+
+    assert np.all(boxes_dim_range(remaining) == np.arange(10, 22, dtype=int))
+    assert np.all(boxes_dim_range([BoundingBox(BoundingBox.bounds_to_rect(0, 0, 0, 10, 10, 10))]) == np.array([10, 11], dtype=int))
+    assert np.all(boxes_dim_range(remaining, dim="x") == np.arange(0, 12, dtype=int))
+
+    with pytest.raises(ValueError) as ve:
+        boxes_dim_range(remaining, dim='q')
+        
+    assert np.all(boxes_dim_range([]) == np.array([], dtype=int))
+
+
+def test_update_writeable_boxes(volume_cache):
+    import numpy as np
+
+    remaining = volume_cache.bounding_boxes.copy()
+
+    writeable = np.empty(0, dtype=int)
+    writeable = update_writable_boxes(volume_cache, writeable, remaining, 0)
+
+    assert np.all(boxes_dim_range(remaining) == np.array([20, 21], dtype=int))
+    assert np.all(writeable == np.array([10, 11], dtype=int))
+
+
+def generate_chunked_rects(start, stop, step):
+    import numpy as np
+    return (np.array([BoundingBox.bounds_to_rect(start, stop, start, stop, z, z + 1)
+                     for z in range(start, stop)]),
+           np.array([BoundingBox.bounds_to_rect(x, x + step, y, y + step, z, z + step)
+                     for z in range(start, stop, step)
+                     for y in range(start, stop, step)
+                     for x in range(start, stop, step)]))
+
+
+def test_update_writeable_rects(volume_cache):
+    import numpy as np
+    chunk_size = 2
+    min_dim = 4
+    max_dim = 12
+    # This is not the right way to setup the rects but it works for testing.
+    full_rects, chunk_rects = generate_chunked_rects(min_dim, max_dim, chunk_size)
+
+    writeable = np.zeros(max_dim - min_dim, dtype=int)
+    processed = np.zeros(chunk_rects.shape, dtype=bool)
+
+    update_writable_rects(processed, full_rects, min_dim, writeable, chunk_size)
+
+    assert not np.any(writeable)
+
+    processed[0, 0, 1] = True
+
+    update_writable_rects(processed, full_rects, min_dim, writeable, chunk_size)
+
+    assert not np.any(writeable)
+
+    processed[0, :, :] = True
+    
+    update_writable_rects(processed, full_rects, min_dim, writeable, chunk_size)
+
+    assert np.all(writeable[0:2])
+    assert not np.any(writeable[2:])
+
+    writeable[0:2] = 2
+    processed[1, :, :] = True
+
+    update_writable_rects(processed, full_rects, min_dim, writeable, chunk_size)
+
+    assert np.all(writeable[0:4])
+    assert not np.any(writeable[4:])
+    assert np.all(writeable[0:2] == 2)
+    
+	# Properly handle all fields processed.
+    processed[:] = True
+    update_writable_rects(processed, full_rects, min_dim, writeable, chunk_size)
+
+    assert np.all(writeable)
+    assert np.all(writeable[0:2] == 2)

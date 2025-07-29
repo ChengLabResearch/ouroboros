@@ -3,6 +3,7 @@ from ouroboros.helpers.bounding_boxes import (
     BoundingBox,
     BoundingBoxParams,
     calculate_bounding_boxes_bsp_link_rects,
+    boxes_dim_range
 )
 from ouroboros.helpers.slice import calculate_slice_rects
 from ouroboros.helpers.spline import Spline
@@ -290,3 +291,25 @@ def test_calculate_bounding_boxes_bsp_link_rects_full_curve():
         assert y_max >= rect[:, 1].max()
         assert z_min <= rect[:, 2].min()
         assert z_max >= rect[:, 2].max()
+
+
+def test_boxes_dim_range():
+    rects = [np.array([[1, 1, 1], [1.5, 3.5, 1.5]]), np.array([[0, 1, 1], [4.5, 2.5, 3.5]])]
+    bboxes = [BoundingBox(rect) for rect in rects]
+
+    # Test default (z)
+    assert np.all(boxes_dim_range(bboxes) == np.arange(1, 5, dtype=int))
+
+    # Test parameter
+    assert np.all(boxes_dim_range(bboxes, 'x') == np.arange(0, 6, dtype=int))
+
+
+def test_shoud_be_divided():
+    rects = [np.array([[1, 1, 1], [1.5, 3.5, 1.5]]), np.array([[0, 1, 1], [4.5, 2.5, 3.5]])]
+    bboxes = [BoundingBox(rect) for rect in rects]
+
+    # Test where utilized volume is very small (<10%) and box should be divided.
+    assert bboxes[0].should_be_divided(1)
+
+    # Test where utilized volume is reasonable (>10^) and box should not be divided.
+    assert not bboxes[0].should_be_divided(10)

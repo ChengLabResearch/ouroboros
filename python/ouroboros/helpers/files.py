@@ -1,77 +1,16 @@
+from functools import partial
+from multiprocessing.pool import ThreadPool
 import os
-from pathlib import Path
-from tifffile import imread, TiffWriter, memmap
-from .memory_usage import calculate_gigabytes_from_dimensions
 import shutil
+from threading import Thread
 
 import numpy as np
+from numpy.typing import ArrayLike
+from pathlib import Path
+from tifffile import imread, TiffWriter, TiffFile
+import time
 
-
-def load_and_save_tiff_from_slices(
-    folder_name: str,
-    output_file_path: str,
-    delete_intermediate: bool = True,
-    compression: str = None,
-    metadata: dict = {},
-    resolution: tuple[int, int] = None,
-    resolutionunit: str = None,
-):
-    """
-    Load tiff files from a folder and save them to a new tiff file.
-
-    Parameters
-    ----------
-    folder_name : str
-        The folder containing the tiff files to load.
-    output_file_path : str
-        The path to save the resulting tiff file.
-    delete_intermediate : bool, optional
-        Whether to delete the intermediate tiff files after saving the resulting tiff file.
-        The default is True.
-    compression : str, optional
-        The compression to use for the resulting tiff file.
-        The default is None.
-    metadata : dict, optional
-        Metadata to save with the resulting tiff file.
-        The default is {}.
-    resolution : tuple[int, int], optional
-        The resolution of the resulting tiff file.
-        The default is None.
-    resolutionunit : str, optional
-        The resolution unit of the resulting tiff file.
-        The default is None.
-    """
-
-    # Load the saved tifs in numerical order
-    tif_files = get_sorted_tif_files(folder_name)
-
-    # Read in the first tif file to determine if the resulting tif should be a bigtiff
-    first_path = join_path(folder_name, tif_files[0])
-    first_tif = imread(first_path)
-    shape = (len(tif_files), *first_tif.shape)
-
-    bigtiff = calculate_gigabytes_from_dimensions(shape, first_tif.dtype) > 4
-
-    contiguous = compression is None
-
-    # Save tifs to a new resulting tif
-    with TiffWriter(output_file_path, bigtiff=bigtiff) as tif:
-        for filename in tif_files:
-            tif_path = join_path(folder_name, filename)
-            tif_file = imread(tif_path)
-            tif.write(
-                tif_file,
-                contiguous=contiguous,
-                compression=compression,
-                metadata=metadata,
-                resolution=resolution,
-                resolutionunit=resolutionunit,
-                software="ouroboros",
-            )
-
-    # Delete slices folder
-    if delete_intermediate:
-        shutil.rmtree(folder_name)
+from .shapes import DataShape
 
 
 def get_sorted_tif_files(directory: str) -> list[str]:
@@ -184,34 +123,100 @@ def num_digits_for_n_files(n: int) -> int:
     return len(str(n - 1))
 
 
-def write_memmap_with_create(file_path: os.PathLike, indicies: tuple[np.ndarray], data: np.ndarray,
-                             shape: tuple, dtype: type):
-    if file_path.exists():
-        try:
-            target_file = memmap(file_path)
-        except BaseException as be:
-            print(f"MM: {be} - {file_path} ")
-            import time
-            time.sleep(0.5)
-            target_file = memmap(file_path)
-    else:
-        if shape is None or dtype is None:
-            raise ValueError(f"Must have shape ({shape} given) and dtype ({dtype} given) when creating a memmap.")
-        target_file = memmap(file_path, shape=shape, dtype=dtype)
-        target_file[:] = 0
+def np_convert(dtype: np.dtype, source: ArrayLike, normalize=True):
+    if not normalize:
+        return source.astype(dtype)
+    if np.issubdtype(dtype, np.integer):
+        dtype_range = np.iinfo(dtype).max - np.iinfo(dtype).min
+        source_range = np.max(source) - np.min(source)
 
-    def ab(flags: np.ndarray[bool], index):
-        return tuple(dim[flags] for dim in index) if isinstance(index, tuple) else index[flags]
+        # Avoid divide by 0, esp. as numpy segfaults when you do.
+        if source_range == 0.0:
+            source_range = 1.0
 
-    if indicies is not None and data is not None:
-        exist = target_file[indicies] != 0
-        if np.any(exist):
-            target_file[ab(exist, indicies)] = np.mean([target_file[indicies][exist], data[exist]],
-                                                       axis=0, dtype=target_file.dtype)
-            target_file[ab(np.invert(exist), indicies)] = data[np.invert(exist)]
+        return (source * max(int(dtype_range / source_range), 1)).astype(dtype)
+    elif np.issubdtype(dtype, np.floating):
+        return source.astype(dtype)
+
+
+def generate_tiff_write(write_func: callable, compression: str | None, micron_resolution: np.ndarray[float],
+               backprojection_offset: np.ndarray, **kwargs):
+    # Volume cache resolution is in voxel size, but .tiff XY resolution is in voxels per unit, so we invert.
+    resolution = [1.0 / voxel_size for voxel_size in micron_resolution[:2] * 0.0001]
+    resolutionunit = "CENTIMETER"
+    # However, Z Resolution doesn't have an inbuilt property or strong convention, so going with this atm.
+    metadata = {
+        "spacing": micron_resolution[2],
+        "unit": "um"
+    }
+
+    if backprojection_offset is not None:
+        metadata["backprojection_offset_min_xyz"] = backprojection_offset
+
+    return partial(write_func,
+                   contiguous=compression is None or compression == "none",
+                   compression=compression,
+                   metadata=metadata,
+                   resolution=resolution,
+                   resolutionunit=resolutionunit,
+                   software="ouroboros",
+                   **kwargs)
+
+
+def write_small_intermediate(file_path: os.PathLike, *series):
+    with TiffWriter(file_path, append=True) as tif:
+        for entry in series:
+            tif.write(entry, dtype=entry.dtype)
+
+
+def ravel_map_2d(index, source_rows, target_rows, offset):
+    return np.add.reduce(np.add(np.divmod(index, source_rows), offset) * ((target_rows, ), (np.uint32(1), )))
+
+
+def load_z_intermediate(path: Path, offset: int = 0):
+    with TiffFile(path) as tif:
+        meta = tif.series[offset].asarray()
+        source_rows, target_rows, offset_rows, offset_columns = meta
+        return (ravel_map_2d(tif.series[offset + 1].asarray(),
+                             source_rows, target_rows,
+                             ((offset_rows, ), (offset_columns, ))),
+                tif.series[offset + 2].asarray(),
+                tif.series[offset + 3].asarray())
+
+
+def increment_volume(path: Path, vol: np.ndarray, offset: int = 0, cleanup=False):
+    indicies, values, weights = load_z_intermediate(path, offset)
+    np.add.at(vol[0], indicies, values)
+    np.add.at(vol[1], indicies, weights)
+
+    if cleanup:
+        path.unlink()
+
+
+def volume_from_intermediates(path: Path, shape: DataShape, thread_count: int = 4):
+    vol = np.zeros((2, np.prod((shape.Y, shape.X))), dtype=np.float32)
+    with ThreadPool(thread_count) as pool:
+        if not path.exists():
+            # We don't have any intermediate(s) for this value, so return empty.
+            return vol[0]
+        elif path.is_dir():
+            pool.starmap(increment_volume, [(i, vol, 0, False) for i in path.glob("**/*.tif*")])
         else:
-            target_file[indicies] = data
-    elif indicies is not None or data is not None:
-        raise ValueError(f"Could not write data as indicies (None? {indicies is None})"
-                         f"or data (None? {data is None}) were missing.")
-    del target_file
+            with TiffFile(path) as tif:
+                offset_set = range(0, len(tif.series), 4)
+            pool.starmap(increment_volume, [(path, vol, i, False) for i in offset_set])
+
+    nz = np.flatnonzero(vol[0])
+    vol[0, nz] /= vol[1, nz]
+    return vol[0]
+
+
+def write_conv_vol(writer: callable, source_path, shape, dtype, *args, **kwargs):
+    perf = {}
+    start = time.perf_counter()
+    vol = volume_from_intermediates(source_path, shape)
+    perf["Merge Volume"] = time.perf_counter() - start
+    start = time.perf_counter()
+    writer(*args, data=np_convert(dtype, vol.reshape(shape.Y, shape.X), False), **kwargs)
+    perf["Write Merged"] = time.perf_counter() - start
+    return perf

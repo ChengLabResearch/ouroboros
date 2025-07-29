@@ -1,6 +1,6 @@
 from ouroboros.helpers.slice import (
     coordinate_grid,
-    slice_volume_from_grids,
+    slice_volume_from_grids
 )
 from ouroboros.helpers.volume_cache import VolumeCache
 from ouroboros.helpers.files import (

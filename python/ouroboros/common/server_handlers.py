@@ -146,7 +146,7 @@ def handle_backproject_docker(task: BackProjectTask):
     backproject_result = handle_backproject_core(task, options, slice_options)
 
     if isinstance(backproject_result, str):
-        task.error = backproject_result
+        task.error = f"Error during backprojection:\n{backproject_result}"
         task.status = "error"
         clear_plugin_folder()
         return
@@ -166,7 +166,7 @@ def handle_backproject_docker(task: BackProjectTask):
     )
 
     if save_result:
-        task.error = save_result
+        task.error = f"Error Saving from Docker:\n{save_result}"
         task.status = "error"
         clear_plugin_folder()
 

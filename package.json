@@ -1,7 +1,7 @@
 {
 	"name": "ouroboros",
 	"productName": "Ouroboros",
-	"version": "1.1.2",
+	"version": "1.2.0",
 	"description": "Quickly extract ROIs from cloud-hosted medical scans.",
 	"main": "./out/main/index.js",
 	"author": "Weaver Goldman <we.goldm@gmail.com>",

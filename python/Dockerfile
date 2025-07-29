@@ -1,4 +1,4 @@
-FROM thehale/python-poetry:1.8.3-py3.10-slim AS builder
+FROM thehale/python-poetry:2.1.3-py3.11-slim AS builder
 
 ENV POETRY_NO_INTERACTION=1 \
     POETRY_VIRTUALENVS_IN_PROJECT=1 \

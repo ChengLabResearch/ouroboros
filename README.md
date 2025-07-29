@@ -101,23 +101,23 @@ This may take up to a minute the first time, but after that, it will be almost i
 
 ### 1. Install Python
 
-Due to some Python dependencies, it is highly recommended that the default Python installation for the system is `3.10`.
+Due to some Python dependencies, it is highly recommended that the default Python installation for the system is `3.11`.
 
 **Easy Installation**
 
-Download and install Python `3.10` from their website: https://www.python.org/downloads/.
+Download and install Python `3.11` from their website: https://www.python.org/downloads/.
 
 **Advanced Installation**
 
-If you use [pyenv](https://github.com/pyenv/pyenv) or a similar Python version manager, install `3.10` and set it to be the global default.
+If you use [pyenv](https://github.com/pyenv/pyenv) or a similar Python version manager, install `3.11` and set it to be the global default.
 
-If you don't make it the global version, you'll need to use `poetry env use 3.10` later to set the Python version before running `poetry install`. 
+If you don't make it the global version, you'll need to use `poetry env use 3.11` later to set the Python version before running `poetry install`. 
 
 _Example:_
 
 ```
-pyenv install 3.10
-pyenv global 3.10
+pyenv install 3.11
+pyenv global 3.11
 ```
 
 I recommend following the instructions below first if you want to be able to compile the Python server using PyInstaller:

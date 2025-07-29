@@ -55,10 +55,12 @@ A large amount of helpful data is saved in `*-configuration.json` file after the
 
 Backprojection iterates through 3D chunks of the straightened volume, as follows following order:
 
-1. The slices are loaded from a memmory map of the straightened volume.
+1. The chunks are loaded from a memory map of the straightened volume.
 2. A custom rapid trilinear interpolation implementation is used to map the slice data into a sparse representation of the backprojected volume, limited to a bounding box containing only points associated with the chunk.  
-3. As slices are completed, they are written to an uncompressed memory map of the final volume.
-4. Once all slices are completed, the final volume is compressed as either a single image or tiff stack. 
+   1. These sparse representations are written to disk intermediates, with individual files for each slice of the backprojected volume they are associated with.
+3. As chunks are completed, it evaluates which slices of the backprojected volume can be fully written by completed chunks.
+   1. The data for these slices are loaded from the intermediates, then written to disk in the target folder as they are completed.
+4. Once all slices are completed, they are converted to a single file if this configuration option is enabled.
 
 **Why Is Interpolation Needed?**
 

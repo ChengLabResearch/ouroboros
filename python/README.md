@@ -30,9 +30,7 @@ The usage is very similar to the cli, so to try it out, I recommend going to the
 
 ### Development
 
-_Note: As of 6/19/24, cloud-volume works best in python 3.10, so it is highly advised to use it. There are some aids in the pyproject.toml file. I recommend using pyenv to manage your version, and the easiest way is to use `pyenv global python-version`_
-
-It is highly recommended that if you work on the codebase for the Ouroboros Python package, you open its folder separately from the main repository. Otherwise, Poetry may be confused by the working directory.
+Poetry must be run from the python/ directory, rather than repository root, or it will not be able to identify the pyproject.toml.  You may open the python folder separately or just make sure you always switch directories in the CLI.
 
 [Poetry](https://python-poetry.org/) is the virtual environment and dependency manager for this project.
 
@@ -58,6 +56,8 @@ poetry config virtualenvs.in-project true
 ```
 
 The virtualenv will be created inside the project path and vscode will recognize. Consider adding this to your .bashrc or .zshrc.
+
+Note: If you install poetry via conda, this will likely not have any effect and poetry will ouroboros into the conda environment. 
 
 If you already have created your project, you need to re-create the virtualenv to make it appear in the correct place:
 

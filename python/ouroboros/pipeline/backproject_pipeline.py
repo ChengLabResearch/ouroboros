@@ -225,7 +225,7 @@ class BackprojectPipelineStep(PipelineStep):
 
         if config.make_single_file:
             pipeline_input.output_file_path += ".tif"
-            writer = tif_write(tifffile.TiffWriter(folder_path.with_suffix(".tiff"), bigtiff=is_big_tiff).write)
+            writer = tif_write(tifffile.TiffWriter(folder_path.with_suffix(".tif"), bigtiff=is_big_tiff).write)
             for fname in get_sorted_tif_files(folder_path):
                 writer(tifffile.imread(folder_path.joinpath(fname)))
 

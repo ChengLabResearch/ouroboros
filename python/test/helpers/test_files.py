@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 import numpy as np
-from tifffile import imwrite, TiffFile
 
 from ouroboros.helpers.files import (
     format_backproject_output_file,
@@ -169,14 +168,6 @@ def test_num_digits_for_n_files():
     assert result == 2
 
 
-def test_np_convert():
-    float_data = np.linspace(0, 1, 16)
-    int_data = np_convert(np.uint16, float_data)
-
-    assert np.all(int_data == np.arange(0, np.iinfo(np.uint16).max + 1, np.iinfo(np.uint16).max // 15))
-    assert np.all(np_convert(np.float32, int_data) == int_data.astype(np.float32))
-
-
 def test_generate_tiff_write(tmp_path):
     micron_resolution = np.array([0.7, 0.7, 0.7])
     backprojection_offset = (55, 44, 77)
@@ -284,8 +275,50 @@ def test_increment_volume(tmp_path):
     assert np.allclose(volume[1, mapped_source[0]], np.sum(source_weights[[0, 2]]))
     assert np.all(np.nonzero(volume)[0] == np.array([0, 0, 1, 1]))
     assert np.all(np.nonzero(volume)[1] == np.array([3947, 3952, 3947, 3952]))
-    
+
     assert not sample_path.exists()
+
+
+def test_np_convert_from_int():
+    base = np.random.randint(0, 10, 6400).reshape(80, 80)
+
+    # Direct Conversion
+    assert np.all(np_convert(np.float32, base, normalize=False) == base.astype(np.float32))
+
+    # Normalized Conversion
+    assert np.all(np_convert(np.float32, base) == base.astype(np.float32) / (np.max(base) - np.min(base)))
+
+    # Safe Bool
+    safe_bool = np_convert(bool, base, safe_bool=True)
+    assert safe_bool.dtype == np.uint8
+    assert np.all(safe_bool == (base > 0))
+
+    # Unsafe Bool - Raw bool datatype
+    safe_bool = np_convert(bool, base, safe_bool=False)
+    assert safe_bool.dtype == bool
+    assert np.all(safe_bool == (base > 0))
+
+
+def test_np_convert_from_float():
+    base = np.random.randint(0, 16, 6400).reshape(80, 80) * np.random.rand(80, 80)
+    float_data = np.linspace(0, 1, 16)
+
+    # Direct Conversion
+    assert np.all(np_convert(np.uint16, float_data, normalize=False) == [0] * 15 + [1])
+
+    # Normalized Conversion
+    assert np.all(np_convert(np.uint16, float_data) ==
+                  np.arange(0, np.iinfo(np.uint16).max + 1, np.iinfo(np.uint16).max // 15))
+
+    # Safe Bool
+    safe_bool = np_convert(bool, base, safe_bool=True)
+    assert safe_bool.dtype == np.uint8
+    assert np.all(safe_bool == (base > 0))
+
+    # Unsafe Bool - Raw bool datatype
+    safe_bool = np_convert(bool, base, safe_bool=False)
+    assert safe_bool.dtype == bool
+    assert np.all(safe_bool == (base > 0))
 
 
 def test_volume_from_intermediates():

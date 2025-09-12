@@ -274,8 +274,8 @@ class BackprojectPipelineStep(PipelineStep):
         pipeline_input.backprojected_folder_path = folder_path
 
         self.add_timing("export", time.perf_counter() - start)
-        
-        if config.make_single_file:        
+
+        if config.make_single_file:
             shutil.rmtree(folder_path)
 
         return None

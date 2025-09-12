@@ -201,18 +201,26 @@ def backproject_box(bounding_box: BoundingBox, slice_rects: np.ndarray, slices: 
         # No slices, just return
         return np.empty((0), dtype=np.uint32), np.empty(0, dtype=np.float32), np.empty(0, dtype=np.float32)
 
+    # Plot the backprojected X/Y/Z coordinates for each of the slice rects in this chunk.
+    grid_call = partial(coordinate_grid, shape=slices[0].shape, floor=bounding_box.get_min(), flip=True)
+    precise_points = np.concatenate(list(map(grid_call, slice_rects)))
+
+    # Flatten values to 1-Dimension Array for Efficient Allocation.
+    # Use ZYX domain rather than XYZ as the former is what is written to disk.
     values = slices.flatten()
     zyx_shape = np.flip(bounding_box.get_shape())
     flat_shape = np.prod(zyx_shape)
 
-    grid_call = partial(coordinate_grid, shape=slices[0].shape, floor=bounding_box.get_min(), flip=True)
-    precise_points = np.concatenate(list(map(grid_call, slice_rects)))
-
-    volume = np.zeros((2, flat_shape), dtype=np.float32)
+    # Determine minimum dtype for index of flattened shape.
     squish_type = np.min_scalar_type(flat_shape)
 
+    # Allocate the flattened data volume.
+    volume = np.zeros((2, flat_shape), dtype=np.float32)
+
+    # Get the top corner (integer) points and full weight matrix.
     points, weights = _points_and_weights(precise_points.reshape(-1, 3).T, zyx_shape, squish_type)
 
+    # Sequentially allocate the points and weights for each corner to the flattened array.
     for corner in np.array(list(np.ndindex(2, 2, 2))):
         w_values, c_weights = _apply_weights(values, weights, corner)
         point_inc = np.ravel_multi_index(corner, zyx_shape).astype(squish_type)
@@ -220,8 +228,10 @@ def backproject_box(bounding_box: BoundingBox, slice_rects: np.ndarray, slices: 
         np.add.at(volume[0], points + point_inc, w_values)
         np.add.at(volume[1], points + point_inc, c_weights)
 
+    # Get indicies of the flattened Z-Y-X backprojected domain that have values.
     nz_vol = np.flatnonzero(volume[0])
 
+    # Return indicies and only the volume region with values.
     return nz_vol, volume[0, nz_vol].squeeze(), volume[1, nz_vol].squeeze()
 
 

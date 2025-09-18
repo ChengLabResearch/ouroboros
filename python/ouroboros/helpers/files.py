@@ -1,13 +1,11 @@
 from functools import partial
 from multiprocessing.pool import ThreadPool
 import os
-import shutil
-from threading import Thread
 
 import numpy as np
 from numpy.typing import ArrayLike
 from pathlib import Path
-from tifffile import imread, TiffWriter, TiffFile
+from tifffile import TiffWriter, TiffFile
 import time
 
 from .shapes import DataShape
@@ -123,24 +121,33 @@ def num_digits_for_n_files(n: int) -> int:
     return len(str(n - 1))
 
 
-def np_convert(dtype: np.dtype, source: ArrayLike, normalize=True):
-    if not normalize:
-        return source.astype(dtype)
-    if np.issubdtype(dtype, np.integer):
-        dtype_range = np.iinfo(dtype).max - np.iinfo(dtype).min
+def np_convert(target_dtype: np.dtype, source: ArrayLike, normalize=True, safe_bool=False):
+    """ TODO: Fix for Negative Values """
+    if safe_bool and target_dtype == bool:
+        return source.astype(target_dtype).astype(np.uint8)
+    elif np.issubdtype(target_dtype, np.integer) and normalize:
+        dtype_range = np.iinfo(target_dtype).max - np.iinfo(target_dtype).min
         source_range = np.max(source) - np.min(source)
 
         # Avoid divide by 0, esp. as numpy segfaults when you do.
         if source_range == 0.0:
             source_range = 1.0
 
-        return (source * max(int(dtype_range / source_range), 1)).astype(dtype)
-    elif np.issubdtype(dtype, np.floating):
-        return source.astype(dtype)
+        return (source * max(int(dtype_range / source_range), 1)).astype(target_dtype)
+    elif np.issubdtype(target_dtype, np.floating) and normalize:
+        source_range = np.max(source) - np.min(source)
+
+        # Avoid divide by 0, esp. as numpy segfaults when you do.
+        if source_range == 0.0:
+            source_range = 1.0
+
+        return (source / source_range).astype(target_dtype)
+    else:
+        return source.astype(target_dtype)
 
 
 def generate_tiff_write(write_func: callable, compression: str | None, micron_resolution: np.ndarray[float],
-               backprojection_offset: np.ndarray, **kwargs):
+                        backprojection_offset: np.ndarray, **kwargs):
     # Volume cache resolution is in voxel size, but .tiff XY resolution is in voxels per unit, so we invert.
     resolution = [1.0 / voxel_size for voxel_size in micron_resolution[:2] * 0.0001]
     resolutionunit = "CENTIMETER"
@@ -217,6 +224,6 @@ def write_conv_vol(writer: callable, source_path, shape, dtype, *args, **kwargs)
     vol = volume_from_intermediates(source_path, shape)
     perf["Merge Volume"] = time.perf_counter() - start
     start = time.perf_counter()
-    writer(*args, data=np_convert(dtype, vol.reshape(shape.Y, shape.X), False), **kwargs)
+    writer(*args, data=np_convert(dtype, vol.reshape(shape.Y, shape.X), normalize=False, safe_bool=True), **kwargs)
     perf["Write Merged"] = time.perf_counter() - start
     return perf

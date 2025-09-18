@@ -127,7 +127,8 @@ class BackprojectPipelineStep(PipelineStep):
         print(f"\nFront Projection Shape: {FPShape}")
         print(f"\nBack Projection Shape (Z/Y/X):{write_shape}")
 
-        pipeline_input.output_file_path = f"{config.output_file_name}_{'_'.join(map(str, full_bounding_box.get_min(np.uint32)))}"
+        pipeline_input.output_file_path = (f"{config.output_file_name}_"
+                                           f"{'_'.join(map(str, full_bounding_box.get_min(np.uint32)))}")
         folder_path = Path(config.output_file_folder, pipeline_input.output_file_path)
         folder_path.mkdir(exist_ok=True, parents=True)
 
@@ -135,10 +136,16 @@ class BackprojectPipelineStep(PipelineStep):
                       f"{config.output_file_name}_t_{'_'.join(map(str, full_bounding_box.get_min(np.uint32)))}")
 
         if config.make_single_file:
-            is_big_tiff = calculate_gigabytes_from_dimensions(np.prod(write_shape), np.uint16) > 4     # Check Dtype
+            is_big_tiff = calculate_gigabytes_from_dimensions(
+                            np.prod(write_shape),
+                            np.uint8 if config.make_backprojection_binary else np.uint16) > 4
         else:
-            is_big_tiff = calculate_gigabytes_from_dimensions(np.prod(write_shape[1:]), np.uint16) > 4     # Check Dtype
+            is_big_tiff = calculate_gigabytes_from_dimensions(
+                            np.prod(write_shape[1:]),
+                            np.uint8 if config.make_backprojection_binary else np.uint16) > 4
 
+        # Generate image writing function
+        # Combining compression with binary images can cause issues.
         bp_offset = pipeline_input.backprojection_offset if config.backproject_min_bounding_box else None
         tif_write = partial(generate_tiff_write,
                             compression=config.backprojection_compression,
@@ -205,7 +212,9 @@ class BackprojectPipelineStep(PipelineStep):
                             write_futures.append(write_executor.submit(
                                 write_conv_vol,
                                 tif_write(tifffile.imwrite), i_path.joinpath(f"i_{index:05}"),
-                                ImgSlice(*write_shape[1:]), np.uint16, folder_path.joinpath(f"{index:05}.tif")
+                                ImgSlice(*write_shape[1:]),
+                                bool if config.make_backprojection_binary else np.uint16,
+                                folder_path.joinpath(f"{index:05}.tif")
                             ))
                             write_futures[-1].add_done_callback(note_written)
 
@@ -265,8 +274,8 @@ class BackprojectPipelineStep(PipelineStep):
         pipeline_input.backprojected_folder_path = folder_path
 
         self.add_timing("export", time.perf_counter() - start)
-        
-        if config.make_single_file:        
+
+        if config.make_single_file:
             shutil.rmtree(folder_path)
 
         return None
@@ -285,8 +294,13 @@ def process_chunk(
     start_total = time.perf_counter()
 
     # Load the straightened volume
-    straightened_volume = tifffile.memmap(straightened_volume_path, mode="r")
-    durations["memmap"] = [time.perf_counter() - start_total]
+    try:
+        straightened_volume = tifffile.memmap(straightened_volume_path, mode="r")
+        durations["memmap"] = [time.perf_counter() - start_total]
+    except BaseException as be:
+        print(f"Error loading Volume: {be} : {straightened_volume_path}")
+        traceback.print_tb(be.__traceback__, file=sys.stderr)
+        raise be
 
     # Get the slices from the straightened volume  Dumb but maybe bugfix?
     start = time.perf_counter()

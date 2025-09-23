@@ -1,3 +1,6 @@
+import sys
+import traceback
+
 from ouroboros.helpers.slice import (
     coordinate_grid,
     slice_volume_from_grids
@@ -11,6 +14,7 @@ from ouroboros.helpers.files import (
     num_digits_for_n_files,
 )
 from .pipeline import PipelineStep
+from ouroboros.helpers.mem import SharedNPArray
 from ouroboros.helpers.options import SliceOptions
 import numpy as np
 import concurrent.futures
@@ -178,6 +182,7 @@ class SliceParallelPipelineStep(PipelineStep):
                                     if config.make_single_file
                                     else None
                                 ),
+                                shared=volume_cache.use_shared
                             )
                         )
 
@@ -198,6 +203,7 @@ class SliceParallelPipelineStep(PipelineStep):
                     except BaseException as e:
                         download_executor.shutdown(wait=False, cancel_futures=True)
                         process_executor.shutdown(wait=False, cancel_futures=True)
+                        traceback.print_tb(e.__traceback__, file=sys.stderr)
                         return f"Error processing data: {e}"
 
                 # Track the number of completed futures
@@ -205,7 +211,9 @@ class SliceParallelPipelineStep(PipelineStep):
                 total_futures = len(processing_futures)
 
                 for future in concurrent.futures.as_completed(processing_futures):
-                    _, durations = future.result()
+                    volume_index, durations = future.result()
+                    if volume_cache.use_shared:
+                        volume_cache.remove_volume(volume_index, destroy_shared=True)
                     for key, value in durations.items():
                         self.add_timing_list(key, value)
 
@@ -215,6 +223,7 @@ class SliceParallelPipelineStep(PipelineStep):
                         max(completed / total_futures, self.get_progress())
                     )
         except BaseException as e:
+            traceback.print_tb(e.__traceback__, file=sys.stderr)
             return f"Error downloading data: {e}"
 
         # Update the pipeline input with the output file path
@@ -240,13 +249,18 @@ def thread_worker_iterative(
 def process_worker_save_parallel(
     config: SliceOptions,
     folder_name: str,
-    processing_data: tuple[np.ndarray, np.ndarray, np.ndarray, int],
+    processing_data: tuple[np.ndarray | SharedNPArray, np.ndarray, np.ndarray, int],
     slice_rects: np.ndarray,
     num_threads: int,
     num_digits: int,
     single_output_path: str = None,
+    shared: bool = False
 ) -> tuple[int, dict[str, list[float]]]:
     volume, bounding_box, slice_indices, volume_index = processing_data
+    if shared:
+        volume_data = volume.array()
+    else:
+        volume_data = volume
 
     durations = {
         "generate_grid": [],
@@ -272,7 +286,7 @@ def process_worker_save_parallel(
     # Slice the volume using the grids
     start = time.perf_counter()
     slices = slice_volume_from_grids(
-        volume, bounding_box, grids, config.slice_width, config.slice_height
+        volume_data, bounding_box, grids, config.slice_width, config.slice_height
     )
     durations["slice_volume"].append(time.perf_counter() - start)
 

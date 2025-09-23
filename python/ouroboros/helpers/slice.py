@@ -309,9 +309,11 @@ class BackProjectIter(TFIter):
         self.__step = dr.step
 
     def __call__(self, pos) -> tuple:
+        # D/V/U (Z/Y/X in straightend volume) position.
         pos_step = {field: np.s_[pos[index]: min(pos[index] + self.__step_v[field], self.__shape[field])]
                     for field, index in self.__step_f.items()}
 
+        # D/V/U Dimensions (Z/Y/X in the staightened volume.)
         start = FrontProjStack(D=pos_step["D"].start if "D" in pos_step else 0,
                                V=pos_step["V"].start if "V" in pos_step else 0,
                                U=pos_step["U"].start if "U" in pos_step else 0)
@@ -320,8 +322,10 @@ class BackProjectIter(TFIter):
                               U=pos_step["U"].stop if "U" in pos_step else self.shape.U)
         shape = FrontProjStack(D=stop.D - start.D, V=stop.V - start.V, U=stop.U - start.U)
 
+        # Slice index for chunk in the straightened volume.
         chunk = tuple([np.s_[:] if key not in self.__step_f else pos_step[key] for key in self.__shape])
 
+        # Slice rects for the chunk
         chunk_rects = (np.array(
                         [self.__u_gap[chunk[0]] * start.U + self.__v_gap[chunk[0]] * start.V,
                          self.__u_gap[chunk[0]] * (stop.U - 1) + self.__v_gap[chunk[0]] * start.V,
@@ -329,7 +333,10 @@ class BackProjectIter(TFIter):
                          self.__u_gap[chunk[0]] * start.U + self.__v_gap[chunk[0]] * (stop.V - 1)])
                        + self.__top_r[chunk[0]]).transpose(1, 0, 2)
 
+        # Bounding box for the specific chunk
         bbox = BoundingBox.from_rects(chunk_rects)
+
+        # N-dimension index of this chunk in the straightened volume.
         index = astuple(type(self.__step)(*pos) // self.__step)
 
         return chunk, shape, chunk_rects, bbox, index

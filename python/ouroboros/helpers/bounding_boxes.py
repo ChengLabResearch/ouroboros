@@ -198,9 +198,9 @@ class BoundingBox:
 
         return self.approx_bounds_memo
 
-    def get_shape(self) -> tuple:
+    def get_shape(self, tight=False) -> tuple:
         x_min, x_max, y_min, y_max, z_min, z_max = self.approx_bounds()
-        return (x_max - x_min + 1, y_max - y_min + 1, z_max - z_min + 1)
+        return (x_max - x_min + 1 - tight * 2, y_max - y_min + 1 - tight * 2, z_max - z_min + 1 - tight * 2)
 
     def intersects(self, other) -> bool:
         x_min, x_max, y_min, y_max, z_min, z_max = self.approx_bounds()

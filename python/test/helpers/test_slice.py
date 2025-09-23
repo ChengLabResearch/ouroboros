@@ -1,10 +1,7 @@
-from dataclasses import astuple
 from functools import partial
-from pathlib import Path
 import pytest
 
 import numpy as np
-import tifffile as tf
 
 from ouroboros.helpers.bounding_boxes import BoundingBox
 from ouroboros.helpers.slice import (
@@ -17,7 +14,6 @@ from ouroboros.helpers.slice import (
     FrontProjStack,
     BackProjectIter
 )
-from ouroboros.helpers.shapes import ImageStack
 from ouroboros.helpers.spline import Spline
 from test.sample_data import generate_sample_curve_helix
 
@@ -301,14 +297,14 @@ def test_backproject_values():
 
     # Total weighted values assigned should be the same as sum of the slices.
     assert np.allclose([np.sum(box_totals)], [np.sum(slices)])
-    
-	# Total weights should be same as the # of points (1.0 per point)
+
+    # Total weights should be same as the # of points (1.0 per point)
     assert int(np.round(np.sum(box_weights))) == np.prod(slices.shape)
 
     # Bounds should be the shape of the box.
     # Would crash if beyond these bounds.
-    box_points = np.flip(np.unravel_index(box_lookup, (zyx_shape)))
-    
+    _ = np.flip(np.unravel_index(box_lookup, (zyx_shape)))
+
 
 def test_backproject_iter_2D():
     FPStackRange = FrontProjStack.drange((0, 0, 0), (3, 4, 3), (2, 2, 2))

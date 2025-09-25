@@ -96,7 +96,18 @@ class BackprojectPipelineStep(PipelineStep):
                 is_compressed = bool(tif.pages[0].compression)
                 FPShape = FrontProjStack(D=len(tif.pages), V=tif.pages[0].shape[0], U=tif.pages[0].shape[1])
 
-        if is_compressed:
+        cannot_memmap = False
+        try:
+            if Path(straightened_volume_path).is_dir():
+                _ = tifffile.memmap(next(Path(straightened_volume_path).iterdir()), mode="r")
+            else:
+                _ = tifffile.memmap(straightened_volume_path, mode="r")
+        except:     # noqa: E722
+            # Check here is because memmap needs certain types of dataoffsets, which aren't always there
+            # separate to compression.
+            cannot_memmap = True
+
+        if is_compressed or cannot_memmap:
             print("Input data compressed; Rewriting.")
 
             # Create a new path for the straightened volume

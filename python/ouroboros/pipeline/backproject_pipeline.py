@@ -98,10 +98,13 @@ class BackprojectPipelineStep(PipelineStep):
 
         cannot_memmap = False
         try:
-            _ = tifffile.memmap(straightened_volume_path, mode="r")
+            if Path(straightened_volume_path).is_dir():
+                _ = tifffile.memmap(next(Path(straightened_volume_path).iterdir()), mode="r")
+            else:
+                _ = tifffile.memmap(straightened_volume_path, mode="r")
         except:     # noqa: E722
             # Check here is because memmap needs certain types of dataoffsets, which aren't always there
-			# separate to compression.
+            # separate to compression.
             cannot_memmap = True
 
         if is_compressed or cannot_memmap:

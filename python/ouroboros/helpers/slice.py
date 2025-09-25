@@ -139,43 +139,30 @@ def slice_volume_from_grids(
     -------
         numpy.ndarray: The slice of the volume as a 2D array.
     """
-
-    # Normalize grid coordinates based on bounding box (since volume coordinates are truncated)
-    bounding_box_min = np.array(
-        [bounding_box.x_min, bounding_box.y_min, bounding_box.z_min]
-    )
-
-    # Subtract the bounding box min from the grids (n, width, height, 3)
-    normalized_grid = grids - bounding_box_min
-
     # Reshape the grids to be (3, n * width * height)
-    normalized_grid = normalized_grid.reshape(-1, 3).T
+    normalized_grid = grids.reshape(-1, 3).T
 
     # Check if volume has color channels
     has_color_channels, num_channels = detect_color_channels(volume)
+    target_shape = (len(grids), height, width)
 
     if has_color_channels:
-        # Initialize an empty list to store slices from each channel
-        channel_slices = []
+        # Initialize an empty array to store slices from each channel
+        channel_slices = np.empty(target_shape + (num_channels, ))
 
         # Iterate over each color channel
         for channel in range(num_channels):
             # Extract the current channel
-            current_channel = volume[..., channel]
+            cur_channel = np.s_[..., channel]
 
             # Map the grid coordinates to the current channel volume
-            slice_points = map_coordinates(current_channel, normalized_grid)
+            channel_slices[cur_channel] = map_coordinates(volume[cur_channel], normalized_grid).reshape(target_shape)
 
-            # Reshape and store the result
-            channel_slices.append(slice_points.reshape(len(grids), height, width))
-
-        # Stack the channel slices along the last axis to form the final output
-        return np.stack(channel_slices, axis=-1)
-
+        return channel_slices
     else:
         # If no color channels, process as before
         slice_points = map_coordinates(volume, normalized_grid)
-        return slice_points.reshape(len(grids), height, width)
+        return slice_points.reshape(target_shape)
 
 
 def _apply_weights(values, weights, corner):

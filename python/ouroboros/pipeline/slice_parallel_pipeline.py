@@ -1,4 +1,6 @@
+from functools import partial
 import sys
+import threading
 import traceback
 
 from ouroboros.helpers.slice import (
@@ -22,8 +24,6 @@ from tifffile import imwrite, memmap
 import os
 import multiprocessing
 import time
-from multiprocessing import Queue
-from typing import Iterable
 
 
 class SliceParallelPipelineStep(PipelineStep):
@@ -124,93 +124,44 @@ class SliceParallelPipelineStep(PipelineStep):
         # Calculate the number of digits needed to store the number of slices
         num_digits = num_digits_for_n_files(len(slice_rects))
 
-        # Create a queue to hold downloaded data for processing
-        data_queue = multiprocessing.Queue()
+        # Processing completion marker.
+        all_work_done = threading.Event()
 
         # Start the download volumes process and process downloaded volumes as they become available in the queue
         try:
             with concurrent.futures.ThreadPoolExecutor(
-                max_workers=self.num_threads
+                max_workers=max(self.num_threads, 4)
             ) as download_executor, concurrent.futures.ProcessPoolExecutor(
                 max_workers=self.num_processes
             ) as process_executor:
                 download_futures = []
+                process_futures = []
 
-                ranges = np.array_split(
-                    np.arange(len(volume_cache.volumes)), self.num_threads
-                )
+                vol_range = list(reversed(range(len(volume_cache.volumes))))
 
-                # Download all volumes in parallel
-                for volumes_range in ranges:
-                    download_futures.append(
-                        download_executor.submit(
-                            thread_worker_iterative,
-                            volume_cache,
-                            volumes_range,
-                            data_queue,
-                            self.num_threads == 1,
-                        )
-                    )
-
-                processing_futures = []
-
-                # Check if all downloads are done
-                def downloads_done():
-                    return all([future.done() for future in download_futures])
-
-                # Process downloaded data as it becomes available
-                while True:
-                    try:
-                        data = data_queue.get(timeout=1)
-
-                        # Process the data in a separate process
-                        # Note: If the maximum number of processes is reached, this will enqueue the arguments
-                        # and wait for a process to become available
-                        # TODO: Avoid passing in all of slice rects, rather pass in either a smaller version
-                        # or use shared memory
-                        processing_futures.append(
-                            process_executor.submit(
+                # Process the data in a separate process
+                # Note: If the maximum number of processes is reached, this will enqueue the arguments
+                # and wait for a process to become available
+                partial_slice_executor = partial(
                                 process_worker_save_parallel,
-                                config,
-                                folder_name,
-                                data,
-                                slice_rects,
-                                self.num_threads,
-                                num_digits,
-                                single_output_path=(
-                                    output_file_path
-                                    if config.make_single_file
-                                    else None
-                                ),
-                                shared=volume_cache.use_shared
-                            )
-                        )
+                                config=config,
+                                folder_name=folder_name,
+                                slice_rects=slice_rects,
+                                num_threads=self.num_threads,
+                                num_digits=num_digits,
+                                single_output_path=output_file_path if config.make_single_file else None,
+                                shared=volume_cache.use_shared)
 
-                        # Update progress
-                        self.update_progress(
-                            len(
-                                [
-                                    future
-                                    for future in processing_futures
-                                    if future.done()
-                                ]
-                            )
-                            / len(volume_cache.volumes)
-                        )
-                    except multiprocessing.queues.Empty:
-                        if downloads_done() and data_queue.empty():
-                            break
-                    except BaseException as e:
-                        download_executor.shutdown(wait=False, cancel_futures=True)
-                        process_executor.shutdown(wait=False, cancel_futures=True)
-                        traceback.print_tb(e.__traceback__, file=sys.stderr)
-                        return f"Error processing data: {e}"
+                partial_dl_executor = partial(dl_worker,
+                                              volume_cache=volume_cache,
+                                              parallel_fetch=(self.num_threads == 1))
 
-                # Track the number of completed futures
-                completed = 0
-                total_futures = len(processing_futures)
+                def dl_completed(future):
+                    process_futures.append(process_executor.submit(partial_slice_executor,
+                                                                   processing_data=future.result()))
+                    process_futures[-1].add_done_callback(processor_completed)
 
-                for future in concurrent.futures.as_completed(processing_futures):
+                def processor_completed(future):
                     volume_index, durations = future.result()
                     if volume_cache.use_shared:
                         volume_cache.remove_volume(volume_index, destroy_shared=True)
@@ -218,10 +169,24 @@ class SliceParallelPipelineStep(PipelineStep):
                         self.add_timing_list(key, value)
 
                     # Update the progress bar
-                    completed += 1
+                    # 1/3 DL, 2/3 Process
                     self.update_progress(
-                        max(completed / total_futures, self.get_progress())
+                        np.sum([future.done() for future in download_futures]) / (len(volume_cache.volumes) * 3) +
+                        np.sum([future.done() for future in process_futures]) / (len(volume_cache.volumes) * 3 / 2)
                     )
+                    if len(vol_range) > 0:
+                        download_futures.append(download_executor.submit(partial_dl_executor, volume=vol_range.pop()))
+                        download_futures[-1].add_done_callback(dl_completed)
+                    if self.progress >= 1.0:
+                        all_work_done.set()
+
+                # Download all volumes in parallel, and add the callback to process them as they finish.
+                for _ in range(np.min([self.num_processes + 4, len(vol_range)])):
+                    download_futures.append(download_executor.submit(partial_dl_executor, volume=vol_range.pop()))
+                    download_futures[-1].add_done_callback(dl_completed)
+
+                all_work_done.wait()
+
         except BaseException as e:
             traceback.print_tb(e.__traceback__, file=sys.stderr)
             return f"Error downloading data: {e}"
@@ -232,18 +197,13 @@ class SliceParallelPipelineStep(PipelineStep):
         return None
 
 
-def thread_worker_iterative(
-    volume_cache: VolumeCache, volumes_range: Iterable[int], data_queue: Queue, parallel_fetch: bool = False
-):
-    for i in volumes_range:
-        # Create a packet of data to process - Make the threading check make more sense.
-        data = volume_cache.create_processing_data(i, parallel=parallel_fetch)
+def dl_worker(volume_cache: VolumeCache, volume: int, parallel_fetch: bool = False):
+    packet = volume_cache.create_processing_data(volume, parallel=parallel_fetch)
 
-        data_queue.put(data)
+    # Remove the volume from the cache after the packet is created
+    volume_cache.remove_volume(volume)
 
-        # Remove the volume from the cache after the packet is created
-        # TODO: Change this if the data the data is shared not copied
-        volume_cache.remove_volume(i)
+    return packet
 
 
 def process_worker_save_parallel(
@@ -273,14 +233,9 @@ def process_worker_save_parallel(
 
     # Generate a grid for each slice and stack them along the first axis
     start = time.perf_counter()
-    grids = np.array(
-        [
-            coordinate_grid(
-                slice_rects[i], (config.slice_height, config.slice_width)
-            )
-            for i in slice_indices
-        ]
-    )
+
+    grid_call = partial(coordinate_grid, shape=(config.slice_height, config.slice_width), floor=bounding_box.get_min())
+    grids = np.array(list(map(grid_call, slice_rects[slice_indices])))
     durations["generate_grid"].append(time.perf_counter() - start)
 
     # Slice the volume using the grids

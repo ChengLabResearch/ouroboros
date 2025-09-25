@@ -1,3 +1,6 @@
+import sys
+import traceback
+
 from cloudvolume import CloudVolume, VolumeCutout
 import numpy as np
 
@@ -158,7 +161,7 @@ class VolumeCache:
 
         # Download the bounding box volume
         if self.use_shared:
-            vol_shape = NGOrder(*bounding_box.get_shape(tight=True), self.cv.cv.num_channels)
+            vol_shape = NGOrder(*bbox.astype(int).size3(), self.cv.cv.num_channels)
             volume = self.shm_host.SharedNPArray(vol_shape, np.float32)
             with volume as volume_data:
                 volume_data[:] = self.cv.cv.download(bbox, mip=self.mip, parallel=parallel)
@@ -189,7 +192,11 @@ class VolumeCache:
 
         # Download the volume if it is not already cached
         if self.volumes[volume_index] is None:
-            self.download_volume(volume_index, bounding_box, parallel=parallel)
+            try:
+                self.download_volume(volume_index, bounding_box, parallel=parallel)
+            except BaseException as be:
+                traceback.print_tb(be.__traceback__, file=sys.stderr)
+                return f"Error downloading data: {be}"
 
         # Get all slice indices associated with this volume
         slice_indices = self.get_slice_indices(volume_index)

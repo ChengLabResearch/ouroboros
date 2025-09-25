@@ -36,7 +36,7 @@ class SharedNPManager(SharedMemoryManager):
 
     def SharedNPArray(self, shape: DataShape, dtype: np.dtype, *create_with: tuple[DataShape, np.dtype]):
         full_set = [(shape, dtype)] + list(create_with)
-        size = max([np.prod(astuple(shape)) * np.dtype(dtype).itemsize for (shape, dtype) in full_set])
+        size = max([np.prod(astuple(shape), dtype=object) * np.dtype(dtype).itemsize for (shape, dtype) in full_set])
         mem = self.SharedMemory(int(size))
         result = [SharedNPArray(mem.name, shape, dtype) for (shape, dtype) in full_set]
         return result[0] if len(result) == 1 else result

@@ -1,8 +1,9 @@
+import numpy as np
+
 from ouroboros.helpers.bounding_boxes import calculate_bounding_boxes_bsp_link_rects
 from ouroboros.helpers.volume_cache import CloudVolumeInterface, VolumeCache
-from .pipeline import PipelineStep
 from ouroboros.helpers.options import SliceOptions
-import numpy as np
+from .pipeline import PipelineStep
 
 
 class VolumeCachePipelineStep(PipelineStep):
@@ -36,6 +37,7 @@ class VolumeCachePipelineStep(PipelineStep):
             cloud_volume_interface,
             flush_cache=config.flush_cache,
             mip=config.output_mip_level,
+            use_shared=True
         )
 
         # Update the pipeline input with the volume cache

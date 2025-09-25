@@ -245,12 +245,13 @@ def test_boxes_dim_range(volume_cache):
     remaining = volume_cache.bounding_boxes.copy()
 
     assert np.all(boxes_dim_range(remaining) == np.arange(10, 22, dtype=int))
-    assert np.all(boxes_dim_range([BoundingBox(BoundingBox.bounds_to_rect(0, 0, 0, 10, 10, 10))]) == np.array([10, 11], dtype=int))
+    assert np.all(boxes_dim_range([BoundingBox(BoundingBox.bounds_to_rect(0, 0, 0, 10, 10, 10))])
+                  == np.array([10, 11], dtype=int))
     assert np.all(boxes_dim_range(remaining, dim="x") == np.arange(0, 12, dtype=int))
 
-    with pytest.raises(ValueError) as ve:
+    with pytest.raises(ValueError) as _:
         boxes_dim_range(remaining, dim='q')
-        
+
     assert np.all(boxes_dim_range([]) == np.array([], dtype=int))
 
 
@@ -270,7 +271,7 @@ def generate_chunked_rects(start, stop, step):
     import numpy as np
     return (np.array([BoundingBox.bounds_to_rect(start, stop, start, stop, z, z + 1)
                      for z in range(start, stop)]),
-           np.array([BoundingBox.bounds_to_rect(x, x + step, y, y + step, z, z + step)
+            np.array([BoundingBox.bounds_to_rect(x, x + step, y, y + step, z, z + step)
                      for z in range(start, stop, step)
                      for y in range(start, stop, step)
                      for x in range(start, stop, step)]))
@@ -298,7 +299,7 @@ def test_update_writeable_rects(volume_cache):
     assert not np.any(writeable)
 
     processed[0, :, :] = True
-    
+
     update_writable_rects(processed, full_rects, min_dim, writeable, chunk_size)
 
     assert np.all(writeable[0:2])
@@ -312,8 +313,8 @@ def test_update_writeable_rects(volume_cache):
     assert np.all(writeable[0:4])
     assert not np.any(writeable[4:])
     assert np.all(writeable[0:2] == 2)
-    
-	# Properly handle all fields processed.
+
+    # Properly handle all fields processed.
     processed[:] = True
     update_writable_rects(processed, full_rects, min_dim, writeable, chunk_size)
 

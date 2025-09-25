@@ -148,7 +148,7 @@ def slice_volume_from_grids(
 
     if has_color_channels:
         # Initialize an empty array to store slices from each channel
-        channel_slices = np.empty(target_shape + (num_channels, ))
+        channel_slices = np.empty(target_shape + (num_channels, ), dtype=np.float32)
 
         # Iterate over each color channel
         for channel in range(num_channels):

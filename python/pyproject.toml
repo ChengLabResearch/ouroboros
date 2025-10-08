@@ -13,10 +13,10 @@ build-cli-executable = "pyinstaller:build_cli_executable"
 build-server-executable = "pyinstaller:build_server_executable"
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.14"
+python = ">=3.11,<3.13"
 numpy = "^1.26.4"
 scipy = "^1.13.1"
-cloud-volume = { url = "https://github.com/den-sq/cloud-volume/releases/download/12.2.0a0/cloud_volume-12.2.0a0-py3-none-any.whl" }
+cloud-volume = { url = "https://github.com/den-sq/cloud-volume/releases/download/v12.7.0a0/cloud_volume-12.7.0a0-py3-none-any.whl", extras = ["all"] }
 compresso = "^3.0.0"
 tifffile = "^2024.6.18"
 pydantic = "^2.7.4"

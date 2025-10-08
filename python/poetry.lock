@@ -650,10 +650,7 @@ boto3 = ">=1.4.7"
 chardet = ">=3.0.4"
 cloud-files = ">=4.29.0,<6.0.0"
 codecov = {version = "*", optional = true, markers = "extra == \"all\""}
-compressed-segmentation = [
-    {version = ">=2.3.2"},
-    {version = ">=2.3.2", optional = true, markers = "extra == \"all\""},
-]
+compressed-segmentation = ">=2.3.2"
 compresso = {version = ">=3.0.0", optional = true, markers = "extra == \"all\""}
 crackle-codec = {version = ">=0.8.0,<2.0.0", optional = true, markers = "extra == \"all\""}
 dask = {version = "*", extras = ["array"], optional = true, markers = "extra == \"all\""}

@@ -6,7 +6,9 @@ ENV POETRY_NO_INTERACTION=1 \
     POETRY_CACHE_DIR=/tmp/poetry_cache
 
 RUN apt-get update -y
-RUN apt-get install gcc -y
+RUN apt-get install \
+	gcc \
+	libpq-dev
 
 WORKDIR /app
 

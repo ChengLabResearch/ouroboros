@@ -5,7 +5,9 @@
 FROM thehale/python-poetry:2.1.3-py3.11-slim as python-base
 
 RUN apt-get update -y
-RUN apt-get install gcc -y
+RUN apt-get install -y \
+	gcc \
+	libpq-dev
 
 COPY ./dist/*.whl ./
 

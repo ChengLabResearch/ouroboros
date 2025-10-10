@@ -5,6 +5,7 @@ import os
 import numpy as np
 from numpy.typing import ArrayLike
 from pathlib import Path
+import cv2
 from tifffile import TiffWriter, TiffFile
 import time
 
@@ -218,12 +219,25 @@ def volume_from_intermediates(path: Path, shape: DataShape, thread_count: int = 
     return vol[0]
 
 
-def write_conv_vol(writer: callable, source_path, shape, dtype, *args, **kwargs):
+def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_folder, index, interpolation):
     perf = {}
     start = time.perf_counter()
     vol = volume_from_intermediates(source_path, shape)
     perf["Merge Volume"] = time.perf_counter() - start
-    start = time.perf_counter()
-    writer(*args, data=np_convert(dtype, vol.reshape(shape.Y, shape.X), normalize=False, safe_bool=True), **kwargs)
-    perf["Write Merged"] = time.perf_counter() - start
+    if scaling is not None:
+        start = time.perf_counter()
+        # CV2 is only 2D but we're resizing from the 1D image anyway at the moment.
+        new_volume = cv2.resize(
+                        np_convert(dtype, vol.reshape(shape.Y, shape.X), normalize=False, safe_bool=True),
+                        None, fx=scaling[1], fy=scaling[2], interpolation=interpolation)
+        perf["Zoom"] = time.perf_counter() - start
+        start = time.perf_counter()
+        for i in range(round(scaling[0])):
+            writer(target_folder.joinpath(f"{(index * round(scaling[0]) + i):05}.tif"), data=new_volume)
+        perf["Write Merged"] = time.perf_counter() - start
+    else:
+        start = time.perf_counter()
+        writer(target_folder.joinpath(f"{index}"),
+               data=np_convert(dtype, vol.reshape(shape.Y, shape.X), normalize=False, safe_bool=True))
+        perf["Write Merged"] = time.perf_counter() - start
     return perf

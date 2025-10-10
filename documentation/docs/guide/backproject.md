@@ -38,7 +38,7 @@ The offset of the minimum bounding box is stored in the output tiff's descriptio
 - 📁 `Slice Options File` - Path to the `-slice-options.json` file which includes the information needed for backprojection.
 - 📁 `Output File Folder` - The folder to save all the resulting files into.
 - `Output File Name` - Base name for all output files.
-- `Output MIP Level` - The MIP level to output the backprojection in (essentially an upsample option). Use this if you downsampled in the slicing step.
+- `Output MIP Level` - The MIP level to output the backprojection in (essentially an upsample option). Use this if you downsampled in the slicing step; downsampling changes are currently ignored.
 - `Upsample Order` - The interpolation order Ouroboros uses to interpolate values from a lower MIP level. If you check the binary option, feel free to set this to 0.
 - `Backprojection Compression` - The compression option to use for the backprojected tiff(s). Recommended options: `none`, `zlib`, `zstd`.
 - `Output Single File` - Whether to output one tiff stack file or a folder of files.

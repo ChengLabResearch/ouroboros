@@ -287,15 +287,15 @@ export class BackprojectOptionsFile extends CompoundEntry {
 				'Base name for all output files.'
 			),
 			new Entry('output_mip_level', 'Output MIP Level', 0, 'number').withDescription(
-				'The MIP level to output the backprojection in (essentially an upsample option). Use this if you downsampled in the slicing step.'
+				'The MIP level to output the backprojection in (essentially an upsample option). Use this if you downsampled in the slicing step.  MIP levels that would downsample are ignored currently.'
 			),
 			new Entry(
 				'upsample_order',
-				'Upsample Order (2 = Quadratic)',
+				'Upsample Order (2 = Cubic)',
 				2,
 				'number'
 			).withDescription(
-				'The interpolation order Ouroboros uses to interpolate values from a lower MIP level. If you check the binary option, feel free to set this to 0.'
+				'The interpolation order Ouroboros uses to interpolate values from a lower MIP level (matches opencv interpolation parameter). If you check the binary option, feel free to set this to 0.'
 			),
 			new Entry(
 				'backprojection_compression',

@@ -194,15 +194,16 @@ def load_z_intermediate(path: Path, offset: int = 0):
 
 def increment_volume(path: Path, vol: np.ndarray, offset: int = 0, cleanup=False):
     indicies, values, weights = load_z_intermediate(path, offset)
-    np.add.at(vol[0], indicies, values)
-    np.add.at(vol[1], indicies, weights)
+    for i in range(0, vol.shape[0] - 1):
+        np.add.at(vol[i], indicies, np.atleast_2d(values)[i])
+    np.add.at(vol[-1], indicies, weights)
 
     if cleanup:
         path.unlink()
 
 
 def volume_from_intermediates(path: Path, shape: DataShape, thread_count: int = 4):
-    vol = np.zeros((2, np.prod((shape.Y, shape.X))), dtype=np.float32)
+    vol = np.zeros((1 + shape.C, np.prod((shape.Y, shape.X))), dtype=np.float32)
     with ThreadPool(thread_count) as pool:
         if not path.exists():
             # We don't have any intermediate(s) for this value, so return empty.
@@ -214,9 +215,9 @@ def volume_from_intermediates(path: Path, shape: DataShape, thread_count: int = 
                 offset_set = range(0, len(tif.series), 4)
             pool.starmap(increment_volume, [(path, vol, i, False) for i in offset_set])
 
-    nz = np.flatnonzero(vol[0])
-    vol[0, nz] /= vol[1, nz]
-    return vol[0]
+    nz = np.flatnonzero(vol[-1])
+    vol[:-1, nz] /= vol[-1, nz]
+    return vol[:-1]
 
 
 def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_folder, index, interpolation):
@@ -228,7 +229,7 @@ def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_
         start = time.perf_counter()
         # CV2 is only 2D but we're resizing from the 1D image anyway at the moment.
         new_volume = cv2.resize(
-                        np_convert(dtype, vol.reshape(shape.Y, shape.X), normalize=False, safe_bool=True),
+                        np_convert(dtype, vol.T.reshape(shape.Y, shape.X, shape.C), normalize=False, safe_bool=True),
                         None, fx=scaling[1], fy=scaling[2], interpolation=interpolation)
         perf["Zoom"] = time.perf_counter() - start
         start = time.perf_counter()
@@ -237,7 +238,7 @@ def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_
         perf["Write Merged"] = time.perf_counter() - start
     else:
         start = time.perf_counter()
-        writer(target_folder.joinpath(f"{index}"),
-               data=np_convert(dtype, vol.reshape(shape.Y, shape.X), normalize=False, safe_bool=True))
+        writer(target_folder.joinpath(f"{index}.tif"),
+               data=np_convert(dtype, vol.T.reshape(shape.Y, shape.X, shape.C), normalize=False, safe_bool=True))
         perf["Write Merged"] = time.perf_counter() - start
     return perf

@@ -208,6 +208,8 @@ class ReconOrder(DataShape):
 @dataclass
 class ImgSlice(DataShape): Y: int; X: int          # noqa: E701,E702
 @dataclass
+class ImgSliceC(DataShape): Y: int; X: int; C: int 	# noqa: E701,E702
+@dataclass
 class Proj(DataShape): Y: int; X: int              # noqa: E701,E702
 @dataclass
 class YSlice(DataShape): Theta: int; X: int     # noqa: E701,E702

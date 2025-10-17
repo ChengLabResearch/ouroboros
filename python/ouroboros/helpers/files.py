@@ -1,4 +1,5 @@
 from functools import partial
+from io import BytesIO
 from multiprocessing.pool import ThreadPool
 import os
 
@@ -6,7 +7,6 @@ import numpy as np
 from numpy.typing import ArrayLike
 from pathlib import Path
 import cv2
-from tifffile import TiffWriter, TiffFile
 import time
 
 from .shapes import DataShape
@@ -171,60 +171,60 @@ def generate_tiff_write(write_func: callable, compression: str | None, micron_re
                    **kwargs)
 
 
-def write_small_intermediate(file_path: os.PathLike, *series):
-    with TiffWriter(file_path, append=True) as tif:
-        for entry in series:
-            tif.write(entry, dtype=entry.dtype)
+def write_raw_intermediate(target: BytesIO, *series):
+    for entry in series:
+        target.write(entry)
+    return target.tell()
 
 
 def ravel_map_2d(index, source_rows, target_rows, offset):
     return np.add.reduce(np.add(np.divmod(index, source_rows), offset) * ((target_rows, ), (np.uint32(1), )))
 
 
-def load_z_intermediate(path: Path, offset: int = 0):
-    with TiffFile(path) as tif:
-        meta = tif.series[offset].asarray()
-        source_rows, target_rows, offset_rows, offset_columns = meta
-        return (ravel_map_2d(tif.series[offset + 1].asarray(),
-                             source_rows, target_rows,
-                             ((offset_rows, ), (offset_columns, ))),
-                tif.series[offset + 2].asarray(),
-                tif.series[offset + 3].asarray())
+def load_raw_file_intermediate(handle: BytesIO):
+    meta = np.fromfile(handle, np.uint32, 6)
+    source_rows, target_rows, offset_rows, offset_columns, channel_count, data_length = meta
+    t_index, t_value, t_weight = [np.dtype(code.decode()).type for code in np.fromfile(handle, 'S8', 3)]
+    return (ravel_map_2d(np.fromfile(handle, t_index, data_length),
+                         source_rows, target_rows,
+                         ((offset_rows, ), (offset_columns, ))),
+            np.fromfile(handle, t_value, data_length * channel_count).reshape(-1, data_length),
+            np.fromfile(handle, t_weight, data_length))
 
 
 def increment_volume(path: Path, vol: np.ndarray, offset: int = 0, cleanup=False):
-    indicies, values, weights = load_z_intermediate(path, offset)
-    for i in range(0, vol.shape[0] - 1):
-        np.add.at(vol[i], indicies, np.atleast_2d(values)[i])
-    np.add.at(vol[-1], indicies, weights)
+    if isinstance(path, Path):
+        with open(path, "rb") as handle:
+            end = os.fstat(handle.fileno()).st_size
+            handle.seek(offset)
+            while handle.tell() < end:
+                indicies, values, weights = load_raw_file_intermediate(handle)
+                for i in range(0, vol.shape[0] - 1):
+                    np.add.at(vol[i], indicies, np.atleast_2d(values)[i])
+                np.add.at(vol[-1], indicies, weights)
 
     if cleanup:
         path.unlink()
 
 
 def volume_from_intermediates(path: Path, shape: DataShape, thread_count: int = 4):
-    vol = np.zeros((1 + shape.C, np.prod((shape.Y, shape.X))), dtype=np.float32)
-    with ThreadPool(thread_count) as pool:
-        if not path.exists():
-            # We don't have any intermediate(s) for this value, so return empty.
-            return vol[0]
-        elif path.is_dir():
-            pool.starmap(increment_volume, [(i, vol, 0, False) for i in path.glob("**/*.tif*")])
-        else:
-            with TiffFile(path) as tif:
-                offset_set = range(0, len(tif.series), 4)
-            pool.starmap(increment_volume, [(path, vol, i, False) for i in offset_set])
+    vol = np.zeros((2, np.prod((shape.Y, shape.X))), dtype=np.float32)
+    if path.is_dir():
+        with ThreadPool(thread_count) as pool:
+            pool.starmap(increment_volume, [(i, vol, 0, True) for i in path.glob("**/*.tif*")])
+    elif path.exists():
+        increment_volume(path, vol, 0, True)
 
-    nz = np.flatnonzero(vol[-1])
-    vol[:-1, nz] /= vol[-1, nz]
-    return vol[:-1]
+    nz = np.flatnonzero(vol[0])
+    vol[0, nz] /= vol[1, nz]
+    return vol[0]
 
 
 def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_folder, index, interpolation):
     perf = {}
-    start = time.perf_counter()
+    vol_start = time.perf_counter()
     vol = volume_from_intermediates(source_path, shape)
-    perf["Merge Volume"] = time.perf_counter() - start
+    perf["Merge Volume"] = time.perf_counter() - vol_start
     if scaling is not None:
         start = time.perf_counter()
         # CV2 is only 2D but we're resizing from the 1D image anyway at the moment.
@@ -241,4 +241,5 @@ def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_
         writer(target_folder.joinpath(f"{index}.tif"),
                data=np_convert(dtype, vol.T.reshape(shape.Y, shape.X, shape.C), normalize=False, safe_bool=True))
         perf["Write Merged"] = time.perf_counter() - start
+    perf["Total Chunk Merge"] = time.perf_counter() - vol_start
     return perf

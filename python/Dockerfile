@@ -8,7 +8,8 @@ ENV POETRY_NO_INTERACTION=1 \
 RUN apt-get update -y
 RUN apt-get install \
 	gcc \
-	libpq-dev
+	libpq-dev \
+	cargo
 
 WORKDIR /app
 

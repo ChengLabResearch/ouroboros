@@ -11,6 +11,7 @@ import tifffile
 import time
 import traceback
 
+from filelock import FileLock
 import numpy as np
 
 from ouroboros.helpers.memory_usage import (
@@ -32,7 +33,7 @@ from ouroboros.helpers.files import (
     join_path,
     generate_tiff_write,
     write_conv_vol,
-    write_small_intermediate
+    write_raw_intermediate
 )
 from ouroboros.helpers.shapes import DataRange, ImgSliceC
 
@@ -127,19 +128,16 @@ class BackprojectPipelineStep(PipelineStep):
 
             straightened_volume_path = new_straightened_volume_path
 
-        # Write huge temp files (need to address)
         full_bounding_box = BoundingBox.bound_boxes(volume_cache.bounding_boxes)
         write_shape = np.flip(full_bounding_box.get_shape()).tolist()
-        print(f"\nFront Projection Shape: {FPShape}")
-        print(f"\nBack Projection Shape (Z/Y/X):{write_shape}")
 
         pipeline_input.output_file_path = (f"{config.output_file_name}_"
                                            f"{'_'.join(map(str, full_bounding_box.get_min(np.uint32)))}")
         folder_path = Path(config.output_file_folder, pipeline_input.output_file_path)
         folder_path.mkdir(exist_ok=True, parents=True)
 
-        i_path = Path(config.output_file_folder,
-                      f"{config.output_file_name}_t_{'_'.join(map(str, full_bounding_box.get_min(np.uint32)))}")
+        # Intermediate Path
+        i_path = Path(config.output_file_folder, f"{os.getpid()}_{config.output_file_name}")
 
         if config.make_single_file:
             is_big_tiff = calculate_gigabytes_from_dimensions(
@@ -189,12 +187,12 @@ class BackprojectPipelineStep(PipelineStep):
                 for chunk, _, chunk_rects, _, index in chunk_range.get_iter(chunk_iter):
                     bp_futures.append(executor.submit(
                         process_chunk,
-                        config,
-                        straightened_volume_path,
-                        chunk_rects,
-                        chunk,
-                        index,
-                        full_bounding_box
+                        config=config,
+                        straightened_volume_path=straightened_volume_path,
+                        chunk_rects=chunk_rects,
+                        chunk=chunk,
+                        index=index,
+                        full_bounding_box=full_bounding_box
                     ))
 
                 # Track what's written.
@@ -206,8 +204,8 @@ class BackprojectPipelineStep(PipelineStep):
                 def note_written(write_future):
                     nonlocal pages_written
                     pages_written += 1
-                    self.update_progress((np.sum(processed) / len(chunk_range)) * (2 / 3)
-                                         + (pages_written / num_pages) * (1 / 3))
+                    self.update_progress((np.sum(processed) / len(chunk_range)) * (exec_procs / self.num_processes)
+                                         + (pages_written / num_pages) * (write_procs / self.num_processes))
                     for key, value in write_future.result().items():
                         self.add_timing(key, value)
 
@@ -222,8 +220,8 @@ class BackprojectPipelineStep(PipelineStep):
 
                     # Update the progress bar
                     processed[index] = 1
-                    self.update_progress((np.sum(processed) / len(chunk_range)) * (2 / 3)
-                                         + (pages_written / num_pages) * (1 / 3))
+                    self.update_progress((np.sum(processed) / len(chunk_range)) * (exec_procs / self.num_processes)
+                                         + (pages_written / num_pages) * (write_procs / self.num_processes))
 
                     update_writable_rects(processed, slice_rects, min_dim, writeable, DEFAULT_CHUNK_SIZE)
 
@@ -233,14 +231,14 @@ class BackprojectPipelineStep(PipelineStep):
                         for index in write:
                             write_futures.append(write_executor.submit(
                                 write_conv_vol,
-                                tif_write(tifffile.imwrite),
-                                i_path.joinpath(f"i_{index:05}"),
-                                ImgSliceC(*write_shape[1:], channels),
-                                bool if config.make_backprojection_binary else np.uint16,
-                                scaling_factors,
-                                folder_path,
-                                index,
-                                config.upsample_order
+                                writer=tif_write(tifffile.imwrite),
+                                source_path=i_path.joinpath(f"i_{index:05}.dat"),
+                                shape=ImgSliceC(*write_shape[1:], channels),
+                                dtype=bool if config.make_backprojection_binary else np.uint16,
+                                scaling=scaling_factors,
+                                target_folder=folder_path,
+                                index=index,
+                                interpolation=config.upsample_order
                             ))
                             write_futures[-1].add_done_callback(note_written)
 
@@ -271,8 +269,7 @@ class BackprojectPipelineStep(PipelineStep):
 
         if config.make_single_file:
             shutil.rmtree(folder_path)
-        shutil.rmtree(Path(config.output_file_folder,
-                           f"{config.output_file_name}_t_{'_'.join(map(str, full_bounding_box.get_min(np.uint32)))}"))
+        shutil.rmtree(i_path)
 
         return None
 
@@ -320,7 +317,7 @@ def process_chunk(
 
     if values.nbytes == 0:
         # No data to write from this chunk, so return as such.
-        durations["total_process"] = [time.perf_counter() - start_total]
+        durations["total_chunk_process"] = [time.perf_counter() - start_total]
         return durations, index, []
 
     # Save the data
@@ -336,7 +333,9 @@ def process_chunk(
             "target_rows": full_bounding_box.get_shape()[0],
             "offset_columns": offset[1],
             "offset_rows": offset[2],
+            "channel_count": np.uint32(1 if len(slices.shape) < 4 else slices.shape[-1]),
         }
+        type_ar = np.array([yx_vals.dtype.str, values.dtype.str, weights.dtype.str], dtype='S8')
         durations["split"] = [time.perf_counter() - start]
 
         # Gets slices off full array corresponding to each Z value.
@@ -347,19 +346,24 @@ def process_chunk(
         durations["stack"] = [time.perf_counter() - start]
         start = time.perf_counter()
 
-        file_path = Path(config.output_file_folder,
-                         f"{config.output_file_name}_t_{'_'.join(map(str, full_bounding_box.get_min(np.uint32)))}")
-        file_path.mkdir(exist_ok=True, parents=True)
+        i_path = Path(config.output_file_folder, f"{os.getppid()}_{config.output_file_name}")
+        i_path.mkdir(exist_ok=True, parents=True)
 
-        def write_z(i, z_slice):
+        def write_z(target, z_slice):
+            write_raw_intermediate(target,
+                                   np.fromiter(offset_dict.values(), dtype=np.uint32, count=5).tobytes(),
+                                   np.uint32(len(yx_vals[z_slice])).tobytes(),
+                                   type_ar.tobytes(),
+                                   yx_vals[z_slice].tobytes(), values[z_slice].tobytes(), weights[z_slice].tobytes())
+
+        def make_z(i, z_slice):
             offset_z = z_stack[i] + offset[0]
-            file_path.joinpath(f"i_{offset_z:05}").mkdir(exist_ok=True, parents=True)
-            write_small_intermediate(file_path.joinpath(f"i_{offset_z:05}", f"{index}.tif"),
-                                     np.fromiter(offset_dict.values(), dtype=np.uint32, count=4),
-                                     yx_vals[z_slice], np.atleast_2d(values)[:, z_slice], weights[z_slice])
+            z_path = i_path.joinpath(f"i_{offset_z:05}.dat")
+            with FileLock(z_path.with_suffix(".lock")):
+                write_z(open(z_path, "ab"), z_slice)
 
         with ThreadPool(12) as pool:
-            pool.starmap(write_z, enumerate(z_slices))
+            pool.starmap(make_z, enumerate(z_slices))
 
         durations["write_intermediate"] = [time.perf_counter() - start]
     except BaseException as be:
@@ -367,7 +371,7 @@ def process_chunk(
         traceback.print_tb(be.__traceback__, file=sys.stderr)
         raise be
 
-    durations["total_process"] = [time.perf_counter() - start_total]
+    durations["total_chunk_process"] = [time.perf_counter() - start_total]
 
     return durations, index, z_stack + offset[0]
 

@@ -2,7 +2,6 @@
 Module containing shapes of data.
 """
 from abc import ABC, abstractmethod
-from collections import namedtuple
 from dataclasses import dataclass, asdict, replace, fields, astuple, make_dataclass, Field, InitVar
 from functools import cached_property, reduce
 import operator
@@ -231,10 +230,6 @@ class Z(DataShape): Z: int      # noqa: E701,E702
 # Avoids X/Y/Z to prevent being used where it shouldn't.
 @dataclass
 class GenericOrder(DataShape): A: int; B: int; C: int      # noqa: E701,E702
-
-
-# ????
-NPString = namedtuple("NPString", 'T')
 
 
 @dataclass

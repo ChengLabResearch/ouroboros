@@ -20,9 +20,9 @@ from ouroboros.helpers.files import (
     np_convert,
     generate_tiff_write,
     ravel_map_2d,
-    load_z_intermediate,
     increment_volume,
-    write_small_intermediate
+    load_raw_file_intermediate,
+    write_raw_intermediate
 )
 
 
@@ -223,24 +223,28 @@ def test_write_intermediate(tmp_path):
         "target_rows": np.uint32(60),
         "offset_columns": np.uint32(60),
         "offset_rows": np.uint32(40),
+        "channels": np.uint32(1)
     }
+    type_ar = np.array([raveled_source.dtype.str, source_values.dtype.str, source_weights.dtype.str], dtype='S8')
 
-    write_small_intermediate(sample_path,
-                             np.fromiter(offset_dict.values(), dtype=np.uint32, count=4),
-                             raveled_source,
-                             source_values,
-                             source_weights)
+    write_raw_intermediate(open(sample_path, "wb"),
+                           np.fromiter(offset_dict.values(), dtype=np.uint32, count=5).tobytes(),
+                           np.uint32(len(raveled_source)).tobytes(),
+                           type_ar.tobytes(),
+                           raveled_source.tobytes(),
+                           source_values.tobytes(),
+                           source_weights.tobytes())
 
-    indicies, values, weights = load_z_intermediate(sample_path)
+    indicies, values, weights = load_raw_file_intermediate(open(sample_path, "rb"))
 
     assert len(indicies) == 100
-    assert np.all(indicies == raveled_mapped)
-    assert len(values) == 100
+    assert values.shape == (1, 100)
     assert values.dtype == np.float32
-    assert np.all(values == source_values)
     assert len(weights) == 100
-    assert np.all(weights == source_weights)
     assert weights.dtype == np.float32
+    assert np.all(values[0] == source_values)
+    assert np.all(weights == source_weights)
+    assert np.all(indicies == raveled_mapped)
 
 
 def test_increment_volume(tmp_path):
@@ -258,13 +262,17 @@ def test_increment_volume(tmp_path):
         "target_rows": np.uint32(60),
         "offset_columns": np.uint32(60),
         "offset_rows": np.uint32(40),
+        "channels": np.uint32(1)
     }
+    type_ar = np.array([raveled_source.dtype.str, source_values.dtype.str, source_weights.dtype.str], dtype='S8')
 
-    write_small_intermediate(sample_path,
-                             np.fromiter(offset_dict.values(), dtype=np.uint32, count=4),
-                             raveled_source,
-                             source_values,
-                             source_weights)
+    write_raw_intermediate(open(sample_path, "wb"),
+                           np.fromiter(offset_dict.values(), dtype=np.uint32, count=5).tobytes(),
+                           np.uint32(len(raveled_source)).tobytes(),
+                           type_ar.tobytes(),
+                           raveled_source.tobytes(),
+                           source_values.tobytes(),
+                           source_weights.tobytes())
 
     volume = np.zeros((2, 80 * 60))
     increment_volume(sample_path, volume[:], cleanup=True)

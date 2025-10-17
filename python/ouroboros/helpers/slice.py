@@ -168,7 +168,7 @@ def slice_volume_from_grids(
 def _apply_weights(values, weights, corner):
     # This looks stupid but is twice as fast as fancy indexing with prod
     c_weights = weights[corner[0], 0, :] * weights[corner[1], 1, :] * weights[corner[2], 2, :]
-    w_values = values * c_weights
+    w_values = values * c_weights[..., np.newaxis]
     return w_values, c_weights
 
 
@@ -188,13 +188,15 @@ def backproject_box(bounding_box: BoundingBox, slice_rects: np.ndarray, slices: 
         # No slices, just return
         return np.empty((0), dtype=np.uint32), np.empty(0, dtype=np.float32), np.empty(0, dtype=np.float32)
 
+    channels = 1 if len(slices.shape) < 4 else slices.shape[-1]
+
     # Plot the backprojected X/Y/Z coordinates for each of the slice rects in this chunk.
-    grid_call = partial(coordinate_grid, shape=slices[0].shape, floor=bounding_box.get_min(), flip=True)
+    grid_call = partial(coordinate_grid, shape=slices[0].shape[:2], floor=bounding_box.get_min(), flip=True)
     precise_points = np.concatenate(list(map(grid_call, slice_rects)))
 
     # Flatten values to 1-Dimension Array for Efficient Allocation.
     # Use ZYX domain rather than XYZ as the former is what is written to disk.
-    values = slices.flatten()
+    values = slices.flatten().reshape(-1, channels)
     zyx_shape = np.flip(bounding_box.get_shape())
     flat_shape = np.prod(zyx_shape)
 
@@ -202,7 +204,7 @@ def backproject_box(bounding_box: BoundingBox, slice_rects: np.ndarray, slices: 
     squish_type = np.min_scalar_type(flat_shape)
 
     # Allocate the flattened data volume.
-    volume = np.zeros((2, flat_shape), dtype=np.float32)
+    volume = np.zeros((1 + channels, flat_shape), dtype=np.float32)
 
     # Get the top corner (integer) points and full weight matrix.
     points, weights = _points_and_weights(precise_points.reshape(-1, 3).T, zyx_shape, squish_type)
@@ -212,14 +214,15 @@ def backproject_box(bounding_box: BoundingBox, slice_rects: np.ndarray, slices: 
         w_values, c_weights = _apply_weights(values, weights, corner)
         point_inc = np.ravel_multi_index(corner, zyx_shape).astype(squish_type)
 
-        np.add.at(volume[0], points + point_inc, w_values)
-        np.add.at(volume[1], points + point_inc, c_weights)
+        for i in range(0, channels):
+            np.add.at(volume[i], points + point_inc, w_values[..., i])
+        np.add.at(volume[-1], points + point_inc, c_weights)
 
     # Get indicies of the flattened Z-Y-X backprojected domain that have values.
-    nz_vol = np.flatnonzero(volume[0])
+    nz_vol = np.flatnonzero(volume[-1])
 
     # Return indicies and only the volume region with values.
-    return nz_vol, volume[0, nz_vol].squeeze(), volume[1, nz_vol].squeeze()
+    return nz_vol, volume[:-1, nz_vol].squeeze(), volume[-1, nz_vol].squeeze()
 
 
 def make_volume_binary(volume: np.ndarray, dtype=np.uint8) -> np.ndarray:

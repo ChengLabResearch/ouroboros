@@ -34,7 +34,7 @@ from ouroboros.helpers.files import (
     write_conv_vol,
     write_small_intermediate
 )
-from ouroboros.helpers.shapes import DataRange, ImgSlice
+from ouroboros.helpers.shapes import DataRange, ImgSliceC
 
 
 DEFAULT_CHUNK_SIZE = 160
@@ -84,10 +84,12 @@ class BackprojectPipelineStep(PipelineStep):
                 # tiff format check to add
                 FPShape = FrontProjStack(D=len(list(Path(straightened_volume_path).iterdir())),
                                          V=tif.pages[0].shape[0], U=tif.pages[0].shape[1])
+                channels = 1 if len(tif.pages[0].shape) < 3 else tif.pages[0].shape[-1]
         else:
             with tifffile.TiffFile(straightened_volume_path) as tif:
                 is_compressed = bool(tif.pages[0].compression)
                 FPShape = FrontProjStack(D=len(tif.pages), V=tif.pages[0].shape[0], U=tif.pages[0].shape[1])
+                channels = 1 if len(tif.pages[0].shape) < 3 else tif.pages[0].shape[-1]
 
         cannot_memmap = False
         try:
@@ -154,7 +156,8 @@ class BackprojectPipelineStep(PipelineStep):
         tif_write = partial(generate_tiff_write,
                             compression=config.backprojection_compression,
                             micron_resolution=volume_cache.get_resolution_um(),
-                            backprojection_offset=bp_offset)
+                            backprojection_offset=bp_offset,
+                            photometric="rgb" if channels > 1 else "minisblack")
 
         if pipeline_input.slice_options.output_mip_level != config.output_mip_level:
             scaling_factors, _ = calculate_scaling_factors(
@@ -165,7 +168,6 @@ class BackprojectPipelineStep(PipelineStep):
             )
         else:
             scaling_factors = None
-        print(f"SF: {scaling_factors}")
 
         # Allocate procs equally between BP math and writing if we're rescaling, otherwise 3-1 favoring
         # the BP calculation.
@@ -233,7 +235,7 @@ class BackprojectPipelineStep(PipelineStep):
                                 write_conv_vol,
                                 tif_write(tifffile.imwrite),
                                 i_path.joinpath(f"i_{index:05}"),
-                                ImgSlice(*write_shape[1:]),
+                                ImgSliceC(*write_shape[1:], channels),
                                 bool if config.make_backprojection_binary else np.uint16,
                                 scaling_factors,
                                 folder_path,
@@ -316,7 +318,7 @@ def process_chunk(
     durations["back_project"] = [time.perf_counter() - start]
     durations["total_bytes"] = [int(lookup.nbytes + values.nbytes + weights.nbytes)]
 
-    if len(values) == 0:
+    if values.nbytes == 0:
         # No data to write from this chunk, so return as such.
         durations["total_process"] = [time.perf_counter() - start_total]
         return durations, index, []
@@ -354,7 +356,7 @@ def process_chunk(
             file_path.joinpath(f"i_{offset_z:05}").mkdir(exist_ok=True, parents=True)
             write_small_intermediate(file_path.joinpath(f"i_{offset_z:05}", f"{index}.tif"),
                                      np.fromiter(offset_dict.values(), dtype=np.uint32, count=4),
-                                     yx_vals[z_slice], values[z_slice], weights[z_slice])
+                                     yx_vals[z_slice], np.atleast_2d(values)[:, z_slice], weights[z_slice])
 
         with ThreadPool(12) as pool:
             pool.starmap(write_z, enumerate(z_slices))

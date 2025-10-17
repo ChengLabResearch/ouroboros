@@ -11,10 +11,10 @@ class CV_FORMAT(Enum):
     PRECOMPUTED = ["neuroglancer-precomputed"]
     ZARR = ["zarr", "zarr2", "zarr3"]
     N5 = ["n5"]
-    
+
     def __str__(self):
         return f"{self.name.lower()}://"
-    
+
     @classmethod
     def get(cls, suffix):
         for e in cls:
@@ -56,8 +56,8 @@ class ImageLayerModel(LayerModel):
         split_source = base_source.split("|")
         if len(split_source) > 1:
             kv_store = split_source[1].split(":")
-            base_source = f"{CV_FORMAT.get(kv_store[0])}{split_source[0]}{kv_store[1]}"        
-        
+            base_source = f"{CV_FORMAT.get(kv_store[0])}{split_source[0]}{kv_store[1]}"
+
         return SourceModel(url=base_source) if isinstance(source, SourceModel) else base_source
 
 

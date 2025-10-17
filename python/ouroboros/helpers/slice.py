@@ -219,7 +219,7 @@ def backproject_box(bounding_box: BoundingBox, slice_rects: np.ndarray, slices: 
         np.add.at(volume[-1], points + point_inc, c_weights)
 
     # Get indicies of the flattened Z-Y-X backprojected domain that have values.
-    nz_vol = np.flatnonzero(volume[-1])
+    nz_vol = np.flatnonzero(volume[-1]).astype(squish_type)
 
     # Return indicies and only the volume region with values.
     return nz_vol, volume[:-1, nz_vol].squeeze(), volume[-1, nz_vol].squeeze()

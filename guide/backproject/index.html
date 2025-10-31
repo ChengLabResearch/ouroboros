@@ -420,7 +420,8 @@
 <li><code>Output Min Bounding Box</code> - Save only the minimum volume needed to contain the backprojected slices. The offset will be stored in the <code>-configuration.json</code> file under <code>backprojection_offset</code>. This value is the (x_min, y_min, z_min).</li>
 <li><code>Binary Backprojection</code> - Whether or not to binarize all the values of the backprojection. Enable this to backproject a segmentation.</li>
 <li><code>Offset in Filename</code> - Whether or not to include the (x_min, y_min, z_min) offset for min bounding box in the output file name. Only applies if <code>Output Min Bounding Box</code> is true.</li>
-<li><code>Max RAM (GB)</code> - 0 indicates no RAM limit. Setting a RAM limit allows Ouroboros to optimize performance and avoid overusing RAM.</li>
+<li><code>Process Count</code> - Number of parallel processes to use during the backprojection process.  Reducing count will slow process but decrease memory usage; at default chunk size each process tends to approximate 0.5 GB in usage.</li>
+<li><code>Chunk Size</code> - Size of each dimension (x/y/z) of the processing chunk.  Increasing will increase memory usage; performance is a more complex tradeoff and making it too large will negatively affect performance.</li>
 </ul>
 <h3 id="how-does-backprojection-work">How Does Backprojection Work?</h3>
 <p>A large amount of helpful data is saved in <code>*-configuration.json</code> file after the slicing process. This data contains all of the rectangle corners from slicing, and the bounding boxes the slices are associated with. With this data, Ouroboros recalculates the 2D coordinate grids of 3D points for each slice.</p>

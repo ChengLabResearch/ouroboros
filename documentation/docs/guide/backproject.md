@@ -45,7 +45,8 @@ The offset of the minimum bounding box is stored in the output tiff's descriptio
 - `Output Min Bounding Box` - Save only the minimum volume needed to contain the backprojected slices. The offset will be stored in the `-configuration.json` file under `backprojection_offset`. This value is the (x_min, y_min, z_min).
 - `Binary Backprojection` - Whether or not to binarize all the values of the backprojection. Enable this to backproject a segmentation.
 - `Offset in Filename` - Whether or not to include the (x_min, y_min, z_min) offset for min bounding box in the output file name. Only applies if `Output Min Bounding Box` is true.
-- `Max RAM (GB)` - 0 indicates no RAM limit. Setting a RAM limit allows Ouroboros to optimize performance and avoid overusing RAM.
+- `Process Count` - Number of parallel processes to use during the backprojection process.  Reducing count will slow process but decrease memory usage; at default chunk size each process tends to approximate 0.5 GB in usage.
+- `Chunk Size` - Size of each dimension (x/y/z) of the processing chunk.  Increasing will increase memory usage; performance is a more complex tradeoff and making it too large will negatively affect performance.
 
 ### How Does Backprojection Work?
 

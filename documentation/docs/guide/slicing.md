@@ -36,7 +36,6 @@ Slicing is one of the primary features of Ouroboros, available in the CLI and th
 - `Bounding Box Parameters`
     - `Max Depth` - The maximum depth for binary space partitioning. It is not recommended to change this option unless you encounter RAM issues.
     - `Target Slices Per Box` - If you are running on a low-RAM system, or you are taking very large slices, you may want to decrease this.
-- `Max RAM (GB)` - 0 indicates no RAM limit. Setting a RAM limit allows Ouroboros to optimize performance and avoid overusing RAM.
 
 ### How Does Slicing Work?
 

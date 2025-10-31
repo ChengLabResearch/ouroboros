@@ -254,10 +254,7 @@ export class SliceOptionsFile extends CompoundEntry {
 				).withDescription(
 					'If you are running on a low-RAM system, or you are taking very large slices, you may want to decrease this.'
 				)
-			]),
-			new Entry('max_ram_gb', 'Max RAM (GB) (0 = no limit)', 0, 'number').withDescription(
-				'0 indicates no RAM limit. Setting a RAM limit allows Ouroboros to optimize performance and avoid overusing RAM.'
-			)
+			])
 		])
 
 		this.setValue(values)
@@ -289,12 +286,7 @@ export class BackprojectOptionsFile extends CompoundEntry {
 			new Entry('output_mip_level', 'Output MIP Level', 0, 'number').withDescription(
 				'The MIP level to output the backprojection in (essentially an upsample option). Use this if you downsampled in the slicing step.  MIP levels that would downsample are ignored currently.'
 			),
-			new Entry(
-				'upsample_order',
-				'Upsample Order (2 = Cubic)',
-				2,
-				'number'
-			).withDescription(
+			new Entry('upsample_order', 'Upsample Order (2 = Cubic)', 2, 'number').withDescription(
 				'The interpolation order Ouroboros uses to interpolate values from a lower MIP level (matches opencv interpolation parameter). If you check the binary option, feel free to set this to 0.'
 			),
 			new Entry(
@@ -328,8 +320,16 @@ export class BackprojectOptionsFile extends CompoundEntry {
 				'Whether or not to include the (x_min, y_min, z_min) offset for min bounding box in the output file name. Only applies if `Output Min Bounding Box` is true.'
 			),
 			new Entry('flush_cache', 'Flush CloudVolume Cache', false, 'boolean').withHidden(),
-			new Entry('max_ram_gb', 'Max RAM (GB) (0 = no limit)', 0, 'number').withDescription(
-				'0 indicates no RAM limit. Setting a RAM limit allows Ouroboros to optimize performance and avoid overusing RAM.'
+			new Entry(
+				'process_count',
+				'Process Count',
+				navigator.hardwareConcurrency,
+				'number'
+			).withDescription(
+				'Number of parallel processes to use during the backprojection process.'
+			),
+			new Entry('chunk_size', 'Chunk Size', 160, 'number').withDescription(
+				'Size of each dimension (x/y/z) of the processing chunk.  Larger chunks will use more memory and (after a certain point) slow down calculation.'
 			)
 		])
 

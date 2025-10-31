@@ -1,7 +1,6 @@
 import concurrent.futures
 from dataclasses import astuple
 from functools import partial
-from multiprocessing import cpu_count
 from multiprocessing.pool import ThreadPool
 import os
 from pathlib import Path
@@ -26,6 +25,7 @@ from ouroboros.helpers.slice import (        # noqa: F401
 from ouroboros.helpers.volume_cache import VolumeCache, get_mip_volume_sizes, update_writable_rects
 from ouroboros.helpers.bounding_boxes import BoundingBox
 from .pipeline import PipelineStep
+from .pipeline_input import PipelineInput
 from ouroboros.helpers.options import BackprojectOptions
 from ouroboros.helpers.files import (
     format_backproject_resave_volume,
@@ -38,12 +38,8 @@ from ouroboros.helpers.files import (
 from ouroboros.helpers.shapes import DataRange, ImgSliceC
 
 
-DEFAULT_CHUNK_SIZE = 160
-AXIS = 0
-
-
 class BackprojectPipelineStep(PipelineStep):
-    def __init__(self, processes=cpu_count()) -> None:
+    def __init__(self) -> None:
         super().__init__(
             inputs=(
                 "backproject_options",
@@ -52,9 +48,9 @@ class BackprojectPipelineStep(PipelineStep):
             )
         )
 
-        self.num_processes = processes
-
-    def _process(self, input_data: any) -> tuple[any, None] | tuple[None, any]:
+    def _process(self,
+                 input_data: tuple[BackprojectOptions, VolumeCache, np.ndarray, PipelineInput]
+                 ) -> tuple[any, None] | tuple[None, any]:
         config, volume_cache, slice_rects, pipeline_input = input_data
 
         # Verify that a config object is provided
@@ -169,8 +165,8 @@ class BackprojectPipelineStep(PipelineStep):
 
         # Allocate procs equally between BP math and writing if we're rescaling, otherwise 3-1 favoring
         # the BP calculation.
-        exec_procs = self.num_processes // 4 * (2 if scaling_factors is not None else 3)
-        write_procs = self.num_processes // 4 * (2 if scaling_factors is not None else 1)
+        exec_procs = config.process_count // 4 * (2 if scaling_factors is not None else 3)
+        write_procs = config.process_count // 4 * (2 if scaling_factors is not None else 1)
 
         # Process each bounding box in parallel, writing the results to the backprojected volume
         try:
@@ -179,7 +175,7 @@ class BackprojectPipelineStep(PipelineStep):
                 bp_futures = []
                 write_futures = []
 
-                chunk_range = DataRange(FPShape.make_with(0), FPShape, FPShape.make_with(DEFAULT_CHUNK_SIZE))
+                chunk_range = DataRange(FPShape.make_with(0), FPShape, FPShape.make_with(config.chunk_size))
                 chunk_iter = partial(BackProjectIter, shape=FPShape, slice_rects=np.array(slice_rects))
                 processed = np.zeros(astuple(chunk_range.length))
                 z_sources = np.zeros((write_shape[0], ) + astuple(chunk_range.length), dtype=bool)
@@ -204,8 +200,8 @@ class BackprojectPipelineStep(PipelineStep):
                 def note_written(write_future):
                     nonlocal pages_written
                     pages_written += 1
-                    self.update_progress((np.sum(processed) / len(chunk_range)) * (exec_procs / self.num_processes)
-                                         + (pages_written / num_pages) * (write_procs / self.num_processes))
+                    self.update_progress((np.sum(processed) / len(chunk_range)) * (exec_procs / config.process_count)
+                                         + (pages_written / num_pages) * (write_procs / config.process_count))
                     for key, value in write_future.result().items():
                         self.add_timing(key, value)
 
@@ -220,10 +216,10 @@ class BackprojectPipelineStep(PipelineStep):
 
                     # Update the progress bar
                     processed[index] = 1
-                    self.update_progress((np.sum(processed) / len(chunk_range)) * (exec_procs / self.num_processes)
-                                         + (pages_written / num_pages) * (write_procs / self.num_processes))
+                    self.update_progress((np.sum(processed) / len(chunk_range)) * (exec_procs / config.process_count)
+                                         + (pages_written / num_pages) * (write_procs / config.process_count))
 
-                    update_writable_rects(processed, slice_rects, min_dim, writeable, DEFAULT_CHUNK_SIZE)
+                    update_writable_rects(processed, slice_rects, min_dim, writeable, config.chunk_size)
 
                     if np.any(writeable == 1):
                         write = np.flatnonzero(writeable == 1)

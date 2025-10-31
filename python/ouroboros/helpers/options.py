@@ -1,3 +1,5 @@
+from os import cpu_count
+
 from pydantic import BaseModel, field_serializer, field_validator
 
 from ouroboros.helpers.bounding_boxes import BoundingBoxParams
@@ -11,7 +13,6 @@ class CommonOptions(BaseModel):
     output_file_name: str  # Name of the output file
     flush_cache: bool = False  # Whether to flush the cache after processing
     make_single_file: bool = True  # Whether to save the output to a single file
-    max_ram_gb: int = 0  # Maximum amount of RAM to use in GB (0 means no limit)
     output_mip_level: int = 0  # MIP level for the output image layer
 
 
@@ -68,6 +69,8 @@ class BackprojectOptions(CommonOptions):
     )
     upsample_order: int = 2  # Order of the interpolation for upsampling
     offset_in_name: bool = True  # Whether to include the offset in the output file name
+    process_count: int = cpu_count() 	# Number of parallel process during the backprojection step.
+    chunk_size: int = 160 	# Size in each dimension of processing chunk.
 
 
 DEFAULT_SLICE_OPTIONS = SliceOptions(

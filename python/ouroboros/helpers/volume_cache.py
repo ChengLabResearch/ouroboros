@@ -1,3 +1,4 @@
+import os
 import sys
 import traceback
 
@@ -214,6 +215,9 @@ class VolumeCache:
 class CloudVolumeInterface:
     def __init__(self, source_url: str):
         self.source_url = source_url
+        if os.environ.get('OUR_ENV') == "docker":
+            self.source_url = self.source_url.replace("localhost", "host.docker.internal"
+                                                      ).replace("127.0.0.1", "host.docker.internal")
 
         self.cv = CloudVolume(self.source_url, parallel=True, cache=True)
 

@@ -9,8 +9,9 @@ services:
     volumes:
       - ouroboros-volume:/volume
     extra_hosts:
-    - "host.docker.internal:host-gateway"
-
+      - "host.docker.internal:host-gateway"
+    environment:
+      - OUR_ENV=docker
 volumes:
   ouroboros-volume:
     name: ouroboros-volume

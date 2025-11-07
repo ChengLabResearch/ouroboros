@@ -8,18 +8,14 @@ const PRODUCTION_PATH = join(__dirname, '../../../extra-resources/server/')
 const PRODUCTION_CONFIG = join(PRODUCTION_PATH, 'compose.yml')
 
 export async function startMainServerDevelopment(): Promise<void> {
-	try {
-		await startDockerCompose({
-			cwd: DEVELOPMENT_PATH,
-			config: DEVELOPMENT_CONFIG,
-			build: true,
-			onError: (err) => {
-				console.error('An error occurred while starting the main server:', err)
-			}
-		})
-	} catch (error) {
-		console.error('An error occurred while starting the main server:', error)
-	}
+	await startDockerCompose({
+		cwd: DEVELOPMENT_PATH,
+		config: DEVELOPMENT_CONFIG,
+		build: true,
+		onError: (err) => {
+			console.error('An error occurred while starting the main server:', err)
+		}
+	})
 }
 
 export async function stopMainServerDevelopment(): Promise<void> {
@@ -30,7 +26,7 @@ export async function stopMainServerDevelopment(): Promise<void> {
 }
 
 export async function startMainServerProduction(): Promise<void> {
-	startDockerCompose({
+	await startDockerCompose({
 		cwd: PRODUCTION_PATH,
 		config: PRODUCTION_CONFIG,
 		build: true,

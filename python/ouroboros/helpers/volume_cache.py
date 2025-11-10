@@ -1,7 +1,9 @@
+from dataclasses import astuple
+import os
 import sys
 import traceback
 
-from cloudvolume import CloudVolume, VolumeCutout
+from cloudvolume import CloudVolume, VolumeCutout, Bbox
 import numpy as np
 
 from .bounding_boxes import BoundingBox, boxes_dim_range
@@ -157,16 +159,26 @@ class VolumeCache:
     def download_volume(
         self, volume_index: int, bounding_box: BoundingBox, parallel=False
     ) -> VolumeCutout:
-        bbox = bounding_box.to_cloudvolume_bbox()
+        bbox = bounding_box.to_cloudvolume_bbox().astype(int)
+        vol_shape = NGOrder(*bbox.size3(), self.cv.cv.num_channels)
+
+        # Limit size of area we are grabbing, in case we go out of bounds.
+        dl_box = Bbox.intersection(self.cv.cv.bounds, bbox)
+        local_min = [int(start) for start in np.subtract(dl_box.minpt, bbox.minpt)]
+
+        local_bounds = np.s_[*[slice(start, stop) for start, stop in
+                               zip(local_min, np.sum([local_min, dl_box.size3()], axis=0))],
+                             :]
 
         # Download the bounding box volume
         if self.use_shared:
-            vol_shape = NGOrder(*bbox.astype(int).size3(), self.cv.cv.num_channels)
             volume = self.shm_host.SharedNPArray(vol_shape, np.float32)
             with volume as volume_data:
-                volume_data[:] = self.cv.cv.download(bbox, mip=self.mip, parallel=parallel)
+                volume_data[:] = 0     # Prob not most efficient but makes math much easier
+                volume_data[local_bounds] = self.cv.cv.download(dl_box, mip=self.mip, parallel=parallel)
         else:
-            volume = self.cv.cv.download(bbox, mip=self.mip, parallel=parallel)
+            volume = np.zeros(astuple(vol_shape))
+            volume[local_bounds] = self.cv.cv.download(dl_box, mip=self.mip, parallel=parallel)
 
         # Store the volume in the cache
         self.volumes[volume_index] = volume
@@ -214,6 +226,9 @@ class VolumeCache:
 class CloudVolumeInterface:
     def __init__(self, source_url: str):
         self.source_url = source_url
+        if os.environ.get('OUR_ENV') == "docker":
+            self.source_url = self.source_url.replace("localhost", "host.docker.internal"
+                                                      ).replace("127.0.0.1", "host.docker.internal")
 
         self.cv = CloudVolume(self.source_url, parallel=True, cache=True)
 

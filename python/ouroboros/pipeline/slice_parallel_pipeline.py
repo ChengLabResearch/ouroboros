@@ -103,7 +103,7 @@ class SliceParallelPipelineStep(PipelineStep):
                     config.slice_width,
                     config.slice_height,
                 ) + ((num_color_channels,) if has_color_channels else ())
-                temp_data = np.zeros(temp_shape, dtype=volume_cache.get_volume_dtype())
+                temp_data = np.zeros(temp_shape, dtype=np.float16)
 
                 imwrite(
                     output_file_path,
@@ -116,7 +116,7 @@ class SliceParallelPipelineStep(PipelineStep):
                         if has_color_channels and num_color_channels > 1
                         else "minisblack"
                     ),
-                    metadata=metadata,
+                    metadata=metadata
                 )
             except BaseException as e:
                 return f"Error creating single tif file: {e}"

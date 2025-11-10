@@ -30,7 +30,7 @@ For Mac, if an error occurs when you try to run the app, find the app installati
 
 ### Recommended Plugins
 
-- [Neuroglancer Plugin](https://github.com/We-Gold/neuroglancer-plugin)
+- [Neuroglancer Plugin](https://github.com/ChengLabResearch/neuroglancer-plugin)
     - Embeds Neuroglancer as a page in the app.
     - Supports loading from and saving to JSON configuration files in Ouroboros's File Explorer.
     - Has additional features like fullscreen mode and screenshots.

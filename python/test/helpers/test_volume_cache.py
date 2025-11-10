@@ -1,5 +1,9 @@
 import pytest
 from unittest.mock import MagicMock, patch
+
+from cloudvolume import Bbox
+import numpy as np
+
 from ouroboros.helpers.volume_cache import (
     VolumeCache,
     CloudVolumeInterface,
@@ -19,6 +23,8 @@ def mock_cloud_volume():
         mock_cv.shape = (100, 100, 100, 3)
         mock_cv.cache.flush = MagicMock()
         mock_cv.mip_volume_size = lambda mip: (100, 100, 100)
+        mock_cv.bounds = Bbox((0, 0, 0), (100, 100, 100))
+        mock_cv.download.return_value = np.zeros((0, 10, 0, 1))
         yield mock_cv
 
 
@@ -173,8 +179,8 @@ def test_request_volume_for_slice(volume_cache):
         volume_data, bounding_box = volume_cache.request_volume_for_slice(slice_index)
 
         mock_volume_index.assert_called_once_with(slice_index)
-        assert bounding_box == volume_cache.bounding_boxes[1]
-        assert volume_data == volume_cache.volumes[1]
+        assert np.all(bounding_box == volume_cache.bounding_boxes[1])
+        assert np.all(volume_data == volume_cache.volumes[1])
 
 
 def test_create_processing_data(volume_cache):
@@ -234,7 +240,7 @@ def test_volume_cache_remove_volume(volume_cache):
         volume_data, bounding_box = volume_cache.request_volume_for_slice(slice_index)
 
         mock_volume_index.assert_called_once_with(slice_index)
-        assert volume_data == volume_cache.volumes[1]
+        assert np.all(volume_data == volume_cache.volumes[1])
         volume_cache.remove_volume(1)
         assert volume_cache.volumes[1] is None
 

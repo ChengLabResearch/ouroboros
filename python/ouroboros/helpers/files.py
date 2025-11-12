@@ -122,27 +122,27 @@ def num_digits_for_n_files(n: int) -> int:
     return len(str(n - 1))
 
 
-def np_convert(target_dtype: np.dtype, source: ArrayLike, normalize=True, safe_bool=False):
-    """ TODO: Fix for Negative Values """
+def np_convert(target_dtype: np.dtype, source: ArrayLike,
+               preset_min: np.number = None, preset_max: np.number = None,
+               normalize: bool = True, zero_guard: bool = True, safe_bool: bool = False):
     if safe_bool and target_dtype == bool:
         return source.astype(target_dtype).astype(np.uint8)
-    elif np.issubdtype(target_dtype, np.integer) and normalize:
+
+    if normalize:
+        source_floor = (preset_min if preset_min is not None else np.min(source)) * -1
+        source_range = (preset_max if preset_max is not None else np.max(source)) + source_floor
+
+        # Avoid divide by 0, esp. as numpy segfaults when you do.
+        if source_range == 0.0:
+            source_range = 1.0
+
+    if np.issubdtype(target_dtype, np.integer) and normalize:
         dtype_range = np.iinfo(target_dtype).max - np.iinfo(target_dtype).min
-        source_range = np.max(source) - np.min(source)
-
-        # Avoid divide by 0, esp. as numpy segfaults when you do.
-        if source_range == 0.0:
-            source_range = 1.0
-
-        return (source * max(int(dtype_range / source_range), 1)).astype(target_dtype)
+        return ((source + source_floor) * max(dtype_range / source_range, 1)).astype(target_dtype)
     elif np.issubdtype(target_dtype, np.floating) and normalize:
-        source_range = np.max(source) - np.min(source)
-
-        # Avoid divide by 0, esp. as numpy segfaults when you do.
-        if source_range == 0.0:
-            source_range = 1.0
-
-        return (source / source_range).astype(target_dtype)
+        return ((source + source_floor) / source_range).astype(target_dtype)
+    elif preset_min is not None and preset_min < 0 and zero_guard:
+        return (source - preset_min).astype(target_dtype)
     else:
         return source.astype(target_dtype)
 

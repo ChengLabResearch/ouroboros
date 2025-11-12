@@ -41,6 +41,8 @@ class SliceOptions(CommonOptions):
         False  # Whether to connect the start and end of the given annotation points
     )
     annotation_mip_level: int = 0  # MIP level for the annotation layer
+    normalize_output: bool = True
+    zeroguard_output: bool = True
 
     @field_serializer("bounding_box_params")
     def serialize_bounding_box_params(self, value: BoundingBoxParams):

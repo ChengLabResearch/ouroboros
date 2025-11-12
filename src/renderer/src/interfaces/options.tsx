@@ -241,6 +241,12 @@ export class SliceOptionsFile extends CompoundEntry {
 				'Whether to output one tiff stack file or a folder of files.'
 			),
 			new Entry('connect_start_and_end', 'Connect Endpoints', false, 'boolean').withHidden(),
+			new Entry('normalize_output', 'Normalize Output', true, 'boolean').withDescription(
+				'Whether to normalize the output data.'
+			),
+			new Entry('zeroguard_output', 'Zero-Guard Output', true, 'boolean').withDescription(
+				'Whether to fix sub-zero slice values that may cause overflow artifacts.'
+			),
 			new Entry('flush_cache', 'Flush CloudVolume Cache', false, 'boolean').withHidden(),
 			new CompoundEntry('bounding_box_params', 'Bounding Box Parameters', [
 				new Entry('max_depth', 'Max Depth', 12, 'number').withDescription(

@@ -137,8 +137,8 @@ def np_convert(target_dtype: np.dtype, source: ArrayLike,
             source_range = 1.0
 
     if np.issubdtype(target_dtype, np.integer) and normalize:
-        dtype_range = np.iinfo(target_dtype).max - np.iinfo(target_dtype).min
-        return ((source + source_floor) * max(dtype_range / source_range, 1)).astype(target_dtype)
+        dtype_range = np.iinfo(target_dtype).max - np.iinfo(target_dtype).min - 1
+        return ((source + source_floor) * (dtype_range / source_range)).astype(target_dtype)
     elif np.issubdtype(target_dtype, np.floating) and normalize:
         return ((source + source_floor) / source_range).astype(target_dtype)
     elif preset_min is not None and preset_min < 0 and zero_guard:

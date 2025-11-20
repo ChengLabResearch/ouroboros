@@ -23,7 +23,6 @@ from ouroboros.helpers.options import SliceOptions
 import numpy as np
 import concurrent.futures
 from tifffile import imwrite, memmap
-import os
 import multiprocessing
 import time
 
@@ -68,21 +67,19 @@ class SliceParallelPipelineStep(PipelineStep):
         if len(slice_rects) == 0:
             return "No slice rects were provided."
 
+        # Makes output file folder
+        Path(config.output_file_folder).mkdir(parents=True, exist_ok=True)
+
         # Create a folder with the same name as the output file
-        folder_name = join_path(
-            config.output_file_folder,
-            format_slice_output_multiple(config.output_file_name),
-        )
-
         if config.make_single_file:
-            os.makedirs(folder_name, exist_ok=True)
+            output_file_path = join_path(config.output_file_folder, format_slice_output_file(config.output_file_name))
+        else:
+            output_folder = Path(config.output_file_folder, format_slice_output_multiple(config.output_file_name))
+            output_folder.mkdir(parents=True, exist_ok=True)
 
-        output_file_path = join_path(
-            config.output_file_folder, format_slice_output_file(config.output_file_name)
-        )
         temp_file_path = Path(
-            config.output_file_folder, format_slice_output_file(config.output_file_name)
-        ).with_suffix(".temptif")
+            config.output_file_folder, f"{config.output_file_name}_temp"
+        ).with_suffix(".tif")
 
         # Start setting up metadata
         # Volume cache resolution is in voxel size, but .tiff XY resolution is in voxels per unit, so we invert.
@@ -203,7 +200,7 @@ class SliceParallelPipelineStep(PipelineStep):
                     else:
                         pool.starmap(write_normalized,
                                      [(temp_file,
-                                       partial(imwrite, join_path(folder_name, format_tiff_name(i, num_digits)), **tiff_metadata),  # noqa: E501
+                                       partial(imwrite, output_folder.joinpath(format_tiff_name(i, num_digits)), **tiff_metadata),  # noqa: E501
                                        convert_func,
                                        i) for i in range(len(temp_file))])
                     del temp_file
@@ -213,7 +210,10 @@ class SliceParallelPipelineStep(PipelineStep):
             return f"Error downloading data: {e}"
 
         # Update the pipeline input with the output file path
-        pipeline_input.output_file_path = output_file_path
+        if config.make_single_file:
+            pipeline_input.output_file_path = output_file_path
+        else:
+            pipeline_input.output_file_path = str(output_folder)
 
         return None
 

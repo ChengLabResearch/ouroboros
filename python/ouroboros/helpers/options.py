@@ -66,13 +66,16 @@ class BackprojectOptions(CommonOptions):
     make_backprojection_binary: bool = (
         False  # Whether to make the backprojection binary (values of 0 or 1)
     )
+    make_backprojection_discrete: bool = (
+        False  # Whether to limit backprojections to discrete integer values (for multi-part segmentations)
+    )
     backprojection_compression: str = (
         "zlib"  # Compression type for the backprojected file
     )
     upsample_order: int = 2  # Order of the interpolation for upsampling
     offset_in_name: bool = True  # Whether to include the offset in the output file name
-    process_count: int = cpu_count() 	# Number of parallel process during the backprojection step.
-    chunk_size: int = 160 	# Size in each dimension of processing chunk.
+    process_count: int = cpu_count()  # Number of parallel process during the backprojection step.
+    chunk_size: int = 160  # Size in each dimension of processing chunk.
 
 
 DEFAULT_SLICE_OPTIONS = SliceOptions(

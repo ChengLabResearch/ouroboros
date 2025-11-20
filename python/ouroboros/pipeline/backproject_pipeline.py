@@ -234,7 +234,8 @@ class BackprojectPipelineStep(PipelineStep):
                                 scaling=scaling_factors,
                                 target_folder=folder_path,
                                 index=index,
-                                interpolation=config.upsample_order
+                                interpolation=config.upsample_order,
+                                discrete=config.make_backprojection_discrete
                             ))
                             write_futures[-1].add_done_callback(note_written)
 

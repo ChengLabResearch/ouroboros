@@ -320,7 +320,15 @@ export class BackprojectOptionsFile extends CompoundEntry {
 				false,
 				'boolean'
 			).withDescription(
-				'Whether or not to binarize all the values of the backprojection. Enable this to backproject a segmentation.'
+				'Whether or not to binarize all the values of the backprojection. Enable this to backproject a single-part segmentation.'
+			),
+			new Entry(
+				'make_backprojection_discrete',
+				'Discrete Backprojection',
+				false,
+				'boolean'
+			).withDescription(
+				'Whether to limit backprojected values to discrete integers. Enable this to backproject a multi-part segmentation.'
 			),
 			new Entry('offset_in_name', 'Offset in Filename', true, 'boolean').withDescription(
 				'Whether or not to include the (x_min, y_min, z_min) offset for min bounding box in the output file name. Only applies if `Output Min Bounding Box` is true.'

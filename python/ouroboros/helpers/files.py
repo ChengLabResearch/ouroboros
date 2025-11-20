@@ -207,7 +207,7 @@ def increment_volume(path: Path, vol: np.ndarray, offset: int = 0, cleanup=False
         path.unlink()
 
 
-def volume_from_intermediates(path: Path, shape: DataShape, thread_count: int = 4):
+def volume_from_intermediates(path: Path, shape: DataShape, discrete: bool = False, thread_count: int = 4):
     vol = np.zeros((2, np.prod((shape.Y, shape.X))), dtype=np.float32)
     if path.is_dir():
         with ThreadPool(thread_count) as pool:
@@ -217,13 +217,15 @@ def volume_from_intermediates(path: Path, shape: DataShape, thread_count: int = 
 
     nz = np.flatnonzero(vol[0])
     vol[0, nz] /= vol[1, nz]
+    if discrete:
+        vol[0, vol[0] % 1 != 0] = 0
     return vol[0]
 
 
-def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_folder, index, interpolation):
+def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_folder, index, interpolation, discrete):
     perf = {}
     vol_start = time.perf_counter()
-    vol = volume_from_intermediates(source_path, shape)
+    vol = volume_from_intermediates(source_path, shape, discrete)
     perf["Merge Volume"] = time.perf_counter() - vol_start
     if scaling is not None:
         start = time.perf_counter()

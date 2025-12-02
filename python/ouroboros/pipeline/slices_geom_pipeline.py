@@ -22,6 +22,10 @@ class SlicesGeometryPipelineStep(PipelineStep):
         if not isinstance(sample_points, np.ndarray):
             return "Input data must contain an array of sample points."
 
+        # Remove duplicates from sample points.
+        _, indicies = np.unique(sample_points.round(decimals=2), axis=0, return_index=True)
+        sample_points = sample_points[sorted(indicies)]
+
         # Rescale the sample points if the option is enabled
         if config.annotation_mip_level != config.output_mip_level:
             mip_sizes = get_mip_volume_sizes(source_url)

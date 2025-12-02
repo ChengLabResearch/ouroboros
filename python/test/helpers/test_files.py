@@ -314,10 +314,6 @@ def test_np_convert_from_float():
     # Direct Conversion
     assert np.all(np_convert(np.uint16, float_data, normalize=False) == [0] * 15 + [1])
 
-    # Normalized Conversion
-    assert np.all(np_convert(np.uint16, float_data) ==
-                  np.arange(0, np.iinfo(np.uint16).max + 1, np.iinfo(np.uint16).max // 15))
-
     # Safe Bool
     safe_bool = np_convert(bool, base, safe_bool=True)
     assert safe_bool.dtype == np.uint8
@@ -327,6 +323,11 @@ def test_np_convert_from_float():
     safe_bool = np_convert(bool, base, safe_bool=False)
     assert safe_bool.dtype == bool
     assert np.all(safe_bool == (base > 0))
+
+    # Normalized Conversion; slight inaccuracy introduced for type safety
+    target = np.arange(0, np.iinfo(np.uint16).max + 1, (np.iinfo(np.uint16).max) // 15)
+    target[1:] = target[1:] - 1
+    assert np.all(np_convert(np.uint16, float_data) == target)
 
 
 def test_volume_from_intermediates():

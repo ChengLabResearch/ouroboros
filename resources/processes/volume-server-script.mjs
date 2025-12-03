@@ -30,8 +30,11 @@ const copyHandler = (toVolume) => async (req, res) => {
 		await Promise.all(
 			files.map(async (file) => {
 				const { sourcePath, targetPath } = file
-				const sourceFolder = dirname(sourcePath)
-				const sourceFileName = basename(sourcePath)
+				// Normalize paths to POSIX format for consistent handling across platforms
+				// Handle Windows backslashes and mixed path separators
+				const normalizedSourcePath = sourcePath.replace(/\\/g, '/')
+				const sourceFolder = dirname(normalizedSourcePath)
+				const sourceFileName = basename(normalizedSourcePath)
 				const targetDir = path.posix.join(pluginFolderName, targetPath)
 
 				let command
@@ -104,6 +107,7 @@ function copyFileToVolumeCommand(sourceFolder, fileName, volumeName, destFolder)
 	const destFile = path.posix.join(newDestFolder, fileName)
 
 	// Construct the Docker command
+	// Handle Windows paths with drive letters (e.g., /D/path) for WSL/Docker Desktop
 	const command = `
     docker run --rm -v "${sourceFolder}":/host -v ${volumeName}:/volume -w /host alpine sh -c "
     mkdir -p '${newDestFolder}' && cp -r '${innerFilePath}' '${destFile}'"

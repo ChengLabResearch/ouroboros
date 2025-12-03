@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ouroboros"
-version = "1.2.7"
+version = "1.2.8rc1"
 description = "Extract ROIs (e.g. nerves, blood vessels) from multi-terabyte cloud-hosted medical scans."
 authors = ["Weaver Goldman <we.goldm@gmail.com>, David Northover <david.northover@psu.edu>"]
 readme = "README.md"

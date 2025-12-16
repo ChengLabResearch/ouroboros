@@ -218,6 +218,7 @@ def volume_from_intermediates(path: Path, shape: DataShape, discrete: bool = Fal
     nz = np.flatnonzero(vol[0])
     vol[0, nz] /= vol[1, nz]
     if discrete:
+        vol[0] = np.round(vol[0], 2)
         vol[0, vol[0] % 1 != 0] = 0
     return vol[0]
 

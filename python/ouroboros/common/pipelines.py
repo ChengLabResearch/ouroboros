@@ -10,6 +10,37 @@ from ouroboros.pipeline import (
 )
 
 
+def geometry_pipeline(slice_options: SliceOptions) -> tuple[Pipeline, PipelineInput]:
+    """
+    Creates a pipeline for slicing a volume, as well as the default input data for the pipeline.
+
+    Parameters
+    ----------
+    slice_options : SliceOptions
+        The options for slicing the volume.
+    include-ng : bool, optional
+        Whether to include neuroglancer output data, default false.
+
+    Returns
+    -------
+    tuple[Pipeline, PipelineInput]
+        The pipeline for slicing the volume and the default input data for the pipeline
+    """
+
+    pipeline = Pipeline(
+        [
+            ParseJSONPipelineStep(),
+            SlicesGeometryPipelineStep()
+        ]
+    )
+
+    default_input_data = PipelineInput(
+        slice_options=slice_options, json_path=slice_options.neuroglancer_json
+    )
+
+    return pipeline, default_input_data
+
+
 def slice_pipeline(slice_options: SliceOptions, verbose: bool = False) -> tuple[Pipeline, PipelineInput]:
     """
     Creates a pipeline for slicing a volume, as well as the default input data for the pipeline.

@@ -1,8 +1,13 @@
 import argparse
+import json
 from multiprocessing import freeze_support
+from pathlib import Path
 import sys
 
-from ouroboros.common.pipelines import backproject_pipeline, slice_pipeline
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+
+from ouroboros.common.pipelines import backproject_pipeline, slice_pipeline, geometry_pipeline
 from ouroboros.helpers.models import pretty_json_output
 from ouroboros.helpers.options import (
     DEFAULT_BACKPROJECT_OPTIONS,
@@ -57,6 +62,21 @@ def main():
         help="Export sample options files into the current folder.",
     )
 
+    # Create the parser for the geometry command
+    parser_geometry = subparsers.add_parser(
+        "geometry", help="Output the geometry of the spline."
+    )
+    parser_geometry.add_argument(
+        "options",
+        type=str,
+        help="The path to the options json file.",
+    )
+    parser_geometry.add_argument(
+        "--include-ng",
+        action="store_true",
+        help="Include Neuroglancer points and angles."
+    )
+
     # Parse the arguments
     args = parser.parse_args()
 
@@ -68,8 +88,48 @@ def main():
             handle_backproject(args)
         case "sample-options":
             handle_sample_options()
+        case "geometry":
+            handle_geometry(args)
         case _:
             parser.print_help()
+
+
+def handle_geometry(args):
+    print(f"Loading slice options from: {args.options}")
+    slice_options = SliceOptions.load_from_json(args.options)
+
+    if isinstance(slice_options, str):
+        print("Exiting due to errors loading slice options.", file=sys.stderr)
+        sys.exit(1)
+
+    print("Slice options loaded successfully.")
+    pipeline, input_data = geometry_pipeline(slice_options)
+
+    _, error = pipeline.process(input_data)
+
+    if error:
+        print(f"Pipeline Error: {error}", file=sys.stderr)
+
+    rects_output = Path(slice_options.output_file_folder, f"{slice_options.output_file_name}_rects").with_suffix(".npy")
+    np.save(rects_output, input_data.slice_rects)
+
+    if args.include_ng:
+        ng_output = Path(slice_options.output_file_folder, f"{slice_options.output_file_name}_ng").with_suffix(".json")
+        rot_matrix = np.empty((3, len(input_data.slice_rects), 3))
+
+        rot_matrix[0] = (input_data.slice_rects[:, 1, :] - input_data.slice_rects[:, 0, :]) / slice_options.slice_width
+        rot_matrix[1] = (input_data.slice_rects[:, 3, :] - input_data.slice_rects[:, 0, :]) / slice_options.slice_height
+        rot_matrix[2] = np.divide(np.cross(rot_matrix[0], rot_matrix[1], axis=1),
+                                  (slice_options.slice_width * slice_options.slice_height))
+        centers = (input_data.slice_rects[:, 0, :] + input_data.slice_rects[:, 2, :]) / 2
+        quats = R.from_matrix(rot_matrix.transpose(1, 0, 2)).as_quat()
+
+        ng_points = []
+        for point in range(len(input_data.slice_rects)):
+            ng_points.append({"position": centers[point].tolist(), "crossSectionOrientation": quats[point].tolist()})
+
+        with open(ng_output, "w") as handle:
+            json.dump(ng_points, handle)
 
 
 def handle_slice(args):

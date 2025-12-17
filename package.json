@@ -1,11 +1,11 @@
 {
 	"name": "ouroboros",
 	"productName": "Ouroboros",
-	"version": "1.2.7",
+	"version": "1.3.0",
 	"description": "Quickly extract ROIs from cloud-hosted medical scans.",
 	"main": "./out/main/index.js",
-	"author": "Weaver Goldman <we.goldm@gmail.com>",
-	"homepage": "https://github.com/We-Gold/ouroboros",
+	"author": "Weaver Goldman <we.goldm@gmail.com> and David Northover <david.northover@psu.edu>",
+	"homepage": "https://github.com/ChengLabResearch/ouroboros",
 	"scripts": {
 		"format": "prettier --write .",
 		"lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",

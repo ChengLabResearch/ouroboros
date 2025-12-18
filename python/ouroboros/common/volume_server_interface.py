@@ -32,6 +32,7 @@ def copy_to_volume(files: list[dict]) -> tuple[bool, str]:
         "pluginFolderName": "main",
         "files": files,
     }
+    print(f"data to volume: {data}")
 
     return request_volume_server("copy-to-volume", data)
 
@@ -57,6 +58,7 @@ def copy_to_host(files: list[dict]) -> tuple[bool, str]:
         "pluginFolderName": "main",
         "files": files,
     }
+    print(f"data to host: {data}")
 
     return request_volume_server("copy-to-host", data)
 
@@ -105,9 +107,11 @@ def request_volume_server(path: str, data: dict) -> tuple[bool, str]:
             headers={"Content-Type": "application/json"},
             json=data,
         )
+        print(f"result: {result.text}")
         if not result.ok:
             return False, result.text
         else:
             return True, ""
     except Exception as error:
+        print(f"request error: {error}")
         return False, str(error)

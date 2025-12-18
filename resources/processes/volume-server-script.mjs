@@ -30,8 +30,11 @@ const copyHandler = (toVolume) => async (req, res) => {
 		await Promise.all(
 			files.map(async (file) => {
 				const { sourcePath, targetPath } = file
-				const sourceFolder = dirname(sourcePath)
-				const sourceFileName = basename(sourcePath)
+				// Normalize paths to POSIX format for consistent handling across platforms
+				// Handle Windows backslashes and mixed path separators
+				const normalizedSourcePath = sourcePath.replace(/\\/g, '/')
+				const sourceFolder = dirname(normalizedSourcePath)
+				const sourceFileName = basename(normalizedSourcePath)
 				const targetDir = path.posix.join(pluginFolderName, targetPath)
 
 				let command
@@ -56,7 +59,9 @@ const copyHandler = (toVolume) => async (req, res) => {
 		)
 		res.status(200).send('Files copied successfully.')
 	} catch (error) {
-		res.status(500).send(`Error copying files: ${error}`)
+		res.status(500).send(
+			`Error copying files: ${error} from ${sourceFolder}, ${sourceFileName} to ${targetDir} on ${volumeName}`
+		)
 	}
 }
 

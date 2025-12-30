@@ -1,7 +1,6 @@
 from dataclasses import astuple
 import os
-import sys
-import traceback
+import time
 
 from cloudvolume import CloudVolume, VolumeCutout, Bbox
 import numpy as np
@@ -37,10 +36,7 @@ class VolumeCache:
         self.volumes = [None] * len(bounding_boxes)
 
         self.use_shared = use_shared
-
-        if self.use_shared:
-            self.shm_host = SharedNPManager()
-            self.shm_host.__enter__()
+        self.__shm_host = None
 
         # Indicates whether the a volume should be cached after the last slice to request it is processed
         self.cache_volume = [False] * len(bounding_boxes)
@@ -58,6 +54,11 @@ class VolumeCache:
             "mip": self.mip,
             "flush_cache": self.flush_cache,
         }
+
+    def connect_shm(self, address: str, authkey: str):
+        self.__shm_host = SharedNPManager(address=address, authkey=authkey)
+        self.__shm_host.connect()
+        self.__authkey = authkey
 
     @staticmethod
     def from_dict(data: dict) -> "VolumeCache":
@@ -131,7 +132,7 @@ class VolumeCache:
 
         # Download the volume if it is not already cached
         if self.volumes[vol_index] is None:
-            self.download_volume(vol_index, bounding_box)
+            self.volumes[vol_index] = download_volume(self.cv, bounding_box, mip=self.mip)
 
         # Remove the last requested volume if it is not to be cached
         if (
@@ -153,67 +154,8 @@ class VolumeCache:
         if not self.use_shared:
             self.volumes[volume_index] = None
         elif destroy_shared:
-            self.volumes[volume_index].shutdown()
+            self.__shm_host.remove_termed(self.volumes[volume_index])
             self.volumes[volume_index] = None
-
-    def download_volume(
-        self, volume_index: int, bounding_box: BoundingBox, parallel=False
-    ) -> VolumeCutout:
-        bbox = bounding_box.to_cloudvolume_bbox().astype(int)
-        vol_shape = NGOrder(*bbox.size3(), self.cv.cv.num_channels)
-
-        # Limit size of area we are grabbing, in case we go out of bounds.
-        dl_box = Bbox.intersection(self.cv.cv.bounds, bbox)
-        local_min = [int(start) for start in np.subtract(dl_box.minpt, bbox.minpt)]
-
-        local_bounds = np.s_[*[slice(start, stop) for start, stop in
-                               zip(local_min, np.sum([local_min, dl_box.size3()], axis=0))],
-                             :]
-
-        # Download the bounding box volume
-        if self.use_shared:
-            volume = self.shm_host.SharedNPArray(vol_shape, np.float32)
-            with volume as volume_data:
-                volume_data[:] = 0     # Prob not most efficient but makes math much easier
-                volume_data[local_bounds] = self.cv.cv.download(dl_box, mip=self.mip, parallel=parallel)
-        else:
-            volume = np.zeros(astuple(vol_shape))
-            volume[local_bounds] = self.cv.cv.download(dl_box, mip=self.mip, parallel=parallel)
-
-        # Store the volume in the cache
-        self.volumes[volume_index] = volume
-
-    def create_processing_data(self, volume_index: int, parallel=False):
-        """
-        Generate a data packet for processing a volume.
-
-        Suitable for parallel processing.
-
-        Parameters:
-        ----------
-            volume_index (int): The index of the volume to process.
-            parallel (bool): Whether to download the volume in parallel (only do parallel if downloading in one thread).
-
-        Returns:
-        -------
-            tuple: A tuple containing the volume data, the bounding box of the volume,
-                    the slice indices associated with the volume, and a function to remove the volume from the cache.
-        """
-
-        bounding_box = self.bounding_boxes[volume_index]
-
-        # Download the volume if it is not already cached
-        if self.volumes[volume_index] is None:
-            try:
-                self.download_volume(volume_index, bounding_box, parallel=parallel)
-            except BaseException as be:
-                traceback.print_tb(be.__traceback__, file=sys.stderr)
-                return f"Error downloading data: {be}"
-
-        # Get all slice indices associated with this volume
-        slice_indices = self.get_slice_indices(volume_index)
-
-        return self.volumes[volume_index], bounding_box, slice_indices, volume_index
 
     def get_slice_indices(self, volume_index: int):
         return [i for i, v in enumerate(self.link_rects) if v == volume_index]
@@ -262,6 +204,38 @@ class CloudVolumeInterface:
 
     def flush_cache(self):
         self.cv.cache.flush()
+
+
+def download_volume(
+    cv: CloudVolumeInterface, bounding_box: BoundingBox, mip, parallel=False,
+    use_shared=False, shm_address: str = None, shm_authkey: str = None, **kwargs
+) -> VolumeCutout:
+    start = time.perf_counter()
+    bbox = bounding_box.to_cloudvolume_bbox().astype(int)
+    vol_shape = NGOrder(*bbox.size3(), cv.cv.num_channels)
+
+    # Limit size of area we are grabbing, in case we go out of bounds.
+    dl_box = Bbox.intersection(cv.cv.bounds, bbox)
+    local_min = [int(start) for start in np.subtract(dl_box.minpt, bbox.minpt)]
+
+    local_bounds = np.s_[*[slice(start, stop) for start, stop in
+                           zip(local_min, np.sum([local_min, dl_box.size3()], axis=0))],
+                         :]
+
+    # Download the bounding box volume
+    if use_shared:
+        shm_host = SharedNPManager(address=shm_address, authkey=shm_authkey)
+        shm_host.connect()
+        volume = shm_host.TermedNPArray(vol_shape, np.float32)
+        with volume as volume_data:
+            volume_data[:] = 0     # Prob not most efficient but makes math much easier
+            volume_data[local_bounds] = cv.cv.download(dl_box, mip=mip, parallel=parallel)
+    else:
+        volume = np.zeros(astuple(vol_shape))
+        volume[local_bounds] = cv.cv.download(dl_box, mip=mip, parallel=parallel)
+
+    # Return volume
+    return volume, bounding_box, time.perf_counter() - start, *kwargs.values()
 
 
 def get_mip_volume_sizes(source_url: str) -> dict:

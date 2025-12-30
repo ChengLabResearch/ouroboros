@@ -1,5 +1,7 @@
 from functools import partial
 from pathlib import Path
+import psutil
+import secrets
 import sys
 import threading
 import traceback
@@ -8,7 +10,8 @@ from ouroboros.helpers.slice import (
     coordinate_grid,
     slice_volume_from_grids
 )
-from ouroboros.helpers.volume_cache import VolumeCache
+from ouroboros.helpers.mem import SharedNPManager
+from ouroboros.helpers.volume_cache import VolumeCache, download_volume
 from ouroboros.helpers.files import (
     format_slice_output_file,
     format_slice_output_multiple,
@@ -120,19 +123,21 @@ class SliceParallelPipelineStep(PipelineStep):
         all_work_done = threading.Event()
 
         # Minimum and maximum boundaries.
-#         bound_shm = SharedNPArray("boundaries", X(2), np.float64, allocate=True)
-#         with bound_shm[:] as boundaries:
         boundaries = np.zeros(2, dtype=np.float32)
+
+        # Set an SharedMemoryManager key so we can pass it around later.
+        authkey = secrets.token_bytes(32)
 
         # Start the download volumes process and process downloaded volumes as they become available in the queue
         try:
-            with concurrent.futures.ThreadPoolExecutor(
-                max_workers=max(self.num_threads, 4)
+            with concurrent.futures.ProcessPoolExecutor(
+                max_workers=self.num_processes // 4
             ) as download_executor, concurrent.futures.ProcessPoolExecutor(
-                max_workers=self.num_processes
-            ) as process_executor:
+                max_workers=self.num_processes * 3 // 4
+            ) as process_executor, SharedNPManager(authkey=authkey) as (shm_host, ):
                 download_futures = []
                 process_futures = []
+                volume_cache.connect_shm(shm_host.address, authkey)
 
                 vol_range = list(reversed(range(len(volume_cache.volumes))))
 
@@ -146,46 +151,69 @@ class SliceParallelPipelineStep(PipelineStep):
                                 temporary_path=temp_file_path,
                                 shared=volume_cache.use_shared)
 
-                partial_dl_executor = partial(dl_worker,
-                                              volume_cache=volume_cache,
-                                              parallel_fetch=(self.num_threads == 1))
+                partial_dl_executor = partial(download_volume,
+                                              cv=volume_cache.cv,
+                                              mip=volume_cache.mip,
+                                              parallel=False,
+                                              use_shared=volume_cache.use_shared,
+                                              shm_address=shm_host.address,
+                                              shm_authkey=authkey)
 
                 def dl_completed(future):
+                    volume, bounding_box, download_time, index = future.result()
+                    self.add_timing("Download Time", download_time)
                     process_futures.append(process_executor.submit(partial_slice_executor,
-                                                                   processing_data=future.result()))
+                                                                   volume=volume,
+                                                                   bounding_box=bounding_box,
+                                                                   slice_indices=volume_cache.get_slice_indices(index),
+                                                                   volume_index=index
+                                                                   ))
                     process_futures[-1].add_done_callback(processor_completed)
+                    self.update_progress(
+                        np.sum([future.done() for future in download_futures]) / (len(volume_cache.volumes) * 4) +
+                        np.sum([future.done() for future in process_futures]) / (len(volume_cache.volumes) * 4 // 3)
+                    )
+                    if volume_cache.use_shared or volume_cache.cache_volume:
+                        volume_cache.volumes[index] = volume
 
                 def processor_completed(future):
                     volume_index, durations, min_val, max_val = future.result()
-#                     with bound_shm[:] as boundaries:
                     boundaries[0] = min(boundaries[0], min_val)
                     boundaries[1] = max(boundaries[1], max_val)
                     if volume_cache.use_shared:
                         volume_cache.remove_volume(volume_index, destroy_shared=True)
+                        print(f"Removed; Volume Count: {sum(vol is not None for vol in volume_cache.volumes)}"
+                              f" | {psutil.virtual_memory().available}")
                     for key, value in durations.items():
                         self.add_timing_list(key, value)
 
-                    # Update the progress bar
-                    # 1/3 DL, 2/3 Process
                     self.update_progress(
-                        np.sum([future.done() for future in download_futures]) / (len(volume_cache.volumes) * 3) +
-                        np.sum([future.done() for future in process_futures]) / (len(volume_cache.volumes) * 3 / 2)
+                        np.sum([future.done() for future in download_futures]) / (len(volume_cache.volumes) * 4) +
+                        np.sum([future.done() for future in process_futures]) / (len(volume_cache.volumes) * 4 // 3)
                     )
                     if len(vol_range) > 0:
-                        download_futures.append(download_executor.submit(partial_dl_executor, volume=vol_range.pop()))
+                        index = vol_range.pop()
+                        download_futures.append(
+                            download_executor.submit(partial_dl_executor,
+                                                     bounding_box=volume_cache.bounding_boxes[index],
+                                                     volume_index=index))
                         download_futures[-1].add_done_callback(dl_completed)
                     if self.progress >= 1.0:
                         all_work_done.set()
 
                 # Download all volumes in parallel, and add the callback to process them as they finish.
-                for _ in range(np.min([self.num_processes + 4, len(vol_range)])):
-                    download_futures.append(download_executor.submit(partial_dl_executor, volume=vol_range.pop()))
+                for _ in range(self.num_processes * 3 // 4 + 1):
+                    index = vol_range.pop()
+                    download_futures.append(
+                        download_executor.submit(partial_dl_executor,
+                                                 bounding_box=volume_cache.bounding_boxes[index],
+                                                 volume_index=index))
                     download_futures[-1].add_done_callback(dl_completed)
 
                 all_work_done.wait()
 
                 with multiprocessing.pool.ThreadPool(self.num_processes) as pool:
-                    # with bound_shm[:] as boundaries:
+                    start_time = time.perf_counter()
                     convert_func = partial(np_convert,
                                            target_dtype=volume_cache.get_volume_dtype(),
                                            normalize=config.normalize_output,
@@ -205,6 +233,7 @@ class SliceParallelPipelineStep(PipelineStep):
                                        i) for i in range(len(temp_file))])
                     del temp_file
                     temp_file_path.unlink()
+                    self.add_timing("Rewrite Temp", time.perf_counter() - start_time)
         except BaseException as e:
             traceback.print_tb(e.__traceback__, file=sys.stderr)
             return f"Error downloading data: {e}"
@@ -218,36 +247,32 @@ class SliceParallelPipelineStep(PipelineStep):
         return None
 
 
-def dl_worker(volume_cache: VolumeCache, volume: int, parallel_fetch: bool = False):
-    packet = volume_cache.create_processing_data(volume, parallel=parallel_fetch)
-
-    # Remove the volume from the cache after the packet is created
-    volume_cache.remove_volume(volume)
-
-    return packet
-
-
 def process_worker_save_parallel(
     config: SliceOptions,
-    processing_data: tuple[np.ndarray | SharedNPArray, np.ndarray, np.ndarray, int],
+    volume: np.ndarray | SharedNPArray,
+    bounding_box: np.ndarray,
+    slice_indices: np.ndarray,
+    volume_index: int,
     slice_rects: np.ndarray,
     temporary_path: str = None,
     shared: bool = False
 ) -> tuple[int, dict[str, list[float]]]:
-    volume, bounding_box, slice_indices, volume_index = processing_data
+    start_total = time.perf_counter()
+
     if shared:
         volume_data = volume.array()
     else:
         volume_data = volume
 
     durations = {
+        "initial_load": [],
         "generate_grid": [],
         "slice_volume": [],
-        "save": [],
-        "total_process": [],
+        "memmap_write": [],
+        "total_process": []
     }
 
-    start_total = time.perf_counter()
+    durations["initial_load"].append(time.perf_counter() - start_total)
 
     # Generate a grid for each slice and stack them along the first axis
     start = time.perf_counter()
@@ -263,12 +288,14 @@ def process_worker_save_parallel(
     )
     durations["slice_volume"].append(time.perf_counter() - start)
 
+    start = time.perf_counter()
     # Save the slices to a previously created tiff file
     mmap = memmap(temporary_path)
     mmap[slice_indices] = slices
     mmap.flush()
     del mmap
 
+    durations["memmap_write"].append(time.perf_counter() - start)
     durations["total_process"].append(time.perf_counter() - start_total)
 
     return volume_index, durations, np.min(slices), np.max(slices)

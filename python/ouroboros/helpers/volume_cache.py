@@ -132,7 +132,7 @@ class VolumeCache:
 
         # Download the volume if it is not already cached
         if self.volumes[vol_index] is None:
-            self.download_volume(vol_index, bounding_box)
+            self.volumes[vol_index] = download_volume(self.cv, bounding_box, mip=self.mip)
 
         # Remove the last requested volume if it is not to be cached
         if (

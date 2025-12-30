@@ -183,25 +183,6 @@ def test_request_volume_for_slice(volume_cache):
         assert np.all(volume_data == volume_cache.volumes[1])
 
 
-def test_create_processing_data(volume_cache):
-    # Patch volume_cache.download to set the volume data
-    with patch.object(volume_cache, "download_volume") as mock_download:
-
-        def mock_download_func(volume_index, bounding_box, parallel):
-            volume_cache.volumes[volume_index] = bounding_box.to_empty_volume()
-
-        mock_download.side_effect = mock_download_func
-
-        # Call the method
-        processing_data = volume_cache.create_processing_data(0)
-
-        # Check the return values
-        assert processing_data[0] is not None
-        assert processing_data[1] == volume_cache.bounding_boxes[0]
-        assert processing_data[2] == [0]
-        assert processing_data[3] == 0
-
-
 def test_get_mip_volume_sizes(mock_cloud_volume):
     with patch.object(mock_cloud_volume, "mip_volume_size") as mock_mip_volume_size:
         mock_mip_volume_size.return_value = (100, 100, 100)

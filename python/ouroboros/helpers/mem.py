@@ -1,7 +1,7 @@
 from dataclasses import astuple, replace, asdict, fields
 from functools import cached_property
 from multiprocessing.shared_memory import SharedMemory, ShareableList
-from multiprocessing.managers import SharedMemoryManager, BaseManager
+from multiprocessing.managers import SharedMemoryManager, BaseManager, ListProxy
 from sys import stdout
 from time import sleep
 from typing import TextIO
@@ -18,42 +18,6 @@ def is_advanced_index(index):
     if isinstance(index, tuple):
         return any(isinstance(i, (list, np.ndarray)) and not isinstance(i, slice) for i in index)
     return isinstance(index, (list, np.ndarray)) and not isinstance(index, slice)
-
-
-class SharedNPManager(SharedMemoryManager):
-    """ Manages shared memory numpy arrays. """
-    def __init__(self, *args,
-                 queue_mem: list[tuple[DataShape, np.dtype] | tuple[tuple[DataShape, np.dtype]]] = [],
-                 **kwargs):
-        SharedMemoryManager.__init__(self, *args, **kwargs)
-
-        self.__mem_queue = []
-        for mem in queue_mem:
-            if isinstance(mem[0], tuple):
-                self.__mem_queue.append([mem[0][0], mem[0][1]] + list(mem[1:]))
-            else:
-                self.__mem_queue.append([mem[0], mem[1]])
-
-    def SharedNPArray(self, shape: DataShape, dtype: np.dtype, *create_with: tuple[DataShape, np.dtype]):
-        full_set = [(shape, dtype)] + list(create_with)
-        size = max([np.prod(astuple(shape), dtype=object) * np.dtype(dtype).itemsize for (shape, dtype) in full_set])
-        mem = self.SharedMemory(int(size))
-        result = [SharedNPArray(mem.name, shape, dtype) for (shape, dtype) in full_set]
-        return result[0] if len(result) == 1 else result
-
-    def clear_queue(self):
-        ar_mem = []
-        while len(self.__mem_queue) > 0:
-            new_mem = self.SharedNPArray(*self.__mem_queue.pop(0))
-            ar_mem += new_mem if isinstance(new_mem, list) else [new_mem]
-        return ar_mem
-
-    def __enter__(self):
-        this = [BaseManager.__enter__(self)]
-        return tuple(this + self.clear_queue())
-
-    def __exit__(self, *args, **kwargs):
-        super().__exit__(*args, **kwargs)
 
 
 class SharedNPArray:
@@ -148,21 +112,95 @@ class SharedNPArray:
             return shape
 
 
-def cleanup_mem(*shm_objects):
-    """ Close and unlink shared memory objects.
+_termed_mem = []
 
-        :param shm_objects: Shared memory objects to shut down.
-    """
-    for shm in shm_objects:
-        if isinstance(shm, SharedNPArray):
-            shm.shutdown()
-            del shm
-        elif isinstance(shm, ShareableList):
-            shm.shm.close()
-            shm.shm.unlink()
-        elif isinstance(shm, SharedMemory):
-            shm.close()
-            shm.unlink()
+
+def get_termed_mem():
+    """Returns the existing global list rather than creating a new one."""
+    return _termed_mem
+
+
+class SharedNPManager(SharedMemoryManager):
+    SharedMemoryManager.register(
+        '_TermedMem',
+        callable=get_termed_mem,
+        proxytype=ListProxy
+    )
+
+    """ Manages shared memory numpy arrays. """
+    def __init__(self, *args,
+                 queue_mem: list[tuple[DataShape, np.dtype] | tuple[tuple[DataShape, np.dtype]]] = [],
+                 **kwargs):
+        SharedMemoryManager.__init__(self, *args, **kwargs)
+
+        self.__mem_queue = []
+        for mem in queue_mem:
+            if isinstance(mem[0], tuple):
+                self.__mem_queue.append([mem[0][0], mem[0][1]] + list(mem[1:]))
+            else:
+                self.__mem_queue.append([mem[0], mem[1]])
+        self.__termed_mem = None
+
+    def SharedNPArray(self, shape: DataShape, dtype: np.dtype, *create_with: tuple[DataShape, np.dtype]):
+        full_set = [(shape, dtype)] + list(create_with)
+        size = max([np.prod(astuple(shape), dtype=object) * np.dtype(dtype).itemsize for (shape, dtype) in full_set])
+        mem = self.SharedMemory(int(size))
+        result = [SharedNPArray(mem.name, shape, dtype) for (shape, dtype) in full_set]
+        return result[0] if len(result) == 1 else result
+
+    def TermedNPArray(self, shape: DataShape, dtype: np.dtype, *create_with: tuple[DataShape, np.dtype]):
+        full_set = [(shape, dtype)] + list(create_with)
+        size = max([np.prod(astuple(shape), dtype=object) * np.dtype(dtype).itemsize for (shape, dtype) in full_set])
+        mem = SharedMemory(create=True, size=int(size))
+        result = [SharedNPArray(mem.name, shape, dtype) for (shape, dtype) in full_set]
+        self.__termed_mem.append(mem.name)
+        return result[0] if len(result) == 1 else result
+
+    def clear_queue(self):
+        ar_mem = []
+        while len(self.__mem_queue) > 0:
+            new_mem = self.SharedNPArray(*self.__mem_queue.pop(0))
+            ar_mem += new_mem if isinstance(new_mem, list) else [new_mem]
+        return ar_mem
+
+    def remove_termed(self, mem):
+        if isinstance(mem, SharedNPArray):
+            name = mem.name
+            mem.shutdown()
+        else:
+            name = mem
+        if name in self.__termed_mem:
+            self.__termed_mem.pop(self.__termed_mem.index(name))
+            t = SharedMemory(name)
+            t.close()
+            t.unlink()
+        else:
+            raise FileNotFoundError(f"{name} is not a termed shared memory array. {self.__termed_mem}")
+
+    def shutdown(self):
+        for name in self.__termed_mem:
+            t = SharedMemory(name)
+            t.close()
+            t.unlink()
+        super().shutdown()
+
+    def start(self, *args, **kwargs):
+        super().start(*args, **kwargs)
+        # Initialize the proxy immediately upon start
+        self.__termed_mem = self._TermedMem()
+
+    def connect(self):
+        super().connect()
+        # Initialize the proxy immediately upon connect
+        self.__termed_mem = self._TermedMem()
+
+    def __enter__(self):
+        this = [BaseManager.__enter__(self)]
+        return tuple(this + self.clear_queue())
+
+    def __exit__(self, *args, **kwargs):
+        print("Exiting! SHM!")
+        super().__exit__(*args, **kwargs)
 
 
 def exit_cleanly(step: str, *shm_objects, return_code: int = 0, statement: str = '', log_level: LOG = LOG.TIME,
@@ -191,3 +229,20 @@ def mem_monitor(mem_file, mem_store, pid):
                 last_step = last_step_arr.tobytes().decode()
                 log.write(last_step, out=out, pid=pid)
                 sleep(MEM_INTERVAL_TIMER)
+
+
+def cleanup_mem(*shm_objects):
+    """ Close and unlink shared memory objects.
+
+        :param shm_objects: Shared memory objects to shut down.
+    """
+    for shm in shm_objects:
+        if isinstance(shm, SharedNPArray):
+            shm.shutdown()
+            del shm
+        elif isinstance(shm, ShareableList):
+            shm.shm.close()
+            shm.shm.unlink()
+        elif isinstance(shm, SharedMemory):
+            shm.close()
+            shm.unlink()

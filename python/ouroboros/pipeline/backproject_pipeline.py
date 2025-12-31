@@ -6,12 +6,13 @@ import os
 from pathlib import Path
 import shutil
 import sys
-import tifffile
 import time
 import traceback
 
 from filelock import FileLock
 import numpy as np
+import psutil
+import tifffile
 
 from ouroboros.helpers.memory_usage import (
     calculate_gigabytes_from_dimensions
@@ -198,6 +199,7 @@ class BackprojectPipelineStep(PipelineStep):
                 pages_written = 0
 
                 def note_written(write_future):
+                    self.add_timing("Free Memory", psutil.virtual_memory().available)
                     nonlocal pages_written
                     pages_written += 1
                     self.update_progress((np.sum(processed) / len(chunk_range)) * (exec_procs / config.process_count)
@@ -206,6 +208,7 @@ class BackprojectPipelineStep(PipelineStep):
                         self.add_timing(key, value)
 
                 for bp_future in concurrent.futures.as_completed(bp_futures):
+                    self.add_timing("Free Memory", psutil.virtual_memory().available)
                     start = time.perf_counter()
                     # Store the durations for each bounding box
                     durations, index, z_stack = bp_future.result()

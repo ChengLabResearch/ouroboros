@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from itertools import chain
 from typing import Callable
 
+import psutil
 from tqdm import tqdm
 
 from ouroboros.pipeline.pipeline_input import BasePipelineInput
@@ -81,6 +82,7 @@ class PipelineStep(ABC):
         if self.show_progress_bar:
             tqdm.write(f"Starting Step: {self.step_name}")
             self.progress_bar = tqdm(total=100)
+        self.add_timing("Free Memory", psutil.virtual_memory().available)
 
         # Reset the progress to 0 at the start of the step
         self.update_progress(0)

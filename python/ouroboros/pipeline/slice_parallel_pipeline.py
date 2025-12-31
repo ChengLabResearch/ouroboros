@@ -162,6 +162,7 @@ class SliceParallelPipelineStep(PipelineStep):
                 def dl_completed(future):
                     volume, bounding_box, download_time, index = future.result()
                     self.add_timing("Download Time", download_time)
+                    self.add_timing("Free Memory", psutil.virtual_memory().available)
                     process_futures.append(process_executor.submit(partial_slice_executor,
                                                                    volume=volume,
                                                                    bounding_box=bounding_box,
@@ -180,10 +181,9 @@ class SliceParallelPipelineStep(PipelineStep):
                     volume_index, durations, min_val, max_val = future.result()
                     boundaries[0] = min(boundaries[0], min_val)
                     boundaries[1] = max(boundaries[1], max_val)
+                    self.add_timing("Free Memory", psutil.virtual_memory().available)
                     if volume_cache.use_shared:
                         volume_cache.remove_volume(volume_index, destroy_shared=True)
-                        print(f"Removed; Volume Count: {sum(vol is not None for vol in volume_cache.volumes)}"
-                              f" | {psutil.virtual_memory().available}")
                     for key, value in durations.items():
                         self.add_timing_list(key, value)
 

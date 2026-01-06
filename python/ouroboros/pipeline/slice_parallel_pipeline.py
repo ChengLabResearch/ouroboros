@@ -123,7 +123,8 @@ class SliceParallelPipelineStep(PipelineStep):
         all_work_done = threading.Event()
 
         # Minimum and maximum boundaries.
-        boundaries = np.zeros(2, dtype=np.float32)
+        min_bounds = []
+        max_bounds = []
 
         # Set an SharedMemoryManager key so we can pass it around later.
         authkey = secrets.token_bytes(32)
@@ -179,8 +180,8 @@ class SliceParallelPipelineStep(PipelineStep):
 
                 def processor_completed(future):
                     volume_index, durations, min_val, max_val = future.result()
-                    boundaries[0] = min(boundaries[0], min_val)
-                    boundaries[1] = max(boundaries[1], max_val)
+                    min_bounds.append(min_val)
+                    max_bounds.append(max_val)
                     self.add_timing("Free Memory", psutil.virtual_memory().available)
                     if volume_cache.use_shared:
                         volume_cache.remove_volume(volume_index, destroy_shared=True)
@@ -218,8 +219,8 @@ class SliceParallelPipelineStep(PipelineStep):
                                            target_dtype=volume_cache.get_volume_dtype(),
                                            normalize=config.normalize_output,
                                            zero_guard=config.zeroguard_output,
-                                           preset_min=boundaries[0],
-                                           preset_max=boundaries[1])
+                                           preset_min=np.min(min_bounds),
+                                           preset_max=np.max(max_bounds))
                     if config.make_single_file:
                         target_file = memmap(output_file_path, shape=temp_shape, dtype=volume_cache.get_volume_dtype(),
                                              **tiff_metadata)

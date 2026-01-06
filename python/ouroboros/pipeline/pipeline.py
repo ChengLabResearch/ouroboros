@@ -126,6 +126,7 @@ class PipelineStep(ABC):
                 "min": np.min(value).astype(float),
                 "max": np.max(value).astype(float),
                 "total": np.sum(value).astype(float),
+                "gap": np.max(value).astype(float) - np.min(value).astype(float),
                 "loops": len(value)
             }
             for key, value in custom_times.items()

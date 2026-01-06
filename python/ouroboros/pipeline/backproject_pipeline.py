@@ -77,10 +77,10 @@ class BackprojectPipelineStep(PipelineStep):
             return (f"The straightened volume does not exist at {straightened_volume_path}.")
 
         if Path(straightened_volume_path).is_dir():
-            with tifffile.TiffFile(next(Path(straightened_volume_path).iterdir())) as tif:
+            with tifffile.TiffFile(next(get_sorted_tif_files(straightened_volume_path))) as tif:
                 is_compressed = bool(tif.pages[0].compression)
                 # tiff format check to add
-                FPShape = FrontProjStack(D=len(list(Path(straightened_volume_path).iterdir())),
+                FPShape = FrontProjStack(D=len(get_sorted_tif_files(straightened_volume_path)),
                                          V=tif.pages[0].shape[0], U=tif.pages[0].shape[1])
                 channels = 1 if len(tif.pages[0].shape) < 3 else tif.pages[0].shape[-1]
         else:
@@ -100,7 +100,7 @@ class BackprojectPipelineStep(PipelineStep):
         cannot_memmap = False
         try:
             if Path(straightened_volume_path).is_dir():
-                _ = tifffile.memmap(next(Path(straightened_volume_path).iterdir()), mode="r")
+                _ = tifffile.memmap(next(get_sorted_tif_files(straightened_volume_path)), mode="r")
             else:
                 _ = tifffile.memmap(straightened_volume_path, mode="r")
         except:     # noqa: E722

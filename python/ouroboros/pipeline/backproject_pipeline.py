@@ -89,6 +89,14 @@ class BackprojectPipelineStep(PipelineStep):
                 FPShape = FrontProjStack(D=len(tif.pages), V=tif.pages[0].shape[0], U=tif.pages[0].shape[1])
                 channels = 1 if len(tif.pages[0].shape) < 3 else tif.pages[0].shape[-1]
 
+        # Make sure the config dimensions match the straightened volume dimensions.
+        ESShape = FrontProjStack(D=len(slice_rects), U=np.round(np.linalg.norm(slice_rects[0][1]-slice_rects[0][0])),
+                                 V=np.round(np.linalg.norm(slice_rects[0][3]-slice_rects[0][0])))
+
+        if ESShape != FPShape:
+            raise ValueError("Straightened volume file does not match sliced shape:\n"
+                             f" ({FPShape} vs {ESShape}, respectively).")
+
         cannot_memmap = False
         try:
             if Path(straightened_volume_path).is_dir():

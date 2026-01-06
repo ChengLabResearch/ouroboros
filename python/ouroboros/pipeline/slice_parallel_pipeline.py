@@ -110,8 +110,8 @@ class SliceParallelPipelineStep(PipelineStep):
         # Create temporary memmap (single tif file with the same dimensions as the slices)
         temp_shape = (
             slice_rects.shape[0],
-            config.slice_width,
             config.slice_height,
+            config.slice_width,
         ) + ((int(num_color_channels),) if has_color_channels else ())
 
         temp_file = memmap(temp_file_path, shape=temp_shape, dtype=np.float32, **tiff_metadata)

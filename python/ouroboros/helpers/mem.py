@@ -199,7 +199,6 @@ class SharedNPManager(SharedMemoryManager):
         return tuple(this + self.clear_queue())
 
     def __exit__(self, *args, **kwargs):
-        print("Exiting! SHM!")
         super().__exit__(*args, **kwargs)
 
 

@@ -172,7 +172,7 @@ class CloudVolumeInterface:
             self.source_url = self.source_url.replace("localhost", "host.docker.internal"
                                                       ).replace("127.0.0.1", "host.docker.internal")
 
-        self.cv = CloudVolume(self.source_url, parallel=True, cache=True)
+        self.cv = CloudVolume(self.source_url, parallel=1, cache=True)
 
         self.available_mips = self.cv.available_mips
         self.dtype = self.cv.dtype
@@ -207,7 +207,7 @@ class CloudVolumeInterface:
 
 
 def download_volume(
-    cv: CloudVolumeInterface, bounding_box: BoundingBox, mip, parallel=False,
+    cv: CloudVolumeInterface, bounding_box: BoundingBox, mip, parallel: int = 1,
     use_shared=False, shm_address: str = None, shm_authkey: str = None, **kwargs
 ) -> VolumeCutout:
     start = time.perf_counter()

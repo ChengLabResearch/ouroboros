@@ -155,7 +155,7 @@ class SliceParallelPipelineStep(PipelineStep):
                 partial_dl_executor = partial(download_volume,
                                               cv=volume_cache.cv,
                                               mip=volume_cache.mip,
-                                              parallel=False,
+                                              parallel=self.num_threads,
                                               use_shared=volume_cache.use_shared,
                                               shm_address=shm_host.address,
                                               shm_authkey=authkey)

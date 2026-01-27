@@ -128,6 +128,7 @@ class SliceParallelPipelineStep(PipelineStep):
 
         # Set an SharedMemoryManager key so we can pass it around later.
         authkey = secrets.token_bytes(32)
+        self.add_timing("Free Memory", psutil.virtual_memory().available)
 
         # Start the download volumes process and process downloaded volumes as they become available in the queue
         try:
@@ -245,6 +246,7 @@ class SliceParallelPipelineStep(PipelineStep):
         else:
             pipeline_input.output_file_path = str(output_folder)
 
+        self.add_timing("Free Memory", psutil.virtual_memory().available)
         return None
 
 

@@ -203,7 +203,7 @@ class SliceParallelPipelineStep(PipelineStep):
                         all_work_done.set()
 
                 # Download all volumes in parallel, and add the callback to process them as they finish.
-                for _ in range(self.num_processes * 3 // 4 + 1):
+                for _ in range(min(self.num_processes * 3 // 4 + 1, len(vol_range))):
                     index = vol_range.pop()
                     download_futures.append(
                         download_executor.submit(partial_dl_executor,

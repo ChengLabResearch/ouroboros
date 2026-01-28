@@ -17,7 +17,7 @@ function Menu(): JSX.Element {
 		{
 			id: string
 			name: string
-			mainPath: string
+			indexPath: string
 			stylesPath?: string
 			iconPath?: string
 		}[]

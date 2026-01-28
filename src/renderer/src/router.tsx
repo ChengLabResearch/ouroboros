@@ -57,7 +57,7 @@ export const router = createHashRouter(
 		}
 	],
 	{
-		async unstable_patchRoutesOnMiss({ path, patch }) {
+		async patchRoutesOnNavigation({ path, patch }) {
 			// Insert the plugin test page, a page that is only available in development
 			if (path === '/plugin-test') {
 				patch('root', [

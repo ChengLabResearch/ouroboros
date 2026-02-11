@@ -194,19 +194,20 @@ function FileExplorer(): JSX.Element {
 
 			// Determine if the dropped item is a folder
 			const item = files[0]
+			let path = window.api.getFilePath(item)
 
-			const isFolder = item.type === '' || !isPathFile(item.path)
+			const isFolder = item.type === '' || !isPathFile(path)
 
 			if (isFolder) {
 				// Send the folder to the main process
-				setDirectory(item.path)
+				setDirectory(path)
 			} else {
 				// Get the folder path
-				const folderPath = directory(item.path)
+				const folderPath = directory(path)
 
 				setDirectory(folderPath)
 
-				trySendFileToIframe(item.path)
+				trySendFileToIframe(path)
 			}
 		},
 		[setDirectory, trySendFileToIframe]

@@ -1,5 +1,5 @@
 import { joinWithSeparator } from '@renderer/interfaces/file'
-import { createContext, useCallback, useEffect, useState } from 'react'
+import { JSX, createContext, useCallback, useEffect, useState } from 'react'
 
 export type DirectoryContextValue = {
 	nodes: NodeChildren

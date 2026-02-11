@@ -1,4 +1,4 @@
-import { createContext, useState } from 'react'
+import { JSX, createContext, useState } from 'react'
 
 import { DndContext, DragEndEvent, UniqueIdentifier, Active } from '@dnd-kit/core'
 

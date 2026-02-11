@@ -10,7 +10,7 @@ import {
 	findPathsToType,
 	SliceOptionsFile
 } from '@renderer/interfaces/options'
-import { useContext, useEffect, useState } from 'react'
+import { JSX, useContext, useEffect, useState } from 'react'
 import { DirectoryContext } from '@renderer/contexts/DirectoryContext'
 import { join, readFile, writeFile } from '@renderer/interfaces/file'
 import { AlertContext } from '@renderer/contexts/AlertContext'

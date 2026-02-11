@@ -1,3 +1,4 @@
+import { JSX } from "react"
 import Header from '../Header/Header'
 import ProgressBar from './components/ProgressBar/ProgressBar'
 import ServerConnectedIndicator from './components/ServerConnectedIndicator/ServerConnectedIndicator'

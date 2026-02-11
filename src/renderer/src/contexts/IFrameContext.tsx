@@ -9,7 +9,7 @@ import {
 } from '@renderer/schemas/iframe-message-schema'
 import { safeParse } from 'valibot'
 import { readFile, writeFile } from '../interfaces/file'
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { JSX, createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { DirectoryContext } from '@renderer/contexts/DirectoryContext'
 
 export type IFrameContextValue = {

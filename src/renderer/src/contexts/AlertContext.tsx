@@ -1,3 +1,4 @@
+import { JSX } from "react"
 import AlertArea from '@renderer/components/AlertArea/AlertArea'
 import { createContext, useEffect, useRef, useState } from 'react'
 

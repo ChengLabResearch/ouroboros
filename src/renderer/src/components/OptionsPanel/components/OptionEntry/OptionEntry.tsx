@@ -5,7 +5,8 @@ import {
 	useContext,
 	ChangeEvent,
 	FormEventHandler,
-	useCallback
+	useCallback,
+	JSX
 } from 'react'
 import styles from './OptionEntry.module.css'
 import { useDroppable } from '@dnd-kit/core'

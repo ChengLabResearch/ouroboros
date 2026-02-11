@@ -1,3 +1,4 @@
+import { JSX } from "react"
 import { CompoundEntry, Entry } from '@renderer/interfaces/options'
 import OptionEntry from './components/OptionEntry/OptionEntry'
 import OptionSubmit from './components/OptionSubmit/OptionSubmit'

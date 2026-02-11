@@ -1,7 +1,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { useState } from 'react'
+import { JSX, useState } from 'react'
 import styles from './AddPlugin.module.css'
 
 function AddPlugin({ onAdd }: { onAdd: ({ type: string, content: string }) => void }): JSX.Element {

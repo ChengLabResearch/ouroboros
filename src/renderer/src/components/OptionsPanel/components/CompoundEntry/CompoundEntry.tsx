@@ -1,3 +1,4 @@
+import { JSX } from "react"
 import Separator from '@renderer/components/Separator/Separator'
 import styles from './CompoundEntry.module.css'
 import { CompoundEntry } from '@renderer/interfaces/options'

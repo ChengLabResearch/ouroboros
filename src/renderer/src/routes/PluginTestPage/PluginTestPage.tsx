@@ -1,5 +1,5 @@
 import { TestingPluginContext } from '@renderer/contexts/TestingPluginContext'
-import { useContext, useState } from 'react'
+import { JSX, useContext, useState } from 'react'
 import PluginTestInput from './components/PluginTestInput'
 import PluginDisplay from '@renderer/components/PluginDisplay/PluginDisplay'
 

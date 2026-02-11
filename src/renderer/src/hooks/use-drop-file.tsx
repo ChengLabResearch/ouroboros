@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 function useDropFile(
-	ref: React.RefObject<HTMLElement>,
+	ref: React.RefObject<HTMLElement | null>,
 	handleDrop: (event: DragEvent) => Promise<void>,
 	handleDragOver?: (event: DragEvent) => void,
 	handleDragLeave?: (event: DragEvent) => void

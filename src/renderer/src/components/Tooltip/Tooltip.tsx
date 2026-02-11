@@ -18,7 +18,7 @@ function Tooltip({ x, y, message }: { x: number; y: number; message: string }): 
 export default Tooltip
 
 export function useTooltip(
-	ref: React.RefObject<HTMLElement>,
+	ref: React.RefObject<HTMLElement | null>,
 	message?: string,
 	gap = 10
 ): JSX.Element {

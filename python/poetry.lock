@@ -1410,6 +1410,18 @@ files = [
 test = ["pytest (>=7)"]
 
 [[package]]
+name = "defusedxml"
+version = "0.7.1"
+description = "XML bomb protection for Python stdlib modules"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+groups = ["dev"]
+files = [
+    {file = "defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61"},
+    {file = "defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69"},
+]
+
+[[package]]
 name = "dill"
 version = "0.4.0"
 description = "serialize all of Python"
@@ -1758,6 +1770,7 @@ files = [
 
 [package.dependencies]
 click = ">7.0"
+defusedxml = {version = "*", optional = true, markers = "extra == \"coverage\""}
 pillow = "*"
 requests = "*"
 setuptools = "*"
@@ -4842,4 +4855,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "40cc3350c0ee06e2cc6d1ac3d738152786c074da852b17c1b1730673cd62f84a"
+content-hash = "64ba19d3206acd2663f8fa4628b946b821d02bc2e2a297e697b78ac592110408"

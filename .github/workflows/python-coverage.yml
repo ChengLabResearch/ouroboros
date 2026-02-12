@@ -38,12 +38,13 @@ jobs:
         run: |
           poetry run coverage run --source=ouroboros/helpers -m pytest 
           poetry run coverage report -m
+          poetry run coverage xml
         working-directory: ./python
 
       - name: Coverage Badge
-        uses: tj-actions/coverage-badge-py@v2
-        with:
-          working-directory: './python'
+        run: |
+          poetry run genbadge coverage -i coverage.xml -o coverage.svg
+        working-directory: ./python
 
       - name: Verify Changed files
         uses: tj-actions/verify-changed-files@v16

@@ -39,6 +39,7 @@ setuptools = "^78.1.1"
 coverage = "^7.6.0"
 autopep8 = "^2.3.2"
 viztracer = "^1.0.4"
+genbadge = "^1.1.0"
 
 [build-system]
 requires = ["poetry-core"]

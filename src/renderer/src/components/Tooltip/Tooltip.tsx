@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { JSX, useEffect, useRef, useState } from 'react'
 import styles from './Tooltip.module.css'
 
 function Tooltip({ x, y, message }: { x: number; y: number; message: string }): JSX.Element {
@@ -18,7 +18,7 @@ function Tooltip({ x, y, message }: { x: number; y: number; message: string }): 
 export default Tooltip
 
 export function useTooltip(
-	ref: React.RefObject<HTMLElement>,
+	ref: React.RefObject<HTMLElement | null>,
 	message?: string,
 	gap = 10
 ): JSX.Element {

@@ -1,3 +1,4 @@
+import { JSX } from "react"
 import { AlertMessageType } from '@renderer/contexts/AlertContext'
 import styles from './AlertArea.module.css'
 import Alert from './components/Alert/Alert'

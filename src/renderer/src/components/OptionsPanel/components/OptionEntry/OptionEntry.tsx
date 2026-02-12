@@ -5,7 +5,8 @@ import {
 	useContext,
 	ChangeEvent,
 	FormEventHandler,
-	useCallback
+	useCallback,
+	JSX
 } from 'react'
 import styles from './OptionEntry.module.css'
 import { useDroppable } from '@dnd-kit/core'
@@ -179,25 +180,21 @@ function OptionEntry({
 
 			// Determine if the dropped item is a folder
 			const item = files[0]
+			let path = window.api.getFilePath(item)
 
-			const isFolder = item.type === '' || !isPathFile(item.path)
+			const isFolder = item.type === '' || !isPathFile(path)
 
-			let path = item.path
 
 			if (!isFolder) {
 				// Get the folder path
-				path = directory(item.path)
-			}
-
-			if (isFolder && directoryPath && !directoryPath.includes(path)) {
+				setDirectory(directory(path))
+			} else if (directoryPath && !directoryPath.includes(path)) {
 				// Send the folder to the main process
-				setDirectory(path)
-			} else if (!isFolder) {
 				setDirectory(path)
 			}
 
 			// Update the input value
-			updateValue(item.path)
+			updateValue(path)
 		},
 		[setDirectory, directoryPath]
 	)

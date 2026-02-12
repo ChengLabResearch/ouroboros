@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { JSX, useLayoutEffect, useRef } from 'react'
 import styles from './ContextMenu.module.css'
 
 export type ContextMenuAction = {

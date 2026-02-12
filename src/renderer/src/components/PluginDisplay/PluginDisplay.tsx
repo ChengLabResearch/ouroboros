@@ -1,3 +1,5 @@
+import { JSX } from "react"
+
 function PluginDisplay({ url }: { url: string }): JSX.Element {
 	return (
 		<iframe

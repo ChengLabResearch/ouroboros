@@ -1,3 +1,4 @@
+import { JSX } from "react"
 import styles from './ServerConnectedIndicator.module.css'
 
 // TODO make this respond to changes from the server

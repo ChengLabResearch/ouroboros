@@ -1,3 +1,4 @@
+import { JSX } from "react"
 import OptionsPanel from '@renderer/components/OptionsPanel/OptionsPanel'
 import styles from './BackprojectPage.module.css'
 import VisualizePanel from '@renderer/components/VisualizePanel/VisualizePanel'

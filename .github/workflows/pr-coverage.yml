@@ -40,6 +40,11 @@ jobs:
           poetry run coverage report -m
           poetry run coverage xml
         working-directory: ./python
+      
+      - name: Coverage Badge
+        run: |
+          poetry run genbadge coverage -i coverage.xml -o coverage.svg
+        working-directory: ./python
 
 # orgoro does not work in workflow runs due to fork permissions issues:
 # See PR https://github.com/orgoro/coverage/pull/281

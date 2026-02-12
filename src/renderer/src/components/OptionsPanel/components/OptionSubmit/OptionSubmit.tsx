@@ -1,3 +1,4 @@
+import { JSX } from "react"
 import Start from './assets/start.svg?react'
 import styles from './OptionSubmit.module.css'
 

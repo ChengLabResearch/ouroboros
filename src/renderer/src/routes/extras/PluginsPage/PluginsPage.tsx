@@ -6,7 +6,7 @@ import PluginMenuButton from './components/PluginMenu/PluginMenuButton'
 import TrashIcon from './assets/trash.svg?react'
 import AddIcon from './assets/plus.svg?react'
 import PluginItem from './components/PluginItem/PluginItem'
-import { useEffect, useState } from 'react'
+import { JSX, useEffect, useState } from 'react'
 import AddPlugin from './components/AddPlugin/AddPlugin'
 
 function PluginsPage(): JSX.Element {

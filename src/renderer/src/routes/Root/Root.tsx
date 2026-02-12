@@ -1,3 +1,4 @@
+import { JSX } from "react"
 import MenuPanel from '@renderer/components/MenuPanel/MenuPanel'
 import AlertProvider from '@renderer/contexts/AlertContext'
 import DirectoryProvider from '@renderer/contexts/DirectoryContext'

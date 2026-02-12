@@ -1,4 +1,4 @@
-import { useContext, useEffect } from 'react'
+import { JSX, useContext, useEffect } from 'react'
 
 import { DragContext } from '@renderer/contexts/DragContext'
 import { useDroppable } from '@dnd-kit/core'

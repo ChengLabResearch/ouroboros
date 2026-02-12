@@ -1,4 +1,4 @@
-import { createContext, useEffect, useState } from 'react'
+import { JSX, createContext, useEffect, useState } from 'react'
 
 export type TestingPluginContextValue = {
 	testingPlugin: boolean

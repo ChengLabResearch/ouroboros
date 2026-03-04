@@ -30,6 +30,34 @@ import multiprocessing
 import time
 
 
+def build_straightened_tiff_metadata(
+    volume_cache: VolumeCache,
+    has_color_channels: bool,
+    num_color_channels: int | None,
+    annotation_points: np.ndarray | None = None,
+) -> dict:
+    # Volume cache resolution is in voxel size, but .tiff XY resolution is in voxels per unit, so we invert.
+    resolution = [1.0 / voxel_size for voxel_size in volume_cache.get_resolution_um()[:2] * 0.0001]
+    resolutionunit = "CENTIMETER"
+
+    metadata = {
+        # Z Resolution doesn't have an inbuilt property or strong convention.
+        "spacing": volume_cache.get_resolution_um()[2],
+        "unit": "um",
+    }
+    if isinstance(annotation_points, np.ndarray):
+        metadata["annotation_points"] = annotation_points.tolist()
+
+    return {
+        "software": "ouroboros",
+        "resolution": resolution[:2] + [resolutionunit],
+        "photometric": (
+            "rgb" if has_color_channels and num_color_channels and num_color_channels > 1 else "minisblack"
+        ),
+        "metadata": metadata,
+    }
+
+
 class SliceParallelPipelineStep(PipelineStep):
     def __init__(
         self,
@@ -84,28 +112,18 @@ class SliceParallelPipelineStep(PipelineStep):
             config.output_file_folder, f"{config.output_file_name}_temp"
         ).with_suffix(".tif")
 
-        # Start setting up metadata
-        # Volume cache resolution is in voxel size, but .tiff XY resolution is in voxels per unit, so we invert.
-        resolution = [1.0 / voxel_size for voxel_size in volume_cache.get_resolution_um()[:2] * 0.0001]
-        resolutionunit = "CENTIMETER"
-        # However, Z Resolution doesn't have an inbuilt property or strong convention, so going with this.
-        metadata = {
-            "spacing": volume_cache.get_resolution_um()[2],
-            "unit": "um"
-        }
-
         # Determine the dimensions of the image
         has_color_channels = volume_cache.has_color_channels()
         num_color_channels = (
             volume_cache.get_num_channels() if has_color_channels else None
         )
 
-        tiff_metadata = {
-            "software": "ouroboros",
-            "resolution": resolution[:2] + [resolutionunit],     # XY Resolution
-            "photometric": ("rgb" if has_color_channels and num_color_channels > 1 else "minisblack"),
-            "metadata": metadata
-        }
+        tiff_metadata = build_straightened_tiff_metadata(
+            volume_cache=volume_cache,
+            has_color_channels=has_color_channels,
+            num_color_channels=num_color_channels,
+            annotation_points=pipeline_input.annotation_points,
+        )
 
         # Create temporary memmap (single tif file with the same dimensions as the slices)
         temp_shape = (

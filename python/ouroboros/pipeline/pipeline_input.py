@@ -30,6 +30,7 @@ class PipelineInput(BasePipelineInput):
     backproject_options: BackprojectOptions | None = None
     source_url: str | None = None
     sample_points: np.ndarray | None = None
+    annotation_points: np.ndarray | None = None
     slice_rects: np.ndarray | None = None
     volume_cache: VolumeCache | None = None
     output_file_path: str | None = None
@@ -37,11 +38,11 @@ class PipelineInput(BasePipelineInput):
     config_file_path: str | None = None
     backprojection_offset: str | None = None
 
-    @field_serializer("sample_points", "slice_rects")
+    @field_serializer("sample_points", "annotation_points", "slice_rects")
     def to_list(self, value) -> list | None:
         return value.tolist() if value is not None else None
 
-    @field_validator("sample_points", "slice_rects", mode="before")
+    @field_validator("sample_points", "annotation_points", "slice_rects", mode="before")
     @classmethod
     def validate_list(cls, value: any) -> np.ndarray | None:
         if isinstance(value, list):

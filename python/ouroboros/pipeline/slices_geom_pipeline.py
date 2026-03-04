@@ -65,6 +65,28 @@ class SlicesGeometryPipelineStep(PipelineStep):
 
         equidistant_points = spline(equidistant_params)
 
+        # Convert annotation points to straightened-volume coordinates.
+        # `spline.u` are the fit parameters corresponding to these input points.
+        annotation_projection_points = spline(spline.u).T
+
+        _, normal_vectors, binormal_vectors = spline.calculate_rotation_minimizing_vectors(spline.u)
+
+        annotation_offsets = sample_points - annotation_projection_points
+        lateral_offsets_x = np.einsum("ij,ij->i", annotation_offsets, normal_vectors.T)
+        lateral_offsets_y = np.einsum("ij,ij->i", annotation_offsets, binormal_vectors.T)
+
+        straightened_depth = np.interp(spline.u, equidistant_params,
+                                       np.arange(len(equidistant_params), dtype=np.float32))
+
+        straightened_annotation_points = np.column_stack(
+            (
+                (config.slice_width - 1) / 2.0 + lateral_offsets_x,
+                (config.slice_height - 1) / 2.0 - lateral_offsets_y,
+                straightened_depth,
+            )
+        )
+        pipeline_input.annotation_points = straightened_annotation_points
+
         self.update_progress(0.5)
 
         # Calculate the slice rects for each t value

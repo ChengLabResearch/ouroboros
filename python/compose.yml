@@ -1,8 +1,6 @@
 services:
   ouroboros-server:
-    build: 
-      context: .
-      dockerfile: Dockerfile
+    image: ${OUROBOROS_SERVER_IMAGE:-ghcr.io/chenglabresearch/ouroboros-server}:${OUROBOROS_SERVER_TAG:-latest}
     container_name: ouroboros-server
     ports:
       - '8000:8000'

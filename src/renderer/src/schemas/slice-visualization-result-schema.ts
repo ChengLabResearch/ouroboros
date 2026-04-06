@@ -38,7 +38,7 @@ export const parseSliceVisualizationToOutputFormat = (
 	if (error) {
 		return makeErrorResult(error)
 	} else if (!result.data) {
-		makeErrorResult('No data provided for slice visualization')
+		return makeErrorResult('No data provided for slice visualization')
 	} else if (result.error) {
 		return makeErrorResult(result.error)
 	}

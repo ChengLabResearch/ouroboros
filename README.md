@@ -99,6 +99,8 @@ Running `npm run dev` in the Electron app will automatically build and start the
 
 This may take up to a minute the first time, but after that, it will be almost instantaneous.
 
+During development, the Docker server now uses hot reloading for files in [`python/ouroboros`](/home/sorotassu/Code/our_json/python/ouroboros), so normal Python code edits should restart the server without forcing a full image rebuild. A rebuild is still needed if Python dependencies or the Docker image definition change.
+
 ### 1. Install Python
 
 Due to some Python dependencies, it is highly recommended that the default Python installation for the system is `3.11`.

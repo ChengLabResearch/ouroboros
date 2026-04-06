@@ -1,4 +1,5 @@
 from multiprocessing import freeze_support
+import os
 
 import uvicorn
 
@@ -17,7 +18,14 @@ create_api(app, docker=True)
 
 
 def main():
-    uvicorn.run(app, host=DOCKER_HOST, port=DOCKER_PORT)
+    reload_enabled = os.getenv("OUR_HOT_RELOAD", "").lower() in {"1", "true", "yes", "on"}
+
+    uvicorn.run(
+        "ouroboros.docker_server:app" if reload_enabled else app,
+        host=DOCKER_HOST,
+        port=DOCKER_PORT,
+        reload=reload_enabled,
+    )
 
 
 if __name__ == "__main__":

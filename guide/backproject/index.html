@@ -347,6 +347,15 @@
 <p><strong>Output Position Offset</strong></p>
 <p>By default, the slicing output tiff image is backprojected into the space of its minimum bounding box, rather than the space of the entire source scan.</p>
 <p>The offset of the minimum bounding box is stored in the output tiff's description metadata. It is also stored in the configuration file (which is modified by the backproject step).</p>
+<p><strong>Plugin Segmentation Inputs</strong></p>
+<p>The <code>Straightened Volume File</code> can be the segmentation TIFF produced by the autoseg plugin, as long as it was generated from the same slicing configuration selected in <code>Slice Options File</code>.</p>
+<p>Ouroboros checks the plugin output before backprojection:</p>
+<ul>
+<li>Shape must match the slicing config as <code>D/V/U</code>: number of slices, slice height, slice width. Single-stack TIFFs use page count for <code>D</code>; directory outputs use the number of TIFF files.</li>
+<li>Dtype must be a mask-friendly integer or boolean type: <code>bool</code>, <code>uint8</code>, or <code>uint16</code>.</li>
+<li>Compressed plugin TIFFs are accepted when tifffile can read them; Ouroboros rewrites compressed or non-memmappable inputs to an uncompressed temporary stack before processing.</li>
+</ul>
+<p>Shape mismatches, dtype mismatches, and missing slice configuration now report separate errors so plugin output problems do not require manual reshaping to diagnose.</p>
 <h3 id="slicing-options">Slicing Options</h3>
 <p>📁 - Drag and drop files from File Explorer panel into this option.</p>
 <ul>

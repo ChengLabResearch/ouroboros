@@ -33,6 +33,7 @@ from ouroboros.helpers.files import (
     get_sorted_tif_files,
     join_path,
     generate_tiff_write,
+    validate_straightened_volume_for_backprojection,
     write_conv_vol,
     write_raw_intermediate
 )
@@ -62,6 +63,15 @@ class BackprojectPipelineStep(PipelineStep):
         if not isinstance(config.straightened_volume_path, str):
             return "Input data must contain a string containing a path to a tif file."
 
+        if not isinstance(config.slice_options_path, str) or config.slice_options_path.strip() == "":
+            return (
+                "Missing slice config: BackprojectOptions.slice_options_path must point to "
+                "the matching slicing configuration."
+            )
+
+        if pipeline_input.slice_options is None:
+            return "Missing slice config: loaded SliceOptions are required for backprojection."
+
         # Verify that a volume cache is given
         if not isinstance(volume_cache, VolumeCache):
             return "Input data must contain a VolumeCache object."
@@ -76,31 +86,25 @@ class BackprojectPipelineStep(PipelineStep):
         if not os.path.exists(straightened_volume_path):
             return (f"The straightened volume does not exist at {straightened_volume_path}.")
 
-        if Path(straightened_volume_path).is_dir():
-            with tifffile.TiffFile(next(get_sorted_tif_files(straightened_volume_path))) as tif:
-                is_compressed = bool(tif.pages[0].compression)
-                # tiff format check to add
-                FPShape = FrontProjStack(D=len(get_sorted_tif_files(straightened_volume_path)),
-                                         V=tif.pages[0].shape[0], U=tif.pages[0].shape[1])
-                channels = 1 if len(tif.pages[0].shape) < 3 else tif.pages[0].shape[-1]
-        else:
-            with tifffile.TiffFile(straightened_volume_path) as tif:
-                is_compressed = bool(tif.pages[0].compression)
-                FPShape = FrontProjStack(D=len(tif.pages), V=tif.pages[0].shape[0], U=tif.pages[0].shape[1])
-                channels = 1 if len(tif.pages[0].shape) < 3 else tif.pages[0].shape[-1]
+        try:
+            volume_info = validate_straightened_volume_for_backprojection(
+                straightened_volume_path, slice_rects
+            )
+        except (TypeError, ValueError) as e:
+            return str(e)
 
-        # Make sure the config dimensions match the straightened volume dimensions.
-        ESShape = FrontProjStack(D=len(slice_rects), U=np.round(np.linalg.norm(slice_rects[0][1]-slice_rects[0][0])),
-                                 V=np.round(np.linalg.norm(slice_rects[0][3]-slice_rects[0][0])))
-
-        if ESShape != FPShape:
-            raise ValueError("Straightened volume file does not match sliced shape:\n"
-                             f" ({FPShape} vs {ESShape}, respectively).")
+        is_compressed = volume_info.is_compressed
+        FPShape = FrontProjStack(
+            D=volume_info.shape.D,
+            V=volume_info.shape.V,
+            U=volume_info.shape.U,
+        )
+        channels = volume_info.channels
 
         cannot_memmap = False
         try:
             if Path(straightened_volume_path).is_dir():
-                _ = tifffile.memmap(next(get_sorted_tif_files(straightened_volume_path)), mode="r")
+                _ = tifffile.memmap(volume_info.sample_path, mode="r")
             else:
                 _ = tifffile.memmap(straightened_volume_path, mode="r")
         except:     # noqa: E722

@@ -11,7 +11,7 @@
     
     <meta name="author" content="Weaver Goldman and David Northover"> 
     
-    <link rel="canonical" href="https://wegold.me/ouroboros/guide/slicing/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
+    <link rel="canonical" href="https://wegold.me/ouroboros/development/docker-builds/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="../../img/android-chrome-512x512.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="../../img/apple-touch-icon.png" />
 <link rel="shortcut icon" type="image/png" sizes="48x48" href="../../img/favicon.ico" />
@@ -21,7 +21,7 @@
 
     
  
-<title>Slicing - Ouroboros Documentation</title>
+<title>Docker Builds - Ouroboros Documentation</title>
 
 
 <link href="../../css/fontawesome/css/fontawesome.min.css" rel="stylesheet">
@@ -162,9 +162,13 @@
             
     
         
-        <span class="
         
-    terminal-mkdocs-side-nav-item--active terminal-mkdocs-side-nav-section-no-index">Usage Guide</span>
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Usage Guide</span>
+        
     
     
         
@@ -178,31 +182,7 @@
     
         
         
-            <a class="terminal-mkdocs-side-nav-item" href="../downloading/">Download Ouroboros</a>
-        
-    
-    </li>
-            
-        
-            
-            
-             
-                <li class="terminal-mkdocs-side-nav-li-ul-li">
-    
-        
-        <span class="terminal-mkdocs-side-nav-item--active">Slicing</span>
-    
-    </li>
-            
-        
-            
-            
-             
-                <li class="terminal-mkdocs-side-nav-li-ul-li">
-    
-        
-        
-            <a class="terminal-mkdocs-side-nav-item" href="../backproject/">Backprojection</a>
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/downloading/">Download Ouroboros</a>
         
     
     </li>
@@ -215,7 +195,33 @@
     
         
         
-            <a class="terminal-mkdocs-side-nav-item" href="../plugins/">Plugins</a>
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/slicing/">Slicing</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/backproject/">Backprojection</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/plugins/">Plugins</a>
         
     
     </li>
@@ -234,13 +240,9 @@
             
     
         
+        <span class="
         
-            
-            
-            <span class="
-        
-    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Development</span>
-        
+    terminal-mkdocs-side-nav-item--active terminal-mkdocs-side-nav-section-no-index">Development</span>
     
     
         
@@ -292,9 +294,7 @@
                 <li class="terminal-mkdocs-side-nav-li-ul-li">
     
         
-        
-            <a class="terminal-mkdocs-side-nav-item" href="../../development/docker-builds/">Docker Builds</a>
-        
+        <span class="terminal-mkdocs-side-nav-item--active">Docker Builds</span>
     
     </li>
             
@@ -334,72 +334,29 @@
 </nav><hr>
 <nav>
     <ul>
-        <li><a href="#slicing">Slicing</a></li>
-        <li><a href="#using-the-slice-page">Using the Slice Page</a></li><li><a href="#slicing-options">Slicing Options</a></li><li><a href="#how-does-slicing-work">How Does Slicing Work?</a></li>
+        <li><a href="#docker-build-readiness">Docker Build Readiness</a></li>
+        <li><a href="#current-behavior">Current behavior</a></li><li><a href="#remaining-follow-ups">Remaining follow-ups</a></li>
     </ul>
 </nav>
 </aside>
             <main id="terminal-mkdocs-main-content">
 <section id="mkdocs-terminal-content">
-    <h1 id="slicing">Slicing</h1>
-<p><img alt="Long Sliced Volume" src="../../assets/slicing/long-slice.png" /></p>
-<p>Slicing is one of the primary features of Ouroboros, available in the CLI and the desktop app.</p>
-<h3 id="using-the-slice-page">Using the Slice Page</h3>
-<p><strong>Basic Usage Demo</strong></p>
-<p><img alt="Basic Usage Demo" src="../../assets/slicing/Slice%20Page%20Demo.gif" /></p>
-<p><strong>Reusing Options from a Previous Run</strong></p>
-<p><img alt="Reusing Options from a Previous Run" src="../../assets/slicing/Slice%20Page%20Options%20Demo.gif" /></p>
-<h3 id="slicing-options">Slicing Options</h3>
-<p>📁 - Drag and drop files from File Explorer panel into this option.</p>
+    <h1 id="docker-build-readiness">Docker Build Readiness</h1>
+<p>This note captures the current build hot spots and the next cleanup targets for keeping Docker startup fast.</p>
+<h2 id="current-behavior">Current behavior</h2>
 <ul>
-<li>📁 <code>Neuroglancer JSON</code> - Path to the Neuroglancer configuration JSON file (exported from Neuroglancer with <code>{}</code> icon, or through the Neuroglancer Plugin)</li>
-<li><code>Neuroglancer Image Layer</code> - Select Neuroglancer image layer to slice from.</li>
-<li><code>Neuroglancer Annotation Layer</code> - Select Neuroglancer annotation layer to slice from.</li>
-<li><code>Slice Width</code> - The output width of each slice image.</li>
-<li><code>Slice Height</code> - The output height of each slice image.</li>
-<li>📁 <code>Output File Folder</code> - The folder to save all the resulting files into.</li>
-<li><code>Output File Name</code> - Base name for all output files.</li>
-<li><code>Annotation MIP Level</code> - The annotation layer's MIP level. 0 is the highest resolution.</li>
-<li><code>Output MIP Level</code> - The MIP level to output slices in (essentially a downsample option). 1 is a good starting point.</li>
-<li><code>Slicing Parameters</code><ul>
-<li><code>Distance Between Slices</code> - The distance between each slice along the annotation path.</li>
-<li><code>Use Adaptive Slicing</code> - Rather than just using equidistant slices, add more slices in more curved areas.</li>
-<li><code>Adaptive Slicing Ratio</code> - 1 indicates to consider distance and curvature equally, 0.5 is biased towards distance, and 2 is biased towards curvature.</li>
+<li>Development startup intentionally runs the main server compose file with <code>--build</code> so Python source changes are picked up while working locally.</li>
+<li>Production startup now uses plain compose startup. Docker will build the bundled server image the first time it is missing, but repeated app launches should not force a rebuild.</li>
+<li>Local plugin installation still runs an explicit compose build after copying a plugin into the app data folder. That is the correct time to build a packaged plugin backend because the app has just installed new backend files.</li>
 </ul>
-</li>
-<li><code>Output Single File</code> - Whether to output one tiff stack file or a folder of files.</li>
-<li><code>Bounding Box Parameters</code><ul>
-<li><code>Max Depth</code> - The maximum depth for binary space partitioning. It is not recommended to change this option unless you encounter RAM issues.</li>
-<li><code>Target Slices Per Box</code> - If you are running on a low-RAM system, or you are taking very large slices, you may want to decrease this.</li>
+<h2 id="remaining-follow-ups">Remaining follow-ups</h2>
+<ul>
+<li>Publish the production server image to a registry during releases, then ship a compose file that references the immutable image tag instead of building from the bundled wheel at first launch.</li>
+<li>Add a separate development compose path with bind-mounted Python source and reload-friendly commands so main-server development does not need a full image rebuild for ordinary source edits.</li>
+<li>Add a plugin-template backend development compose file that bind-mounts <code>backend/app</code> and avoids <code>--build</code> on every <code>npm run dev</code> start once the image exists.</li>
+<li>Keep GPU-specific containers in plugins or optional compose overrides rather than making the core app image GPU-first. The core server image does not currently require CUDA, while segmentation plugins such as SAM-backed plugins are the better place for CUDA runtime bases.</li>
+<li>Preserve the current wheel-based release path until registry-published server images exist, because it keeps releases reproducible without depending on a mutable external image name.</li>
 </ul>
-</li>
-</ul>
-<h3 id="how-does-slicing-work">How Does Slicing Work?</h3>
-<p><strong>Spline Fitting</strong></p>
-<p>Ouroboros fits a spline curve to the annotation path from the Neuroglancer JSON file. This produces a smooth, differentiable curve along the length of the annotations. </p>
-<p>If the line segments between annotation points were used, then there would could be highly discontinuous slice transitions around sharp corners.</p>
-<p><strong>Slice Coordinate Frames</strong></p>
-<p>Ouroboros calculates equidistant points along the spline curve. Each point is "1" apart from the previous to match the appearance of isotropic slices taken from one of the axes of the coordinate space of the full volume (the coordinate space of the annotation points).</p>
-<p>To follow any possible path, each point must have its own coordinate frame normal to the spline. For easier segmentation, it is also important that the axes of the point coordinate frames don't flip between points. </p>
-<p>To achieve this, Ouroboros <a href="https://github.com/We-Gold/ouroboros/blob/05bac7b1a0a45d6c93e70cc3220397ebc7e11f8b/python/ouroboros/helpers/spline.py#L96">calculates rotation-minimizing frames</a> based on the change in orientation of the tangent vectors of adjacent points.</p>
-<p><strong>Rectangles and Grids</strong></p>
-<p>Ouroboros calculates the corners of the slice rectangle at using each point and its associated coordinate axes (as vectors).</p>
-<p><em>Pseudocode</em></p>
-<pre><code class="language-python">width_vector # 'u' unit vector scaled to slice width / 2 
-height_vector # 'v' unit vector scaled to slice height / 2
-
-top_left = point - width_vector + height_vector
-top_right = point + width_vector + height_vector
-bottom_right = point + width_vector - height_vector
-bottom_left = point - width_vector - height_vector
-</code></pre>
-<p>Then, for each point, a 2D grid is generated with given dimensions (slice width and height). Each point in the 2D grid is a 3D point which is calculated by interpolating between the four corner points.</p>
-<p><strong>Volumes and Trilinear Interpolation</strong></p>
-<p>At this point, Ouroboros has a full grid of 3D points associated with each slice, but has yet to download any data from the cloud-hosted volume.</p>
-<p>To avoid downloading unnecessary data, Ouroboros employs binary space partitioning to divide the minimum bounding box of the ROI recursively until each volume contains few enough slices to fit into available RAM.</p>
-<p>Ouroboros then downloads the data for each of these bounding boxes from the cloud-hosted volume. As each download completes, a new process is spawned to handle calculations. </p>
-<p>For each volume, <code>scipy.ndimage.map_coordinates</code> is used to extract the values at the coordinates of the slice grids from the 3D volume using trilinear interpolation. </p>
-<p>Each of these slices are saved as local tiff images and are later combined into a single output tiff.</p>
 </section>
 
             </main>
@@ -413,9 +370,8 @@ bottom_left = point - width_vector - height_vector
         </div>
         <div id="terminal-mkdocs-footer-prev-next">
             <nav class="btn-group">
-                <a href="../downloading/" title="Download Ouroboros">Previous</a>
-                |
-                <a href="../backproject/" title="Backprojection">Next</a>
+                <a href="../../guide/plugins/" title="Plugins">Previous</a>
+                
             </nav>
         </div>
     </div>

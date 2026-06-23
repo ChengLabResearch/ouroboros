@@ -46,7 +46,7 @@ The first lines of the package.json are important to identifying your plugin.
 
 A plugin page (React website) is hosted by the main app and lives in an `iframe`, in a completely separate context from the main app. 
 
-Running `npm run dev` starts a development server for the React website and starts the included Docker container via Docker compose (see `backend` folder).
+Running `npm run dev` starts a development server for the React website and starts the included Docker container via Docker compose (see `backend` folder). Development uses `backend/compose.dev.yml`, which bind-mounts `backend/app` and runs the API in FastAPI development mode so ordinary backend source edits do not need a Docker rebuild.
 
 If you want to avoid reinventing the wheel (in this case the common components of the main app), then feel free to copy them over to your app. They should work immediately. If not, you may need to copy one of the context providers from the main app and wrap it around your `App` component in a similar way to the `Root` component of the main app.
 
@@ -68,7 +68,12 @@ Remember, these contexts are not available to you through the app's iframe, you 
 
 ### Docker
 
-The default Dockerfile and Docker Compose YAML should be a good starting point. 
+The default Dockerfile and Docker Compose YAML should be a good starting point.
+
+The template includes two compose files:
+
+- `backend/compose.yml` is the packaged plugin backend compose file referenced from `package.json`.
+- `backend/compose.dev.yml` is used by `npm run dev-backend`; rebuild it after dependency or Dockerfile changes, but use plain startup for normal app-code edits.
 
 It is recommended to read the sample `main.py` in `backend`. This goes over a basic FastAPI server, but more importantly, it demonstrates how to use the `Docker Volume Server` (custom to Ouroboros).
 

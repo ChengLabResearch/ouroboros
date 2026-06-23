@@ -2,10 +2,11 @@ const { upAll, downAll } = require('docker-compose')
 const { join } = require('path')
 
 const containerFolder = join(__dirname, 'backend')
+const composeFile = join(containerFolder, 'compose.dev.yml')
 
 // Start docker compose
 console.log('Starting Docker Container')
-upAll({ cwd: containerFolder, log: false, commandOptions: ['--build'] }).catch(() => {
+upAll({ cwd: containerFolder, log: false, config: composeFile }).catch(() => {
 	console.error(
 		'Failed to start plugin docker environment. Make sure Docker is installed and running.'
 	)
@@ -14,7 +15,7 @@ upAll({ cwd: containerFolder, log: false, commandOptions: ['--build'] }).catch((
 async function cleanup() {
 	try {
 		console.log('Shutting Down Docker Container')
-		await downAll({ cwd: containerFolder, log: false })
+		await downAll({ cwd: containerFolder, log: false, config: composeFile })
 	} catch (e) {
 		console.error(e)
 	}

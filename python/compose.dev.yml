@@ -1,0 +1,31 @@
+services:
+  ouroboros-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ouroboros-server
+    entrypoint: ["python", "-m", "uvicorn"]
+    command:
+      [
+        "ouroboros.docker_server:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+        "--reload-dir",
+        "/app/ouroboros"
+      ]
+    ports:
+      - '8000:8000'
+    volumes:
+      - ouroboros-volume:/volume
+      - ./ouroboros:/app/ouroboros
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - OUR_ENV=docker
+    shm_size: 64gb
+volumes:
+  ouroboros-volume:
+    name: ouroboros-volume

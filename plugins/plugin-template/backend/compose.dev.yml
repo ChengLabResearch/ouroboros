@@ -1,0 +1,19 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: plugin-template-backend
+    command: ["fastapi", "dev", "app/main.py", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - '8001:8000'
+    volumes:
+      - ouroboros-volume:/volume
+      - ./app:/code/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  ouroboros-volume:
+    external: true
+    name: ouroboros-volume

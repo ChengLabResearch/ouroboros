@@ -335,7 +335,7 @@
 <nav>
     <ul>
         <li><a href="#docker-build-readiness">Docker Build Readiness</a></li>
-        <li><a href="#current-behavior">Current behavior</a></li><li><a href="#remaining-follow-ups">Remaining follow-ups</a></li>
+        <li><a href="#current-behavior">Current behavior</a></li><li><a href="#development-compose-files">Development compose files</a></li><li><a href="#remaining-follow-ups">Remaining follow-ups</a></li>
     </ul>
 </nav>
 </aside>
@@ -345,15 +345,20 @@
 <p>This note captures the current build hot spots and the next cleanup targets for keeping Docker startup fast.</p>
 <h2 id="current-behavior">Current behavior</h2>
 <ul>
-<li>Development startup intentionally runs the main server compose file with <code>--build</code> so Python source changes are picked up while working locally.</li>
+<li>Development startup uses <code>python/compose.dev.yml</code>, bind-mounts the Python source tree, and runs the Docker server through Uvicorn reload. Ordinary Python source edits should not require a compose rebuild.</li>
 <li>Production startup now uses plain compose startup. Docker will build the bundled server image the first time it is missing, but repeated app launches should not force a rebuild.</li>
 <li>Local plugin installation still runs an explicit compose build after copying a plugin into the app data folder. That is the correct time to build a packaged plugin backend because the app has just installed new backend files.</li>
+<li>The plugin template uses <code>backend/compose.dev.yml</code> during <code>npm run dev-backend</code>, bind-mounts <code>backend/app</code>, and runs the backend in FastAPI development mode.</li>
+</ul>
+<h2 id="development-compose-files">Development compose files</h2>
+<ul>
+<li><code>python/compose.dev.yml</code> is for main-server development. It still uses the normal Python Dockerfile for dependencies, but mounts <code>python/ouroboros</code> into the container and reloads the server when that package changes.</li>
+<li><code>plugins/plugin-template/backend/compose.dev.yml</code> is for template plugin backend development. It keeps the packaged <code>backend/compose.yml</code> unchanged while mounting <code>backend/app</code> for reload-oriented local edits.</li>
+<li>Run <code>docker compose -f &lt;compose.dev.yml&gt; build</code> after dependency or Dockerfile changes. Routine source edits can use plain compose startup.</li>
 </ul>
 <h2 id="remaining-follow-ups">Remaining follow-ups</h2>
 <ul>
 <li>Publish the production server image to a registry during releases, then ship a compose file that references the immutable image tag instead of building from the bundled wheel at first launch.</li>
-<li>Add a separate development compose path with bind-mounted Python source and reload-friendly commands so main-server development does not need a full image rebuild for ordinary source edits.</li>
-<li>Add a plugin-template backend development compose file that bind-mounts <code>backend/app</code> and avoids <code>--build</code> on every <code>npm run dev</code> start once the image exists.</li>
 <li>Keep GPU-specific containers in plugins or optional compose overrides rather than making the core app image GPU-first. The core server image does not currently require CUDA, while segmentation plugins such as SAM-backed plugins are the better place for CUDA runtime bases.</li>
 <li>Preserve the current wheel-based release path until registry-published server images exist, because it keeps releases reproducible without depending on a mutable external image name.</li>
 </ul>

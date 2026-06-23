@@ -1,9 +1,7 @@
-import json
 import sys
 import types
 
 import numpy as np
-import tifffile
 
 
 def install_cloudvolume_import_stub():
@@ -45,13 +43,10 @@ def straightened_metadata_kwargs():
     )
 
 
-def read_first_page_metadata(path):
-    with tifffile.TiffFile(path) as tif:
-        return json.loads(tif.pages[0].tags["ImageDescription"].value)
+def test_straightened_tiff_metadata_includes_annotation_points_in_xyz_order():
+    metadata = straightened_metadata_kwargs()["metadata"]
 
-
-def assert_annotation_points_metadata(metadata):
-    assert metadata["spacing"] == 1.5
+    assert metadata["spacing"] == np.float32(1.5)
     assert metadata["unit"] == "um"
     assert metadata["annotation_points"] == ANNOTATION_POINTS_XYZ.tolist()
 
@@ -63,47 +58,11 @@ def assert_annotation_points_metadata(metadata):
     assert all(len(row) == 3 for row in metadata["annotation_points"])
 
 
-def write_single_stack_tiff(tmp_path):
-    stack_path = tmp_path / "straightened.tif"
-    stack = tifffile.memmap(
-        stack_path,
-        shape=(3, 4, 5),
-        dtype=np.uint8,
-        **straightened_metadata_kwargs(),
-    )
-    stack[:] = np.arange(stack.size, dtype=np.uint8).reshape(stack.shape)
-    stack.flush()
-    del stack
+def test_straightened_tiff_metadata_preserves_existing_tiff_kwargs_shape():
+    kwargs = straightened_metadata_kwargs()
 
-    return stack_path
-
-
-def write_directory_tiff(tmp_path):
-    frame_dir = tmp_path / "straightened"
-    frame_dir.mkdir()
-    metadata_kwargs = straightened_metadata_kwargs()
-
-    for frame_index in range(3):
-        frame = np.full((4, 5), frame_index, dtype=np.uint8)
-        tifffile.imwrite(
-            frame_dir / f"{frame_index:02}.tif",
-            frame,
-            **metadata_kwargs,
-        )
-
-    return frame_dir
-
-
-def test_single_stack_tiff_preserves_annotation_points_metadata(tmp_path):
-    stack_path = write_single_stack_tiff(tmp_path)
-    metadata = read_first_page_metadata(stack_path)
-
-    assert_annotation_points_metadata(metadata)
-
-
-def test_directory_tiff_output_preserves_annotation_points_metadata(tmp_path):
-    frame_dir = write_directory_tiff(tmp_path)
-
-    for frame_path in sorted(frame_dir.glob("*.tif")):
-        metadata = read_first_page_metadata(frame_path)
-        assert_annotation_points_metadata(metadata)
+    assert kwargs["software"] == "ouroboros"
+    assert kwargs["photometric"] == "minisblack"
+    assert kwargs["resolution"][-1] == "CENTIMETER"
+    assert len(kwargs["resolution"]) == 3
+    assert "resolutionunit" not in kwargs

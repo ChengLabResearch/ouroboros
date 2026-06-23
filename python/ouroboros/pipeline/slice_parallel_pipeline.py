@@ -36,15 +36,13 @@ def build_straightened_tiff_metadata(
     num_color_channels: int | None,
     annotation_points: np.ndarray | None = None,
 ) -> dict:
-    resolution_um = np.asarray(volume_cache.get_resolution_um(), dtype=float)
-
     # Volume cache resolution is in voxel size, but .tiff XY resolution is in voxels per unit, so we invert.
-    resolution = [float(1.0 / voxel_size) for voxel_size in resolution_um[:2] * 0.0001]
+    resolution = [1.0 / voxel_size for voxel_size in volume_cache.get_resolution_um()[:2] * 0.0001]
     resolutionunit = "CENTIMETER"
 
     metadata = {
         # Z Resolution doesn't have an inbuilt property or strong convention.
-        "spacing": float(resolution_um[2]),
+        "spacing": volume_cache.get_resolution_um()[2],
         "unit": "um",
     }
     if isinstance(annotation_points, np.ndarray):
@@ -52,8 +50,7 @@ def build_straightened_tiff_metadata(
 
     return {
         "software": "ouroboros",
-        "resolution": resolution[:2],
-        "resolutionunit": resolutionunit,
+        "resolution": resolution[:2] + [resolutionunit],
         "photometric": (
             "rgb" if has_color_channels and num_color_channels and num_color_channels > 1 else "minisblack"
         ),

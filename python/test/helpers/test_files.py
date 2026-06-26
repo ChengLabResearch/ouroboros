@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from ouroboros.helpers.files import (
     format_backproject_output_file,
@@ -19,9 +20,12 @@ from ouroboros.helpers.files import (
     parse_tiff_name,
     np_convert,
     generate_tiff_write,
+    expected_straightened_volume_shape,
+    inspect_straightened_volume,
     ravel_map_2d,
     increment_volume,
     load_raw_file_intermediate,
+    validate_straightened_volume_for_backprojection,
     write_raw_intermediate
 )
 
@@ -194,6 +198,102 @@ def test_generate_tiff_write(tmp_path):
         assert json_metadata["backprojection_offset_min_xyz"] == [55, 44, 77]
 
 
+def _backproject_slice_rects(width=4, height=5, count=3):
+    return np.array(
+        [
+            [[0, 0, z], [width, 0, z], [width, height, z], [0, height, z]]
+            for z in range(count)
+        ],
+        dtype=np.float32,
+    )
+
+
+def _write_test_tiff_stack(path: Path, shape=(3, 5, 4), dtype=np.uint8):
+    import tifffile as tf
+
+    with tf.TiffWriter(path) as tif:
+        for z in range(shape[0]):
+            tif.write(np.full(shape[1:], z, dtype=dtype), compression=None)
+
+
+def test_expected_straightened_volume_shape_uses_duv_from_slice_rects():
+    expected = expected_straightened_volume_shape(_backproject_slice_rects())
+
+    assert expected.D == 3
+    assert expected.V == 5
+    assert expected.U == 4
+
+
+def test_expected_straightened_volume_shape_requires_slice_config():
+    with pytest.raises(ValueError, match="Missing slice config"):
+        expected_straightened_volume_shape(np.empty((0, 4, 3)))
+
+
+def test_validate_straightened_volume_accepts_plugin_mask_stack(tmp_path):
+    straightened_volume_path = tmp_path.joinpath("plugin-output.tif")
+    _write_test_tiff_stack(straightened_volume_path)
+
+    info = validate_straightened_volume_for_backprojection(
+        str(straightened_volume_path), _backproject_slice_rects()
+    )
+
+    assert info.shape.D == 3
+    assert info.shape.V == 5
+    assert info.shape.U == 4
+    assert info.dtype == np.dtype(np.uint8)
+    assert info.channels == 1
+    assert not info.is_compressed
+
+
+def test_validate_straightened_volume_accepts_directory_of_plugin_masks(tmp_path):
+    import tifffile as tf
+
+    straightened_volume_folder = tmp_path.joinpath("plugin-output")
+    straightened_volume_folder.mkdir()
+    for z in range(3):
+        tf.imwrite(
+            straightened_volume_folder.joinpath(f"{z:02}.tif"),
+            np.full((5, 4), z, dtype=np.uint8),
+            compression=None,
+        )
+
+    info = validate_straightened_volume_for_backprojection(
+        str(straightened_volume_folder), _backproject_slice_rects()
+    )
+
+    assert info.sample_path.name == "00.tif"
+    assert info.shape.D == 3
+    assert info.dtype == np.dtype(np.uint8)
+
+
+def test_validate_straightened_volume_distinguishes_shape_mismatch(tmp_path):
+    straightened_volume_path = tmp_path.joinpath("plugin-output.tif")
+    _write_test_tiff_stack(straightened_volume_path, shape=(2, 5, 4))
+
+    with pytest.raises(ValueError, match="shape mismatch"):
+        validate_straightened_volume_for_backprojection(
+            str(straightened_volume_path), _backproject_slice_rects()
+        )
+
+
+def test_validate_straightened_volume_distinguishes_dtype_mismatch(tmp_path):
+    straightened_volume_path = tmp_path.joinpath("plugin-output.tif")
+    _write_test_tiff_stack(straightened_volume_path, dtype=np.float32)
+
+    with pytest.raises(TypeError, match="dtype mismatch"):
+        validate_straightened_volume_for_backprojection(
+            str(straightened_volume_path), _backproject_slice_rects()
+        )
+
+
+def test_inspect_straightened_volume_distinguishes_empty_directory(tmp_path):
+    straightened_volume_folder = tmp_path.joinpath("empty")
+    straightened_volume_folder.mkdir()
+
+    with pytest.raises(ValueError, match="contains no TIFF files"):
+        inspect_straightened_volume(str(straightened_volume_folder))
+
+
 def test_ravel_map_2d():
     offset = ((60, ), (40, ))
     source_rows = 20
@@ -294,7 +394,10 @@ def test_np_convert_from_int():
     assert np.all(np_convert(np.float32, base, normalize=False) == base.astype(np.float32))
 
     # Normalized Conversion
-    assert np.all(np_convert(np.float32, base) == base.astype(np.float32) / (np.max(base) - np.min(base)))
+    np.testing.assert_allclose(
+        np_convert(np.float32, base),
+        base.astype(np.float32) / (np.max(base) - np.min(base)),
+    )
 
     # Safe Bool
     safe_bool = np_convert(bool, base, safe_bool=True)

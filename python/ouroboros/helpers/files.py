@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from functools import partial
 from io import BytesIO
 from multiprocessing.pool import ThreadPool
@@ -7,9 +8,32 @@ import numpy as np
 from numpy.typing import ArrayLike
 from pathlib import Path
 import cv2
+import tifffile
 import time
 
 from .shapes import DataShape
+
+
+SUPPORTED_BACKPROJECT_INPUT_DTYPES = frozenset(
+    np.dtype(dtype) for dtype in (np.bool_, np.uint8, np.uint16)
+)
+
+
+@dataclass(frozen=True)
+class FrontProjectionShape:
+    D: int
+    V: int
+    U: int
+
+
+@dataclass(frozen=True)
+class StraightenedVolumeInfo:
+    path: Path
+    sample_path: Path
+    shape: FrontProjectionShape
+    dtype: np.dtype
+    channels: int
+    is_compressed: bool
 
 
 def get_sorted_tif_files(directory: str) -> list[str]:
@@ -37,6 +61,90 @@ def get_sorted_tif_files(directory: str) -> list[str]:
     tif_files = sorted((file for file in files if file.endswith((".tif", ".tiff"))))
 
     return tif_files
+
+
+def expected_straightened_volume_shape(slice_rects: np.ndarray) -> FrontProjectionShape:
+    if not isinstance(slice_rects, np.ndarray) or len(slice_rects) == 0:
+        raise ValueError(
+            "Missing slice config: slice_rects must be loaded from the matching slicing configuration."
+        )
+
+    return FrontProjectionShape(
+        D=len(slice_rects),
+        U=int(np.round(np.linalg.norm(slice_rects[0][1] - slice_rects[0][0]))),
+        V=int(np.round(np.linalg.norm(slice_rects[0][3] - slice_rects[0][0]))),
+    )
+
+
+def inspect_straightened_volume(straightened_volume_path: str) -> StraightenedVolumeInfo:
+    path = Path(straightened_volume_path)
+    if path.is_dir():
+        tif_files = get_sorted_tif_files(str(path))
+        if len(tif_files) == 0:
+            raise ValueError(
+                f"Straightened volume directory contains no TIFF files: {straightened_volume_path}"
+            )
+        sample_path = path.joinpath(tif_files[0])
+        depth = len(tif_files)
+    else:
+        sample_path = path
+        depth = None
+
+    with tifffile.TiffFile(sample_path) as tif:
+        if len(tif.pages) == 0:
+            raise ValueError(f"Straightened volume TIFF contains no pages: {sample_path}")
+        page = tif.pages[0]
+        if len(page.shape) < 2:
+            raise ValueError(
+                f"Straightened volume TIFF pages must be at least two-dimensional: {sample_path}"
+            )
+
+        volume_depth = depth if depth is not None else len(tif.pages)
+        channels = 1 if len(page.shape) < 3 else page.shape[-1]
+
+        return StraightenedVolumeInfo(
+            path=path,
+            sample_path=sample_path,
+            shape=FrontProjectionShape(
+                D=volume_depth,
+                V=page.shape[0],
+                U=page.shape[1],
+            ),
+            dtype=np.dtype(page.dtype),
+            channels=channels,
+            is_compressed=page.compression != tifffile.COMPRESSION.NONE,
+        )
+
+
+def validate_straightened_volume_for_backprojection(
+    straightened_volume_path: str, slice_rects: np.ndarray
+) -> StraightenedVolumeInfo:
+    info = inspect_straightened_volume(straightened_volume_path)
+    expected_shape = expected_straightened_volume_shape(slice_rects)
+
+    if info.shape != expected_shape:
+        raise ValueError(
+            "Straightened volume shape mismatch: "
+            f"input is D/V/U={info.shape.D}/{info.shape.V}/{info.shape.U}, "
+            f"but the slice config expects D/V/U="
+            f"{expected_shape.D}/{expected_shape.V}/{expected_shape.U}. "
+            "Use a plugin output generated from the matching slicing configuration."
+        )
+
+    if info.dtype not in SUPPORTED_BACKPROJECT_INPUT_DTYPES:
+        expected_dtypes = ", ".join(
+            dtype.name
+            for dtype in sorted(
+                SUPPORTED_BACKPROJECT_INPUT_DTYPES, key=lambda value: value.name
+            )
+        )
+        raise TypeError(
+            "Straightened volume dtype mismatch: "
+            f"input dtype is {info.dtype.name}, expected one of {expected_dtypes} "
+            "for plugin mask backprojection."
+        )
+
+    return info
 
 
 def join_path(*args) -> str:

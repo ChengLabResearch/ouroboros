@@ -75,6 +75,19 @@ The template includes two compose files:
 - `backend/compose.yml` is the packaged plugin backend compose file referenced from `package.json`.
 - `backend/compose.dev.yml` is used by `npm run dev-backend`; rebuild it after dependency or Dockerfile changes, but use plain startup for normal app-code edits.
 
+GPU-backed plugins should keep CUDA dependencies inside the plugin backend image rather than requiring the core Ouroboros server image to use a GPU base. The template includes an optional CUDA example:
+
+- `backend/Dockerfile.gpu` starts from an NVIDIA CUDA runtime image and installs the same backend requirements.
+- `backend/compose.gpu.yml` is an override that switches the backend build to `Dockerfile.gpu` and requests NVIDIA GPU devices.
+
+Use it locally with:
+
+```
+docker compose -f backend/compose.yml -f backend/compose.gpu.yml up --build
+```
+
+For a packaged GPU plugin, copy the GPU build and device settings into the compose file referenced by `dockerCompose`, or point `dockerCompose` at a GPU-specific compose file that includes those settings.
+
 It is recommended to read the sample `main.py` in `backend`. This goes over a basic FastAPI server, but more importantly, it demonstrates how to use the `Docker Volume Server` (custom to Ouroboros).
 
 Since plugins need to access files from the host file system (plugin frontends usually sends absolute file paths in the host file system), the `Docker Volume Server` provides functionality to copy files to and from a Docker volume (shared between all plugins and the main server). 

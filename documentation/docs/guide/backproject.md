@@ -30,6 +30,18 @@ By default, the slicing output tiff image is backprojected into the space of its
 
 The offset of the minimum bounding box is stored in the output tiff's description metadata. It is also stored in the configuration file (which is modified by the backproject step).
 
+**Plugin Segmentation Inputs**
+
+The `Straightened Volume File` can be the segmentation TIFF produced by the autoseg plugin, as long as it was generated from the same slicing configuration selected in `Slice Options File`.
+
+Ouroboros checks the plugin output before backprojection:
+
+- Shape must match the slicing config as `D/V/U`: number of slices, slice height, slice width. Single-stack TIFFs use page count for `D`; directory outputs use the number of TIFF files.
+- Dtype must be a mask-friendly integer or boolean type: `bool`, `uint8`, or `uint16`.
+- Compressed plugin TIFFs are accepted when tifffile can read them; Ouroboros rewrites compressed or non-memmappable inputs to an uncompressed temporary stack before processing.
+
+Shape mismatches, dtype mismatches, and missing slice configuration now report separate errors so plugin output problems do not require manual reshaping to diagnose.
+
 ### Slicing Options
 
 📁 - Drag and drop files from File Explorer panel into this option.
@@ -68,4 +80,3 @@ Backprojection iterates through 3D chunks of the straightened volume, as follows
 The slices in the straightened volume were originally produced through interpolation. Each slice has a 2D grid of 3D points, and the values at these points were approximated through interpolation.
 
 In order to put the data back, we have to interpolate in the opposite direction. Each point contributes to the value of its neighbors based on how close it is to them. 
-

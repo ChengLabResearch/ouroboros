@@ -22,6 +22,28 @@ Export sample options files into the current folder.
 
 `ouroboros-cli sample-options`
 
+### Straightened TIFF Annotation Metadata
+
+Slice outputs embed straightened annotation prompts in the first TIFF
+page's `ImageDescription` JSON under the `annotation_points` key:
+
+```json
+{
+  "annotation_points": [[x, y, z], ...]
+}
+```
+
+Each row is ordered as `x, y, z` in straightened-volume coordinates:
+`x` is the column coordinate within a straightened slice, `y` is the
+row coordinate within that slice, and `z` is the straightened slice
+index/depth coordinate. These are not original source-volume
+coordinates.
+
+Single-stack TIFF outputs and directory-of-TIFF outputs both use this
+same metadata schema. Directory outputs write the same metadata to each
+per-slice TIFF; consumers can read the first sorted TIFF file to recover
+the annotation prompts.
+
 ### Server Usage
 
 This package also comes with a FastAPI server that can be run with `ouroboros-server`. Internally, this is compiled using PyInstaller and run in the electron app. 

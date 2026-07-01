@@ -189,13 +189,7 @@ function resolvePathFromRoot(path) {
 
 async function extractZip(artifactPath, target) {
 	if (process.platform === 'win32') {
-		await run('powershell', [
-			'-NoProfile',
-			'-Command',
-			'param($source, $destination) Expand-Archive -LiteralPath $source -DestinationPath $destination -Force',
-			artifactPath,
-			target
-		])
+		await run('tar', ['-xf', artifactPath, '-C', target])
 		return
 	}
 

@@ -5,6 +5,16 @@ const root = process.cwd()
 const dist = join(root, 'dist')
 const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
 const flavor = process.env.OUROBOROS_PACKAGE_FLAVOR
+const dashedPrefixes = unique(
+	[packageJson.name, packageJson.productName]
+		.filter(Boolean)
+		.map((name) => `${name}-${packageJson.version}`)
+)
+const underscoredPrefixes = unique(
+	[packageJson.name, packageJson.productName]
+		.filter(Boolean)
+		.map((name) => `${name}_${packageJson.version}`)
+)
 
 if (!flavor) {
 	console.log('OUROBOROS_PACKAGE_FLAVOR is not set; leaving release artifact names unchanged.')
@@ -49,15 +59,21 @@ function artifactNameForFlavor(fileName) {
 		return `${fileName.slice(0, -'.yml'.length)}-${flavor}.yml`
 	}
 
-	const dashedPrefix = `${packageJson.name}-${packageJson.version}`
-	if (fileName.startsWith(dashedPrefix)) {
-		return `${dashedPrefix}-${flavor}${fileName.slice(dashedPrefix.length)}`
+	for (const dashedPrefix of dashedPrefixes) {
+		if (fileName.startsWith(dashedPrefix)) {
+			return `${dashedPrefix}-${flavor}${fileName.slice(dashedPrefix.length)}`
+		}
 	}
 
-	const underscoredPrefix = `${packageJson.name}_${packageJson.version}`
-	if (fileName.startsWith(underscoredPrefix)) {
-		return `${underscoredPrefix}_${flavor}${fileName.slice(underscoredPrefix.length)}`
+	for (const underscoredPrefix of underscoredPrefixes) {
+		if (fileName.startsWith(underscoredPrefix)) {
+			return `${underscoredPrefix}_${flavor}${fileName.slice(underscoredPrefix.length)}`
+		}
 	}
 
 	return null
+}
+
+function unique(values) {
+	return [...new Set(values)]
 }

@@ -33,11 +33,11 @@ env:
   GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
 jobs:
-  release:
+  build-packages:
     runs-on: ${{ matrix.os }}
 
     permissions:
-      contents: write
+      contents: read
 
     strategy:
       fail-fast: false
@@ -93,11 +93,12 @@ jobs:
         env:
           OUROBOROS_PACKAGE_FLAVOR: ${{ matrix.package.flavor }}
 
-      - name: release
-        uses: softprops/action-gh-release@v1
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
         with:
-          draft: true
-          files: |
+          name: ${{ matrix.os }}-${{ matrix.package.flavor }}-release-assets
+          if-no-files-found: error
+          path: |
             dist/*.exe
             dist/*.zip
             dist/*.dmg
@@ -108,3 +109,33 @@ jobs:
             dist/*.tar.gz
             dist/*.yml
             dist/*.blockmap
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build-packages
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish draft release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          files: |
+            release-assets/*.exe
+            release-assets/*.zip
+            release-assets/*.dmg
+            release-assets/*.AppImage
+            release-assets/*.snap
+            release-assets/*.deb
+            release-assets/*.rpm
+            release-assets/*.tar.gz
+            release-assets/*.yml
+            release-assets/*.blockmap

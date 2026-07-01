@@ -23,6 +23,113 @@ export async function getPluginFolder(): Promise<string> {
 	return pluginFolder
 }
 
+export function getPreinstalledPluginFolder(): string {
+	return join(__dirname, '../../../extra-resources/preinstalled-plugins')
+}
+
+async function readPluginPackage(pluginFolder: string): Promise<PluginPackageJSON | string> {
+	const pathToPackageJSON = join(pluginFolder, 'package.json')
+
+	if (!existsSync(pathToPackageJSON)) {
+		return `Plugin package.json not found: ${pathToPackageJSON}`
+	}
+
+	const packageJSON = await readFile({ folder: pluginFolder, name: 'package.json' })
+	return parsePluginPackageJSON(packageJSON)
+}
+
+export async function installPreinstalledPlugins(
+	pluginFolder: string,
+	preinstalledPluginFolder = getPreinstalledPluginFolder()
+): Promise<void> {
+	if (!existsSync(preinstalledPluginFolder)) {
+		console.info(`No preinstalled plugin folder found at ${preinstalledPluginFolder}`)
+		return
+	}
+
+	const bundledEntries = await fs.readdir(preinstalledPluginFolder, { withFileTypes: true })
+	for (const entry of bundledEntries) {
+		if (!entry.isDirectory()) continue
+
+		const bundledFolder = join(preinstalledPluginFolder, entry.name)
+		const bundledPackage = await readPluginPackage(bundledFolder)
+		if (typeof bundledPackage === 'string') {
+			console.error(`Skipping bundled plugin ${entry.name}: ${bundledPackage}`)
+			continue
+		}
+
+		const targetFolder = join(pluginFolder, bundledPackage.name)
+		const installAction = await preinstalledPluginInstallAction(targetFolder, bundledPackage)
+
+		if (installAction === 'skip') {
+			console.info(
+				`Skipping bundled plugin ${bundledPackage.name}; installed version is current or newer`
+			)
+			continue
+		}
+
+		if (installAction === 'skip-unversioned') {
+			console.info(
+				`Skipping bundled plugin ${bundledPackage.name}; existing install has no comparable version`
+			)
+			continue
+		}
+
+		await fs.rm(targetFolder, { recursive: true, force: true })
+		await fs.cp(bundledFolder, targetFolder, { recursive: true })
+		console.info(
+			`${installAction === 'upgrade' ? 'Upgraded' : 'Installed'} bundled plugin ${bundledPackage.name} ${bundledPackage.version ?? ''}`.trim()
+		)
+	}
+}
+
+async function preinstalledPluginInstallAction(
+	targetFolder: string,
+	bundledPackage: PluginPackageJSON
+): Promise<'install' | 'upgrade' | 'skip' | 'skip-unversioned'> {
+	if (!existsSync(targetFolder)) {
+		return 'install'
+	}
+
+	const installedPackage = await readPluginPackage(targetFolder)
+	if (typeof installedPackage === 'string') {
+		return 'skip-unversioned'
+	}
+
+	const versionComparison = comparePluginVersions(
+		bundledPackage.version,
+		installedPackage.version
+	)
+	if (versionComparison === null) {
+		return 'skip-unversioned'
+	}
+
+	return versionComparison > 0 ? 'upgrade' : 'skip'
+}
+
+function comparePluginVersions(bundledVersion?: string, installedVersion?: string): number | null {
+	if (!bundledVersion || !installedVersion) return null
+
+	const bundledParts = versionParts(bundledVersion)
+	const installedParts = versionParts(installedVersion)
+	const length = Math.max(bundledParts.length, installedParts.length)
+
+	for (let index = 0; index < length; index += 1) {
+		const bundledPart = bundledParts[index] ?? 0
+		const installedPart = installedParts[index] ?? 0
+		if (bundledPart !== installedPart) return bundledPart - installedPart
+	}
+
+	return bundledVersion.localeCompare(installedVersion)
+}
+
+function versionParts(version: string): number[] {
+	return version
+		.split(/[.-]/)
+		.map((part) => Number.parseInt(part, 10))
+		.filter((part) => Number.isFinite(part))
+}
+
 export async function getPluginList(
 	pluginFolder: string,
 	includeJSON = false
@@ -215,6 +322,7 @@ export type PluginDetail = {
 
 export async function startAllPlugins(): Promise<PluginDetail[]> {
 	const pluginFolder = await getPluginFolder()
+	await installPreinstalledPlugins(pluginFolder)
 	const plugins = await getPluginList(pluginFolder, true)
 
 	const dockerCheck = await checkDocker()

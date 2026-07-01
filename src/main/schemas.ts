@@ -3,6 +3,7 @@ import { InferOutput, object, optional, safeParse, string } from 'valibot'
 export const PluginPackageJSONSchema = object({
 	name: string('Plugin name is required'),
 	pluginName: string('Readable plugin name is required'),
+	version: optional(string()),
 	icon: optional(string()),
 	index: string('Plugin index.html file is required'),
 	dockerCompose: optional(string())

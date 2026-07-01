@@ -364,22 +364,12 @@
 </ul>
 <p>Both tags are produced from the same wheel artifact that the Dockerfile installs.</p>
 <h2 id="release-compose-usage">Release Compose Usage</h2>
-<p>Release packaging uses <code>npm run prepare:production-server</code> to write
-<code>extra-resources/server/compose.yml</code> and <code>extra-resources/server/server-image.json</code>.
-For a tag build, the app package workflow sets:</p>
-<pre><code class="language-yaml">OUROBOROS_SERVER_IMAGE_TAG=v1.4.0
+<p>Release packaging should prefer an immutable image tag when the corresponding image exists:</p>
+<pre><code class="language-yaml">services:
+  ouroboros-server:
+    image: ghcr.io/chenglabresearch/ouroboros-server:v1.4.0
 </code></pre>
-<p>The generated compose file preserves the production ports, <code>ouroboros-volume</code>
-mount, <code>host.docker.internal</code> mapping, <code>OUR_ENV=docker</code>, and <code>shm_size</code> settings,
-but uses <code>image:</code> instead of <code>build:</code>. Production first launch therefore pulls
-the published GHCR image instead of building the server locally.</p>
-<p>For digest-pinned packages, set:</p>
-<pre><code class="language-bash">OUROBOROS_SERVER_IMAGE_REPOSITORY=ghcr.io/chenglabresearch/ouroboros-server
-OUROBOROS_SERVER_IMAGE_DIGEST=sha256:&lt;digest&gt;
-npm run prepare:production-server
-</code></pre>
-<p>Development compose files still build locally from source so local edits do not
-depend on registry state.</p>
+<p>Keep the bundled wheel and <code>Dockerfile-prod</code> path available as a fallback until installers consistently ship a release-specific compose file. Development compose files should keep building locally from source so local edits do not depend on registry state.</p>
 <h2 id="manual-runs">Manual Runs</h2>
 <p>The workflow also supports <code>workflow_dispatch</code> for validating or re-publishing the image from the current branch. Release consumers should still use tag or SHA image references rather than mutable names.</p>
 </section>

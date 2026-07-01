@@ -348,7 +348,7 @@
 <nav>
     <ul>
         <li><a href="#ouroboros-plugins">Ouroboros Plugins</a></li>
-        <li><a href="#recommended-plugins">Recommended Plugins</a></li><li><a href="#installing-a-plugin">Installing a Plugin</a></li><li><a href="#creating-a-plugin">Creating a Plugin</a></li>
+        <li><a href="#recommended-plugins">Recommended Plugins</a></li><li><a href="#installing-a-plugin">Installing a Plugin</a></li><li><a href="#preinstalled-production-plugins">Preinstalled Production Plugins</a></li><li><a href="#creating-a-plugin">Creating a Plugin</a></li>
     </ul>
 </nav>
 </aside>
@@ -385,6 +385,15 @@
 <li>Press Download (Ouroboros downloads and installs the plugin for you)</li>
 </ol>
 <p><em>Where are plugins installed? In the <a href="https://github.com/electron/electron/blob/main/docs/api/app.md#appgetpathname">appData</a>/ouroboros folder. This folder is different on each OS.</em></p>
+<h3 id="preinstalled-production-plugins">Preinstalled Production Plugins</h3>
+<p>Production packages can bundle plugin folders under
+<code>extra-resources/preinstalled-plugins/&lt;plugin-name&gt;/</code>. On startup, Ouroboros
+copies missing bundled plugins into the normal user-data plugin folder before it
+loads plugins.</p>
+<p>Bundled plugin installs are idempotent and version-aware. If a user already has
+the same plugin installed, Ouroboros compares the <code>version</code> field in each
+plugin's <code>package.json</code>; it upgrades only when the bundled version is newer and
+skips existing installs that are current, newer, or not safely comparable.</p>
 <h3 id="creating-a-plugin">Creating a Plugin</h3>
 <p>See the <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md">template README</a> for more information.</p>
 </section>

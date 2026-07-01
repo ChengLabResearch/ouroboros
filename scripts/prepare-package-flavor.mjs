@@ -192,7 +192,7 @@ async function extractZip(artifactPath, target) {
 		await run('powershell', [
 			'-NoProfile',
 			'-Command',
-			'Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force',
+			'param($source, $destination) Expand-Archive -LiteralPath $source -DestinationPath $destination -Force',
 			artifactPath,
 			target
 		])

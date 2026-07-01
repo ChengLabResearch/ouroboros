@@ -5,6 +5,7 @@ out
 *.log*
 documentation/site
 extra-resources
+.package-plugin-artifacts
 data
 ignoreme.py
 temp

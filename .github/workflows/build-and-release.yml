@@ -4,9 +4,32 @@ on:
   push:
     tags:
       - v*.*.*
+  workflow_dispatch:
+    inputs:
+      server_image_tag:
+        description: Server image tag to package. Defaults to the release tag.
+        required: false
+      server_image_digest:
+        description: Optional server image digest. Overrides the tag when set.
+        required: false
+      neuroglancer_plugin_tag:
+        description: Neuroglancer plugin release tag. Defaults to the release tag.
+        required: false
+      neuroglancer_plugin_artifact:
+        description: Neuroglancer plugin artifact name. Defaults from the plugin tag.
+        required: false
+      autoseg_plugin_tag:
+        description: Automatic segmentation plugin release tag. Defaults to the release tag.
+        required: false
+      autoseg_cpu_plugin_artifact:
+        description: CPU automatic segmentation plugin artifact name. Defaults from the plugin tag.
+        required: false
+      autoseg_cuda_plugin_artifact:
+        description: CUDA automatic segmentation plugin artifact name. Defaults from the plugin tag.
+        required: false
 
 env: 
-  GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+  GH_TOKEN: "${{ secrets.OUROBOROS_RELEASE_ASSET_TOKEN || secrets.GITHUB_TOKEN }}"
   GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
 jobs:
@@ -19,6 +42,10 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        package:
+          - flavor: core
+          - flavor: plugins-cpu
+          - flavor: plugins-cuda
 
     steps:
       - name: Check out Git repository
@@ -35,7 +62,18 @@ jobs:
       - name: Prepare registry-backed server resources
         run: npm run prepare:production-server
         env:
-          OUROBOROS_SERVER_IMAGE_TAG: ${{ github.ref_name }}
+          OUROBOROS_SERVER_IMAGE_TAG: ${{ github.event.inputs.server_image_tag || github.ref_name }}
+          OUROBOROS_SERVER_IMAGE_DIGEST: ${{ github.event.inputs.server_image_digest }}
+
+      - name: Prepare production package flavor
+        run: npm run prepare:package-flavor
+        env:
+          OUROBOROS_PACKAGE_FLAVOR: ${{ matrix.package.flavor }}
+          OUROBOROS_NEUROGLANCER_PLUGIN_TAG: ${{ github.event.inputs.neuroglancer_plugin_tag || github.ref_name }}
+          OUROBOROS_NEUROGLANCER_PLUGIN_ARTIFACT: ${{ github.event.inputs.neuroglancer_plugin_artifact }}
+          OUROBOROS_AUTOSEG_PLUGIN_TAG: ${{ github.event.inputs.autoseg_plugin_tag || github.ref_name }}
+          OUROBOROS_AUTOSEG_CPU_PLUGIN_ARTIFACT: ${{ github.event.inputs.autoseg_cpu_plugin_artifact }}
+          OUROBOROS_AUTOSEG_CUDA_PLUGIN_ARTIFACT: ${{ github.event.inputs.autoseg_cuda_plugin_artifact }}
 
       - name: build-linux
         if: matrix.os == 'ubuntu-latest'
@@ -48,6 +86,11 @@ jobs:
       - name: build-win
         if: matrix.os == 'windows-latest'
         run: npm run build:win
+
+      - name: Add package flavor to artifact names
+        run: npm run rename:release-artifacts
+        env:
+          OUROBOROS_PACKAGE_FLAVOR: ${{ matrix.package.flavor }}
 
       - name: release
         uses: softprops/action-gh-release@v1

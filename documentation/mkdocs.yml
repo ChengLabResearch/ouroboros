@@ -17,6 +17,7 @@ nav:
     - Plugins: https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md
     - Docker Builds: 'development/docker-builds.md'
     - Registry Server Images: 'development/registry-server-images.md'
+    - Production Package Flavors: 'development/production-package-flavors.md'
   - Releases: 'https://github.com/ChengLabResearch/ouroboros/releases'
   - Repository: https://github.com/ChengLabResearch/ouroboros
 

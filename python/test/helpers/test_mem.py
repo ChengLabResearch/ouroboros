@@ -1,4 +1,5 @@
 from dataclasses import astuple
+import gc
 from multiprocessing.shared_memory import SharedMemory, ShareableList
 import pytest
 from sys import getsizeof
@@ -30,6 +31,18 @@ def test_alt_creation():
 
 def test_get_termed_mem_returns_global_list():
     assert get_termed_mem() is get_termed_mem()
+
+
+@pytest.mark.filterwarnings("error::pytest.PytestUnraisableExceptionWarning")
+def test_partial_shared_np_array_destruction_is_already_shutdown():
+    po = ProjOrder(Y=12, Theta=1501, X=2048)
+
+    partial = object.__new__(SharedNPArray)
+    partial.__del__()
+
+    with pytest.raises(FileNotFoundError):
+        SharedNPArray("MissingTestMem", po, np.uint16)
+    gc.collect()
 
 
 def test_direct_create():

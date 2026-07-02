@@ -373,10 +373,10 @@ desktop runner:</p>
 <ul>
 <li><code>core</code>: Ouroboros only, with the production server compose file pointing at
   the registry-published server image.</li>
-<li><code>plugins-cpu</code>: the core package plus bundled Neuroglancer and Automatic
+<li><code>with-plugins-cpu</code>: the core package plus bundled Neuroglancer and Automatic
   Segmentation plugin artifacts. The automatic segmentation plugin uses its CPU
   backend image.</li>
-<li><code>plugins-cuda</code>: the core package plus bundled Neuroglancer and Automatic
+<li><code>with-plugins-cuda</code>: the core package plus bundled Neuroglancer and Automatic
   Segmentation plugin artifacts. The automatic segmentation plugin uses its
   CUDA backend image and Docker Compose GPU reservation.</li>
 </ul>
@@ -385,22 +385,29 @@ desktop runner:</p>
 installs those bundled plugin folders into the user plugin directory on startup,
 so production packages can ship with plugins already available.</p>
 <h2 id="release-inputs">Release inputs</h2>
-<p>Tag releases default every image and plugin artifact to the Ouroboros release
-tag. Manual workflow runs can override these inputs:</p>
+<p>Tag releases default the server image to the Ouroboros release tag and default
+bundled plugins to explicit production pins. Manual workflow runs can override
+these inputs:</p>
 <ul>
 <li><code>server_image_tag</code> or <code>server_image_digest</code></li>
-<li><code>neuroglancer_plugin_tag</code></li>
-<li><code>neuroglancer_plugin_artifact</code></li>
-<li><code>autoseg_plugin_tag</code></li>
-<li><code>autoseg_cpu_plugin_artifact</code></li>
-<li><code>autoseg_cuda_plugin_artifact</code></li>
+<li><code>neuroglancer_plugin_tag</code> (default <code>v1.0.0</code>)</li>
+<li><code>neuroglancer_plugin_artifact</code> (default <code>release.zip</code>)</li>
+<li><code>autoseg_plugin_tag</code> (default <code>v0.4.0-beta</code>)</li>
+<li><code>autoseg_cpu_plugin_artifact</code> (default <code>auto-segmentation-v0.4.0-beta-cpu.zip</code>)</li>
+<li><code>autoseg_cuda_plugin_artifact</code> (default <code>auto-segmentation-v0.4.0-beta-cuda.zip</code>)</li>
 </ul>
-<p>The default plugin artifact names are:</p>
+<p>The current plugin pins are:</p>
 <ul>
-<li><code>neuroglancer-plugin-&lt;tag&gt;.zip</code></li>
-<li><code>auto-segmentation-&lt;tag&gt;-cpu.zip</code></li>
-<li><code>auto-segmentation-&lt;tag&gt;-cuda.zip</code></li>
+<li>Neuroglancer plugin: <code>ChengLabResearch/neuroglancer-plugin</code> tag <code>v1.0.0</code>,
+  asset <code>release.zip</code></li>
+<li>Automatic segmentation plugin: <code>ChengLabResearch/ouroboros_autoseg_plugin</code>
+  tag <code>v0.4.0-beta</code>, assets <code>auto-segmentation-v0.4.0-beta-cpu.zip</code> and
+  <code>auto-segmentation-v0.4.0-beta-cuda.zip</code></li>
 </ul>
+<p><code>extra-resources/package-flavor.json</code> records the selected package flavor,
+server image metadata, and exact plugin release tag/artifact inputs. When a
+plugin archive includes <code>plugin-release.json</code>, its release metadata is copied
+into <code>package-flavor.json</code> as well.</p>
 <p>If plugin release repositories are private, set
 <code>OUROBOROS_RELEASE_ASSET_TOKEN</code> to a token that can read those release assets.
 The workflow falls back to <code>GITHUB_TOKEN</code> when that secret is not set.</p>
@@ -410,7 +417,9 @@ The workflow falls back to <code>GITHUB_TOKEN</code> when that secret is not set
 OUROBOROS_PACKAGE_FLAVOR=core npm run prepare:package-flavor
 </code></pre>
 <p>Plugin flavors can be checked against local release zips by placing them in
-<code>.package-plugin-artifacts</code> or setting <code>OUROBOROS_PLUGIN_ARTIFACT_DIR</code>.</p>
+<code>.package-plugin-artifacts</code> or setting <code>OUROBOROS_PLUGIN_ARTIFACT_DIR</code>.
+Use <code>OUROBOROS_PACKAGE_FLAVOR=with-plugins-cpu</code> or
+<code>OUROBOROS_PACKAGE_FLAVOR=with-plugins-cuda</code> to stage bundled plugin packages.</p>
 </section>
 
             </main>

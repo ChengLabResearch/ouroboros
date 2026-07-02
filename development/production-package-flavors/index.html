@@ -390,19 +390,19 @@ bundled plugins to explicit production pins. Manual workflow runs can override
 these inputs:</p>
 <ul>
 <li><code>server_image_tag</code> or <code>server_image_digest</code></li>
-<li><code>neuroglancer_plugin_tag</code> (default <code>v1.0.0</code>)</li>
-<li><code>neuroglancer_plugin_artifact</code> (default <code>release.zip</code>)</li>
-<li><code>autoseg_plugin_tag</code> (default <code>v0.4.0-beta</code>)</li>
-<li><code>autoseg_cpu_plugin_artifact</code> (default <code>auto-segmentation-v0.4.0-beta-cpu.zip</code>)</li>
-<li><code>autoseg_cuda_plugin_artifact</code> (default <code>auto-segmentation-v0.4.0-beta-cuda.zip</code>)</li>
+<li><code>neuroglancer_plugin_tag</code> (default <code>v1.0.1</code>)</li>
+<li><code>neuroglancer_plugin_artifact</code> (default <code>neuroglancer-plugin-v1.0.1.zip</code>)</li>
+<li><code>autoseg_plugin_tag</code> (default <code>v0.4.0-beta.1</code>)</li>
+<li><code>autoseg_cpu_plugin_artifact</code> (default <code>auto-segmentation-v0.4.0-beta.1-cpu.zip</code>)</li>
+<li><code>autoseg_cuda_plugin_artifact</code> (default <code>auto-segmentation-v0.4.0-beta.1-cuda.zip</code>)</li>
 </ul>
 <p>The current plugin pins are:</p>
 <ul>
-<li>Neuroglancer plugin: <code>ChengLabResearch/neuroglancer-plugin</code> tag <code>v1.0.0</code>,
-  asset <code>release.zip</code></li>
+<li>Neuroglancer plugin: <code>ChengLabResearch/neuroglancer-plugin</code> tag <code>v1.0.1</code>,
+  asset <code>neuroglancer-plugin-v1.0.1.zip</code></li>
 <li>Automatic segmentation plugin: <code>ChengLabResearch/ouroboros_autoseg_plugin</code>
-  tag <code>v0.4.0-beta</code>, assets <code>auto-segmentation-v0.4.0-beta-cpu.zip</code> and
-  <code>auto-segmentation-v0.4.0-beta-cuda.zip</code></li>
+  tag <code>v0.4.0-beta.1</code>, assets <code>auto-segmentation-v0.4.0-beta.1-cpu.zip</code> and
+  <code>auto-segmentation-v0.4.0-beta.1-cuda.zip</code></li>
 </ul>
 <p><code>extra-resources/package-flavor.json</code> records the selected package flavor,
 server image metadata, and exact plugin release tag/artifact inputs. When a

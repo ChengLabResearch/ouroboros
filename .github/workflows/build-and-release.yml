@@ -13,20 +13,25 @@ on:
         description: Optional server image digest. Overrides the tag when set.
         required: false
       neuroglancer_plugin_tag:
-        description: Neuroglancer plugin release tag. Defaults to the release tag.
+        description: Neuroglancer plugin release tag. Defaults to the production pin.
         required: false
+        default: v1.0.0
       neuroglancer_plugin_artifact:
-        description: Neuroglancer plugin artifact name. Defaults from the plugin tag.
+        description: Neuroglancer plugin artifact name. Defaults to the production pin.
         required: false
+        default: release.zip
       autoseg_plugin_tag:
-        description: Automatic segmentation plugin release tag. Defaults to the release tag.
+        description: Automatic segmentation plugin release tag. Defaults to the production pin.
         required: false
+        default: v0.4.0-beta
       autoseg_cpu_plugin_artifact:
-        description: CPU automatic segmentation plugin artifact name. Defaults from the plugin tag.
+        description: CPU automatic segmentation plugin artifact name. Defaults to the production pin.
         required: false
+        default: auto-segmentation-v0.4.0-beta-cpu.zip
       autoseg_cuda_plugin_artifact:
-        description: CUDA automatic segmentation plugin artifact name. Defaults from the plugin tag.
+        description: CUDA automatic segmentation plugin artifact name. Defaults to the production pin.
         required: false
+        default: auto-segmentation-v0.4.0-beta-cuda.zip
 
 env: 
   GH_TOKEN: "${{ secrets.OUROBOROS_RELEASE_ASSET_TOKEN || secrets.GITHUB_TOKEN }}"
@@ -45,8 +50,8 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         package:
           - flavor: core
-          - flavor: plugins-cpu
-          - flavor: plugins-cuda
+          - flavor: with-plugins-cpu
+          - flavor: with-plugins-cuda
 
     steps:
       - name: Check out Git repository
@@ -70,9 +75,9 @@ jobs:
         run: npm run prepare:package-flavor
         env:
           OUROBOROS_PACKAGE_FLAVOR: ${{ matrix.package.flavor }}
-          OUROBOROS_NEUROGLANCER_PLUGIN_TAG: ${{ github.event.inputs.neuroglancer_plugin_tag || github.ref_name }}
+          OUROBOROS_NEUROGLANCER_PLUGIN_TAG: ${{ github.event.inputs.neuroglancer_plugin_tag || 'v1.0.0' }}
           OUROBOROS_NEUROGLANCER_PLUGIN_ARTIFACT: ${{ github.event.inputs.neuroglancer_plugin_artifact }}
-          OUROBOROS_AUTOSEG_PLUGIN_TAG: ${{ github.event.inputs.autoseg_plugin_tag || github.ref_name }}
+          OUROBOROS_AUTOSEG_PLUGIN_TAG: ${{ github.event.inputs.autoseg_plugin_tag || 'v0.4.0-beta' }}
           OUROBOROS_AUTOSEG_CPU_PLUGIN_ARTIFACT: ${{ github.event.inputs.autoseg_cpu_plugin_artifact }}
           OUROBOROS_AUTOSEG_CUDA_PLUGIN_ARTIFACT: ${{ github.event.inputs.autoseg_cuda_plugin_artifact }}
 

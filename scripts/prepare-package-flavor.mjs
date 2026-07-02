@@ -3,7 +3,18 @@ import { existsSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { spawn } from 'node:child_process'
 
-const supportedFlavors = new Set(['core', 'plugins-cpu', 'plugins-cuda'])
+const supportedFlavors = new Set(['core', 'with-plugins-cpu', 'with-plugins-cuda'])
+const productionPluginPins = {
+	neuroglancer: {
+		tag: 'v1.0.0',
+		artifact: 'release.zip'
+	},
+	autoseg: {
+		tag: 'v0.4.0-beta',
+		cpuArtifact: 'auto-segmentation-v0.4.0-beta-cpu.zip',
+		cudaArtifact: 'auto-segmentation-v0.4.0-beta-cuda.zip'
+	}
+}
 
 const root = process.cwd()
 const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
@@ -22,7 +33,6 @@ const preinstalledPluginDir = join(extraResourcesDir, 'preinstalled-plugins')
 const artifactDir = resolvePathFromRoot(
 	process.env.OUROBOROS_PLUGIN_ARTIFACT_DIR ?? '.package-plugin-artifacts'
 )
-const releaseTag = process.env.GITHUB_REF_NAME ?? `v${packageJson.version}`
 const plugins = []
 
 await mkdir(extraResourcesDir, { recursive: true })
@@ -31,7 +41,8 @@ await rm(preinstalledPluginDir, { recursive: true, force: true })
 if (flavor !== 'core') {
 	await mkdir(preinstalledPluginDir, { recursive: true })
 
-	const neuroglancerTag = process.env.OUROBOROS_NEUROGLANCER_PLUGIN_TAG || releaseTag
+	const neuroglancerTag =
+		process.env.OUROBOROS_NEUROGLANCER_PLUGIN_TAG || productionPluginPins.neuroglancer.tag
 	await installPlugin({
 		id: 'neuroglancer-plugin',
 		label: 'Neuroglancer',
@@ -39,11 +50,11 @@ if (flavor !== 'core') {
 		tag: neuroglancerTag,
 		artifact:
 			process.env.OUROBOROS_NEUROGLANCER_PLUGIN_ARTIFACT ||
-			`neuroglancer-plugin-${neuroglancerTag}.zip`
+			neuroglancerArtifactForTag(neuroglancerTag)
 	})
 
-	const autosegTag = process.env.OUROBOROS_AUTOSEG_PLUGIN_TAG || releaseTag
-	const autosegVariant = flavor === 'plugins-cuda' ? 'cuda' : 'cpu'
+	const autosegTag = process.env.OUROBOROS_AUTOSEG_PLUGIN_TAG || productionPluginPins.autoseg.tag
+	const autosegVariant = flavor === 'with-plugins-cuda' ? 'cuda' : 'cpu'
 	await installPlugin({
 		id: 'auto-segmentation',
 		label: `Automatic Segmentation (${autosegVariant.toUpperCase()})`,
@@ -51,7 +62,7 @@ if (flavor !== 'core') {
 		tag: autosegTag,
 		artifact:
 			process.env[`OUROBOROS_AUTOSEG_${autosegVariant.toUpperCase()}_PLUGIN_ARTIFACT`] ||
-			`auto-segmentation-${autosegTag}-${autosegVariant}.zip`,
+			autosegArtifactForTag(autosegTag, autosegVariant),
 		variant: autosegVariant
 	})
 }
@@ -82,14 +93,20 @@ async function installPlugin({ id, label, repo, tag, artifact, variant = null })
 	await normalizePluginRoot(target)
 
 	const pluginPackage = await validatePluginPackage(target, id)
+	const releaseManifest = await readPluginReleaseManifest(target, id)
 	plugins.push({
 		id,
 		name: pluginPackage.pluginName,
 		version: pluginPackage.version ?? null,
+		packageVersion: pluginPackage.version ?? null,
+		releaseVersion: releaseManifest?.version ?? null,
 		label,
 		repo,
 		tag,
 		artifact,
+		releaseTag: tag,
+		releaseArtifact: artifact,
+		releaseManifest: summarizeReleaseManifest(releaseManifest),
 		variant
 	})
 }
@@ -177,10 +194,60 @@ async function validatePluginPackage(pluginRoot, expectedId) {
 	return pluginPackage
 }
 
+async function readPluginReleaseManifest(pluginRoot, expectedId) {
+	const manifestPath = join(pluginRoot, 'plugin-release.json')
+	if (!existsSync(manifestPath)) return null
+
+	const releaseManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+	if (releaseManifest.name && releaseManifest.name !== expectedId) {
+		throw new Error(
+			`Plugin release manifest name mismatch: expected ${expectedId}, found ${releaseManifest.name}`
+		)
+	}
+
+	return releaseManifest
+}
+
+function summarizeReleaseManifest(releaseManifest) {
+	if (!releaseManifest) return null
+
+	return {
+		version: releaseManifest.version ?? null,
+		packageVersion: releaseManifest.packageVersion ?? null,
+		releaseTag: releaseManifest.releaseTag ?? null,
+		artifactName: releaseManifest.artifactName ?? null,
+		variant: releaseManifest.variant ?? null,
+		backendImage: releaseManifest.backendImage ?? null,
+		backendImageRepository: releaseManifest.backendImageRepository ?? null,
+		backendImageTag: releaseManifest.backendImageTag ?? null,
+		cuda: releaseManifest.cuda ?? null,
+		commit: releaseManifest.commit ?? null,
+		ref: releaseManifest.ref ?? null
+	}
+}
+
 async function readServerImageMetadata() {
 	const serverImagePath = join(extraResourcesDir, 'server', 'server-image.json')
 	if (!existsSync(serverImagePath)) return null
 	return JSON.parse(await readFile(serverImagePath, 'utf8'))
+}
+
+function neuroglancerArtifactForTag(tag) {
+	if (tag === productionPluginPins.neuroglancer.tag) {
+		return productionPluginPins.neuroglancer.artifact
+	}
+
+	return `neuroglancer-plugin-${tag}.zip`
+}
+
+function autosegArtifactForTag(tag, variant) {
+	if (tag === productionPluginPins.autoseg.tag) {
+		return variant === 'cuda'
+			? productionPluginPins.autoseg.cudaArtifact
+			: productionPluginPins.autoseg.cpuArtifact
+	}
+
+	return `auto-segmentation-${tag}-${variant}.zip`
 }
 
 function resolvePathFromRoot(path) {

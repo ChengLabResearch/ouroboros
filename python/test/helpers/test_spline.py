@@ -175,6 +175,25 @@ def test_rotation_minimizing_vectors_empty():
     assert binormal_vectors.size == 0, "Binormal vectors should be empty"
 
 
+def test_rotation_minimizing_vectors_handles_z_axis_and_parallel_tangents(monkeypatch):
+    spline = object.__new__(Spline)
+    spline.tck = object()
+
+    def fake_evaluate_spline(tck, times, derivative=0):
+        assert derivative == 1
+        return np.repeat(np.array([[0.0], [0.0], [1.0]]), len(times), axis=1)
+
+    monkeypatch.setattr(Spline, "evaluate_spline", staticmethod(fake_evaluate_spline))
+
+    tangent_vectors, normal_vectors, binormal_vectors = spline.calculate_rotation_minimizing_vectors(
+        np.array([0.0, 0.5, 1.0])
+    )
+
+    np.testing.assert_allclose(tangent_vectors, np.repeat(np.array([[0.0], [0.0], [1.0]]), 3, axis=1))
+    np.testing.assert_allclose(normal_vectors, np.repeat(np.array([[0.0], [1.0], [0.0]]), 3, axis=1))
+    np.testing.assert_allclose(binormal_vectors, np.repeat(np.array([[-1.0], [0.0], [0.0]]), 3, axis=1))
+
+
 def test_calculate_equidistant_parameters():
     # Define a simple curve as sample points
     sample_points = generate_sample_curve_helix()

@@ -28,6 +28,18 @@ def test_bounding_box_get_shape():
     assert shape == (2, 2, 2)
 
 
+def test_bounding_box_volume_slice_and_extrema():
+    rect = np.array([[1, 2, 3], [4, 6, 8]])
+    bbox = BoundingBox(rect)
+
+    vol_slice = bbox.vol_slice()
+    assert vol_slice[0] == slice(1, 4)
+    assert vol_slice[1] == slice(2, 6)
+    assert vol_slice[2] == slice(3, 8)
+    np.testing.assert_array_equal(bbox.get_min(dtype=np.int16), np.array([1, 2, 3], dtype=np.int16))
+    np.testing.assert_array_equal(bbox.get_max(dtype=np.float32), np.array([4, 6, 8], dtype=np.float32))
+
+
 def test_bounding_box_approx_bounds():
     rect = np.array([[0.5, 0.5, 0.5], [1.5, 1.5, 1.5]])
     bbox = BoundingBox(rect)
@@ -255,6 +267,20 @@ def test_calculate_bounding_boxes_bsp_link_rects_multiple_overlapping_rects():
     bounding_boxes, rect_to_box_map = calculate_bounding_boxes_bsp_link_rects(rects)
     assert len(bounding_boxes) == 1
     assert rect_to_box_map == [0, 0]
+
+
+def test_calculate_bounding_boxes_bsp_link_rects_unsplittable_partition():
+    rect = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]])
+    rects = np.repeat(rect[None, :, :], 3, axis=0)
+
+    bounding_boxes, rect_to_box_map = calculate_bounding_boxes_bsp_link_rects(
+        rects,
+        target_slices_per_box=1,
+        max_depth=5,
+    )
+
+    assert len(bounding_boxes) == 1
+    assert rect_to_box_map == [0, 0, 0]
 
 
 def test_calculate_bounding_boxes_bsp_link_rects_full_curve():

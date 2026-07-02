@@ -115,11 +115,26 @@ def test_volume_cache_flush(volume_cache):
         mock_flush_cache.assert_called_once()
 
 
+def test_volume_cache_flush_disabled(volume_cache):
+    volume_cache.flush_cache = False
+    with patch.object(volume_cache.cv, "flush_cache") as mock_flush_cache:
+        volume_cache.flush_local_cache()
+        mock_flush_cache.assert_not_called()
+
+
 def test_cloud_volume_interface_init(mock_cloud_volume):
     cvi = CloudVolumeInterface("test_source_url")
     assert cvi.source_url == "test_source_url"
     assert cvi.available_mips == [0, 1, 2]
     assert cvi.dtype == "uint8"
+
+
+def test_cloud_volume_interface_rewrites_localhost_for_docker(mock_cloud_volume, monkeypatch):
+    monkeypatch.setenv("OUR_ENV", "docker")
+
+    cvi = CloudVolumeInterface("precomputed://http://localhost:8080/layer")
+
+    assert cvi.source_url == "precomputed://http://host.docker.internal:8080/layer"
 
 
 def test_cloud_volume_interface_to_dict(cloud_volume_interface):
@@ -169,6 +184,14 @@ def test_volume_cache_get_available_mips(volume_cache):
 
 def test_volume_cache_get_shape(volume_cache):
     assert volume_cache.get_volume_shape() == (100, 100, 100)
+
+
+def test_volume_cache_get_resolution_forwards_mip(volume_cache):
+    volume_cache.set_volume_mip(2)
+    with patch.object(volume_cache.cv, "get_resolution_um", return_value=np.array([1, 2, 3])) as mock_resolution:
+        np.testing.assert_array_equal(volume_cache.get_resolution_um(), np.array([1, 2, 3]))
+
+    mock_resolution.assert_called_once_with(2)
 
 
 def test_request_volume_for_slice(volume_cache):
@@ -224,6 +247,46 @@ def test_volume_cache_remove_volume(volume_cache):
         assert np.all(volume_data == volume_cache.volumes[1])
         volume_cache.remove_volume(1)
         assert volume_cache.volumes[1] is None
+
+
+def test_request_volume_for_slice_evicts_previous_uncached_volume(volume_cache):
+    with patch("ouroboros.helpers.volume_cache.download_volume") as mock_download:
+        mock_download.side_effect = [
+            ("volume-0", volume_cache.bounding_boxes[0], 0.1),
+            ("volume-1", volume_cache.bounding_boxes[1], 0.1),
+        ]
+
+        volume_cache.request_volume_for_slice(0)
+        with patch.object(volume_cache, "remove_volume") as mock_remove:
+            volume_cache.request_volume_for_slice(1)
+
+    mock_remove.assert_called_once_with(0)
+
+
+def test_volume_cache_remove_volume_variants(volume_cache):
+    volume_cache.volumes[1] = "cached"
+    volume_cache.cache_volume[1] = True
+
+    volume_cache.remove_volume(1)
+
+    assert volume_cache.volumes[1] == "cached"
+
+    shm_host = MagicMock()
+    volume_cache.use_shared = True
+    volume_cache.cache_volume[0] = False
+    volume_cache.volumes[0] = "shared-volume"
+    volume_cache._VolumeCache__shm_host = shm_host
+
+    volume_cache.remove_volume(0, destroy_shared=True)
+
+    shm_host.remove_termed.assert_called_once_with("shared-volume")
+    assert volume_cache.volumes[0] is None
+
+
+def test_volume_cache_get_slice_indices(volume_cache):
+    volume_cache.link_rects = [0, 1, 0, 1, 1]
+
+    assert volume_cache.get_slice_indices(1) == [1, 3, 4]
 
 
 def test_boxes_dim_range(volume_cache):

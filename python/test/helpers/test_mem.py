@@ -6,7 +6,7 @@ from time import sleep
 
 import numpy as np
 
-from ouroboros.helpers.mem import SharedNPManager, SharedNPArray, cleanup_mem, exit_cleanly
+from ouroboros.helpers.mem import SharedNPManager, SharedNPArray, cleanup_mem, exit_cleanly, get_termed_mem
 from ouroboros.helpers.shapes import SinoOrder, ProjOrder, ReconOrder
 
 
@@ -26,6 +26,10 @@ def test_alt_creation():
             pj[0, 0, 0] = 5
             assert rc[0, 0, 0] == pj[0, 0, 0]
             assert pj[0, 0, 0] != si[0, 0, 0]
+
+
+def test_get_termed_mem_returns_global_list():
+    assert get_termed_mem() is get_termed_mem()
 
 
 def test_direct_create():

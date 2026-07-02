@@ -51,6 +51,27 @@ def test_model_from_json():
     assert json_err[:35] == "2 validation errors for SampleModel"
 
 
+def test_model_generic_error_branches(tmp_path, monkeypatch):
+    with monkeypatch.context() as m:
+        def raise_from_dict(cls, class_dict):
+            raise PermissionError("dict blocked")
+
+        m.setattr(SampleModel, "model_validate", classmethod(raise_from_dict))
+        assert SampleModel.from_dict({"field1": 1, "field2": "ok"}) == "dict blocked"
+
+    with monkeypatch.context() as m:
+        def raise_from_json(cls, json_data):
+            raise RuntimeError("json blocked")
+
+        m.setattr(SampleModel, "model_validate_json", classmethod(raise_from_json))
+        assert SampleModel.from_json('{"field1": 1, "field2": "ok"}') == "json blocked"
+
+    bad_encoding = tmp_path / "bad-encoding.json"
+    bad_encoding.write_bytes(b"\xff")
+
+    assert "invalid start byte" in SampleModel.load_from_json(bad_encoding)
+
+
 def test_model_with_json_invalid_class():
     class InvalidClass:
         pass

@@ -6,7 +6,7 @@ from dataclasses import astuple, asdict
 from functools import partial
 from ouroboros.helpers.log import log
 from ouroboros.helpers.shapes import ProjOrder, SinoOrder, ImgSlice, Y, DataRange, ReconOrder, Proj, Theta, YSlice
-from ouroboros.helpers.shapes import ContigMemIter, SliceStepIter, XSlice
+from ouroboros.helpers.shapes import ContigMemIter, IntIter, MemAddressIter, SliceIter, SliceStepIter, TFIter, XSlice
 
 
 log.set_logdir("data/logs/")
@@ -114,6 +114,20 @@ def test_shape_math():
     assert ImgSlice(Y=5, X=3) - ImgSlice(Y=3, X=1) == ImgSlice(Y=2, X=2)
     assert SinoOrder(Y=7, Theta=12, X=3) - ImgSlice(Y=5, X=3) == SinoOrder(Y=2, Theta=12, X=0)
     assert ProjOrder(Theta=15, Y=9, X=4) - SinoOrder(Y=6, Theta=9, X=1) == ProjOrder(Theta=6, Y=3, X=3)
+
+
+def test_shape_merge_bool_and_reverse_math():
+    shape = ImgSlice(Y=1, X=2)
+    retained = shape.merge(Y(Y=9))
+    overwritten = shape.merge(Y(Y=9), retain=False)
+
+    assert asdict(retained) == {"Y": 1, "X": 2}
+    assert asdict(overwritten) == {"Y": 9, "X": 2}
+    assert Y(1) + ImgSlice(Y=2, X=99) == Y(3)
+    assert bool(Y(1))
+    assert not bool(Y(0))
+    assert ProjOrder.param_max(Proj(Y=4, X=1), YSlice(Theta=3, X=2)) == ProjOrder(Theta=3, Y=4, X=2)
+    assert TFIter.__call__(object(), "pos") == "pos"
 
 
 def test_shape_compare():
@@ -232,6 +246,44 @@ def test_sliceshape_iter_2D():
     print(match)
 
     assert basic_2d_list == match
+
+
+def test_iterator_transforms_cover_address_and_slice_paths():
+    dr = ImgSlice.drange((0, 0), (2, 3), (1, 1))
+
+    assert list(dr.get_iter(IntIter)) == [0, 1, 2, 3, 4, 5]
+    assert list(dr.get_iter(partial(MemAddressIter, offset=10, stride=ImgSlice(Y=3, X=1)))) == [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+    ]
+
+    slices = list(dr.get_iter(partial(SliceIter, shape=ProjOrder(Theta=2, Y=2, X=3))))
+    assert slices[0] == np.s_[:, 0, 0]
+    assert slices[-1] == np.s_[:, 1, 2]
+
+
+def test_contig_mem_iter_branches():
+    shape = ProjOrder(Theta=2, Y=4, X=5)
+    stride = ProjOrder(Theta=20, Y=5, X=1)
+    non_unit_step = XSlice.drange((0, 0), (2, 4), (1, 2))
+    cmi = ContigMemIter(non_unit_step, offset=7, shape=shape, stride=stride, jump=[])
+
+    assert cmi.contig_stride == 5
+    assert cmi((1, 2)) == 37
+
+    outer_contig = ContigMemIter(Theta.drange(0, 2, 1), offset=0, shape=shape, stride=stride, jump=["Theta"])
+    assert outer_contig.contig_stride == 20
+
+    cached = ContigMemIter(ImgSlice.drange((0, 0), (2, 3), (1, 1)), offset=0, shape=ImgSlice(Y=2, X=3),
+                           stride=ImgSlice(Y=3, X=1), jump=[])
+    assert cached((0, 0)) == cached((0, 1))
+
+    with pytest.raises(IndexError, match="Break fields must not include last field"):
+        ContigMemIter(non_unit_step, offset=0, shape=shape, stride=stride, jump=["X"])
 
 
 def test_range_3D():

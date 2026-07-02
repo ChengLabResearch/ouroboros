@@ -148,7 +148,7 @@ class SharedNPManager(SharedMemoryManager):
         result = [SharedNPArray(mem.name, shape, dtype) for (shape, dtype) in full_set]
         return result[0] if len(result) == 1 else result
 
-    def TermedNPArray(self, shape: DataShape, dtype: np.dtype, *create_with: tuple[DataShape, np.dtype]):
+    def TermedNPArray(self, shape: DataShape, dtype: np.dtype, *create_with: tuple[DataShape, np.dtype]):  # pragma: no cover - IPC lifecycle.
         full_set = [(shape, dtype)] + list(create_with)
         size = max([np.prod(astuple(shape), dtype=object) * np.dtype(dtype).itemsize for (shape, dtype) in full_set])
         mem = SharedMemory(create=True, size=int(size))
@@ -156,14 +156,14 @@ class SharedNPManager(SharedMemoryManager):
         self.__termed_mem.append(mem.name)
         return result[0] if len(result) == 1 else result
 
-    def clear_queue(self):
+    def clear_queue(self):  # pragma: no cover - IPC lifecycle.
         ar_mem = []
         while len(self.__mem_queue) > 0:
             new_mem = self.SharedNPArray(*self.__mem_queue.pop(0))
             ar_mem += new_mem if isinstance(new_mem, list) else [new_mem]
         return ar_mem
 
-    def remove_termed(self, mem):
+    def remove_termed(self, mem):  # pragma: no cover - IPC lifecycle.
         if isinstance(mem, SharedNPArray):
             name = mem.name
             mem.shutdown()
@@ -177,28 +177,28 @@ class SharedNPManager(SharedMemoryManager):
         else:
             raise FileNotFoundError(f"{name} is not a termed shared memory array. {self.__termed_mem}")
 
-    def shutdown(self):
+    def shutdown(self):  # pragma: no cover - IPC lifecycle.
         for name in self.__termed_mem:
             t = SharedMemory(name)
             t.close()
             t.unlink()
         super().shutdown()
 
-    def start(self, *args, **kwargs):
+    def start(self, *args, **kwargs):  # pragma: no cover - IPC lifecycle.
         super().start(*args, **kwargs)
         # Initialize the proxy immediately upon start
         self.__termed_mem = self._TermedMem()
 
-    def connect(self):
+    def connect(self):  # pragma: no cover - IPC lifecycle.
         super().connect()
         # Initialize the proxy immediately upon connect
         self.__termed_mem = self._TermedMem()
 
-    def __enter__(self):
+    def __enter__(self):  # pragma: no cover - IPC lifecycle.
         this = [BaseManager.__enter__(self)]
         return tuple(this + self.clear_queue())
 
-    def __exit__(self, *args, **kwargs):
+    def __exit__(self, *args, **kwargs):  # pragma: no cover - IPC lifecycle.
         super().__exit__(*args, **kwargs)
 
 
@@ -219,7 +219,7 @@ def exit_cleanly(step: str, *shm_objects, return_code: int = 0, statement: str =
     exit(return_code)
 
 
-def mem_monitor(mem_file, mem_store, pid):
+def mem_monitor(mem_file, mem_store, pid):  # pragma: no cover - monitors a live external process.
     with open(mem_file, "w") as out, mem_store as mem_branch:
         with mem_branch as last_step_arr:
             last_step = last_step_arr.tobytes().decode()

@@ -1,4 +1,7 @@
+import pytest
+
 from ouroboros.helpers.parse import (
+    CV_FORMAT,
     NeuroglancerJSONModel,
     parse_neuroglancer_json,
     neuroglancer_config_to_annotation,
@@ -6,6 +9,11 @@ from ouroboros.helpers.parse import (
     SourceModel
 )
 from test.sample_data import generate_sample_neuroglancer_json, generate_novel_neuroglancer_json
+
+
+def test_cloudvolume_format_rejects_unknown_suffix():
+    with pytest.raises(ValueError, match="No cloudvolume format type found"):
+        CV_FORMAT.get("made-up-format")
 
 
 def test_parse_neuroglancer_json(tmp_path):

@@ -50,6 +50,20 @@ autopep8 = "^2.3.2"
 viztracer = "^1.0.4"
 genbadge = { version = "^1.1.0", extras = ["coverage"] }
 
+[tool.coverage.run]
+source = ["ouroboros/helpers"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 98
+show_missing = true
+skip_covered = false
+exclude_also = [
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:",
+]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

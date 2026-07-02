@@ -55,7 +55,7 @@ class VolumeCache:
             "flush_cache": self.flush_cache,
         }
 
-    def connect_shm(self, address: str, authkey: str):
+    def connect_shm(self, address: str, authkey: str):  # pragma: no cover - live SharedNPManager.
         self.__shm_host = SharedNPManager(address=address, authkey=authkey)
         self.__shm_host.connect()
         self.__authkey = authkey
@@ -223,7 +223,7 @@ def download_volume(
                          :]
 
     # Download the bounding box volume
-    if use_shared:
+    if use_shared:  # pragma: no cover - live SharedNPManager.
         shm_host = SharedNPManager(address=shm_address, authkey=shm_authkey)
         shm_host.connect()
         volume = shm_host.TermedNPArray(vol_shape, np.float32)

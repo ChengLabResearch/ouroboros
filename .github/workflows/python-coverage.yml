@@ -36,7 +36,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          poetry run coverage run --source=ouroboros/helpers -m pytest 
+          poetry run coverage run -m pytest
           poetry run coverage report -m
           poetry run coverage xml
         working-directory: ./python

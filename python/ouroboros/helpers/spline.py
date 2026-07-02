@@ -131,9 +131,9 @@ class Spline:
 
         # Choose an arbitrary vector that is not parallel to the tangent
         if np.abs(initial_tangent[0]) < 1e-6 and np.abs(initial_tangent[1]) < 1e-6:
-            initial_normal = np.array([0, 1, 0])
+            initial_normal = np.array([0.0, 1.0, 0.0])
         else:
-            initial_normal = np.array([-initial_tangent[1], initial_tangent[0], 0])
+            initial_normal = np.array([-initial_tangent[1], initial_tangent[0], 0.0])
 
         # Normalize the normal vector
         initial_normal /= np.linalg.norm(initial_normal)

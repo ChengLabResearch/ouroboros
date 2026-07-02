@@ -164,7 +164,7 @@ def neuroglancer_config_to_source(
                     return layer.source, None
                 elif isinstance(layer.source, SourceModel):
                     return layer.source.url, None
-                else:
+                else:  # pragma: no cover - ImageLayerModel constrains source to str or SourceModel.
                     # Don't think you can hit this as image layer types only build
                     # from str or SourceModel
                     return None, "Invalid source format in the file."

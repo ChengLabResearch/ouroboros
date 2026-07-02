@@ -1,9 +1,11 @@
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
+from ouroboros.helpers import files as files_mod
 from ouroboros.helpers.files import (
     format_backproject_output_file,
     format_backproject_output_multiple,
@@ -26,8 +28,11 @@ from ouroboros.helpers.files import (
     increment_volume,
     load_raw_file_intermediate,
     validate_straightened_volume_for_backprojection,
+    volume_from_intermediates,
+    write_conv_vol,
     write_raw_intermediate
 )
+from ouroboros.helpers.shapes import ImgSlice, ImgSliceC
 
 
 def test_get_sorted_tif_files(tmp_path):
@@ -294,6 +299,31 @@ def test_inspect_straightened_volume_distinguishes_empty_directory(tmp_path):
         inspect_straightened_volume(str(straightened_volume_folder))
 
 
+def test_inspect_straightened_volume_distinguishes_bad_tiff_pages(tmp_path, monkeypatch):
+    class FakeTiff:
+        def __init__(self, pages):
+            self.pages = pages
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(files_mod.tifffile, "TiffFile", lambda _path: FakeTiff([]))
+    with pytest.raises(ValueError, match="contains no pages"):
+        inspect_straightened_volume(str(tmp_path.joinpath("empty-pages.tif")))
+
+    one_dim_page = SimpleNamespace(
+        shape=(4,),
+        dtype=np.dtype(np.uint8),
+        compression=files_mod.tifffile.COMPRESSION.NONE,
+    )
+    monkeypatch.setattr(files_mod.tifffile, "TiffFile", lambda _path: FakeTiff([one_dim_page]))
+    with pytest.raises(ValueError, match="at least two-dimensional"):
+        inspect_straightened_volume(str(tmp_path.joinpath("one-dimensional.tif")))
+
+
 def test_ravel_map_2d():
     offset = ((60, ), (40, ))
     source_rows = 20
@@ -433,9 +463,112 @@ def test_np_convert_from_float():
     assert np.all(np_convert(np.uint16, float_data) == target)
 
 
-def test_volume_from_intermediates():
-    pass
+def test_np_convert_preset_and_zero_range_branches():
+    constant = np.array([5.0, 5.0], dtype=np.float32)
+    np.testing.assert_allclose(np_convert(np.float32, constant), np.array([0.0, 0.0], dtype=np.float32))
+
+    preset = np_convert(
+        np.float32,
+        np.array([10.0, 15.0], dtype=np.float32),
+        preset_min=10.0,
+        preset_max=20.0,
+    )
+    np.testing.assert_allclose(preset, np.array([0.0, 0.5], dtype=np.float32))
+
+    shifted = np_convert(
+        np.uint8,
+        np.array([-2, 0, 2], dtype=np.int16),
+        normalize=False,
+        preset_min=-2,
+    )
+    np.testing.assert_array_equal(shifted, np.array([0, 2, 4], dtype=np.uint8))
 
 
-def test_write_conv_vol():
-    pass
+def _write_intermediate_file(path: Path, indexes, values, weights, source_rows=2, target_rows=2):
+    indexes = np.asarray(indexes, dtype=np.uint32)
+    values = np.asarray(values, dtype=np.float32)
+    weights = np.asarray(weights, dtype=np.float32)
+    meta = np.array(
+        [source_rows, target_rows, 0, 0, 1, len(indexes)],
+        dtype=np.uint32,
+    )
+    type_ar = np.array([indexes.dtype.str, values.dtype.str, weights.dtype.str], dtype="S8")
+
+    with open(path, "wb") as handle:
+        write_raw_intermediate(
+            handle,
+            meta.tobytes(),
+            type_ar.tobytes(),
+            indexes.tobytes(),
+            values.tobytes(),
+            weights.tobytes(),
+        )
+
+
+def test_volume_from_intermediates(tmp_path):
+    shape = ImgSlice(Y=2, X=3)
+    single_file = tmp_path.joinpath("single.tif")
+    _write_intermediate_file(single_file, [0, 1], [4, 6], [2, 3])
+
+    merged = volume_from_intermediates(single_file, shape)
+
+    np.testing.assert_allclose(merged[:3], np.array([2.0, 2.0, 0.0], dtype=np.float32))
+    assert not single_file.exists()
+
+    chunk_dir = tmp_path.joinpath("chunks")
+    chunk_dir.mkdir()
+    _write_intermediate_file(chunk_dir.joinpath("a.tif"), [0], [3], [2])
+    _write_intermediate_file(chunk_dir.joinpath("b.tif"), [1], [4], [2])
+
+    discrete = volume_from_intermediates(chunk_dir, shape, discrete=True, thread_count=1)
+
+    np.testing.assert_allclose(discrete[:3], np.array([0.0, 2.0, 0.0], dtype=np.float32))
+    assert list(chunk_dir.glob("*.tif")) == []
+
+
+def test_write_conv_vol(tmp_path, monkeypatch):
+    shape = ImgSliceC(Y=2, X=2, C=1)
+    target_folder = tmp_path.joinpath("output")
+    target_folder.mkdir()
+    writes = []
+
+    monkeypatch.setattr(
+        files_mod,
+        "volume_from_intermediates",
+        lambda source_path, shape, discrete: np.array([0, 1, 2, 3], dtype=np.float32),
+    )
+
+    def writer(path, data):
+        writes.append((path.name, np.array(data)))
+
+    perf = write_conv_vol(
+        writer,
+        tmp_path.joinpath("chunks"),
+        shape,
+        np.uint8,
+        None,
+        target_folder,
+        7,
+        0,
+        False,
+    )
+
+    assert writes[0][0] == "7.tif"
+    assert writes[0][1].shape == (2, 2, 1)
+    assert {"Merge Volume", "Write Merged", "Total Chunk Merge"} <= perf.keys()
+
+    writes.clear()
+    perf = write_conv_vol(
+        writer,
+        tmp_path.joinpath("chunks"),
+        shape,
+        np.uint8,
+        (2, 1, 1),
+        target_folder,
+        3,
+        0,
+        False,
+    )
+
+    assert [name for name, _data in writes] == ["00006.tif", "00007.tif"]
+    assert {"Merge Volume", "Zoom", "Write Merged", "Total Chunk Merge"} <= perf.keys()

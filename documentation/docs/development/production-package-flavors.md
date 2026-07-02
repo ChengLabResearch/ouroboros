@@ -24,19 +24,19 @@ bundled plugins to explicit production pins. Manual workflow runs can override
 these inputs:
 
 - `server_image_tag` or `server_image_digest`
-- `neuroglancer_plugin_tag` (default `v1.0.0`)
-- `neuroglancer_plugin_artifact` (default `release.zip`)
-- `autoseg_plugin_tag` (default `v0.4.0-beta`)
-- `autoseg_cpu_plugin_artifact` (default `auto-segmentation-v0.4.0-beta-cpu.zip`)
-- `autoseg_cuda_plugin_artifact` (default `auto-segmentation-v0.4.0-beta-cuda.zip`)
+- `neuroglancer_plugin_tag` (default `v1.0.1`)
+- `neuroglancer_plugin_artifact` (default `neuroglancer-plugin-v1.0.1.zip`)
+- `autoseg_plugin_tag` (default `v0.4.0-beta.1`)
+- `autoseg_cpu_plugin_artifact` (default `auto-segmentation-v0.4.0-beta.1-cpu.zip`)
+- `autoseg_cuda_plugin_artifact` (default `auto-segmentation-v0.4.0-beta.1-cuda.zip`)
 
 The current plugin pins are:
 
-- Neuroglancer plugin: `ChengLabResearch/neuroglancer-plugin` tag `v1.0.0`,
-  asset `release.zip`
+- Neuroglancer plugin: `ChengLabResearch/neuroglancer-plugin` tag `v1.0.1`,
+  asset `neuroglancer-plugin-v1.0.1.zip`
 - Automatic segmentation plugin: `ChengLabResearch/ouroboros_autoseg_plugin`
-  tag `v0.4.0-beta`, assets `auto-segmentation-v0.4.0-beta-cpu.zip` and
-  `auto-segmentation-v0.4.0-beta-cuda.zip`
+  tag `v0.4.0-beta.1`, assets `auto-segmentation-v0.4.0-beta.1-cpu.zip` and
+  `auto-segmentation-v0.4.0-beta.1-cuda.zip`
 
 `extra-resources/package-flavor.json` records the selected package flavor,
 server image metadata, and exact plugin release tag/artifact inputs. When a

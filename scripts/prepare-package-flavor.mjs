@@ -6,13 +6,13 @@ import { spawn } from 'node:child_process'
 const supportedFlavors = new Set(['core', 'with-plugins-cpu', 'with-plugins-cuda'])
 const productionPluginPins = {
 	neuroglancer: {
-		tag: 'v1.0.0',
-		artifact: 'release.zip'
+		tag: 'v1.0.1',
+		artifact: 'neuroglancer-plugin-v1.0.1.zip'
 	},
 	autoseg: {
-		tag: 'v0.4.0-beta',
-		cpuArtifact: 'auto-segmentation-v0.4.0-beta-cpu.zip',
-		cudaArtifact: 'auto-segmentation-v0.4.0-beta-cuda.zip'
+		tag: 'v0.4.0-beta.1',
+		cpuArtifact: 'auto-segmentation-v0.4.0-beta.1-cpu.zip',
+		cudaArtifact: 'auto-segmentation-v0.4.0-beta.1-cuda.zip'
 	}
 }
 

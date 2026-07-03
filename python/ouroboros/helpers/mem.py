@@ -21,6 +21,8 @@ def is_advanced_index(index):
 
 
 class SharedNPArray:
+    __shutdown = True
+
     def __init__(self, name: str, shape: DataShape, dtype: np.dtype,
                  views: list = None, *, allocate: bool = False):
         self.__name = name

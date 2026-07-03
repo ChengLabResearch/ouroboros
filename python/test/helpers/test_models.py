@@ -1,4 +1,5 @@
 
+import pytest
 from pydantic import BaseModel
 from ouroboros.helpers.models import (
     model_with_json,
@@ -12,6 +13,7 @@ class SampleModel(BaseModel):
     field2: str
 
 
+@pytest.mark.filterwarnings("error::pydantic.PydanticDeprecatedSince211")
 def test_model_with_json(tmp_path):
     # Create an instance of SampleModel
     sample = SampleModel(field1=123, field2="test")

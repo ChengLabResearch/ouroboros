@@ -114,5 +114,5 @@ def load_from_json(cls: type[BaseModel], json_path: str) -> BaseModel | str:
 
 
 def copy_values_from_other(self: BaseModel, other: BaseModel):
-    for field in self.model_fields.keys():
+    for field in type(self).model_fields.keys():
         setattr(self, field, getattr(other, field))

@@ -7,6 +7,8 @@ import { readFile, saveFile } from '../helpers'
 
 const FILE_EXPLORER_WATCH_DEPTH = 6
 const FILE_EXPLORER_WATCH_LIMIT = 100_000
+const FILE_EXPLORER_UPDATE_BATCH_LIMIT = 500
+const FILE_EXPLORER_UPDATE_INTERVAL_MS = 100
 const IGNORED_PATH_SEGMENTS = new Set(['node_modules', '__pycache__', 'venv'])
 
 type FSEvent = {
@@ -32,6 +34,8 @@ type FSError = {
 
 export const addFSEventHandlers = (ipcMain: IpcMain, getMainWindow: () => BrowserWindow): void => {
 	let subscription: Watcher | null = null
+	let pendingFSEvents: FSEvent[] = []
+	let pendingFSEventsTimeout: NodeJS.Timeout | null = null
 
 	const sendFSError = (error: FSError): void => {
 		const mainWindow = getMainWindow?.()
@@ -41,9 +45,53 @@ export const addFSEventHandlers = (ipcMain: IpcMain, getMainWindow: () => Browse
 		}
 	}
 
+	const flushPendingFSEvents = (): void => {
+		if (pendingFSEventsTimeout) {
+			clearTimeout(pendingFSEventsTimeout)
+			pendingFSEventsTimeout = null
+		}
+
+		if (pendingFSEvents.length === 0) return
+
+		const mainWindow = getMainWindow?.()
+		const batch = pendingFSEvents
+		pendingFSEvents = []
+
+		if (mainWindow && !mainWindow.isDestroyed()) {
+			mainWindow.webContents.send('folder-contents-update-batch', batch)
+		}
+	}
+
+	const clearPendingFSEvents = (): void => {
+		if (pendingFSEventsTimeout) {
+			clearTimeout(pendingFSEventsTimeout)
+			pendingFSEventsTimeout = null
+		}
+
+		pendingFSEvents = []
+	}
+
+	const queueFSEvent = (fsEvent: FSEvent): void => {
+		pendingFSEvents.push(fsEvent)
+
+		if (pendingFSEvents.length >= FILE_EXPLORER_UPDATE_BATCH_LIMIT) {
+			flushPendingFSEvents()
+			return
+		}
+
+		if (!pendingFSEventsTimeout) {
+			pendingFSEventsTimeout = setTimeout(
+				flushPendingFSEvents,
+				FILE_EXPLORER_UPDATE_INTERVAL_MS
+			)
+		}
+	}
+
 	// Fetch the contents of the given folder
 	ipcMain.handle('fetch-folder-contents', async (_, folderPath: string) => {
 		if (folderPath === '' || folderPath === undefined || folderPath === null) return
+
+		clearPendingFSEvents()
 
 		if (subscription) {
 			subscription.close()
@@ -154,9 +202,7 @@ export const addFSEventHandlers = (ipcMain: IpcMain, getMainWindow: () => Browse
 					separator: sep
 				}
 
-				if (getMainWindow && getMainWindow()) {
-					getMainWindow().webContents.send('folder-contents-update', fsEvent)
-				}
+				queueFSEvent(fsEvent)
 			} catch (error) {
 				sendFSError({
 					directoryPath: folderPath,

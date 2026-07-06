@@ -83,6 +83,13 @@ function DirectoryProvider({ children }: { children: React.ReactNode }): JSX.Ele
 			}
 		)
 
+		const clearFolderUpdateBatchListener = window.electron.ipcRenderer.on(
+			'folder-contents-update-batch',
+			async (_, fsEvents: FSEvent[]) => {
+				setNodes((prev) => handleFSEvents(prev, fsEvents))
+			}
+		)
+
 		const clearFolderErrorListener = window.electron.ipcRenderer.on(
 			'folder-contents-error',
 			(_, fsError: FSError) => {
@@ -94,6 +101,7 @@ function DirectoryProvider({ children }: { children: React.ReactNode }): JSX.Ele
 		return (): void => {
 			clearSelectedFolderListener()
 			clearFolderUpdateListener()
+			clearFolderUpdateBatchListener()
 			clearFolderErrorListener()
 		}
 	}, [addAlert])
@@ -114,6 +122,10 @@ function DirectoryProvider({ children }: { children: React.ReactNode }): JSX.Ele
 }
 
 export default DirectoryProvider
+
+function handleFSEvents(nodes: NodeChildren, fsEvents: FSEvent[]): NodeChildren {
+	return fsEvents.reduce(handleFSEvent, nodes)
+}
 
 function handleFSEvent(nodes: NodeChildren, fsEvent: FSEvent): NodeChildren {
 	if (!fsEvent) return nodes

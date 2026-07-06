@@ -47,8 +47,8 @@ export function IFrameProvider({ children }: { children: React.ReactNode }): JSX
 		'register-plugin': updateIframes
 	}
 
-	// Access the directory context
-	const data = useContext(DirectoryContext)
+	// Access the selected directory without broadcasting the full recursive file tree.
+	const { directoryPath, directoryName } = useContext(DirectoryContext)
 
 	const broadcast = useCallback(
 		(message: IFrameMessage): void => {
@@ -61,21 +61,22 @@ export function IFrameProvider({ children }: { children: React.ReactNode }): JSX
 		[iframes]
 	)
 
-	useEffect(() => {
-		if (!data) return
-
+	const broadcastDirectoryContext = useCallback((): void => {
 		const message: SendDirectoryContents = {
 			type: 'send-directory-contents',
 			data: {
-				directoryPath: data.directoryPath,
-				directoryName: data.directoryName,
-				nodes: data.nodes
+				directoryPath,
+				directoryName,
+				nodes: {}
 			}
 		}
 
-		// Send the directory info to the iframes
 		broadcast(message)
-	}, [data, broadcast])
+	}, [broadcast, directoryName, directoryPath])
+
+	useEffect(() => {
+		broadcastDirectoryContext()
+	}, [broadcastDirectoryContext])
 
 	useEffect(() => {
 		const listener = (event: MessageEvent): void => {

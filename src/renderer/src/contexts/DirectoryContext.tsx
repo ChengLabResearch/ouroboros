@@ -1,5 +1,6 @@
 import { joinWithSeparator } from '@renderer/interfaces/file'
-import { JSX, createContext, useCallback, useEffect, useState } from 'react'
+import { AlertContext } from '@renderer/contexts/AlertContext'
+import { JSX, createContext, useCallback, useContext, useEffect, useState } from 'react'
 
 export type DirectoryContextValue = {
 	nodes: NodeChildren
@@ -23,6 +24,14 @@ type FSEvent = {
 	separator: string
 }
 
+type FSError = {
+	directoryPath: string
+	message: string
+	code?: string
+	depth: number
+	limit: number
+}
+
 export type FileSystemNode = {
 	name: string
 	path: string
@@ -37,6 +46,7 @@ function DirectoryProvider({ children }: { children: React.ReactNode }): JSX.Ele
 	const [directoryName, setDirectoryName] = useState<string | null>(null)
 	const [directoryPath, setDirectoryPath] = useState<string | null>(null)
 	const [nodes, setNodes] = useState<NodeChildren>({})
+	const { addAlert } = useContext(AlertContext)
 
 	const setDirectory = useCallback(
 		(directory: string): void => {
@@ -73,11 +83,20 @@ function DirectoryProvider({ children }: { children: React.ReactNode }): JSX.Ele
 			}
 		)
 
+		const clearFolderErrorListener = window.electron.ipcRenderer.on(
+			'folder-contents-error',
+			(_, fsError: FSError) => {
+				console.error('File explorer watcher error', fsError)
+				addAlert(fsError.message, 'warning')
+			}
+		)
+
 		return (): void => {
 			clearSelectedFolderListener()
 			clearFolderUpdateListener()
+			clearFolderErrorListener()
 		}
-	}, [])
+	}, [addAlert])
 
 	const refreshDirectory = useCallback(() => {
 		window.electron.ipcRenderer.invoke('fetch-folder-contents', directoryPath)

@@ -6,11 +6,13 @@ site_author: Weaver Goldman and David Northover
 
 nav:
   - Home: 'index.md'
-  - Usage Guide: 
+  - Usage Guide:
     - Download Ouroboros: 'guide/downloading.md'
     - Slicing: 'guide/slicing.md'
     - Backprojection: 'guide/backproject.md'
     - Plugins: 'guide/plugins.md'
+  - Reference:
+    - Technical Constants: 'reference/technical-constants.md'
   - Development:
     - App: https://github.com/ChengLabResearch/ouroboros/blob/main/README.md
     - Python: https://github.com/ChengLabResearch/ouroboros/blob/main/python/README.md

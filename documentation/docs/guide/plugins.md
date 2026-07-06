@@ -37,3 +37,16 @@ skips existing installs that are current, newer, or not safely comparable.
 ### Creating a Plugin
 
 See the [template README](https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md) for more information.
+
+### Directory Context in Plugin Iframes
+
+When Ouroboros posts a `send-directory-contents` message to plugin
+iframes, the payload contains the selected directory's `directoryPath`
+and `directoryName` but the `nodes` field is always an empty object.
+Plugins should not depend on receiving the full recursive file tree
+through this broadcast. An on-demand plugin file API is being designed;
+until it lands, use `read-file` and `save-file` requests for the
+specific paths a plugin needs.
+
+For details and the values behind other file explorer limits, see the
+[Technical Constants](../reference/technical-constants.md) reference.

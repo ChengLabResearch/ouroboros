@@ -4,8 +4,11 @@ import { ChildProcess, fork } from 'child_process'
 import { scope } from '../logging'
 
 let pluginFileServer: ChildProcess
-const port = 3000
-const pluginFileServerURL: string = `http://127.0.0.1:${port}`
+// Env override: OUROBOROS_PLUGIN_FILE_SERVER_PORT. Falls back to 3000 when unset,
+// empty, or non-numeric (parseInt returns NaN, which || treats as falsy).
+const PLUGIN_FILE_SERVER_PORT: number =
+	parseInt(process.env.OUROBOROS_PLUGIN_FILE_SERVER_PORT ?? '', 10) || 3000
+const pluginFileServerURL: string = `http://127.0.0.1:${PLUGIN_FILE_SERVER_PORT}`
 
 const logger = scope('file-server')
 
@@ -17,7 +20,7 @@ export async function startPluginFileServer(): Promise<void> {
 
 	pluginFileServer = fork(join(__dirname, '../../resources/processes/file-server-script.mjs'), [
 		pluginFolder,
-		`${port}`
+		`${PLUGIN_FILE_SERVER_PORT}`
 	])
 
 	pluginFileServer.on('error', (error) => {

@@ -19,8 +19,15 @@ export type IFrameContextValue = {
 export const IFrameContext = createContext<IFrameContextValue>(null as never)
 
 export function IFrameProvider({ children }: { children: React.ReactNode }): JSX.Element {
-	// Define allowed origins
-	const allowedOrigins: string[] = ['http://localhost', 'http://127.0.0.1', 'http://0.0.0.0']
+	// Allowed iframe host names. Plugin content is served locally by the plugin
+	// file server (see `src/main/servers/file-server.ts`), so all legitimate
+	// origins are loopback. We compare against `new URL(event.origin).hostname`
+	// for exact equality rather than a `startsWith` prefix match, because
+	// a prefix match would accept attacker-controlled hosts such as
+	// `http://localhost.evil.example`. Any loopback port is accepted; the
+	// plugin file server port itself is not fixed and can be overridden via
+	// OUROBOROS_PLUGIN_FILE_SERVER_PORT in the main process.
+	const allowedHostnames: string[] = ['localhost', '127.0.0.1', '0.0.0.0']
 
 	// Store references to iframes
 	const [iframes, setIframes] = useState(new Map<string, MessageEventSource>())
@@ -82,8 +89,8 @@ export function IFrameProvider({ children }: { children: React.ReactNode }): JSX
 		const listener = (event: MessageEvent): void => {
 			const origin = event.origin
 
-			// Validate the origin of the request
-			if (!listContainsStartsWith(allowedOrigins, origin)) return
+			// Validate the origin of the request via exact hostname equality.
+			if (!isAllowedOrigin(allowedHostnames, origin)) return
 
 			const request = event.data
 
@@ -171,9 +178,18 @@ async function handleSaveFileRequest(_: MessageEventSource, data: IFrameMessage)
 	}
 }
 
-function listContainsStartsWith(startsWith: string[], text: string): boolean {
-	for (const item of startsWith) {
-		if (text.startsWith(item)) {
+function isAllowedOrigin(allowedHostnames: string[], origin: string): boolean {
+	// Parse the origin URL and compare the hostname exactly. Invalid URLs
+	// (empty string for `postMessage` from opaque origins, malformed values)
+	// fall through to a deny.
+	let hostname: string
+	try {
+		hostname = new URL(origin).hostname
+	} catch {
+		return false
+	}
+	for (const item of allowedHostnames) {
+		if (hostname === item) {
 			return true
 		}
 	}

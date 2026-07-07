@@ -12,6 +12,12 @@ const explicitImage = process.env.OUROBOROS_SERVER_IMAGE ?? null
 const imageTag = process.env.OUROBOROS_SERVER_IMAGE_TAG ?? process.env.GITHUB_REF_NAME ?? `v${packageJson.version}`
 const imageDigest = process.env.OUROBOROS_SERVER_IMAGE_DIGEST ?? null
 const image = explicitImage ?? imageReference()
+// shm_size is an artificial Docker limit: without it, Docker caps
+// /dev/shm at 64 MB, which the pipeline exceeds immediately. Setting it too
+// large only shifts OOM from the container-side limit to actual host OOM.
+// Override at packaging time via OUROBOROS_SERVER_SHM_SIZE (matches the
+// compose-file substitution ${OUROBOROS_SERVER_SHM_SIZE:-64gb}).
+const shmSize = process.env.OUROBOROS_SERVER_SHM_SIZE ?? '64gb'
 
 await mkdir(outputDir, { recursive: true })
 await writeFile(join(outputDir, 'compose.yml'), composeForImage(image))
@@ -49,7 +55,7 @@ function composeForImage(serverImage) {
       - "host.docker.internal:host-gateway"
     environment:
       - OUR_ENV=docker
-    shm_size: 64gb
+    shm_size: ${shmSize}
 volumes:
   ouroboros-volume:
     name: ouroboros-volume

@@ -402,7 +402,7 @@
 <nav>
     <ul>
         <li><a href="#ouroboros-plugins">Ouroboros Plugins</a></li>
-        <li><a href="#recommended-plugins">Recommended Plugins</a></li><li><a href="#installing-a-plugin">Installing a Plugin</a></li><li><a href="#preinstalled-production-plugins">Preinstalled Production Plugins</a></li><li><a href="#creating-a-plugin">Creating a Plugin</a></li><li><a href="#directory-context-in-plugin-iframes">Directory Context in Plugin Iframes</a></li>
+        <li><a href="#recommended-plugins">Recommended Plugins</a></li><li><a href="#installing-a-plugin">Installing a Plugin</a></li><li><a href="#preinstalled-production-plugins">Preinstalled Production Plugins</a></li><li><a href="#creating-a-plugin">Creating a Plugin</a></li><li><a href="#directory-context-in-plugin-iframes">Directory Context in Plugin Iframes</a></li><li><a href="#requesting-directory-contents">Requesting Directory Contents</a></li>
     </ul>
 </nav>
 </aside>
@@ -454,10 +454,57 @@ skips existing installs that are current, newer, or not safely comparable.</p>
 <p>When Ouroboros posts a <code>send-directory-contents</code> message to plugin
 iframes, the payload contains the selected directory's <code>directoryPath</code>
 and <code>directoryName</code> but the <code>nodes</code> field is always an empty object.
-Plugins should not depend on receiving the full recursive file tree
-through this broadcast. An on-demand plugin file API is being designed;
-until it lands, use <code>read-file</code> and <code>save-file</code> requests for the
-specific paths a plugin needs.</p>
+This broadcast fires on every root change and is intended as a
+notification only — plugins should not depend on receiving the full
+recursive file tree through it.</p>
+<p>To read the directory tree, plugins request it explicitly with the
+<code>request-directory-contents</code> message described below.</p>
+<h3 id="requesting-directory-contents">Requesting Directory Contents</h3>
+<p>Plugins ask the provider for the entries of a folder (optionally
+recursive) by posting a <code>request-directory-contents</code> message. The
+provider replies with a <code>send-directory-contents-response</code> message
+addressed only to the requesting iframe.</p>
+<p><strong>Request (plugin → provider):</strong></p>
+<pre><code class="language-js">window.parent.postMessage(
+    {
+        type: 'request-directory-contents',
+        data: {
+            path: '/absolute/path/under/current/root',
+            recursive: true,        // optional; defaults to false
+            requestId: 'abc-123'    // optional; the provider echoes it back
+        }
+    },
+    '*'
+)
+</code></pre>
+<p><strong>Response (provider → requesting iframe):</strong></p>
+<pre><code class="language-js">window.addEventListener('message', (event) =&gt; {
+    if (event.data?.type !== 'send-directory-contents-response') return
+    const { path, nodes, requestId, error } = event.data.data
+    // `nodes` is a path-keyed nested map of { name, path, children? }
+    // matching the shape the pre-#106 broadcast used.
+    // `error` is present only when the request could not be fully served:
+    //   - code: 'denied'     path outside the current root, or no root open
+    //   - code: 'not-found'  path does not exist / is not a directory
+    //   - code: 'limit'      enumeration hit the aggregate cap; `truncated: true`
+    //                        and `nodes` holds the partial result
+    //   - code: 'internal'   unexpected error; see `message`
+})
+</code></pre>
+<p>If <code>requestId</code> is omitted from the request, the provider generates one
+and echoes it back on the response so plugins can still correlate.</p>
+<p><strong>Path-traversal guard.</strong> Requests for paths outside the current root are
+rejected with <code>code: 'denied'</code>. Plugins get exactly what the user can see
+in the File Explorer and nothing above it.</p>
+<p><strong>Truncation.</strong> When the aggregate visible-path budget
+(<code>FILE_EXPLORER_WATCH_LIMIT</code>) is exceeded mid-walk, the enumeration stops
+and the response is returned with <code>error.code: 'limit'</code>,
+<code>error.truncated: true</code>, and a partial <code>nodes</code> map. Callers issuing
+recursive requests on very large trees should be prepared to handle
+this.</p>
+<p><strong>Ignore rules.</strong> The same ignore filter the File Explorer uses (dotfiles
+and the <code>node_modules</code>, <code>__pycache__</code>, <code>venv</code> segments) applies here.
+Plugins cannot bypass it.</p>
 <p>For details and the values behind other file explorer limits, see the
 <a href="../../reference/technical-constants/">Technical Constants</a> reference.</p>
 </section>

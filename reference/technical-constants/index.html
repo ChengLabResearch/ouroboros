@@ -444,6 +444,16 @@ package's per-watcher <code>limit</code>. Under the lazy model it is instead an
 aggregate session budget summed across every currently open watcher; a
 watcher's contribution is reclaimed when its folder is collapsed and torn
 down.</p>
+<p><strong>Second role from #111.</strong> The same constant caps the plugin-facing
+<code>get-folder-contents</code> one-shot enumeration used by the
+<code>request-directory-contents</code> iframe message (see the <a href="../../guide/plugins/#requesting-directory-contents">plugins
+guide</a>). A plugin's
+recursive walk stops when the enumeration hits the cap; the response is
+returned with <code>error.code: 'limit'</code> and <code>error.truncated: true</code>, and
+<code>nodes</code> holds the partial result already gathered. Enumeration and
+watcher budgets are counted separately (the enumeration count is
+per-request and does not accumulate across requests), so a plugin cannot
+starve the file explorer by issuing many recursive requests.</p>
 <p><strong>User-visible behavior when reached.</strong> Once the aggregate visible add
 count crosses the limit, the main process emits <code>folder-contents-error</code>
 with a message of the form <code>File explorer stopped loading after 100000
@@ -531,13 +541,15 @@ costs above.</p>
 <p><strong>User-visible behavior.</strong> Plugins still receive the selected directory
 path and name through the existing <code>send-directory-contents</code> message.
 The <code>nodes</code> field is present for shape compatibility but is always an
-empty object. Plugins that need to browse the directory tree should not
-depend on this broadcast; the on-demand plugin file API tracked by
-[#102][issue-102] is the intended replacement.</p>
+empty object. Plugins that need to browse the directory tree use the
+<code>request-directory-contents</code> / <code>send-directory-contents-response</code>
+message pair added in [#111][issue-111] (see the <a href="../../guide/plugins/#requesting-directory-contents">plugins
+guide</a>) rather than
+depending on this broadcast payload.</p>
 <p><strong>When to reconsider.</strong> Do not restore the full-tree broadcast without
-first landing a memory-safe, on-demand alternative. If you need a
-minimal listing for a plugin, prefer adding a targeted IPC call over
-resurrecting the broadcast.</p>
+first landing a memory-safe, on-demand alternative. The on-demand API
+from #111 is that alternative; prefer extending it over resurrecting
+the broadcast.</p>
 <h2 id="main-process-electron">Main process (Electron)</h2>
 <h3 id="plugin-file-server-port">Plugin file server port</h3>
 <ul>

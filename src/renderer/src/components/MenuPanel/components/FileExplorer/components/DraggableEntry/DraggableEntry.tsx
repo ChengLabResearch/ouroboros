@@ -1,6 +1,6 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import FileEntry from '../FileEntry/FileEntry'
-import { FileSystemNode } from '@renderer/contexts/DirectoryContext'
+import { DirectoryContext, FileSystemNode } from '@renderer/contexts/DirectoryContext'
 
 import styles from './DraggableEntry.module.css'
 import { MouseEvent, useContext, useEffect, useState } from 'react'
@@ -23,8 +23,33 @@ function DraggableEntry({
 	const type = node.children ? 'folder' : (node.name.endsWith('.tif') || node.name.endsWith('.tiff')) ? 'image' : 'file'
 	const isFolder = type === 'folder'
 	const isEmpty = !node.children || Object.keys(node.children).length === 0
+	// With lazy expansion an unopened folder starts with an empty children
+	// map. We still want to show a chevron so the user can expand it; the
+	// contents (or true emptiness) become visible once the main-side watcher
+	// streams the initial batch.
+	const showChevron = isFolder
 
 	const [isCollapsed, setIsCollapsed] = useState(true)
+
+	const { expandFolder, collapseFolder } = useContext(DirectoryContext)
+
+	// Dispatch expand/collapse to the main-side watcher manager alongside the
+	// existing visual toggle. Idempotent by design: main-side handlers no-op
+	// when the state already matches, and the visual toggle is instant while
+	// the fetch runs asynchronously.
+	const toggleCollapsed = (): void => {
+		setIsCollapsed((prev) => {
+			const next = !prev
+			if (isFolder) {
+				if (next) {
+					collapseFolder(node.path)
+				} else {
+					expandFolder(node.path)
+				}
+			}
+			return next
+		})
+	}
 
 	const { attributes, listeners, setNodeRef } = useDraggable({
 		id: node.path,
@@ -74,12 +99,12 @@ function DraggableEntry({
 			<div
 				className={isFolder ? (isEmpty ? styles.emptyFolder : styles.folder) : styles.file}
 			>
-				{!isEmpty && (
+				{showChevron && (
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						viewBox="0 0 320 512"
 						className={`${styles.collapseIcon} ${isCollapsed ? '' : styles.collapseIconOpen}`}
-						onClick={() => setIsCollapsed((prev) => !prev)}
+						onClick={toggleCollapsed}
 					>
 						<path
 							fill="currentColor"

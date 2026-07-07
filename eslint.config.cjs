@@ -22,8 +22,13 @@ module.exports = tseslint.config(
 			]
 		}
 	},
+	// electron-toolkit/eslint-config-ts@3.1.0 intends to disable this rule for
+	// .js/.mjs (see its eslint-typescript.js), but ships a legacy-eslint glob
+	// (`*.mjs`) that only matches root-level under flat-config semantics, so
+	// nested build scripts like `scripts/*.mjs` fall through. Restate the
+	// intent with a `**/*.mjs` glob until upstream fixes the pattern.
 	{
-		files: ['**/*.mjs'],
+		files: ['**/*.mjs', '**/*.js'],
 		rules: {
 			'@typescript-eslint/explicit-function-return-type': 'off'
 		}

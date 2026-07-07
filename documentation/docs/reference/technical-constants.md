@@ -166,6 +166,457 @@ first landing a memory-safe, on-demand alternative. If you need a
 minimal listing for a plugin, prefer adding a targeted IPC call over
 resurrecting the broadcast.
 
+## Main process (Electron)
+
+### Plugin file server port
+
+- Symbol: `port`
+- Value: `3000`
+- Source: [`src/main/servers/file-server.ts`][file-server-ts] line 6
+
+**Why it exists.** The main process forks a local Express + `serve-static`
+worker (see [`resources/processes/file-server-script.mjs`][file-server-script])
+that serves every installed plugin's static assets over
+`http://127.0.0.1:3000/`. The renderer and plugin iframes load their
+`index.html`, icons, and any bundled JS from this server.
+
+**User-visible behavior.** If another process on the host is already
+listening on port 3000 the fork fails and plugins load with broken
+assets. There is no automatic fallback and no environment override.
+
+**When to reconsider.** Change this value if 3000 conflicts with a
+different local service. The renderer discovers the URL through
+`getPluginFileServerURL()`, so a code change is enough; no user-facing
+setting exists.
+
+### Docker volume server port
+
+- Symbol: `port`
+- Value: `3001`
+- Source: [`src/main/servers/volume-server.ts`][volume-server-ts] line 6
+
+**Why it exists.** The volume server is a second forked Node process
+(see [`resources/processes/volume-server-script.mjs`][volume-server-script])
+that shells out to `docker run --rm` commands so that host files can be
+copied into and out of the `ouroboros-volume` Docker named volume. The
+main server container reaches back to it through
+`http://host.docker.internal:3001` (see [Python server](#python-server)
+below).
+
+**User-visible behavior.** Copy-to-volume and copy-to-host requests fail
+if port 3001 is busy or if Docker is not available. Plugin data transfer
+into the shared volume breaks in that case.
+
+**When to reconsider.** Change this only if 3001 conflicts locally.
+Keep the Python-side default in sync (`VOLUME_SERVER_URL` in
+[`python/ouroboros/common/volume_server_interface.py`][volume-server-interface-py]).
+
+### Docker volume name
+
+- Symbol: `VOLUME`
+- Value: `'ouroboros-volume'`
+- Source: [`src/main/servers/volume-server.ts`][volume-server-ts] line 9,
+  matched by the `volumes.ouroboros-volume.name` entry in
+  [`python/compose.yml`][compose-yml],
+  [`python/compose.dev.yml`][compose-dev-yml], and the compose file
+  written by [`scripts/prepare-production-server.mjs`][prepare-production-server].
+
+**Why it exists.** The Python server, the volume server helper, and the
+main process all address the same Docker named volume so that plugin
+uploads land where the pipeline can read them.
+
+**User-visible behavior.** On app shutdown the volume server helper
+issues `docker run --rm ... rm -rf /volume/*` against this named volume.
+Anything else stored under the same volume name is deleted.
+
+**When to reconsider.** Rename it if you need to run multiple Ouroboros
+installs against the same Docker daemon without stomping each other's
+volumes. All three call sites must agree.
+
+### Main server locations (main process)
+
+- Symbols: `DEVELOPMENT_PATH`, `DEVELOPMENT_CONFIG`, `PRODUCTION_PATH`,
+  `PRODUCTION_CONFIG`
+- Values (relative to the compiled `out/main/index.js`):
+    - `DEVELOPMENT_PATH` = `../../python/`
+    - `DEVELOPMENT_CONFIG` = `../../python/compose.dev.yml`
+    - `PRODUCTION_PATH` = `../../../extra-resources/server/`
+    - `PRODUCTION_CONFIG` = `../../../extra-resources/server/compose.yml`
+- Source: [`src/main/servers/main-server.ts`][main-server-ts] lines 4-8
+
+**Why it exists.** These paths tell the Electron main process which
+`docker compose` file to bring up when starting the FastAPI server. In
+development the compose file lives in the source tree; in production it
+is written into `extra-resources/server/compose.yml` by
+[`scripts/prepare-production-server.mjs`][prepare-production-server]
+during packaging.
+
+**User-visible behavior.** A packaged app that ships without a valid
+`extra-resources/server/compose.yml` cannot start the main server, and
+the app comes up in a disconnected state.
+
+**When to reconsider.** Change these together with any restructure of
+`extra-resources/` or the packaging scripts.
+
+## Renderer
+
+### Server connection settings
+
+- Symbols: `DEFAULT_SERVER_URL`, `retryDelay`
+- Values:
+    - `DEFAULT_SERVER_URL` = `'http://127.0.0.1:8000'`
+    - `retryDelay` = `5000` (milliseconds)
+- Source: [`src/renderer/src/contexts/ServerContext.tsx`][server-context]
+  lines 4 and 41
+
+**Why it exists.** `DEFAULT_SERVER_URL` is the base URL the renderer
+uses for all REST and SSE calls to the Python server. `retryDelay` is
+the interval at which the `checkServerStatus` loop pings that base URL
+to update the `connected` flag driving the ProgressPanel status.
+
+**User-visible behavior.** The "connected" indicator can lag reality by
+up to about five seconds. Any fetch or stream started while the app
+thinks the server is down is placed on `fetchQueue` and replayed once
+the health poll flips to `connected`.
+
+**When to reconsider.** Lower `retryDelay` for a snappier connection
+indicator at the cost of extra HTTP traffic. Change `DEFAULT_SERVER_URL`
+if you point Ouroboros at a remote server, but keep it aligned with the
+Python-side `HOST`/`PORT` defaults documented below.
+
+### IFrame plugin allowed origins
+
+- Symbol: `allowedOrigins`
+- Value: `['http://localhost', 'http://127.0.0.1', 'http://0.0.0.0']`
+- Source: [`src/renderer/src/contexts/IFrameContext.tsx`][iframe-context]
+  line 23
+
+**Why it exists.** The renderer only dispatches `read-file`,
+`save-file`, and `register-plugin` messages from iframes whose
+`event.origin` starts with one of these prefixes. Plugin content is
+served locally through the plugin file server on port 3000, so all
+legitimate origins are loopback.
+
+**User-visible behavior.** Any plugin iframe served from a non-loopback
+origin is silently ignored: its messages never trigger file reads,
+writes, or registration.
+
+**When to reconsider.** Add an entry only if you deliberately host
+plugin content off-device (for example, over `https://` to a controlled
+host). Broadening this list widens the file-read and file-write surface
+exposed to third-party pages.
+
+### Slice visualization sampling ratio
+
+- Symbol: `SLICE_RENDER_PROPORTION`
+- Value: `0.008`
+- Source: [`src/renderer/src/routes/SlicesPage/SlicesPage.tsx`][slices-page]
+  line 26
+
+**Why it exists.** The 3D slice preview draws only every `Nth` rectangle
+where `N = floor(rects.length * 0.008)`. This keeps very long paths
+(tens of thousands of rects) from stalling the WebGL scene.
+
+**User-visible behavior.** For a 10 000-rect path this renders roughly
+125 rectangles: enough to convey the shape of the sweep without freezing
+the visualization. Fewer rects than about 125 render every rect.
+
+**When to reconsider.** Raise it to see more slices in the preview at
+the cost of frame rate; lower it if the preview lags on very long paths.
+
+### Stream endpoint paths
+
+- Symbols: `SLICE_STREAM`, `BACKPROJECT_STREAM`, `SLICE_STEP_NAME`
+- Values:
+    - `SLICE_STREAM` = `'/slice_status_stream/'`
+    - `BACKPROJECT_STREAM` = `'/backproject_status_stream/'`
+    - `SLICE_STEP_NAME` = `'SliceParallelPipelineStep'`
+- Sources:
+  [`src/renderer/src/routes/SlicesPage/SlicesPage.tsx`][slices-page] lines 28-30
+  and [`src/renderer/src/routes/BackprojectPage/BackprojectPage.tsx`][backproject-page]
+  line 22
+
+**Why it exists.** These are the FastAPI SSE endpoints the renderer
+subscribes to for slice and backproject progress, and the pipeline step
+name that the slice page uses to identify its progress row. They must
+stay in sync with the routes exposed by `create_api` in the Python
+server (see [`python/ouroboros/common/server_api.py`][server-api-py])
+and with the pipeline step class in the slice pipeline.
+
+**User-visible behavior.** A rename on either side (server or renderer)
+without the other silently breaks progress updates and the visualization
+panel.
+
+**When to reconsider.** Update this file whenever the corresponding
+FastAPI route names or Python pipeline step class names change.
+
+## Python server
+
+### Server host and port
+
+- Symbols: `HOST`, `PORT`, `DOCKER_HOST`, `DOCKER_PORT`
+- Values:
+    - `HOST` = `'127.0.0.1'`
+    - `PORT` = `8000`
+    - `DOCKER_HOST` = `'0.0.0.0'`
+    - `DOCKER_PORT` = `8000`
+- Source: [`python/ouroboros/common/server.py`][py-server] lines 10-14
+
+**Why it exists.** The desktop-only server entry point
+(`ouroboros-server`) binds Uvicorn to loopback, while the containerised
+server entry point (`ouroboros-docker-server`) binds to all interfaces
+so the host can reach the container through the compose `8000:8000`
+port mapping.
+
+**User-visible behavior.** The renderer's `DEFAULT_SERVER_URL` above
+assumes port 8000. Changing `PORT` or the compose port mapping without
+updating the renderer breaks the client.
+
+**When to reconsider.** Change these if you need to expose the desktop
+server to another machine (rare) or if 8000 conflicts with another
+service. Update `DEFAULT_SERVER_URL` in the renderer and the compose
+port mapping in the same commit.
+
+### Volume server URL (Python side)
+
+- Symbols: `VOLUME_SERVER_URL`, `PLUGIN_NAME`
+- Values:
+    - `VOLUME_SERVER_URL` = `'http://host.docker.internal:3001'`
+    - `PLUGIN_NAME` = `'main'`
+- Source: [`python/ouroboros/common/volume_server_interface.py`][volume-server-interface-py]
+  lines 3-4
+
+**Why it exists.** From inside the server container, the volume server
+running on the host is reached through the Docker special DNS name
+`host.docker.internal`, mapped in each compose file via
+`extra_hosts: - "host.docker.internal:host-gateway"`. `PLUGIN_NAME` is
+the fixed subfolder on the shared volume used by the main pipeline.
+
+**User-visible behavior.** If the compose file omits the
+`host.docker.internal` extra host, or if the Electron main process is
+not running the volume server, requests time out and plugin/data
+transfer into the volume fails.
+
+**When to reconsider.** Change the URL only in coordination with the
+Electron-side `port` in
+[`src/main/servers/volume-server.ts`][volume-server-ts].
+
+### Bounding box defaults
+
+- Symbols: `DEFAULT_SPLIT_THRESHOLD`, `DEFAULT_MAX_DEPTH`,
+  `DEFAULT_TARGET_SLICES_PER_BOX`
+- Values:
+    - `DEFAULT_SPLIT_THRESHOLD` = `0.9`
+    - `DEFAULT_MAX_DEPTH` = `10`
+    - `DEFAULT_TARGET_SLICES_PER_BOX` = `128`
+- Source: [`python/ouroboros/helpers/bounding_boxes.py`][bounding-boxes-py]
+  lines 6-8
+- User override: `bounding_box_params.max_depth` and
+  `bounding_box_params.target_slices_per_box` in the slice options JSON
+  (see [`python/ouroboros/helpers/options.py`][options-py] and
+  [`python/ouroboros/helpers/bounding_boxes.py`][bounding-boxes-py])
+
+**Why it exists.** The slice pipeline uses binary space partitioning to
+group slice rectangles into cloud-volume fetch boxes.
+`DEFAULT_MAX_DEPTH` caps recursion depth, `DEFAULT_TARGET_SLICES_PER_BOX`
+is the leaf-box size heuristic, and `DEFAULT_SPLIT_THRESHOLD` decides
+whether a box is empty enough to be worth dividing (a box is split when
+its utilised volume is below `1 - 0.9 = 10%` of its total volume).
+
+**User-visible behavior.** Larger `target_slices_per_box` or smaller
+`max_depth` produces fewer, larger cloud-volume fetches; smaller
+`target_slices_per_box` produces many smaller fetches. Tuning these
+trades network round-trips against downloaded-but-unused voxels.
+
+**When to reconsider.** Adjust `bounding_box_params` in the slice
+options JSON per-run rather than editing this file. Only change the
+compiled defaults if you have measured a better global balance.
+
+### Backprojection chunk and process defaults
+
+- Symbols: `chunk_size` and `process_count` on `BackprojectOptions`
+- Values:
+    - `chunk_size` = `160`
+    - `process_count` = `os.cpu_count()`
+- Source: [`python/ouroboros/helpers/options.py`][options-py] lines 77-78
+- User override: fields of the same name in the backproject options JSON
+
+**Why it exists.** `chunk_size` is the per-dimension size of the
+processing chunk used by the backproject pipeline (see
+`DataRange(FPShape.make_with(0), FPShape, FPShape.make_with(config.chunk_size))`
+in [`python/ouroboros/pipeline/backproject_pipeline.py`][backproject-pipeline]).
+`process_count` sets the parallel worker pool for the same pipeline;
+executor and writer processes are derived as fractions of it
+(`process_count // 4 * 2` or `// 4 * 3`).
+
+**User-visible behavior.** Larger `chunk_size` reduces per-chunk
+overhead but raises peak memory per worker. On very small hosts,
+`process_count = cpu_count()` may over-subscribe and thrash; lowering it
+in the options JSON trades throughput for stability.
+
+**When to reconsider.** Tune per-run through the backproject options
+JSON. Edit the defaults only if a different global tuning is measured
+to be better across typical workloads.
+
+### Memory-monitor interval
+
+- Symbol: `MEM_INTERVAL_TIMER`
+- Value: `1.0` (seconds)
+- Source: [`python/ouroboros/helpers/mem.py`][mem-py] line 14
+
+**Why it exists.** `mem_monitor` polls the "current step" shared-memory
+buffer once per second while writing to the memory log. `exit_cleanly`
+also sleeps this long before final shutdown to let the monitor flush.
+
+**User-visible behavior.** Memory-log resolution is one second per line.
+Startup and shutdown incur a one-second pause tied to this value.
+
+**When to reconsider.** Lower it for finer memory profiling at the cost
+of log volume and overhead.
+
+### Volume-cache flush default
+
+- Symbol: `FLUSH_CACHE`
+- Value: `False`
+- Source: [`python/ouroboros/helpers/volume_cache.py`][volume-cache-py]
+  line 13
+- User override: `flush_cache` field on `CommonOptions` in
+  [`python/ouroboros/helpers/options.py`][options-py]
+
+**Why it exists.** Controls whether the cloud-volume cache is flushed
+after each pipeline run. Keeping it off keeps downloaded chunks around
+for the next run.
+
+**User-visible behavior.** With the default off, repeated runs against
+the same source volume reuse locally cached tiles, which can hide
+upstream data changes but greatly speeds re-runs.
+
+**When to reconsider.** Set `flush_cache: true` in the options JSON for
+one-shot runs or when the upstream volume may have changed.
+
+## Docker and packaging
+
+### Server container shared-memory size
+
+- Symbol: `shm_size`
+- Value: `64gb`
+- Source: [`python/compose.yml`][compose-yml] line 15,
+  [`python/compose.dev.yml`][compose-dev-yml] line 28, and the compose
+  file written by
+  [`scripts/prepare-production-server.mjs`][prepare-production-server]
+  (line 52)
+
+**Why it exists.** The FastAPI server uses shared memory for
+inter-process numpy arrays (`SharedMemoryManager`, `SharedNPArray` in
+[`python/ouroboros/helpers/mem.py`][mem-py]) and for cloud-volume caches.
+Docker's default `/dev/shm` size (64 MB) is far too small for these
+allocations, so the container is given 64 GB of tmpfs headroom.
+
+**User-visible behavior.** On hosts with less than 64 GB of RAM plus
+swap, Docker still accepts the setting (`/dev/shm` is a tmpfs and
+allocates on demand), but attempts to actually use that much shared
+memory will trigger the OOM killer.
+
+**When to reconsider.** Lower it on constrained hosts where you know the
+pipelines you run stay well under the limit; raise it only if you
+routinely see shared-memory `ENOMEM` errors from the server.
+
+### Python base image
+
+- Symbol: base image tag
+- Value: `thehale/python-poetry:2.1.3-py3.11-slim`
+- Source: [`python/Dockerfile`][py-dockerfile] line 1 and
+  [`python/Dockerfile-prod`][py-dockerfile-prod] line 5
+
+**Why it exists.** Pins Poetry to 2.1.3 and Python to 3.11 for the
+container build. `python/pyproject.toml` declares a matching
+`python = ">=3.11,<3.13"` range.
+
+**User-visible behavior.** Container builds are reproducible against a
+known Poetry and Python version. Bumping the tag without updating
+`pyproject.toml`'s Python range risks a resolver mismatch at build time.
+
+**When to reconsider.** Update this tag when you deliberately move to a
+newer Poetry or Python release, and keep `pyproject.toml` in sync.
+
+### Server image reference defaults
+
+- Symbols: `imageRepository`, `imageTag`
+- Values:
+    - `imageRepository` (default) = `ghcr.io/chenglabresearch/ouroboros-server`
+    - `imageTag` (default) = `v${packageJson.version}` (falls back to
+      `GITHUB_REF_NAME` in CI)
+- Source: [`scripts/prepare-production-server.mjs`][prepare-production-server]
+  lines 10-14
+- Environment overrides: `OUROBOROS_SERVER_IMAGE_REPOSITORY`,
+  `OUROBOROS_SERVER_IMAGE_TAG`, `OUROBOROS_SERVER_IMAGE_DIGEST`,
+  `OUROBOROS_SERVER_IMAGE` (fully qualified reference)
+
+**Why it exists.** The prepare script writes an
+`extra-resources/server/compose.yml` that pulls the server image by
+name so packaged app installs do not need to build the container
+locally.
+
+**User-visible behavior.** With no environment overrides, packaging
+pulls `ghcr.io/chenglabresearch/ouroboros-server:v<appVersion>`. A
+release that has not yet published a matching image tag will fail at
+first startup with a `docker pull` error.
+
+**When to reconsider.** Set `OUROBOROS_SERVER_IMAGE_DIGEST` to pin a
+specific build for a release, or point `OUROBOROS_SERVER_IMAGE` at a
+private registry for internal builds.
+
+### Preinstalled plugin pins
+
+- Symbol: `productionPluginPins`
+- Value:
+    - `neuroglancer.tag` = `v1.0.1`
+    - `neuroglancer.artifact` = `neuroglancer-plugin-v1.0.1.zip`
+    - `autoseg.tag` = `v0.4.0-beta.1`
+    - `autoseg.cpuArtifact` = `auto-segmentation-v0.4.0-beta.1-cpu.zip`
+    - `autoseg.cudaArtifact` = `auto-segmentation-v0.4.0-beta.1-cuda.zip`
+- Source: [`scripts/prepare-package-flavor.mjs`][prepare-package-flavor]
+  lines 7-16
+- Environment overrides: `OUROBOROS_NEUROGLANCER_PLUGIN_TAG`,
+  `OUROBOROS_NEUROGLANCER_PLUGIN_ARTIFACT`,
+  `OUROBOROS_AUTOSEG_PLUGIN_TAG`,
+  `OUROBOROS_AUTOSEG_CPU_PLUGIN_ARTIFACT`,
+  `OUROBOROS_AUTOSEG_CUDA_PLUGIN_ARTIFACT`
+
+**Why it exists.** These are the exact plugin release versions that the
+`with-plugins-cpu` and `with-plugins-cuda` package flavors ship. The
+`core` flavor ships no preinstalled plugins.
+
+**User-visible behavior.** A packaged app pins the listed plugin
+versions in `extra-resources/preinstalled-plugins/`. First launch copies
+each into the user's plugin folder if the installed version is older or
+missing.
+
+**When to reconsider.** Update these pins whenever a new upstream plugin
+release becomes the intended default. Bump both the tag and the artifact
+filename together, since the artifact filename embeds the tag.
+
+### Supported package flavors
+
+- Symbol: `supportedFlavors`
+- Value: `new Set(['core', 'with-plugins-cpu', 'with-plugins-cuda'])`
+- Source: [`scripts/prepare-package-flavor.mjs`][prepare-package-flavor]
+  line 6
+- Environment selector: `OUROBOROS_PACKAGE_FLAVOR` (defaults to
+  `'core'`)
+
+**Why it exists.** Whitelists the packaging-time flavor names. Anything
+else raises `Unsupported OUROBOROS_PACKAGE_FLAVOR ...` and aborts.
+
+**User-visible behavior.** Only these three flavors have artifact
+renaming, preinstalled-plugin selection, and a release-time build
+pipeline. See
+[Production Package Flavors](../development/production-package-flavors.md)
+for the operator-facing view of these three flavors.
+
+**When to reconsider.** Add a new flavor here together with matching
+artifact handling in the same file and a documentation update.
+
 ## Where the values come from
 
 Every value above was read directly from the tree at the time this page
@@ -181,3 +632,25 @@ commit so operators and plugin authors can rely on it.
 [pr-106]: https://github.com/ChengLabResearch/ouroboros/pull/106
 [filesystem-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts
 [iframe-context]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/IFrameContext.tsx
+[file-server-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/file-server.ts
+[file-server-script]: https://github.com/ChengLabResearch/ouroboros/blob/main/resources/processes/file-server-script.mjs
+[volume-server-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/volume-server.ts
+[volume-server-script]: https://github.com/ChengLabResearch/ouroboros/blob/main/resources/processes/volume-server-script.mjs
+[main-server-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/main-server.ts
+[server-context]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/ServerContext.tsx
+[slices-page]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/routes/SlicesPage/SlicesPage.tsx
+[backproject-page]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/routes/BackprojectPage/BackprojectPage.tsx
+[py-server]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/common/server.py
+[server-api-py]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/common/server_api.py
+[volume-server-interface-py]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/common/volume_server_interface.py
+[bounding-boxes-py]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/bounding_boxes.py
+[options-py]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/options.py
+[backproject-pipeline]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/pipeline/backproject_pipeline.py
+[mem-py]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/mem.py
+[volume-cache-py]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/volume_cache.py
+[compose-yml]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.yml
+[compose-dev-yml]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.dev.yml
+[py-dockerfile]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/Dockerfile
+[py-dockerfile-prod]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/Dockerfile-prod
+[prepare-production-server]: https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-production-server.mjs
+[prepare-package-flavor]: https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-package-flavor.mjs

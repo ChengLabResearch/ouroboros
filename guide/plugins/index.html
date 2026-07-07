@@ -105,6 +105,8 @@
                 
                 
                 
+                
+                
                 <li property="itemListElement" typeof="ListItem">
                     <a href="https://github.com/ChengLabResearch/ouroboros/releases" class="menu-item " property="item" typeof="WebPage">
                         <span property="name">Releases</span>
@@ -217,6 +219,45 @@
     
         
         <span class="terminal-mkdocs-side-nav-item--active">Plugins</span>
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Reference</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../reference/technical-constants/">Technical Constants</a>
+        
     
     </li>
             
@@ -361,7 +402,7 @@
 <nav>
     <ul>
         <li><a href="#ouroboros-plugins">Ouroboros Plugins</a></li>
-        <li><a href="#recommended-plugins">Recommended Plugins</a></li><li><a href="#installing-a-plugin">Installing a Plugin</a></li><li><a href="#preinstalled-production-plugins">Preinstalled Production Plugins</a></li><li><a href="#creating-a-plugin">Creating a Plugin</a></li>
+        <li><a href="#recommended-plugins">Recommended Plugins</a></li><li><a href="#installing-a-plugin">Installing a Plugin</a></li><li><a href="#preinstalled-production-plugins">Preinstalled Production Plugins</a></li><li><a href="#creating-a-plugin">Creating a Plugin</a></li><li><a href="#directory-context-in-plugin-iframes">Directory Context in Plugin Iframes</a></li>
     </ul>
 </nav>
 </aside>
@@ -409,6 +450,16 @@ plugin's <code>package.json</code>; it upgrades only when the bundled version is
 skips existing installs that are current, newer, or not safely comparable.</p>
 <h3 id="creating-a-plugin">Creating a Plugin</h3>
 <p>See the <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md">template README</a> for more information.</p>
+<h3 id="directory-context-in-plugin-iframes">Directory Context in Plugin Iframes</h3>
+<p>When Ouroboros posts a <code>send-directory-contents</code> message to plugin
+iframes, the payload contains the selected directory's <code>directoryPath</code>
+and <code>directoryName</code> but the <code>nodes</code> field is always an empty object.
+Plugins should not depend on receiving the full recursive file tree
+through this broadcast. An on-demand plugin file API is being designed;
+until it lands, use <code>read-file</code> and <code>save-file</code> requests for the
+specific paths a plugin needs.</p>
+<p>For details and the values behind other file explorer limits, see the
+<a href="../../reference/technical-constants/">Technical Constants</a> reference.</p>
 </section>
 
             </main>
@@ -424,7 +475,7 @@ skips existing installs that are current, newer, or not safely comparable.</p>
             <nav class="btn-group">
                 <a href="../backproject/" title="Backprojection">Previous</a>
                 |
-                <a href="../../development/docker-builds/" title="Docker Builds">Next</a>
+                <a href="../../reference/technical-constants/" title="Technical Constants">Next</a>
             </nav>
         </div>
     </div>

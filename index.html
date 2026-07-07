@@ -105,6 +105,8 @@
                 
                 
                 
+                
+                
                 <li property="itemListElement" typeof="ListItem">
                     <a href="https://github.com/ChengLabResearch/ouroboros/releases" class="menu-item " property="item" typeof="WebPage">
                         <span property="name">Releases</span>
@@ -220,6 +222,45 @@
         
         
             <a class="terminal-mkdocs-side-nav-item" href="guide/plugins/">Plugins</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Reference</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="reference/technical-constants/">Technical Constants</a>
         
     
     </li>
@@ -365,7 +406,7 @@
 <nav>
     <ul>
         <li><a href="#ouroboros">Ouroboros</a></li>
-        <li><a href="#usage-guide">Usage Guide</a></li><li><a href="#ouroboros-explanation">Ouroboros Explanation</a></li>
+        <li><a href="#usage-guide">Usage Guide</a></li><li><a href="#reference">Reference</a></li><li><a href="#large-folder-behavior">Large Folder Behavior</a></li><li><a href="#ouroboros-explanation">Ouroboros Explanation</a></li>
     </ul>
 </nav>
 </aside>
@@ -387,6 +428,27 @@
 <li><a href="guide/backproject/">Backprojection</a></li>
 <li><a href="guide/plugins/">Plugins</a></li>
 </ul>
+<h2 id="reference">Reference</h2>
+<ul>
+<li><a href="reference/technical-constants/">Technical Constants</a> - hardcoded
+  file explorer limits and plugin broadcast behavior.</li>
+</ul>
+<h2 id="large-folder-behavior">Large Folder Behavior</h2>
+<p>The Ouroboros File Explorer is designed to open scan and output folders
+directly, but it is not a general-purpose file browser. When you point it
+at a folder that contains many files or deeply nested subfolders, the
+following limits apply:</p>
+<ul>
+<li>Only the first six directory levels below the folder you open are
+  walked.</li>
+<li>The panel stops loading new paths after one hundred thousand visible
+  entries. When this happens, Ouroboros shows a warning toast asking you
+  to pick a smaller folder or expand the folder in smaller pieces.</li>
+<li><code>node_modules</code>, <code>__pycache__</code>, <code>venv</code>, and any directory whose name
+  starts with <code>.</code> are always skipped.</li>
+</ul>
+<p>See <a href="reference/technical-constants/">Technical Constants</a> for the
+exact values, why they were chosen, and when to adjust them.</p>
 <h2 id="ouroboros-explanation">Ouroboros Explanation</h2>
 <p>A user of Ouroboros may have a multi-terabyte volumetric scan, hosted with the Neuroglancer family of tools (i.e. <a href="https://github.com/seung-lab/cloud-volume">cloud-volume</a>). </p>
 <p>Perhaps there is a long, relatively sparse structure (ROI), like a nerve or a blood vessel that crosses the entire scan. Even with a well-equipped computer, it would be difficult to segment the entire stucture in one pass due to RAM limitations.</p>

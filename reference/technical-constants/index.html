@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="generator" content="mkdocs-1.6.1, mkdocs-terminal-4.8.0">
+    
+    <meta name="description" content="Quickly extract long ROIs (e.g. blood vessels, nerves) from cloud-hosted medical scans."> 
+    
+    <meta name="author" content="Weaver Goldman and David Northover"> 
+    
+    <link rel="canonical" href="https://wegold.me/ouroboros/reference/technical-constants/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="../../img/android-chrome-512x512.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="../../img/apple-touch-icon.png" />
+<link rel="shortcut icon" type="image/png" sizes="48x48" href="../../img/favicon.ico" />
+<link rel="icon" type="image/png" sizes="16x16" href="../../img/favicon-16x16.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="../../img/favicon-32x32.png" />
+
+
+    
+ 
+<title>Technical Constants - Ouroboros Documentation</title>
+
+
+<link href="../../css/fontawesome/css/fontawesome.min.css" rel="stylesheet">
+<link href="../../css/fontawesome/css/solid.min.css" rel="stylesheet">
+<link href="../../css/normalize.css" rel="stylesheet">
+<link href="../../css/terminal.css" rel="stylesheet">
+<link href="../../css/theme.css" rel="stylesheet">
+<link href="../../css/theme.tile_grid.css" rel="stylesheet">
+<link href="../../css/theme.footer.css" rel="stylesheet">
+<!-- dark color palette -->
+<link href="../../css/palettes/dark.css" rel="stylesheet">
+
+<!-- page layout -->
+<style>
+/* initially set page layout to a one column grid */
+.terminal-mkdocs-main-grid {
+    display: grid;
+    grid-column-gap: 1.4em;
+    grid-template-columns: auto;
+    grid-template-rows: auto;
+}
+
+/*  
+*   when side navigation is not hidden, use a two column grid.  
+*   if the screen is too narrow, fall back to the initial one column grid layout.
+*   in this case the main content will be placed under the navigation panel. 
+*/
+@media only screen and (min-width: 70em) {
+    .terminal-mkdocs-main-grid {
+        grid-template-columns: 4fr 9fr;
+    }
+}</style>
+
+
+
+     
+    
+    
+
+    
+    <!-- search css support -->
+<link href="../../css/search/bootstrap-modal.css" rel="stylesheet">
+<!-- search scripts -->
+<script>
+    var base_url = "../..",
+    shortcuts = "{}";
+</script>
+<script src="../../js/jquery/jquery-1.10.1.min.js" defer></script>
+<script src="../../js/bootstrap/bootstrap.min.js" defer></script>
+<script src="../../js/mkdocs/base.js" defer></script>
+    
+    
+    
+    
+    <script src="../../search/main.js"></script>
+    
+
+    
+</head>
+
+<body class="terminal"><div class="container">
+    <div class="terminal-nav">
+        <header class="terminal-logo">
+            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://wegold.me/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
+        </header>
+        
+        <nav class="terminal-menu">
+            
+            <ul vocab="https://schema.org/" typeof="BreadcrumbList">
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="../.." class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Home</span>
+                    </a>
+                    <meta property="position" content="0">
+                </li>
+                
+                
+                
+                
+                
+                
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="https://github.com/ChengLabResearch/ouroboros/releases" class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Releases</span>
+                    </a>
+                    <meta property="position" content="1">
+                </li>
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="https://github.com/ChengLabResearch/ouroboros" class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Repository</span>
+                    </a>
+                    <meta property="position" content="2">
+                </li>
+                
+                    
+                    
+
+
+<li property="itemListElement" typeof="ListItem">
+    <a href="#" class="menu-item" data-toggle="modal" data-target="#mkdocs_search_modal" property="item" typeof="SearchAction">
+        <i aria-hidden="true" class="fa fa-search"></i> <span property="name">Search</span>
+    </a>
+    <meta property="position" content="3">
+</li>
+                    
+            </ul>
+            
+        </nav>
+    </div>
+</div>
+        
+    <div class="container">
+        <div class="terminal-mkdocs-main-grid"><aside id="terminal-mkdocs-side-panel"><nav>
+    <ul class="terminal-mkdocs-side-nav-items">
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../..">Home</a>
+        
+    
+    
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Usage Guide</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/downloading/">Download Ouroboros</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/slicing/">Slicing</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/backproject/">Backprojection</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/plugins/">Plugins</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        <span class="
+        
+    terminal-mkdocs-side-nav-item--active terminal-mkdocs-side-nav-section-no-index">Reference</span>
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        <span class="terminal-mkdocs-side-nav-item--active">Technical Constants</span>
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Development</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/README.md">App</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/README.md">Python</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md">Plugins</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/docker-builds/">Docker Builds</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/registry-server-images/">Registry Server Images</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/production-package-flavors/">Production Package Flavors</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/releases">Releases</a>
+        
+    
+    
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros">Repository</a>
+        
+    
+    
+    
+       </li>
+        
+    </ul>
+</nav><hr>
+<nav>
+    <ul>
+        <li><a href="#technical-constants">Technical Constants</a></li>
+        <li><a href="#file-explorer">File explorer</a></li><li><a href="#plugin-directory-broadcast">Plugin directory broadcast</a></li><li><a href="#main-process-electron">Main process (Electron)</a></li><li><a href="#renderer">Renderer</a></li><li><a href="#python-server">Python server</a></li><li><a href="#docker-and-packaging">Docker and packaging</a></li><li><a href="#where-the-values-come-from">Where the values come from</a></li>
+    </ul>
+</nav>
+</aside>
+            <main id="terminal-mkdocs-main-content">
+<section id="mkdocs-terminal-content">
+    <h1 id="technical-constants">Technical Constants</h1>
+<p>This page documents hardcoded implementation limits that affect Ouroboros
+behavior at runtime. Values here are extracted directly from the shipping
+source. If you change them locally, update this page in the same commit.</p>
+<h2 id="file-explorer">File explorer</h2>
+<p>All file explorer limits live in
+<a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a> at the top of the
+file. They apply to the recursive watcher that backs the File Explorer
+panel in the Electron app.</p>
+<h3 id="watcher-depth-limit">Watcher depth limit</h3>
+<ul>
+<li>Symbol: <code>FILE_EXPLORER_WATCH_DEPTH</code></li>
+<li>Value: <code>6</code></li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a> line 8</li>
+<li>Also passed to the underlying <code>watcher</code> package as its <code>depth</code> option and
+  reported inside every <code>folder-contents-error</code> payload.</li>
+</ul>
+<p><strong>Why it exists.</strong> The file explorer used to open folders with an
+unbounded recursive watcher. Deep dependency trees, build outputs, or
+scientific datasets could push watcher and renderer state well past the
+V8 heap and trigger the crash described in [#51][issue-51].</p>
+<p><strong>User-visible behavior when reached.</strong> Directories nested more than six
+levels below the selected root are simply not walked, so their contents do
+not appear in the File Explorer panel. The panel still works normally at
+shallower depths.</p>
+<p><strong>When to reconsider.</strong> Raise this if you routinely need to see files
+deeper than six levels from the folder you open in Ouroboros and you have
+already excluded large auxiliary trees (see the ignored segments below).
+Prefer opening a lower-level folder before increasing the constant.</p>
+<h3 id="watcher-path-count-limit">Watcher path-count limit</h3>
+<ul>
+<li>Symbol: <code>FILE_EXPLORER_WATCH_LIMIT</code></li>
+<li>Value: <code>100_000</code></li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a> line 9</li>
+<li>Passed to the underlying <code>watcher</code> package as its <code>limit</code> option and
+  reported inside every <code>folder-contents-error</code> payload.</li>
+</ul>
+<p><strong>Why it exists.</strong> The watcher mirrors every discovered path into
+renderer state. Very large folders can therefore multiply main-process
+watcher memory with renderer heap. One hundred thousand visible paths is
+the ceiling picked in [#104][pr-104] as a balance between usefulness for
+typical scan/output folders and keeping the renderer well under its
+default 4 GB heap.</p>
+<p><strong>User-visible behavior when reached.</strong> Once the visible add count crosses
+the limit, the main process emits <code>folder-contents-error</code> with a message
+of the form <code>File explorer stopped loading after 100000 visible paths.
+Choose a smaller folder or expand the folder in smaller pieces.</code> The
+existing renderer alert system surfaces this as a warning toast. The
+watcher stops delivering further add events for that session; already
+loaded paths remain visible.</p>
+<p><strong>When to reconsider.</strong> Raise this only after profiling shows headroom in
+both the main watcher and the renderer heap for your typical workload.
+Lower it if you routinely work on constrained machines and want the
+warning to appear sooner.</p>
+<h3 id="update-batch-size">Update batch size</h3>
+<ul>
+<li>Symbol: <code>FILE_EXPLORER_UPDATE_BATCH_LIMIT</code></li>
+<li>Value: <code>500</code></li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a> line 10</li>
+</ul>
+<p><strong>Why it exists.</strong> [#105][pr-105] introduced batching so that a large
+initial folder scan no longer produces one IPC message and one React
+state update per discovered path. Five hundred events per batch amortizes
+the IPC round-trip and lets the renderer apply the whole batch inside a
+single <code>setNodes</code> call.</p>
+<p><strong>User-visible behavior when reached.</strong> As soon as five hundred watcher
+events have accumulated in the main process, the pending queue is flushed
+immediately over the <code>folder-contents-update-batch</code> IPC channel instead
+of waiting for the flush interval below. The File Explorer panel then
+updates once for the whole batch.</p>
+<p><strong>When to reconsider.</strong> Increase the batch size if profiling shows IPC or
+React reconciliation is still the bottleneck on very large folders.
+Decrease it if you see visible latency between file system changes and
+the first batch appearing in the panel.</p>
+<h3 id="update-flush-interval">Update flush interval</h3>
+<ul>
+<li>Symbol: <code>FILE_EXPLORER_UPDATE_INTERVAL_MS</code></li>
+<li>Value: <code>100</code> (milliseconds)</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a> line 11</li>
+</ul>
+<p><strong>Why it exists.</strong> The batch flush also runs on a timer so that small
+bursts of changes still reach the renderer promptly, even when the
+five-hundred-event threshold above is never hit.</p>
+<p><strong>User-visible behavior when reached.</strong> Any queued events are flushed at
+most one hundred milliseconds after the first event in the queue was
+enqueued. The panel therefore feels responsive to individual file
+create/delete events while still coalescing large scans.</p>
+<p><strong>When to reconsider.</strong> Shorten the interval if the panel feels laggy
+during light file activity. Lengthen it if renderer CPU during heavy
+scans is a problem and you would rather trade responsiveness for
+throughput.</p>
+<h2 id="plugin-directory-broadcast">Plugin directory broadcast</h2>
+<ul>
+<li>Broadcast payload: <code>{ directoryPath, directoryName, nodes: {} }</code></li>
+<li>Source:
+  <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/IFrameContext.tsx"><code>src/renderer/src/contexts/IFrameContext.tsx</code></a>
+  (<code>broadcastDirectoryContext</code>)</li>
+</ul>
+<p><strong>Why it exists.</strong> Before [#106][pr-106], every directory context change
+posted the full recursive <code>nodes</code> tree into each plugin iframe. For the
+same large folders that motivated [#51][issue-51] this cloned the entire
+file tree on every update and stacked on top of the watcher and renderer
+costs above.</p>
+<p><strong>User-visible behavior.</strong> Plugins still receive the selected directory
+path and name through the existing <code>send-directory-contents</code> message.
+The <code>nodes</code> field is present for shape compatibility but is always an
+empty object. Plugins that need to browse the directory tree should not
+depend on this broadcast; the on-demand plugin file API tracked by
+[#102][issue-102] is the intended replacement.</p>
+<p><strong>When to reconsider.</strong> Do not restore the full-tree broadcast without
+first landing a memory-safe, on-demand alternative. If you need a
+minimal listing for a plugin, prefer adding a targeted IPC call over
+resurrecting the broadcast.</p>
+<h2 id="main-process-electron">Main process (Electron)</h2>
+<h3 id="plugin-file-server-port">Plugin file server port</h3>
+<ul>
+<li>Symbol: <code>PLUGIN_FILE_SERVER_PORT</code></li>
+<li>Value: <code>3000</code> (default)</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/file-server.ts"><code>src/main/servers/file-server.ts</code></a> line 7</li>
+<li>Environment override: <code>OUROBOROS_PLUGIN_FILE_SERVER_PORT</code> (integer;
+  unset, empty, or non-numeric values fall back to <code>3000</code>)</li>
+</ul>
+<p><strong>Why it exists.</strong> The main process forks a local Express + <code>serve-static</code>
+worker (see <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/resources/processes/file-server-script.mjs"><code>resources/processes/file-server-script.mjs</code></a>)
+that serves every installed plugin's static assets over
+<code>http://127.0.0.1:3000/</code> by default. The renderer and plugin iframes load
+their <code>index.html</code>, icons, and any bundled JS from this server.</p>
+<p><strong>User-visible behavior.</strong> If another process on the host is already
+listening on the chosen port the fork fails and plugins load with broken
+assets. There is no automatic fallback beyond the env override.</p>
+<p><strong>When to reconsider.</strong> Set <code>OUROBOROS_PLUGIN_FILE_SERVER_PORT</code> when 3000
+conflicts with a different local service. The renderer discovers the URL
+through <code>getPluginFileServerURL()</code>, so the port change is picked up
+without touching any user-facing setting. Landed in [PR #109][pr-109].</p>
+<h3 id="docker-volume-server-port">Docker volume server port</h3>
+<ul>
+<li>Symbol: <code>VOLUME_SERVER_PORT</code></li>
+<li>Value: <code>3001</code> (default)</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/volume-server.ts"><code>src/main/servers/volume-server.ts</code></a> line 7</li>
+<li>Environment override: <code>OUROBOROS_VOLUME_SERVER_PORT</code> (integer;
+  unset, empty, or non-numeric values fall back to <code>3001</code>)</li>
+</ul>
+<p><strong>Why it exists.</strong> The volume server is a second forked Node process
+(see <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/resources/processes/volume-server-script.mjs"><code>resources/processes/volume-server-script.mjs</code></a>)
+that shells out to <code>docker run --rm</code> commands so that host files can be
+copied into and out of the <code>ouroboros-volume</code> Docker named volume. The
+main server container reaches back to it through
+<code>http://host.docker.internal:3001</code> (see <a href="#python-server">Python server</a>
+below).</p>
+<p><strong>User-visible behavior.</strong> Copy-to-volume and copy-to-host requests fail
+if the chosen port is busy or if Docker is not available. Plugin data
+transfer into the shared volume breaks in that case.</p>
+<p><strong>When to reconsider.</strong> Set <code>OUROBOROS_VOLUME_SERVER_PORT</code> when 3001
+conflicts locally. Keep the Python-side default in sync
+(<code>VOLUME_SERVER_URL</code> in
+<a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/common/volume_server_interface.py"><code>python/ouroboros/common/volume_server_interface.py</code></a>);
+the Python side is still hard-coded to <code>3001</code> because the container
+reaches the host over <code>host.docker.internal</code> where the port is
+independent of any host-side conflict. Landed in [PR #109][pr-109].</p>
+<h3 id="docker-volume-name">Docker volume name</h3>
+<ul>
+<li>Symbol: <code>VOLUME</code></li>
+<li>Value: <code>'ouroboros-volume'</code></li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/volume-server.ts"><code>src/main/servers/volume-server.ts</code></a> line 9,
+  matched by the <code>volumes.ouroboros-volume.name</code> entry in
+  <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.yml"><code>python/compose.yml</code></a>,
+  <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.dev.yml"><code>python/compose.dev.yml</code></a>, and the compose file
+  written by <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-production-server.mjs"><code>scripts/prepare-production-server.mjs</code></a>.</li>
+</ul>
+<p><strong>Why it exists.</strong> The Python server, the volume server helper, and the
+main process all address the same Docker named volume so that plugin
+uploads land where the pipeline can read them.</p>
+<p><strong>Invariant.</strong> The literal string <code>'ouroboros-volume'</code> is duplicated across
+four call sites: <code>src/main/servers/volume-server.ts</code>,
+<code>python/ouroboros/common/volume_server_interface.py</code>, <code>python/compose.yml</code>,
+<code>python/compose.dev.yml</code>, and the compose file written by
+<code>scripts/prepare-production-server.mjs</code>. Docker Compose YAML is required to
+be static, so a single source of truth would need a code-generation step
+the team has not opted into; the invariant lives in this documentation
+and in code review discipline. If you rename this value in one place,
+every listed file must move with it in the same commit.</p>
+<p><strong>User-visible behavior.</strong> On app shutdown the volume server helper
+issues <code>docker run --rm ... rm -rf /volume/*</code> against this named volume.
+Anything else stored under the same volume name is deleted.</p>
+<p><strong>When to reconsider.</strong> Rename it if you need to run multiple Ouroboros
+installs against the same Docker daemon without stomping each other's
+volumes. All call sites listed above must agree.</p>
+<h2 id="renderer">Renderer</h2>
+<h3 id="server-connection-settings">Server connection settings</h3>
+<ul>
+<li>Symbols: <code>DEFAULT_SERVER_URL</code>, <code>retryDelay</code></li>
+<li>Values:<ul>
+<li><code>DEFAULT_SERVER_URL</code> = <code>'http://127.0.0.1:8000'</code></li>
+<li><code>retryDelay</code> = <code>5000</code> (milliseconds)</li>
+</ul>
+</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/ServerContext.tsx"><code>src/renderer/src/contexts/ServerContext.tsx</code></a>
+  lines 4 and 41</li>
+</ul>
+<p><strong>Why it exists.</strong> <code>DEFAULT_SERVER_URL</code> is the base URL the renderer
+uses for all REST and SSE calls to the Python server. <code>retryDelay</code> is
+the interval at which the <code>checkServerStatus</code> loop pings that base URL
+to update the <code>connected</code> flag driving the ProgressPanel status.</p>
+<p><strong>User-visible behavior.</strong> The "connected" indicator can lag reality by
+up to about five seconds. Any fetch or stream started while the app
+thinks the server is down is placed on <code>fetchQueue</code> and replayed once
+the health poll flips to <code>connected</code>.</p>
+<p><strong>When to reconsider.</strong> Lower <code>retryDelay</code> for a snappier connection
+indicator at the cost of extra HTTP traffic. Change <code>DEFAULT_SERVER_URL</code>
+if you point Ouroboros at a remote server, but keep it aligned with the
+Python-side <code>HOST</code>/<code>PORT</code> defaults documented below.</p>
+<h3 id="iframe-plugin-allowed-origins">IFrame plugin allowed origins</h3>
+<ul>
+<li>Symbol: <code>allowedHostnames</code></li>
+<li>Value: <code>['localhost', '127.0.0.1', '0.0.0.0']</code></li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/IFrameContext.tsx"><code>src/renderer/src/contexts/IFrameContext.tsx</code></a>
+  line 30</li>
+</ul>
+<p><strong>Why it exists.</strong> The renderer only dispatches <code>read-file</code>,
+<code>save-file</code>, and <code>register-plugin</code> messages from iframes whose
+<code>event.origin</code> parses to a URL whose <code>hostname</code> is exactly one of these
+values. Plugin content is served locally through the plugin file server
+(see <a href="#plugin-file-server-port"><code>PLUGIN_FILE_SERVER_PORT</code></a>, default port
+3000), so all legitimate origins are loopback. Any port on those hosts
+is accepted; the port itself is env-configurable.</p>
+<p><strong>Security note.</strong> The previous implementation used
+<code>text.startsWith(item)</code>, which would accept attacker-controlled hosts
+such as <code>http://localhost.evil.example</code>. The current implementation
+parses <code>event.origin</code> with <code>new URL(...)</code> and compares <code>hostname</code> for
+exact equality; malformed origins fall through to a deny. Landed in
+[PR #109][pr-109].</p>
+<p><strong>User-visible behavior.</strong> Any plugin iframe served from a non-loopback
+origin is silently ignored: its messages never trigger file reads,
+writes, or registration.</p>
+<p><strong>When to reconsider.</strong> Add an entry only if you deliberately host
+plugin content off-device (for example, over <code>https://</code> to a controlled
+host). Broadening this list widens the file-read and file-write surface
+exposed to third-party pages, and non-loopback additions should use
+exact origin equality against a full URL, not just a hostname.</p>
+<h3 id="slice-visualization-sampling-ratio">Slice visualization sampling ratio</h3>
+<ul>
+<li>Symbol: <code>SLICE_RENDER_PROPORTION</code></li>
+<li>Value: <code>0.008</code></li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/routes/SlicesPage/SlicesPage.tsx"><code>src/renderer/src/routes/SlicesPage/SlicesPage.tsx</code></a>
+  line 26</li>
+</ul>
+<p><strong>Why it exists.</strong> The 3D slice preview draws only every <code>Nth</code> rectangle
+where <code>N = floor(rects.length * 0.008)</code>. This keeps very long paths
+(tens of thousands of rects) from stalling the WebGL scene.</p>
+<p><strong>User-visible behavior.</strong> For a 10 000-rect path this renders roughly
+125 rectangles: enough to convey the shape of the sweep without freezing
+the visualization. Fewer rects than about 125 render every rect.</p>
+<p><strong>When to reconsider.</strong> Raise it to see more slices in the preview at
+the cost of frame rate; lower it if the preview lags on very long paths.</p>
+<h2 id="python-server">Python server</h2>
+<h3 id="server-host-and-port">Server host and port</h3>
+<ul>
+<li>Symbols: <code>HOST</code>, <code>PORT</code>, <code>DOCKER_HOST</code>, <code>DOCKER_PORT</code></li>
+<li>Values (defaults):<ul>
+<li><code>HOST</code> = <code>'127.0.0.1'</code></li>
+<li><code>PORT</code> = <code>8000</code></li>
+<li><code>DOCKER_HOST</code> = <code>'0.0.0.0'</code></li>
+<li><code>DOCKER_PORT</code> = <code>8000</code></li>
+</ul>
+</li>
+<li>Source: [<code>python/ouroboros/common/server.py</code>][py-server] lines 10-14</li>
+<li>Environment overrides:<ul>
+<li><code>OUROBOROS_SERVER_HOST</code> -&gt; <code>HOST</code></li>
+<li><code>OUROBOROS_SERVER_PORT</code> -&gt; <code>PORT</code> (integer)</li>
+<li><code>OUROBOROS_DOCKER_SERVER_HOST</code> -&gt; <code>DOCKER_HOST</code></li>
+<li><code>OUROBOROS_DOCKER_SERVER_PORT</code> -&gt; <code>DOCKER_PORT</code> (integer)</li>
+</ul>
+</li>
+</ul>
+<p><strong>Why it exists.</strong> The desktop-only server entry point
+(<code>ouroboros-server</code>) binds Uvicorn to loopback, while the containerised
+server entry point (<code>ouroboros-docker-server</code>) binds to all interfaces
+so the host can reach the container through the compose <code>8000:8000</code>
+port mapping.</p>
+<p><strong>User-visible behavior.</strong> The renderer's <code>DEFAULT_SERVER_URL</code> above
+assumes port 8000. Changing <code>PORT</code> (or <code>OUROBOROS_SERVER_PORT</code>) or the
+compose port mapping without updating the renderer breaks the client.</p>
+<p><strong>When to reconsider.</strong> Set the env overrides if you need to expose the
+desktop server to another machine (rare) or if 8000 conflicts with
+another service. Update <code>DEFAULT_SERVER_URL</code> in the renderer and the
+compose port mapping in the same commit. Landed in [PR #109][pr-109].</p>
+<h3 id="volume-server-url-python-side">Volume server URL (Python side)</h3>
+<ul>
+<li>Symbols: <code>VOLUME_SERVER_URL</code>, <code>PLUGIN_NAME</code></li>
+<li>Values:<ul>
+<li><code>VOLUME_SERVER_URL</code> = <code>'http://host.docker.internal:3001'</code></li>
+<li><code>PLUGIN_NAME</code> = <code>'main'</code></li>
+</ul>
+</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/common/volume_server_interface.py"><code>python/ouroboros/common/volume_server_interface.py</code></a>
+  lines 3-4</li>
+</ul>
+<p><strong>Why it exists.</strong> From inside the server container, the volume server
+running on the host is reached through the Docker special DNS name
+<code>host.docker.internal</code>, mapped in each compose file via
+<code>extra_hosts: - "host.docker.internal:host-gateway"</code>. <code>PLUGIN_NAME</code> is
+the fixed subfolder on the shared volume used by the main pipeline.</p>
+<p><strong>Why 'main'.</strong> Ouroboros is the <em>main</em> application of its own plugin
+ecosystem, so the Python side treats itself as the always-<code>main</code> plugin
+when addressing paths on the shared volume. There is no planned
+per-plugin path scheme on the Python side; plugin content is scoped by
+the Electron-side plugin folder, not by a Python-visible slug.
+<code>PLUGIN_NAME</code> therefore stays a constant rather than a parameter.</p>
+<p><strong>User-visible behavior.</strong> If the compose file omits the
+<code>host.docker.internal</code> extra host, or if the Electron main process is
+not running the volume server, requests time out and plugin/data
+transfer into the volume fails.</p>
+<p><strong>When to reconsider.</strong> Change the URL only in coordination with the
+Electron-side <code>VOLUME_SERVER_PORT</code> in
+<a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/volume-server.ts"><code>src/main/servers/volume-server.ts</code></a>.</p>
+<h3 id="backprojection-chunk-and-process-defaults">Backprojection chunk and process defaults</h3>
+<ul>
+<li>Symbols: <code>chunk_size</code> and <code>process_count</code> on <code>BackprojectOptions</code></li>
+<li>Values:<ul>
+<li><code>chunk_size</code> = <code>160</code></li>
+<li><code>process_count</code> = <code>os.cpu_count()</code></li>
+</ul>
+</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/options.py"><code>python/ouroboros/helpers/options.py</code></a> lines 77-78</li>
+<li>User override: fields of the same name in the backproject options JSON</li>
+</ul>
+<p><strong>Why it exists.</strong> <code>chunk_size</code> is the per-dimension size of the
+processing chunk used by the backproject pipeline (see
+<code>DataRange(FPShape.make_with(0), FPShape, FPShape.make_with(config.chunk_size))</code>
+in <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/pipeline/backproject_pipeline.py"><code>python/ouroboros/pipeline/backproject_pipeline.py</code></a>).
+<code>process_count</code> sets the parallel worker pool for the same pipeline;
+executor and writer processes are derived as fractions of it
+(<code>process_count // 4 * 2</code> or <code>// 4 * 3</code>).</p>
+<p><strong>Why 160 specifically.</strong> The primary purpose of the chunk sizing is to
+enable clean backprojection - specifically clean backprojection of the
+flattened xyz stack. <code>160</code> is the judgment-call result for the best
+combination of memory and speed on standard pieces of data.  Additionally,
+as for efficiency operations are performed on a flattened chunk, large
+values can cause significant slowdown and memory explsion due to change
+in the index bit size.</p>
+<p><strong>User-visible behavior.</strong> Large <code>chunk_size</code> reduces per-chunk
+overhead but raises peak memory per worker and can cause disproportionate
+increases in memory usage and slowdowns. On very small hosts,
+<code>process_count = cpu_count()</code> may over-subscribe and thrash; lowering it
+in the options JSON trades throughput for stability.</p>
+<p><strong>When to reconsider.</strong> Tune per-run through the backproject options
+JSON. Edit the defaults only if a different global tuning is measured
+to be better across typical workloads.</p>
+<h3 id="volume-cache-flush-default">Volume-cache flush default</h3>
+<ul>
+<li>Symbol: <code>FLUSH_CACHE</code></li>
+<li>Value: <code>False</code></li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/volume_cache.py"><code>python/ouroboros/helpers/volume_cache.py</code></a>
+  line 13</li>
+<li>User override: <code>flush_cache</code> field on <code>CommonOptions</code> in
+  <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/options.py"><code>python/ouroboros/helpers/options.py</code></a></li>
+</ul>
+<p><strong>Why it exists.</strong> Controls whether the cloud-volume cache is flushed
+after each pipeline run. Keeping it off keeps downloaded chunks around
+for the next run.</p>
+<p><strong>User-visible behavior.</strong> With the default off, repeated runs against
+the same source volume reuse locally cached tiles, which can hide
+upstream data changes but greatly speeds re-runs.</p>
+<p><strong>When to reconsider.</strong> Set <code>flush_cache: true</code> in the options JSON for
+one-shot runs or when the upstream volume may have changed.</p>
+<h2 id="docker-and-packaging">Docker and packaging</h2>
+<h3 id="server-container-shared-memory-size">Server container shared-memory size</h3>
+<ul>
+<li>Symbol: <code>shm_size</code></li>
+<li>Value: <code>64gb</code> (default)</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.yml"><code>python/compose.yml</code></a> line 15,
+  <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.dev.yml"><code>python/compose.dev.yml</code></a> line 28, and the compose
+  file written by
+  <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-production-server.mjs"><code>scripts/prepare-production-server.mjs</code></a>
+  (line 58)</li>
+<li>Environment override (packaging time):
+  <code>OUROBOROS_SERVER_SHM_SIZE</code> (read by
+  <code>scripts/prepare-production-server.mjs</code> and by the
+  <code>${OUROBOROS_SERVER_SHM_SIZE:-64gb}</code> substitution in both compose
+  files)</li>
+</ul>
+<p><strong>Why it exists.</strong> <code>shm_size</code> is an artificial Docker limit. Without a
+<code>shm_size</code> override, Docker aggressively caps container <code>/dev/shm</code> at
+<code>64 MB</code>, which the pipeline exceeds immediately. Setting it too large
+does not "cause" OOM: it just shifts OOM from the container-side
+artificial limit to actual host OOM. The FastAPI server uses shared
+memory for inter-process numpy arrays (<code>SharedMemoryManager</code>,
+<code>SharedNPArray</code> in <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/mem.py"><code>python/ouroboros/helpers/mem.py</code></a>) and for
+cloud-volume caches, so the container is given 64 GB of tmpfs headroom
+by default.</p>
+<p><strong>User-visible behavior.</strong> On hosts with less than 64 GB of RAM plus
+swap, Docker still accepts the setting (<code>/dev/shm</code> is a tmpfs and
+allocates on demand), but attempts to actually use that much shared
+memory will trigger the host OOM killer. On high-RAM hosts you can
+raise the ceiling; on conservative shared hosts you can lower it to
+prefer the artificial limit hitting first.</p>
+<p><strong>When to reconsider.</strong> Set <code>OUROBOROS_SERVER_SHM_SIZE</code> at packaging or
+runtime (compose reads the same variable via <code>${OUROBOROS_SERVER_SHM_SIZE:-64gb}</code>
+substitution in both <code>python/compose.yml</code> and <code>python/compose.dev.yml</code>).
+Lower it on constrained hosts where you know the pipelines you run stay
+well under the limit; raise it only if you routinely see shared-memory
+<code>ENOMEM</code> errors from the server. Landed in [PR #109][pr-109].</p>
+<h3 id="server-image-reference-defaults">Server image reference defaults</h3>
+<ul>
+<li>Symbols: <code>imageRepository</code>, <code>imageTag</code></li>
+<li>Values:<ul>
+<li><code>imageRepository</code> (default) = <code>ghcr.io/chenglabresearch/ouroboros-server</code></li>
+<li><code>imageTag</code> (default) = <code>v${packageJson.version}</code> (falls back to
+  <code>GITHUB_REF_NAME</code> in CI)</li>
+</ul>
+</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-production-server.mjs"><code>scripts/prepare-production-server.mjs</code></a>
+  lines 10-14</li>
+<li>Environment overrides: <code>OUROBOROS_SERVER_IMAGE_REPOSITORY</code>,
+  <code>OUROBOROS_SERVER_IMAGE_TAG</code>, <code>OUROBOROS_SERVER_IMAGE_DIGEST</code>,
+  <code>OUROBOROS_SERVER_IMAGE</code> (fully qualified reference)</li>
+</ul>
+<p><strong>Why it exists.</strong> The prepare script writes an
+<code>extra-resources/server/compose.yml</code> that pulls the server image by
+name so packaged app installs do not need to build the container
+locally.</p>
+<p><strong>User-visible behavior.</strong> With no environment overrides, packaging
+pulls <code>ghcr.io/chenglabresearch/ouroboros-server:v&lt;appVersion&gt;</code>. A
+release that has not yet published a matching image tag will fail at
+first startup with a <code>docker pull</code> error.</p>
+<p><strong>When to reconsider.</strong> Set <code>OUROBOROS_SERVER_IMAGE_DIGEST</code> to pin a
+specific build for a release, or point <code>OUROBOROS_SERVER_IMAGE</code> at a
+private registry for internal builds.</p>
+<h3 id="preinstalled-plugin-pins">Preinstalled plugin pins</h3>
+<ul>
+<li>Symbol: <code>productionPluginPins</code></li>
+<li>Value:<ul>
+<li><code>neuroglancer.tag</code> = <code>v1.0.1</code></li>
+<li><code>neuroglancer.artifact</code> = <code>neuroglancer-plugin-v1.0.1.zip</code></li>
+<li><code>autoseg.tag</code> = <code>v0.4.0-beta.1</code></li>
+<li><code>autoseg.cpuArtifact</code> = <code>auto-segmentation-v0.4.0-beta.1-cpu.zip</code></li>
+<li><code>autoseg.cudaArtifact</code> = <code>auto-segmentation-v0.4.0-beta.1-cuda.zip</code></li>
+</ul>
+</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-package-flavor.mjs"><code>scripts/prepare-package-flavor.mjs</code></a>
+  lines 7-16</li>
+<li>Environment overrides: <code>OUROBOROS_NEUROGLANCER_PLUGIN_TAG</code>,
+  <code>OUROBOROS_NEUROGLANCER_PLUGIN_ARTIFACT</code>,
+  <code>OUROBOROS_AUTOSEG_PLUGIN_TAG</code>,
+  <code>OUROBOROS_AUTOSEG_CPU_PLUGIN_ARTIFACT</code>,
+  <code>OUROBOROS_AUTOSEG_CUDA_PLUGIN_ARTIFACT</code></li>
+</ul>
+<p><strong>Why it exists.</strong> These are the exact plugin release versions that the
+<code>with-plugins-cpu</code> and <code>with-plugins-cuda</code> package flavors ship. The
+<code>core</code> flavor ships no preinstalled plugins.</p>
+<p><strong>User-visible behavior.</strong> A packaged app pins the listed plugin
+versions in <code>extra-resources/preinstalled-plugins/</code>. First launch copies
+each into the user's plugin folder if the installed version is older or
+missing.</p>
+<p><strong>Bump workflow.</strong> <code>productionPluginPins</code> and the fallback
+<code>neuroglancerArtifactForTag</code> / <code>autosegArtifactForTag</code> builders in
+<a href="https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-package-flavor.mjs"><code>scripts/prepare-package-flavor.mjs</code></a> move
+together on every plugin release. The single-file edit lives in
+<code>scripts/prepare-package-flavor.mjs</code>: update the tags in
+<code>productionPluginPins</code>, and the fallback builders pick up the new
+filename shape automatically. The environment overrides above take
+precedence over both.</p>
+<p><strong>When to reconsider.</strong> Update these pins whenever a new upstream plugin
+release becomes the intended default. Bump both the tag and the artifact
+filename together, since the artifact filename embeds the tag.</p>
+<h2 id="where-the-values-come-from">Where the values come from</h2>
+<p>Every value above was read directly from the tree at the time this page
+was written. The five file explorer constants live together as a block at
+the top of <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a>
+(lines 8-12). If you edit any of them, update this page in the same
+commit so operators and plugin authors can rely on it.</p>
+</section>
+
+            </main>
+        </div>
+        <hr><footer>
+    <div class="terminal-mkdocs-footer-grid">
+        <div id="terminal-mkdocs-footer-copyright-info">
+            
+            <p class="text-center text-muted">Copyright 2024=2025 Weaver Goldman and David Northover, All rights reserved</p>
+             Site built with <a href="http://www.mkdocs.org">MkDocs</a> and <a href="https://github.com/ntno/mkdocs-terminal">Terminal for MkDocs</a>.
+        </div>
+        <div id="terminal-mkdocs-footer-prev-next">
+            <nav class="btn-group">
+                <a href="../../guide/plugins/" title="Plugins">Previous</a>
+                |
+                <a href="../../development/docker-builds/" title="Docker Builds">Next</a>
+            </nav>
+        </div>
+    </div>
+</footer>
+    </div>
+
+    
+    <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="searchModalLabel">
+    <div class="modal-dialog modal-lg" role="search">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="searchModalLabel">Search</h5>
+                <button type="button" class="close btn btn-default btn-ghost" data-dismiss="modal" aria-label="Close">x</button>
+            </div>
+            <div class="modal-body">
+                <p id="searchInputLabel">Type to start searching</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" aria-labelledby="searchInputLabel" placeholder="" id="mkdocs-search-query" title="Please enter search terms here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No document matches found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+    
+    
+</body>
+
+</html>

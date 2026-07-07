@@ -1,5 +1,5 @@
 import { BrowserWindow, IpcMain } from 'electron'
-import { rename, rm, stat } from 'fs/promises'
+import { readdir, rename, rm, stat } from 'fs/promises'
 import { basename, join, relative, sep } from 'path'
 import Watcher from 'watcher'
 
@@ -7,9 +7,122 @@ import { readFile, saveFile } from '../helpers'
 import { COLLAPSE_TEARDOWN_DELAY_MS } from '../../shared/constants'
 
 const FILE_EXPLORER_WATCH_LIMIT = 100_000
+// `FILE_EXPLORER_WATCH_LIMIT` doubles as the aggregate enumeration cap for the
+// plugin-facing `get-folder-contents` walk. Reusing the same constant keeps
+// the two paths (watcher-driven state and one-shot enumerations) bounded by
+// a single visible budget: a plugin cannot force the renderer to hold more
+// paths in memory than a user can force through the file explorer.
 const FILE_EXPLORER_UPDATE_BATCH_LIMIT = 500
 const FILE_EXPLORER_UPDATE_INTERVAL_MS = 100
 const IGNORED_PATH_SEGMENTS = new Set(['node_modules', '__pycache__', 'venv'])
+
+// One-shot ignore rule shared by the watcher factory and the plugin-facing
+// `get-folder-contents` enumeration. `rootPath` is the top of the tree the
+// enumeration is scoped to; entries outside it are treated as ignored so
+// symlink escapes fall through.
+function shouldIgnorePathAgainstRoot(rootPath: string, targetPath: string): boolean {
+	const targetRelativePath = relative(rootPath, targetPath)
+
+	if (!targetRelativePath || targetRelativePath === '') return false
+	if (targetRelativePath.startsWith('..')) return false
+
+	const pathSegments = targetRelativePath.split(/[\\/]/)
+	return pathSegments.some((segment) => {
+		if (segment.startsWith('.')) return true
+		return IGNORED_PATH_SEGMENTS.has(segment)
+	})
+}
+
+type PluginFSNode = {
+	name: string
+	path: string
+	children?: { [key: string]: PluginFSNode }
+}
+
+type PluginNodeChildren = { [key: string]: PluginFSNode }
+
+type GetFolderContentsOptions = {
+	recursive?: boolean
+	rootPath?: string
+}
+
+type GetFolderContentsResult = {
+	nodes: PluginNodeChildren
+	truncated: boolean
+}
+
+// One-shot directory read used by the plugin-facing request API. Does not
+// start a watcher and does not touch the watcher-manager state. `rootPath`
+// defaults to `folderPath` when the caller doesn't scope enumeration to a
+// broader root (used by the traversal-guarded plugin handler).
+async function getFolderContents(
+	folderPath: string,
+	options: GetFolderContentsOptions = {}
+): Promise<GetFolderContentsResult> {
+	const recursive = options.recursive ?? false
+	const rootPath = options.rootPath ?? folderPath
+
+	const nodes: PluginNodeChildren = {}
+	// Track aggregate entries against the same visible budget as the watcher
+	// path. `count` includes files and directories the caller will actually
+	// see in `nodes`; ignored entries don't count against the budget.
+	let count = 0
+	let truncated = false
+
+	const walk = async (dirPath: string, target: PluginNodeChildren): Promise<void> => {
+		if (truncated) return
+
+		const entries = await readdir(dirPath, { withFileTypes: true })
+		for (const entry of entries) {
+			if (truncated) return
+
+			const entryPath = join(dirPath, entry.name)
+			if (shouldIgnorePathAgainstRoot(rootPath, entryPath)) continue
+
+			if (count >= FILE_EXPLORER_WATCH_LIMIT) {
+				truncated = true
+				return
+			}
+			count++
+
+			const node: PluginFSNode = {
+				name: entry.name,
+				path: entryPath
+			}
+
+			if (entry.isDirectory()) {
+				node.children = {}
+				target[entry.name] = node
+				if (recursive) {
+					try {
+						await walk(entryPath, node.children)
+					} catch (err) {
+						// Surface permission errors as a stop-point on that
+						// branch rather than aborting the whole enumeration.
+						// The already-added directory node stays with an
+						// empty `children` map.
+						if (!isEnoentLike(err)) throw err
+					}
+				}
+			} else {
+				target[entry.name] = node
+			}
+		}
+	}
+
+	await walk(folderPath, nodes)
+
+	return { nodes, truncated }
+}
+
+function isEnoentLike(err: unknown): boolean {
+	if (!err || typeof err !== 'object') return false
+	const code = (err as { code?: string }).code
+	return code === 'ENOENT' || code === 'EACCES' || code === 'EPERM'
+}
+
+export { getFolderContents, shouldIgnorePathAgainstRoot }
+export type { PluginNodeChildren, PluginFSNode, GetFolderContentsResult }
 
 type FSEvent = {
 	event: string
@@ -153,18 +266,8 @@ export const addFSEventHandlers = (ipcMain: IpcMain, getMainWindow: () => Browse
 	const startWatcher = (rootPath: string, subPath: string): void => {
 		if (watchers.has(subPath)) return
 
-		const shouldIgnorePath = (targetPath: string): boolean => {
-			const targetRelativePath = relative(rootPath, targetPath)
-
-			if (!targetRelativePath || targetRelativePath === '') return false
-			if (targetRelativePath.startsWith('..')) return false
-
-			const pathSegments = targetRelativePath.split(/[\\/]/)
-			return pathSegments.some((segment) => {
-				if (segment.startsWith('.')) return true
-				return IGNORED_PATH_SEGMENTS.has(segment)
-			})
-		}
+		const shouldIgnorePath = (targetPath: string): boolean =>
+			shouldIgnorePathAgainstRoot(rootPath, targetPath)
 
 		const watcher = new Watcher(subPath, {
 			recursive: false,
@@ -344,6 +447,23 @@ export const addFSEventHandlers = (ipcMain: IpcMain, getMainWindow: () => Browse
 			teardownWatcher(subPath)
 		}, COLLAPSE_TEARDOWN_DELAY_MS)
 	})
+
+	// One-shot directory read for the plugin-facing request API. Does not
+	// touch the watcher manager; the plugin handler in `IFrameContext.tsx`
+	// is responsible for path-traversal guards and error mapping.
+	// `rootPath` scopes ignore semantics when it differs from `folderPath`,
+	// so a plugin recursing under root gets the same segment filtering the
+	// watcher-driven state does.
+	ipcMain.handle(
+		'get-folder-contents',
+		async (
+			_,
+			args: { folderPath: string; recursive?: boolean; rootPath?: string }
+		): Promise<GetFolderContentsResult> => {
+			const { folderPath, recursive, rootPath } = args
+			return await getFolderContents(folderPath, { recursive, rootPath })
+		}
+	)
 
 	// Save a string to a file
 	ipcMain.handle('save-file', async (_, args) => {

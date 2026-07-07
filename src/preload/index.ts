@@ -8,6 +8,11 @@ import { electronAPI } from '@electron-toolkit/preload'
 //   - `collapse-folder(subPath)`       schedule watcher teardown (see
 //                                      COLLAPSE_TEARDOWN_DELAY_MS in
 //                                      `src/shared/constants.ts`)
+//   - `get-folder-contents({ folderPath, recursive, rootPath })`
+//                                      one-shot enumeration used by the
+//                                      plugin-facing `request-directory-
+//                                      contents` message; does not touch
+//                                      the watcher manager.
 // `electronAPI.ipcRenderer.invoke` accepts arbitrary channel strings, so no
 // per-channel type is required here.
 

@@ -29,14 +29,14 @@ export async function fetchFolderContents(
 				try {
 					const stats = await fs.stat(join(folderPath, file))
 					return stats.isDirectory()
-				} catch (error) {
+				} catch (_error) {
 					return false
 				}
 			})
 		)
 
 		return { files: noHidden, isFolder: isFolder }
-	} catch (error) {
+	} catch (_error) {
 		return { files: [], isFolder: [] }
 	}
 }
@@ -64,7 +64,7 @@ export async function saveFile({
 
 		await fs.writeFile(join(folder, name), data)
 		return true
-	} catch (error) {
+	} catch (_error) {
 		return false
 	}
 }
@@ -73,7 +73,7 @@ export async function readFile({ folder, name }): Promise<string> {
 	try {
 		const data = await fs.readFile(join(folder, name), 'utf-8')
 		return data
-	} catch (error) {
+	} catch (_error) {
 		return ''
 	}
 }

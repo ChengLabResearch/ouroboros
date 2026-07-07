@@ -21,7 +21,7 @@ export const parseNeuroglancerJSON = (jsonString: string | null): ParseResult<Ne
 
 	try {
 		parsedJSON = JSON.parse(jsonString)
-	} catch (e) {
+	} catch (_e) {
 		return errorResult
 	}
 

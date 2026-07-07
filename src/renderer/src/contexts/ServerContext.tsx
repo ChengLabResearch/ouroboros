@@ -356,7 +356,7 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 					const response = await fetch(baseURL)
 					if (response.ok) setConnected(true)
 					else setConnected(false)
-				} catch (error) {
+				} catch (_error) {
 					setConnected(false) // Ensure disconnected state on error
 				}
 				await delay(retryDelay) // Wait before next check

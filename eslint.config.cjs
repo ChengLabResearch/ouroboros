@@ -10,6 +10,34 @@ module.exports = tseslint.config(
 	{
 		settings: {
 			react: { version: 'detect' }
+		},
+		rules: {
+			'@typescript-eslint/no-unused-vars': [
+				'error',
+				{
+					argsIgnorePattern: '^_',
+					varsIgnorePattern: '^_',
+					caughtErrorsIgnorePattern: '^_'
+				}
+			]
+		}
+	},
+	{
+		files: ['**/*.mjs'],
+		rules: {
+			'@typescript-eslint/explicit-function-return-type': 'off'
+		}
+	},
+	{
+		files: ['**/*.cjs'],
+		rules: {
+			'@typescript-eslint/no-require-imports': 'off'
+		}
+	},
+	{
+		files: ['**/*.tsx', '**/*.jsx'],
+		rules: {
+			'react/prop-types': 'off'
 		}
 	},
 	eslintConfigPrettier

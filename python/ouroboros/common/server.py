@@ -3,15 +3,21 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
+import os
 
 from ouroboros.common.server_handlers import handle_task, handle_task_docker
 
 
-HOST = "127.0.0.1"
-PORT = 8000
+# HOST/PORT and DOCKER_HOST/DOCKER_PORT are env-configurable so operators can
+# expose the desktop server on a non-default port without editing sources.
+# The renderer's DEFAULT_SERVER_URL still assumes 127.0.0.1:8000; any change
+# here must be paired with the client-side URL and, for the Docker variant,
+# the compose port mapping.
+HOST = os.environ.get("OUROBOROS_SERVER_HOST", "127.0.0.1")
+PORT = int(os.environ.get("OUROBOROS_SERVER_PORT", "8000"))
 
-DOCKER_HOST = "0.0.0.0"
-DOCKER_PORT = 8000
+DOCKER_HOST = os.environ.get("OUROBOROS_DOCKER_SERVER_HOST", "0.0.0.0")
+DOCKER_PORT = int(os.environ.get("OUROBOROS_DOCKER_SERVER_PORT", "8000"))
 
 
 def create_server(docker: bool = False) -> FastAPI:

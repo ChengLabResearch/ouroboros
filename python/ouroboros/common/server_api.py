@@ -12,6 +12,7 @@ from ouroboros.common.file_system import (
 )
 from ouroboros.common.pipelines import visualization_pipeline
 from ouroboros.common.server_types import BackProjectTask, SliceTask
+from ouroboros.common.step_names import step_names_payload
 
 
 def create_api(app: FastAPI, docker: bool = False):
@@ -31,6 +32,18 @@ def create_api(app: FastAPI, docker: bool = False):
     @app.get("/")
     async def server_active():
         return JSONResponse("Server is active")
+
+    @app.get("/step-names")
+    async def get_step_names():
+        """Return the canonical pipeline step names.
+
+        The renderer uses these to identify progress rows (see
+        ``SLICE_STEP_NAME`` in ``SlicesPage.tsx``). Exposing them through
+        the API means a rename on the Python side surfaces as a drift
+        warning in the renderer instead of silently blanking the row.
+        """
+
+        return JSONResponse(step_names_payload())
 
     @app.post("/slice/")
     async def add_slice_task(options: str, request: Request):

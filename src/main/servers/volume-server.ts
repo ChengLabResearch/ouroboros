@@ -3,8 +3,11 @@ import { ChildProcess, fork } from 'child_process'
 import { scope } from '../logging'
 
 let volumeServer: ChildProcess
-const port = 3001
-const volumeServerURL: string = `http://127.0.0.1:${port}`
+// Env override: OUROBOROS_VOLUME_SERVER_PORT. Falls back to 3001 when unset,
+// empty, or non-numeric (parseInt returns NaN, which || treats as falsy).
+const VOLUME_SERVER_PORT: number =
+	parseInt(process.env.OUROBOROS_VOLUME_SERVER_PORT ?? '', 10) || 3001
+const volumeServerURL: string = `http://127.0.0.1:${VOLUME_SERVER_PORT}`
 
 const VOLUME = 'ouroboros-volume'
 
@@ -16,7 +19,7 @@ const logger = scope('volume-server')
  */
 export async function startVolumeServer(): Promise<void> {
 	volumeServer = fork(join(__dirname, '../../resources/processes/volume-server-script.mjs'), [
-		`${port}`
+		`${VOLUME_SERVER_PORT}`
 	])
 
 	volumeServer.on('error', (error) => {

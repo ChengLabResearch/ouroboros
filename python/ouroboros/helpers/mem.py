@@ -11,7 +11,14 @@ import numpy as np
 from .shapes import DataShape
 from .log import log, LOG
 
-MEM_INTERVAL_TIMER = 1.0
+# Polling interval for the memory logger loop in ``mem_monitor``.
+MEM_LOG_INTERVAL_S = 1.0
+
+# Pre-exit sleep in ``exit_cleanly``: gives the monitor loop a full cycle to
+# flush its final line before the process terminates. Held at the same value
+# as ``MEM_LOG_INTERVAL_S`` on purpose (one monitor iteration), but named
+# separately so tuning one does not silently change the other.
+SHUTDOWN_GRACE_S = 1.0
 
 
 def is_advanced_index(index):
@@ -215,7 +222,7 @@ def exit_cleanly(step: str, *shm_objects, return_code: int = 0, statement: str =
     log.write(step, statement, log_level, out)
     cleanup_mem(*shm_objects)
 
-    sleep(MEM_INTERVAL_TIMER)
+    sleep(SHUTDOWN_GRACE_S)
     log.footer(error=throw)
 
     exit(return_code)
@@ -229,7 +236,7 @@ def mem_monitor(mem_file, mem_store, pid):  # pragma: no cover - monitors a live
             while last_step.strip() not in ["COMPLETED", "ERRORED"]:
                 last_step = last_step_arr.tobytes().decode()
                 log.write(last_step, out=out, pid=pid)
-                sleep(MEM_INTERVAL_TIMER)
+                sleep(MEM_LOG_INTERVAL_S)
 
 
 def cleanup_mem(*shm_objects):

@@ -415,53 +415,70 @@ source. If you change them locally, update this page in the same commit.</p>
 <h2 id="file-explorer">File explorer</h2>
 <p>All file explorer limits live in
 <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a> at the top of the
-file. They apply to the recursive watcher that backs the File Explorer
-panel in the Electron app.</p>
-<h3 id="watcher-depth-limit">Watcher depth limit</h3>
-<ul>
-<li>Symbol: <code>FILE_EXPLORER_WATCH_DEPTH</code></li>
-<li>Value: <code>6</code></li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a> line 8</li>
-<li>Also passed to the underlying <code>watcher</code> package as its <code>depth</code> option and
-  reported inside every <code>folder-contents-error</code> payload.</li>
-</ul>
-<p><strong>Why it exists.</strong> The file explorer used to open folders with an
-unbounded recursive watcher. Deep dependency trees, build outputs, or
-scientific datasets could push watcher and renderer state well past the
-V8 heap and trigger the crash described in [#51][issue-51].</p>
-<p><strong>User-visible behavior when reached.</strong> Directories nested more than six
-levels below the selected root are simply not walked, so their contents do
-not appear in the File Explorer panel. The panel still works normally at
-shallower depths.</p>
-<p><strong>When to reconsider.</strong> Raise this if you routinely need to see files
-deeper than six levels from the folder you open in Ouroboros and you have
-already excluded large auxiliary trees (see the ignored segments below).
-Prefer opening a lower-level folder before increasing the constant.</p>
+file, alongside the shared teardown delay in
+<a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/shared/constants.ts"><code>src/shared/constants.ts</code></a>. They apply to the
+per-directory non-recursive watchers with lazy expansion that back the
+File Explorer panel in the Electron app.</p>
+<p>Starting with <a href="https://github.com/ChengLabResearch/ouroboros/pull/110">#110</a>, the file explorer no longer opens a single
+recursive watcher on the selected root. Instead, the main process keeps
+one non-recursive watcher per directory the user has currently expanded,
+plus one for the root. Expanding a subfolder starts a new watcher for it;
+collapsing schedules teardown after
+<a href="#watcher-teardown-delay-after-collapse"><code>COLLAPSE_TEARDOWN_DELAY_MS</code></a>,
+so quick collapse-then-reopen costs nothing.</p>
 <h3 id="watcher-path-count-limit">Watcher path-count limit</h3>
 <ul>
 <li>Symbol: <code>FILE_EXPLORER_WATCH_LIMIT</code></li>
 <li>Value: <code>100_000</code></li>
 <li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a> line 9</li>
-<li>Passed to the underlying <code>watcher</code> package as its <code>limit</code> option and
-  reported inside every <code>folder-contents-error</code> payload.</li>
+<li>Reported inside every <code>folder-contents-error</code> payload.</li>
 </ul>
-<p><strong>Why it exists.</strong> The watcher mirrors every discovered path into
-renderer state. Very large folders can therefore multiply main-process
-watcher memory with renderer heap. One hundred thousand visible paths is
-the ceiling picked in [#104][pr-104] as a balance between usefulness for
-typical scan/output folders and keeping the renderer well under its
-default 4 GB heap.</p>
-<p><strong>User-visible behavior when reached.</strong> Once the visible add count crosses
-the limit, the main process emits <code>folder-contents-error</code> with a message
-of the form <code>File explorer stopped loading after 100000 visible paths.
-Choose a smaller folder or expand the folder in smaller pieces.</code> The
-existing renderer alert system surfaces this as a warning toast. The
-watcher stops delivering further add events for that session; already
-loaded paths remain visible.</p>
+<p><strong>Why it exists.</strong> Every watcher mirrors its discovered paths into
+renderer state. Even with lazy expansion, an aggressive user could open a
+handful of dense subfolders in sequence and still exhaust memory. One
+hundred thousand visible paths is the ceiling picked in [#104][pr-104] as
+a balance between usefulness for typical scan/output folders and keeping
+the renderer well under its default 4 GB heap.</p>
+<p><strong>Role change from #110.</strong> Before #110 this was the underlying <code>watcher</code>
+package's per-watcher <code>limit</code>. Under the lazy model it is instead an
+aggregate session budget summed across every currently open watcher; a
+watcher's contribution is reclaimed when its folder is collapsed and torn
+down.</p>
+<p><strong>User-visible behavior when reached.</strong> Once the aggregate visible add
+count crosses the limit, the main process emits <code>folder-contents-error</code>
+with a message of the form <code>File explorer stopped loading after 100000
+visible paths across all open folders. Choose a smaller folder or expand
+the folder in smaller pieces.</code> The existing renderer alert system
+surfaces this as a warning toast. Further add events for that session are
+not attributed to the counter but already loaded paths remain visible.</p>
 <p><strong>When to reconsider.</strong> Raise this only after profiling shows headroom in
-both the main watcher and the renderer heap for your typical workload.
+both the main watchers and the renderer heap for your typical workload.
 Lower it if you routinely work on constrained machines and want the
 warning to appear sooner.</p>
+<h3 id="watcher-teardown-delay-after-collapse">Watcher teardown delay after collapse</h3>
+<ul>
+<li>Symbol: <code>COLLAPSE_TEARDOWN_DELAY_MS</code></li>
+<li>Value: <code>30_000</code> (milliseconds)</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/shared/constants.ts"><code>src/shared/constants.ts</code></a></li>
+</ul>
+<p><strong>Why it exists.</strong> Collapsing a folder in the file explorer should not
+immediately close its watcher and drop its renderer state, because users
+routinely collapse-then-reopen the same folder while navigating. The
+delay makes that pattern free: as long as the user re-expands within
+thirty seconds, no watcher churn and no state re-fetch happen. After the
+delay elapses, the main process closes the non-recursive watcher on the
+collapsed subfolder and the renderer prunes its children from state.
+Root's watcher is exempt - collapsing root is a no-op; root's watcher
+only closes when a new root is opened or the window is torn down.</p>
+<p><strong>User-visible behavior when reached.</strong> Nothing visible changes at the
+moment of teardown. The collapsed folder's shell remains rendered; its
+children have already stopped rendering visually because of the collapse.
+Re-expanding after teardown behaves like a fresh expand: the main process
+starts a new watcher and streams the initial batch back into the
+renderer's state.</p>
+<p><strong>When to reconsider.</strong> Shorten if renderer memory pressure from
+still-cached collapsed subtrees is a problem. Lengthen if users complain
+that re-opening a folder after a long detour repopulates it visibly.</p>
 <h3 id="update-batch-size">Update batch size</h3>
 <ul>
 <li>Symbol: <code>FILE_EXPLORER_UPDATE_BATCH_LIMIT</code></li>
@@ -875,10 +892,13 @@ release becomes the intended default. Bump both the tag and the artifact
 filename together, since the artifact filename embeds the tag.</p>
 <h2 id="where-the-values-come-from">Where the values come from</h2>
 <p>Every value above was read directly from the tree at the time this page
-was written. The five file explorer constants live together as a block at
-the top of <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a>
-(lines 8-12). If you edit any of them, update this page in the same
-commit so operators and plugin authors can rely on it.</p>
+was written. The remaining file explorer constants live together as a
+block at the top of
+<a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a>; the shared
+teardown delay lives in <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/shared/constants.ts"><code>src/shared/constants.ts</code></a>
+so both the main process and the renderer import the same value. If you
+edit any of them, update this page in the same commit so operators and
+plugin authors can rely on it.</p>
 </section>
 
             </main>

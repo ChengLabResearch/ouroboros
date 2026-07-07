@@ -4,16 +4,6 @@ This page documents hardcoded implementation limits that affect Ouroboros
 behavior at runtime. Values here are extracted directly from the shipping
 source. If you change them locally, update this page in the same commit.
 
-The constants below were introduced or touched by the [#51][issue-51]
-out-of-memory mitigation stack. Historical context:
-
-- [#104][pr-104] added the file explorer watcher depth, path-count, and
-  ignored-segment guardrails.
-- [#105][pr-105] added the file explorer update batch size and flush
-  interval.
-- [#106][pr-106] stopped broadcasting the recursive file tree to plugin
-  iframes on every directory change.
-
 ## File explorer
 
 All file explorer limits live in
@@ -71,32 +61,6 @@ loaded paths remain visible.
 both the main watcher and the renderer heap for your typical workload.
 Lower it if you routinely work on constrained machines and want the
 warning to appear sooner.
-
-### Ignored path segments
-
-- Symbol: `IGNORED_PATH_SEGMENTS`
-- Value: `new Set(['node_modules', '__pycache__', 'venv'])`
-- Source: [`src/main/event-handlers/filesystem.ts`][filesystem-ts] line 12
-
-**Why it exists.** These directories are almost always noise in an
-Ouroboros workflow (JavaScript dependencies, Python bytecode caches,
-Python virtual environments) and are the fastest way for a project folder
-to blow past the watcher path limit above.
-
-Note that in addition to the explicit set, the watcher's `shouldIgnorePath`
-helper also skips any path segment that begins with `.`, so dotfiles and
-dot-prefixed directories such as `.git`, `.venv`, and `.cache` are
-excluded even though they are not listed by name.
-
-**User-visible behavior when reached.** Matching paths never appear in
-the File Explorer panel and do not count toward the path-count limit. No
-warning is shown, because ignoring these segments is the intended default.
-
-**When to reconsider.** Add a segment here if you find another commonly
-large directory that most users would never want to browse from
-Ouroboros. Remove one only if a real workflow genuinely needs it to be
-visible, since exposing these trees is the fastest way back to the
-out-of-memory behavior tracked in [#51][issue-51].
 
 ### Update batch size
 
@@ -251,31 +215,6 @@ Anything else stored under the same volume name is deleted.
 installs against the same Docker daemon without stomping each other's
 volumes. All call sites listed above must agree.
 
-### Main server locations (main process)
-
-- Symbols: `DEVELOPMENT_PATH`, `DEVELOPMENT_CONFIG`, `PRODUCTION_PATH`,
-  `PRODUCTION_CONFIG`
-- Values (relative to the compiled `out/main/index.js`):
-    - `DEVELOPMENT_PATH` = `../../python/`
-    - `DEVELOPMENT_CONFIG` = `../../python/compose.dev.yml`
-    - `PRODUCTION_PATH` = `../../../extra-resources/server/`
-    - `PRODUCTION_CONFIG` = `../../../extra-resources/server/compose.yml`
-- Source: [`src/main/servers/main-server.ts`][main-server-ts] lines 4-8
-
-**Why it exists.** These paths tell the Electron main process which
-`docker compose` file to bring up when starting the FastAPI server. In
-development the compose file lives in the source tree; in production it
-is written into `extra-resources/server/compose.yml` by
-[`scripts/prepare-production-server.mjs`][prepare-production-server]
-during packaging.
-
-**User-visible behavior.** A packaged app that ships without a valid
-`extra-resources/server/compose.yml` cannot start the main server, and
-the app comes up in a disconnected state.
-
-**When to reconsider.** Change these together with any restructure of
-`extra-resources/` or the packaging scripts.
-
 ## Renderer
 
 ### Server connection settings
@@ -352,43 +291,6 @@ the visualization. Fewer rects than about 125 render every rect.
 **When to reconsider.** Raise it to see more slices in the preview at
 the cost of frame rate; lower it if the preview lags on very long paths.
 
-### Stream endpoint paths
-
-- Symbols: `SLICE_STREAM`, `BACKPROJECT_STREAM`, `SLICE_STEP_NAME`
-- Values:
-    - `SLICE_STREAM` = `'/slice_status_stream/'`
-    - `BACKPROJECT_STREAM` = `'/backproject_status_stream/'`
-    - `SLICE_STEP_NAME` = `'SliceParallelPipelineStep'`
-- Sources:
-  [`src/renderer/src/routes/SlicesPage/SlicesPage.tsx`][slices-page] lines 28-30
-  and [`src/renderer/src/routes/BackprojectPage/BackprojectPage.tsx`][backproject-page]
-  line 22
-
-**Why it exists.** These are the FastAPI SSE endpoints the renderer
-subscribes to for slice and backproject progress, and the pipeline step
-name that the slice page uses to identify its progress row. They must
-stay in sync with the routes exposed by `create_api` in the Python
-server (see [`python/ouroboros/common/server_api.py`][server-api-py])
-and with the pipeline step class in the slice pipeline.
-
-**Canonical source.** The Python side exposes the pipeline step names
-as an enum in `python/ouroboros/common/step_names.py`
-(`StepName.SLICE_PARALLEL.value` = `'SliceParallelPipelineStep'`) and
-serves them through `GET /step-names` on the FastAPI server. The
-renderer keeps `SLICE_STEP_NAME` as a local constant with a
-`TODO(#107)` marker; a dev-mode runtime drift check that fetches
-`/step-names` and warns on mismatch is deferred until the renderer's
-`ServerContext` exposes its base URL to non-fetch-hook callers.
-
-**User-visible behavior.** A rename on either side (server or renderer)
-without the other silently breaks progress updates and the visualization
-panel. New pipeline steps added to `StepName` show up as additional
-keys in the `/step-names` response without breaking existing clients.
-
-**When to reconsider.** Update this file whenever the corresponding
-FastAPI route names or Python pipeline step class names change. Landed
-in [PR #109][pr-109].
-
 ## Python server
 
 ### Server host and port
@@ -452,44 +354,6 @@ transfer into the volume fails.
 Electron-side `VOLUME_SERVER_PORT` in
 [`src/main/servers/volume-server.ts`][volume-server-ts].
 
-### Bounding box defaults
-
-- Symbols: `DEFAULT_SPLIT_THRESHOLD`, `DEFAULT_MAX_DEPTH`,
-  `DEFAULT_TARGET_SLICES_PER_BOX`
-- Values:
-    - `DEFAULT_SPLIT_THRESHOLD` = `0.9`
-    - `DEFAULT_MAX_DEPTH` = `10`
-    - `DEFAULT_TARGET_SLICES_PER_BOX` = `128`
-- Source: [`python/ouroboros/helpers/bounding_boxes.py`][bounding-boxes-py]
-  lines 6-8
-- User override: `bounding_box_params.max_depth` and
-  `bounding_box_params.target_slices_per_box` in the slice options JSON
-  (see [`python/ouroboros/helpers/options.py`][options-py] and
-  [`python/ouroboros/helpers/bounding_boxes.py`][bounding-boxes-py])
-
-**Why it exists.** The slice pipeline uses binary space partitioning to
-group slice rectangles into cloud-volume fetch boxes.
-`DEFAULT_MAX_DEPTH` caps recursion depth, `DEFAULT_TARGET_SLICES_PER_BOX`
-is the leaf-box size heuristic, and `DEFAULT_SPLIT_THRESHOLD` decides
-whether a box is empty enough to be worth dividing (a box is split when
-its utilised volume is below `1 - 0.9 = 10%` of its total volume).
-
-**User-visible behavior.** Larger `target_slices_per_box` or smaller
-`max_depth` produces fewer, larger cloud-volume fetches; smaller
-`target_slices_per_box` produces many smaller fetches. Tuning these
-trades network round-trips against downloaded-but-unused voxels.
-
-**When to reconsider.** Adjust `bounding_box_params` in the slice
-options JSON per-run rather than editing this file. Only change the
-compiled defaults if you have measured a better global balance.
-
-**User surfacing.** `DEFAULT_SPLIT_THRESHOLD` is intentionally *not*
-exposed through `BoundingBoxParams`: only `max_depth` and
-`target_slices_per_box` are user-tunable, and the split threshold is
-documented here for completeness. A future change would need to add a
-matching field on `BoundingBoxParams` and thread it through the slice
-options schema before it could be reached from the options JSON.
-
 ### Backprojection chunk and process defaults
 
 - Symbols: `chunk_size` and `process_count` on `BackprojectOptions`
@@ -510,13 +374,14 @@ executor and writer processes are derived as fractions of it
 **Why 160 specifically.** The primary purpose of the chunk sizing is to
 enable clean backprojection - specifically clean backprojection of the
 flattened xyz stack. `160` is the judgment-call result for the best
-combination of memory and speed on standard pieces of data. Users
-tuning this for very different data should measure peak memory and
-iteration time on their own volumes rather than picking a "round"
-alternative.
+combination of memory and speed on standard pieces of data.  Additionally,
+as for efficiency operations are performed on a flattened chunk, large
+values can cause significant slowdown and memory explsion due to change
+in the index bit size.
 
-**User-visible behavior.** Larger `chunk_size` reduces per-chunk
-overhead but raises peak memory per worker. On very small hosts,
+**User-visible behavior.** Large `chunk_size` reduces per-chunk
+overhead but raises peak memory per worker and can cause disproportionate
+increases in memory usage and slowdowns. On very small hosts,
 `process_count = cpu_count()` may over-subscribe and thrash; lowering it
 in the options JSON trades throughput for stability.
 
@@ -585,30 +450,6 @@ Lower it on constrained hosts where you know the pipelines you run stay
 well under the limit; raise it only if you routinely see shared-memory
 `ENOMEM` errors from the server. Landed in [PR #109][pr-109].
 
-### Python base image
-
-- Symbol: base image tag
-- Value: `thehale/python-poetry:2.1.3-py3.11-slim`
-- Source: [`python/Dockerfile`][py-dockerfile] line 1 and
-  [`python/Dockerfile-prod`][py-dockerfile-prod] line 5
-
-**Why it exists.** Pins Poetry to 2.1.3 and Python to 3.11 for the
-container build. `python/pyproject.toml` declares a matching
-`python = ">=3.11,<3.13"` range.
-
-**User-visible behavior.** Container builds are reproducible against a
-known Poetry and Python version. Bumping the tag without updating
-`pyproject.toml`'s Python range risks a resolver mismatch at build time.
-
-**Policy.** The pin is intentional and driven by transitive-dependency
-stability. Do **not** bump reactively (for example, in response to a
-new Poetry release or a routine security scan). Only bump when a
-concrete downstream requirement forces the move, and land the
-`pyproject.toml` update in the same commit.
-
-**When to reconsider.** Update this tag when you deliberately move to a
-newer Poetry or Python release, and keep `pyproject.toml` in sync.
-
 ### Server image reference defaults
 
 - Symbols: `imageRepository`, `imageTag`
@@ -675,27 +516,6 @@ precedence over both.
 release becomes the intended default. Bump both the tag and the artifact
 filename together, since the artifact filename embeds the tag.
 
-### Supported package flavors
-
-- Symbol: `supportedFlavors`
-- Value: `new Set(['core', 'with-plugins-cpu', 'with-plugins-cuda'])`
-- Source: [`scripts/prepare-package-flavor.mjs`][prepare-package-flavor]
-  line 6
-- Environment selector: `OUROBOROS_PACKAGE_FLAVOR` (defaults to
-  `'core'`)
-
-**Why it exists.** Whitelists the packaging-time flavor names. Anything
-else raises `Unsupported OUROBOROS_PACKAGE_FLAVOR ...` and aborts.
-
-**User-visible behavior.** Only these three flavors have artifact
-renaming, preinstalled-plugin selection, and a release-time build
-pipeline. See
-[Production Package Flavors](../development/production-package-flavors.md)
-for the operator-facing view of these three flavors.
-
-**When to reconsider.** Add a new flavor here together with matching
-artifact handling in the same file and a documentation update.
-
 ## Where the values come from
 
 Every value above was read directly from the tree at the time this page
@@ -704,33 +524,20 @@ the top of [`src/main/event-handlers/filesystem.ts`][filesystem-ts]
 (lines 8-12). If you edit any of them, update this page in the same
 commit so operators and plugin authors can rely on it.
 
-[issue-51]: https://github.com/ChengLabResearch/ouroboros/issues/51
-[issue-102]: https://github.com/ChengLabResearch/ouroboros/issues/102
-[pr-104]: https://github.com/ChengLabResearch/ouroboros/pull/104
-[pr-105]: https://github.com/ChengLabResearch/ouroboros/pull/105
-[pr-106]: https://github.com/ChengLabResearch/ouroboros/pull/106
-[pr-109]: https://github.com/ChengLabResearch/ouroboros/pull/109
 [filesystem-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts
 [iframe-context]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/IFrameContext.tsx
 [file-server-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/file-server.ts
 [file-server-script]: https://github.com/ChengLabResearch/ouroboros/blob/main/resources/processes/file-server-script.mjs
 [volume-server-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/volume-server.ts
 [volume-server-script]: https://github.com/ChengLabResearch/ouroboros/blob/main/resources/processes/volume-server-script.mjs
-[main-server-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/main-server.ts
 [server-context]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/ServerContext.tsx
 [slices-page]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/routes/SlicesPage/SlicesPage.tsx
-[backproject-page]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/routes/BackprojectPage/BackprojectPage.tsx
-[py-server]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/common/server.py
-[server-api-py]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/common/server_api.py
 [volume-server-interface-py]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/common/volume_server_interface.py
-[bounding-boxes-py]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/bounding_boxes.py
 [options-py]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/options.py
 [backproject-pipeline]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/pipeline/backproject_pipeline.py
 [mem-py]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/mem.py
 [volume-cache-py]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/volume_cache.py
 [compose-yml]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.yml
 [compose-dev-yml]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.dev.yml
-[py-dockerfile]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/Dockerfile
-[py-dockerfile-prod]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/Dockerfile-prod
 [prepare-production-server]: https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-production-server.mjs
 [prepare-package-flavor]: https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-package-flavor.mjs

@@ -1,4 +1,18 @@
-import { any, includes, object, pipe, string, InferOutput, nullable } from 'valibot'
+import {
+	any,
+	boolean,
+	includes,
+	lazy,
+	object,
+	optional,
+	picklist,
+	pipe,
+	record,
+	string,
+	InferOutput,
+	nullable,
+	GenericSchema
+} from 'valibot'
 
 export const IFrameMessageSchema = object({
 	type: string(),
@@ -57,6 +71,56 @@ export const SaveFileRequestSchema = object({
 })
 
 export type SaveFileRequest = InferOutput<typeof SaveFileRequestSchema>
+
+// A path-keyed nested map of `FileSystemNode` matching the renderer's
+// `DirectoryContext.NodeChildren` shape. Defined recursively via a lazy
+// object schema (valibot cannot self-reference statically).
+export type PluginFileSystemNode = {
+	name: string
+	path: string
+	children?: { [key: string]: PluginFileSystemNode }
+}
+
+export type PluginNodeChildren = { [key: string]: PluginFileSystemNode }
+
+const PluginFileSystemNodeSchema: GenericSchema<PluginFileSystemNode> = object({
+	name: string(),
+	path: string(),
+	children: optional(
+		lazy(() => record(string(), PluginFileSystemNodeSchema))
+	)
+})
+
+const PluginNodeChildrenSchema = record(string(), PluginFileSystemNodeSchema)
+
+export const RequestDirectoryContentsSchema = object({
+	type: pipe(string(), includes('request-directory-contents')),
+	data: object({
+		path: string('Path is required'),
+		recursive: optional(boolean()),
+		requestId: optional(string())
+	})
+})
+
+export type RequestDirectoryContents = InferOutput<typeof RequestDirectoryContentsSchema>
+
+export const SendDirectoryContentsResponseSchema = object({
+	type: pipe(string(), includes('send-directory-contents-response')),
+	data: object({
+		path: string(),
+		nodes: PluginNodeChildrenSchema,
+		requestId: nullable(string()),
+		error: optional(
+			object({
+				code: picklist(['denied', 'not-found', 'limit', 'internal'] as const),
+				message: string(),
+				truncated: optional(boolean())
+			})
+		)
+	})
+})
+
+export type SendDirectoryContentsResponse = InferOutput<typeof SendDirectoryContentsResponseSchema>
 
 export const SendNeuroglancerJSONSchema = object({
 	type: pipe(string(), includes('send-neuroglancer-json')),

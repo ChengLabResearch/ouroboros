@@ -1,15 +1,18 @@
 import {
 	IFrameMessage,
 	IFrameMessageSchema,
+	PluginNodeChildren,
 	ReadFileRequestSchema,
 	ReadFileResponse,
 	RegisterIFrameSchema,
+	RequestDirectoryContentsSchema,
 	SaveFileRequestSchema,
-	SendDirectoryContents
+	SendDirectoryContents,
+	SendDirectoryContentsResponse
 } from '@renderer/schemas/iframe-message-schema'
 import { safeParse } from 'valibot'
 import { readFile, writeFile } from '../interfaces/file'
-import { JSX, createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { JSX, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { DirectoryContext } from '@renderer/contexts/DirectoryContext'
 
 export type IFrameContextValue = {
@@ -45,17 +48,28 @@ export function IFrameProvider({ children }: { children: React.ReactNode }): JSX
 		setIframes((prev) => new Map([...prev, [pluginName, source]]))
 	}
 
+	// Access the selected directory without broadcasting the full recursive file tree.
+	const { directoryPath, directoryName } = useContext(DirectoryContext)
+
+	// The request-directory-contents handler needs the *current* directory
+	// root at message time, not the value captured when the listener was
+	// registered. A ref keeps the closure stable while the listener effect
+	// runs once, matching the pattern used for the message listener below.
+	const directoryPathRef = useRef<string | null>(directoryPath)
+	useEffect(() => {
+		directoryPathRef.current = directoryPath
+	}, [directoryPath])
+
 	// Define the handlers for the different message types
 	const handlers: {
 		[key: string]: (source: MessageEventSource, data: IFrameMessage) => Promise<void>
 	} = {
 		'read-file': handleReadFileRequest,
 		'save-file': handleSaveFileRequest,
-		'register-plugin': updateIframes
+		'register-plugin': updateIframes,
+		'request-directory-contents': (source, data) =>
+			handleRequestDirectoryContentsRequest(source, data, directoryPathRef.current)
 	}
-
-	// Access the selected directory without broadcasting the full recursive file tree.
-	const { directoryPath, directoryName } = useContext(DirectoryContext)
 
 	const broadcast = useCallback(
 		(message: IFrameMessage): void => {
@@ -176,6 +190,151 @@ async function handleSaveFileRequest(_: MessageEventSource, data: IFrameMessage)
 		console.error(e)
 		return
 	}
+}
+
+async function handleRequestDirectoryContentsRequest(
+	source: MessageEventSource,
+	data: IFrameMessage,
+	directoryPath: string | null
+): Promise<void> {
+	const parseResult = safeParse(RequestDirectoryContentsSchema, data)
+
+	// If the request itself is malformed, we cannot correlate a requestId
+	// or trust the requested path. Report as `denied` with a null requestId
+	// so the plugin still learns something went wrong.
+	if (!parseResult.success) {
+		sendDirectoryContentsResponse(source, {
+			path: '',
+			nodes: {},
+			requestId: null,
+			error: { code: 'denied', message: 'Malformed request-directory-contents payload.' }
+		})
+		return
+	}
+
+	const { path: requestedPath, recursive, requestId } = parseResult.output.data
+	const correlationId = requestId ?? generateRequestId()
+
+	// No root selected: plugins that request before the user opens a folder
+	// get `denied` rather than a hanging promise.
+	if (!directoryPath) {
+		sendDirectoryContentsResponse(source, {
+			path: requestedPath,
+			nodes: {},
+			requestId: correlationId,
+			error: { code: 'denied', message: 'No directory is currently open.' }
+		})
+		return
+	}
+
+	// Path-traversal guard. `path.relative` returns `..`-prefixed results
+	// when the target escapes the base, and absolute results when the
+	// candidate is rooted on a different volume (Windows). Both are denied.
+	if (!isPathUnderRoot(directoryPath, requestedPath)) {
+		sendDirectoryContentsResponse(source, {
+			path: requestedPath,
+			nodes: {},
+			requestId: correlationId,
+			error: { code: 'denied', message: 'Path is outside the current directory root.' }
+		})
+		return
+	}
+
+	try {
+		const { nodes, truncated } = (await window.electron.ipcRenderer.invoke(
+			'get-folder-contents',
+			{ folderPath: requestedPath, recursive: recursive === true, rootPath: directoryPath }
+		)) as { nodes: PluginNodeChildren; truncated: boolean }
+
+		sendDirectoryContentsResponse(source, {
+			path: requestedPath,
+			nodes,
+			requestId: correlationId,
+			error: truncated
+				? {
+						code: 'limit',
+						message: `Enumeration truncated at aggregate cap; partial results returned.`,
+						truncated: true
+					}
+				: undefined
+		})
+	} catch (e) {
+		const err = e as { code?: string; message?: string }
+		const isNotFound = err?.code === 'ENOENT' || err?.code === 'ENOTDIR'
+
+		sendDirectoryContentsResponse(source, {
+			path: requestedPath,
+			nodes: {},
+			requestId: correlationId,
+			error: {
+				code: isNotFound ? 'not-found' : 'internal',
+				message: err?.message ?? 'Failed to read folder contents.'
+			}
+		})
+	}
+}
+
+function sendDirectoryContentsResponse(
+	source: MessageEventSource,
+	data: SendDirectoryContentsResponse['data']
+): void {
+	const response: SendDirectoryContentsResponse = {
+		type: 'send-directory-contents-response',
+		data
+	}
+	source.postMessage(response, { targetOrigin: '*' })
+}
+
+function isPathUnderRoot(rootPath: string, candidate: string): boolean {
+	// Reject empty candidates outright.
+	if (!candidate) return false
+
+	// A request for the root itself is allowed.
+	if (candidate === rootPath) return true
+
+	// Cross-volume checks on Windows: two absolute paths on different drives
+	// yield an absolute result from `path.relative`. Node's `path.posix` and
+	// `path.win32` behave the same way for this check on their respective
+	// separators; the renderer runs against the platform-native module.
+	// We use browser-safe string checks rather than importing 'path' in the
+	// renderer bundle.
+	const normalizedRoot = rootPath.replace(/[\\/]+$/, '')
+	const rel = getPathRelative(normalizedRoot, candidate)
+	if (rel === null) return false
+	if (rel === '' || rel === '.') return true
+	if (rel.startsWith('..')) return false
+	// Absolute-looking segment means Windows drive change (e.g. `D:\foo`).
+	if (/^[A-Za-z]:[\\/]/.test(rel)) return false
+	if (rel.startsWith('/') || rel.startsWith('\\')) return false
+	return true
+}
+
+// Minimal string-based relative computation that avoids pulling Node's
+// `path` module into the renderer. Handles both POSIX and Windows-style
+// separators. Returns `null` for pathological inputs (e.g. differing drive
+// letters), which the caller treats as a deny.
+function getPathRelative(rootPath: string, candidate: string): string | null {
+	const rootNorm = rootPath.replace(/\\/g, '/')
+	const candNorm = candidate.replace(/\\/g, '/')
+
+	// Windows drive-letter mismatch: reject.
+	const rootDrive = /^([A-Za-z]:)/.exec(rootNorm)?.[1]?.toUpperCase()
+	const candDrive = /^([A-Za-z]:)/.exec(candNorm)?.[1]?.toUpperCase()
+	if (rootDrive && candDrive && rootDrive !== candDrive) return null
+
+	if (candNorm === rootNorm) return ''
+	if (candNorm.startsWith(rootNorm + '/')) {
+		return candNorm.slice(rootNorm.length + 1)
+	}
+	return '..'
+}
+
+function generateRequestId(): string {
+	// Best-effort correlation id when the plugin didn't supply one. Not
+	// security-sensitive; a short random suffix is enough.
+	const g = globalThis as unknown as { crypto?: { randomUUID?: () => string } }
+	if (g.crypto?.randomUUID) return g.crypto.randomUUID()
+	return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 function isAllowedOrigin(allowedHostnames: string[], origin: string): boolean {

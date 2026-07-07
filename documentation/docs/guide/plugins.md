@@ -43,10 +43,70 @@ See the [template README](https://github.com/ChengLabResearch/ouroboros/blob/mai
 When Ouroboros posts a `send-directory-contents` message to plugin
 iframes, the payload contains the selected directory's `directoryPath`
 and `directoryName` but the `nodes` field is always an empty object.
-Plugins should not depend on receiving the full recursive file tree
-through this broadcast. An on-demand plugin file API is being designed;
-until it lands, use `read-file` and `save-file` requests for the
-specific paths a plugin needs.
+This broadcast fires on every root change and is intended as a
+notification only — plugins should not depend on receiving the full
+recursive file tree through it.
+
+To read the directory tree, plugins request it explicitly with the
+`request-directory-contents` message described below.
+
+### Requesting Directory Contents
+
+Plugins ask the provider for the entries of a folder (optionally
+recursive) by posting a `request-directory-contents` message. The
+provider replies with a `send-directory-contents-response` message
+addressed only to the requesting iframe.
+
+**Request (plugin → provider):**
+
+```js
+window.parent.postMessage(
+    {
+        type: 'request-directory-contents',
+        data: {
+            path: '/absolute/path/under/current/root',
+            recursive: true,        // optional; defaults to false
+            requestId: 'abc-123'    // optional; the provider echoes it back
+        }
+    },
+    '*'
+)
+```
+
+**Response (provider → requesting iframe):**
+
+```js
+window.addEventListener('message', (event) => {
+    if (event.data?.type !== 'send-directory-contents-response') return
+    const { path, nodes, requestId, error } = event.data.data
+    // `nodes` is a path-keyed nested map of { name, path, children? }
+    // matching the shape the pre-#106 broadcast used.
+    // `error` is present only when the request could not be fully served:
+    //   - code: 'denied'     path outside the current root, or no root open
+    //   - code: 'not-found'  path does not exist / is not a directory
+    //   - code: 'limit'      enumeration hit the aggregate cap; `truncated: true`
+    //                        and `nodes` holds the partial result
+    //   - code: 'internal'   unexpected error; see `message`
+})
+```
+
+If `requestId` is omitted from the request, the provider generates one
+and echoes it back on the response so plugins can still correlate.
+
+**Path-traversal guard.** Requests for paths outside the current root are
+rejected with `code: 'denied'`. Plugins get exactly what the user can see
+in the File Explorer and nothing above it.
+
+**Truncation.** When the aggregate visible-path budget
+(`FILE_EXPLORER_WATCH_LIMIT`) is exceeded mid-walk, the enumeration stops
+and the response is returned with `error.code: 'limit'`,
+`error.truncated: true`, and a partial `nodes` map. Callers issuing
+recursive requests on very large trees should be prepared to handle
+this.
+
+**Ignore rules.** The same ignore filter the File Explorer uses (dotfiles
+and the `node_modules`, `__pycache__`, `venv` segments) applies here.
+Plugins cannot bypass it.
 
 For details and the values behind other file explorer limits, see the
 [Technical Constants](../reference/technical-constants.md) reference.

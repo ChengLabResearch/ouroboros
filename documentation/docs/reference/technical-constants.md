@@ -41,6 +41,17 @@ aggregate session budget summed across every currently open watcher; a
 watcher's contribution is reclaimed when its folder is collapsed and torn
 down.
 
+**Second role from #111.** The same constant caps the plugin-facing
+`get-folder-contents` one-shot enumeration used by the
+`request-directory-contents` iframe message (see the [plugins
+guide](../guide/plugins.md#requesting-directory-contents)). A plugin's
+recursive walk stops when the enumeration hits the cap; the response is
+returned with `error.code: 'limit'` and `error.truncated: true`, and
+`nodes` holds the partial result already gathered. Enumeration and
+watcher budgets are counted separately (the enumeration count is
+per-request and does not accumulate across requests), so a plugin cannot
+starve the file explorer by issuing many recursive requests.
+
 **User-visible behavior when reached.** Once the aggregate visible add
 count crosses the limit, the main process emits `folder-contents-error`
 with a message of the form `File explorer stopped loading after 100000
@@ -140,14 +151,16 @@ costs above.
 **User-visible behavior.** Plugins still receive the selected directory
 path and name through the existing `send-directory-contents` message.
 The `nodes` field is present for shape compatibility but is always an
-empty object. Plugins that need to browse the directory tree should not
-depend on this broadcast; the on-demand plugin file API tracked by
-[#102][issue-102] is the intended replacement.
+empty object. Plugins that need to browse the directory tree use the
+`request-directory-contents` / `send-directory-contents-response`
+message pair added in [#111][issue-111] (see the [plugins
+guide](../guide/plugins.md#requesting-directory-contents)) rather than
+depending on this broadcast payload.
 
 **When to reconsider.** Do not restore the full-tree broadcast without
-first landing a memory-safe, on-demand alternative. If you need a
-minimal listing for a plugin, prefer adding a targeted IPC call over
-resurrecting the broadcast.
+first landing a memory-safe, on-demand alternative. The on-demand API
+from #111 is that alternative; prefer extending it over resurrecting
+the broadcast.
 
 ## Main process (Electron)
 

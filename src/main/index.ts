@@ -42,7 +42,7 @@ function createWindow(): void {
 
 	Menu.setApplicationMenu(makeMenu(mainWindow))
 
-	mainWindow.on('ready-to-show', () => {
+	mainWindow.webContents.on('did-finish-load', () => {
 		mainWindow.maximize()
 		mainWindow.focus()
 	})
@@ -71,9 +71,11 @@ function createWindow(): void {
 	} else {
 		startMainServerProduction()
 	}
+	console.info('Started Main Server')
 
 	// Start the docker volume server
 	startVolumeServer()
+	console.info('Started Volume Server')
 }
 
 app.whenReady().then(() => {

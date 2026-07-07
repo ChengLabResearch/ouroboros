@@ -22,7 +22,7 @@ export const parsePluginPackageJSON = (data: string): PluginPackageJSON | string
 		}
 
 		return `Unable to parse plugin package.json file: ${parseResult.issues.join(', ')}`
-	} catch (error) {
+	} catch (_error) {
 		return 'Could not parse plugin package.json file'
 	}
 }

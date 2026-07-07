@@ -38,7 +38,7 @@ function DynamicIcon({
 					} else {
 						ref.current.style.opacity = '1'
 					}
-				} catch (error) {
+				} catch (_error) {
 					ref.current.style.opacity = '0'
 					ref.current.style.maskImage = ''
 

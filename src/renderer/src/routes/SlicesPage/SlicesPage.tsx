@@ -327,7 +327,7 @@ function useSlicePageState(): SlicePageState {
 
 		try {
 			jsonContent = JSON.parse(fileContent)
-		} catch (e) {
+		} catch (_e) {
 			addAlert('Invalid JSON file', 'error')
 			return
 		}

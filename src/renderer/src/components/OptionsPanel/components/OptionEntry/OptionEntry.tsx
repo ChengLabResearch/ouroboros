@@ -180,7 +180,7 @@ function OptionEntry({
 
 			// Determine if the dropped item is a folder
 			const item = files[0]
-			let path = window.api.getFilePath(item)
+			const path = window.api.getFilePath(item)
 
 			const isFolder = item.type === '' || !isPathFile(path)
 

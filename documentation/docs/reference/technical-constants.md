@@ -170,30 +170,34 @@ resurrecting the broadcast.
 
 ### Plugin file server port
 
-- Symbol: `port`
-- Value: `3000`
-- Source: [`src/main/servers/file-server.ts`][file-server-ts] line 6
+- Symbol: `PLUGIN_FILE_SERVER_PORT`
+- Value: `3000` (default)
+- Source: [`src/main/servers/file-server.ts`][file-server-ts] line 7
+- Environment override: `OUROBOROS_PLUGIN_FILE_SERVER_PORT` (integer;
+  unset, empty, or non-numeric values fall back to `3000`)
 
 **Why it exists.** The main process forks a local Express + `serve-static`
 worker (see [`resources/processes/file-server-script.mjs`][file-server-script])
 that serves every installed plugin's static assets over
-`http://127.0.0.1:3000/`. The renderer and plugin iframes load their
-`index.html`, icons, and any bundled JS from this server.
+`http://127.0.0.1:3000/` by default. The renderer and plugin iframes load
+their `index.html`, icons, and any bundled JS from this server.
 
 **User-visible behavior.** If another process on the host is already
-listening on port 3000 the fork fails and plugins load with broken
-assets. There is no automatic fallback and no environment override.
+listening on the chosen port the fork fails and plugins load with broken
+assets. There is no automatic fallback beyond the env override.
 
-**When to reconsider.** Change this value if 3000 conflicts with a
-different local service. The renderer discovers the URL through
-`getPluginFileServerURL()`, so a code change is enough; no user-facing
-setting exists.
+**When to reconsider.** Set `OUROBOROS_PLUGIN_FILE_SERVER_PORT` when 3000
+conflicts with a different local service. The renderer discovers the URL
+through `getPluginFileServerURL()`, so the port change is picked up
+without touching any user-facing setting. Landed in [PR #109][pr-109].
 
 ### Docker volume server port
 
-- Symbol: `port`
-- Value: `3001`
-- Source: [`src/main/servers/volume-server.ts`][volume-server-ts] line 6
+- Symbol: `VOLUME_SERVER_PORT`
+- Value: `3001` (default)
+- Source: [`src/main/servers/volume-server.ts`][volume-server-ts] line 7
+- Environment override: `OUROBOROS_VOLUME_SERVER_PORT` (integer;
+  unset, empty, or non-numeric values fall back to `3001`)
 
 **Why it exists.** The volume server is a second forked Node process
 (see [`resources/processes/volume-server-script.mjs`][volume-server-script])
@@ -204,12 +208,16 @@ main server container reaches back to it through
 below).
 
 **User-visible behavior.** Copy-to-volume and copy-to-host requests fail
-if port 3001 is busy or if Docker is not available. Plugin data transfer
-into the shared volume breaks in that case.
+if the chosen port is busy or if Docker is not available. Plugin data
+transfer into the shared volume breaks in that case.
 
-**When to reconsider.** Change this only if 3001 conflicts locally.
-Keep the Python-side default in sync (`VOLUME_SERVER_URL` in
-[`python/ouroboros/common/volume_server_interface.py`][volume-server-interface-py]).
+**When to reconsider.** Set `OUROBOROS_VOLUME_SERVER_PORT` when 3001
+conflicts locally. Keep the Python-side default in sync
+(`VOLUME_SERVER_URL` in
+[`python/ouroboros/common/volume_server_interface.py`][volume-server-interface-py]);
+the Python side is still hard-coded to `3001` because the container
+reaches the host over `host.docker.internal` where the port is
+independent of any host-side conflict. Landed in [PR #109][pr-109].
 
 ### Docker volume name
 
@@ -225,13 +233,23 @@ Keep the Python-side default in sync (`VOLUME_SERVER_URL` in
 main process all address the same Docker named volume so that plugin
 uploads land where the pipeline can read them.
 
+**Invariant.** The literal string `'ouroboros-volume'` is duplicated across
+four call sites: `src/main/servers/volume-server.ts`,
+`python/ouroboros/common/volume_server_interface.py`, `python/compose.yml`,
+`python/compose.dev.yml`, and the compose file written by
+`scripts/prepare-production-server.mjs`. Docker Compose YAML is required to
+be static, so a single source of truth would need a code-generation step
+the team has not opted into; the invariant lives in this documentation
+and in code review discipline. If you rename this value in one place,
+every listed file must move with it in the same commit.
+
 **User-visible behavior.** On app shutdown the volume server helper
 issues `docker run --rm ... rm -rf /volume/*` against this named volume.
 Anything else stored under the same volume name is deleted.
 
 **When to reconsider.** Rename it if you need to run multiple Ouroboros
 installs against the same Docker daemon without stomping each other's
-volumes. All three call sites must agree.
+volumes. All call sites listed above must agree.
 
 ### Main server locations (main process)
 
@@ -286,16 +304,25 @@ Python-side `HOST`/`PORT` defaults documented below.
 
 ### IFrame plugin allowed origins
 
-- Symbol: `allowedOrigins`
-- Value: `['http://localhost', 'http://127.0.0.1', 'http://0.0.0.0']`
+- Symbol: `allowedHostnames`
+- Value: `['localhost', '127.0.0.1', '0.0.0.0']`
 - Source: [`src/renderer/src/contexts/IFrameContext.tsx`][iframe-context]
-  line 23
+  line 30
 
 **Why it exists.** The renderer only dispatches `read-file`,
 `save-file`, and `register-plugin` messages from iframes whose
-`event.origin` starts with one of these prefixes. Plugin content is
-served locally through the plugin file server on port 3000, so all
-legitimate origins are loopback.
+`event.origin` parses to a URL whose `hostname` is exactly one of these
+values. Plugin content is served locally through the plugin file server
+(see [`PLUGIN_FILE_SERVER_PORT`](#plugin-file-server-port), default port
+3000), so all legitimate origins are loopback. Any port on those hosts
+is accepted; the port itself is env-configurable.
+
+**Security note.** The previous implementation used
+`text.startsWith(item)`, which would accept attacker-controlled hosts
+such as `http://localhost.evil.example`. The current implementation
+parses `event.origin` with `new URL(...)` and compares `hostname` for
+exact equality; malformed origins fall through to a deny. Landed in
+[PR #109][pr-109].
 
 **User-visible behavior.** Any plugin iframe served from a non-loopback
 origin is silently ignored: its messages never trigger file reads,
@@ -304,7 +331,8 @@ writes, or registration.
 **When to reconsider.** Add an entry only if you deliberately host
 plugin content off-device (for example, over `https://` to a controlled
 host). Broadening this list widens the file-read and file-write surface
-exposed to third-party pages.
+exposed to third-party pages, and non-loopback additions should use
+exact origin equality against a full URL, not just a hostname.
 
 ### Slice visualization sampling ratio
 
@@ -343,24 +371,40 @@ stay in sync with the routes exposed by `create_api` in the Python
 server (see [`python/ouroboros/common/server_api.py`][server-api-py])
 and with the pipeline step class in the slice pipeline.
 
+**Canonical source.** The Python side exposes the pipeline step names
+as an enum in `python/ouroboros/common/step_names.py`
+(`StepName.SLICE_PARALLEL.value` = `'SliceParallelPipelineStep'`) and
+serves them through `GET /step-names` on the FastAPI server. The
+renderer keeps `SLICE_STEP_NAME` as a local constant with a
+`TODO(#107)` marker; a dev-mode runtime drift check that fetches
+`/step-names` and warns on mismatch is deferred until the renderer's
+`ServerContext` exposes its base URL to non-fetch-hook callers.
+
 **User-visible behavior.** A rename on either side (server or renderer)
 without the other silently breaks progress updates and the visualization
-panel.
+panel. New pipeline steps added to `StepName` show up as additional
+keys in the `/step-names` response without breaking existing clients.
 
 **When to reconsider.** Update this file whenever the corresponding
-FastAPI route names or Python pipeline step class names change.
+FastAPI route names or Python pipeline step class names change. Landed
+in [PR #109][pr-109].
 
 ## Python server
 
 ### Server host and port
 
 - Symbols: `HOST`, `PORT`, `DOCKER_HOST`, `DOCKER_PORT`
-- Values:
+- Values (defaults):
     - `HOST` = `'127.0.0.1'`
     - `PORT` = `8000`
     - `DOCKER_HOST` = `'0.0.0.0'`
     - `DOCKER_PORT` = `8000`
 - Source: [`python/ouroboros/common/server.py`][py-server] lines 10-14
+- Environment overrides:
+    - `OUROBOROS_SERVER_HOST` -> `HOST`
+    - `OUROBOROS_SERVER_PORT` -> `PORT` (integer)
+    - `OUROBOROS_DOCKER_SERVER_HOST` -> `DOCKER_HOST`
+    - `OUROBOROS_DOCKER_SERVER_PORT` -> `DOCKER_PORT` (integer)
 
 **Why it exists.** The desktop-only server entry point
 (`ouroboros-server`) binds Uvicorn to loopback, while the containerised
@@ -369,13 +413,13 @@ so the host can reach the container through the compose `8000:8000`
 port mapping.
 
 **User-visible behavior.** The renderer's `DEFAULT_SERVER_URL` above
-assumes port 8000. Changing `PORT` or the compose port mapping without
-updating the renderer breaks the client.
+assumes port 8000. Changing `PORT` (or `OUROBOROS_SERVER_PORT`) or the
+compose port mapping without updating the renderer breaks the client.
 
-**When to reconsider.** Change these if you need to expose the desktop
-server to another machine (rare) or if 8000 conflicts with another
-service. Update `DEFAULT_SERVER_URL` in the renderer and the compose
-port mapping in the same commit.
+**When to reconsider.** Set the env overrides if you need to expose the
+desktop server to another machine (rare) or if 8000 conflicts with
+another service. Update `DEFAULT_SERVER_URL` in the renderer and the
+compose port mapping in the same commit. Landed in [PR #109][pr-109].
 
 ### Volume server URL (Python side)
 
@@ -392,13 +436,20 @@ running on the host is reached through the Docker special DNS name
 `extra_hosts: - "host.docker.internal:host-gateway"`. `PLUGIN_NAME` is
 the fixed subfolder on the shared volume used by the main pipeline.
 
+**Why 'main'.** Ouroboros is the *main* application of its own plugin
+ecosystem, so the Python side treats itself as the always-`main` plugin
+when addressing paths on the shared volume. There is no planned
+per-plugin path scheme on the Python side; plugin content is scoped by
+the Electron-side plugin folder, not by a Python-visible slug.
+`PLUGIN_NAME` therefore stays a constant rather than a parameter.
+
 **User-visible behavior.** If the compose file omits the
 `host.docker.internal` extra host, or if the Electron main process is
 not running the volume server, requests time out and plugin/data
 transfer into the volume fails.
 
 **When to reconsider.** Change the URL only in coordination with the
-Electron-side `port` in
+Electron-side `VOLUME_SERVER_PORT` in
 [`src/main/servers/volume-server.ts`][volume-server-ts].
 
 ### Bounding box defaults
@@ -432,6 +483,13 @@ trades network round-trips against downloaded-but-unused voxels.
 options JSON per-run rather than editing this file. Only change the
 compiled defaults if you have measured a better global balance.
 
+**User surfacing.** `DEFAULT_SPLIT_THRESHOLD` is intentionally *not*
+exposed through `BoundingBoxParams`: only `max_depth` and
+`target_slices_per_box` are user-tunable, and the split threshold is
+documented here for completeness. A future change would need to add a
+matching field on `BoundingBoxParams` and thread it through the slice
+options schema before it could be reached from the options JSON.
+
 ### Backprojection chunk and process defaults
 
 - Symbols: `chunk_size` and `process_count` on `BackprojectOptions`
@@ -449,6 +507,14 @@ in [`python/ouroboros/pipeline/backproject_pipeline.py`][backproject-pipeline]).
 executor and writer processes are derived as fractions of it
 (`process_count // 4 * 2` or `// 4 * 3`).
 
+**Why 160 specifically.** The primary purpose of the chunk sizing is to
+enable clean backprojection - specifically clean backprojection of the
+flattened xyz stack. `160` is the judgment-call result for the best
+combination of memory and speed on standard pieces of data. Users
+tuning this for very different data should measure peak memory and
+iteration time on their own volumes rather than picking a "round"
+alternative.
+
 **User-visible behavior.** Larger `chunk_size` reduces per-chunk
 overhead but raises peak memory per worker. On very small hosts,
 `process_count = cpu_count()` may over-subscribe and thrash; lowering it
@@ -457,22 +523,6 @@ in the options JSON trades throughput for stability.
 **When to reconsider.** Tune per-run through the backproject options
 JSON. Edit the defaults only if a different global tuning is measured
 to be better across typical workloads.
-
-### Memory-monitor interval
-
-- Symbol: `MEM_INTERVAL_TIMER`
-- Value: `1.0` (seconds)
-- Source: [`python/ouroboros/helpers/mem.py`][mem-py] line 14
-
-**Why it exists.** `mem_monitor` polls the "current step" shared-memory
-buffer once per second while writing to the memory log. `exit_cleanly`
-also sleeps this long before final shutdown to let the monitor flush.
-
-**User-visible behavior.** Memory-log resolution is one second per line.
-Startup and shutdown incur a one-second pause tied to this value.
-
-**When to reconsider.** Lower it for finer memory profiling at the cost
-of log volume and overhead.
 
 ### Volume-cache flush default
 
@@ -499,27 +549,41 @@ one-shot runs or when the upstream volume may have changed.
 ### Server container shared-memory size
 
 - Symbol: `shm_size`
-- Value: `64gb`
+- Value: `64gb` (default)
 - Source: [`python/compose.yml`][compose-yml] line 15,
   [`python/compose.dev.yml`][compose-dev-yml] line 28, and the compose
   file written by
   [`scripts/prepare-production-server.mjs`][prepare-production-server]
-  (line 52)
+  (line 58)
+- Environment override (packaging time):
+  `OUROBOROS_SERVER_SHM_SIZE` (read by
+  `scripts/prepare-production-server.mjs` and by the
+  `${OUROBOROS_SERVER_SHM_SIZE:-64gb}` substitution in both compose
+  files)
 
-**Why it exists.** The FastAPI server uses shared memory for
-inter-process numpy arrays (`SharedMemoryManager`, `SharedNPArray` in
-[`python/ouroboros/helpers/mem.py`][mem-py]) and for cloud-volume caches.
-Docker's default `/dev/shm` size (64 MB) is far too small for these
-allocations, so the container is given 64 GB of tmpfs headroom.
+**Why it exists.** `shm_size` is an artificial Docker limit. Without a
+`shm_size` override, Docker aggressively caps container `/dev/shm` at
+`64 MB`, which the pipeline exceeds immediately. Setting it too large
+does not "cause" OOM: it just shifts OOM from the container-side
+artificial limit to actual host OOM. The FastAPI server uses shared
+memory for inter-process numpy arrays (`SharedMemoryManager`,
+`SharedNPArray` in [`python/ouroboros/helpers/mem.py`][mem-py]) and for
+cloud-volume caches, so the container is given 64 GB of tmpfs headroom
+by default.
 
 **User-visible behavior.** On hosts with less than 64 GB of RAM plus
 swap, Docker still accepts the setting (`/dev/shm` is a tmpfs and
 allocates on demand), but attempts to actually use that much shared
-memory will trigger the OOM killer.
+memory will trigger the host OOM killer. On high-RAM hosts you can
+raise the ceiling; on conservative shared hosts you can lower it to
+prefer the artificial limit hitting first.
 
-**When to reconsider.** Lower it on constrained hosts where you know the
-pipelines you run stay well under the limit; raise it only if you
-routinely see shared-memory `ENOMEM` errors from the server.
+**When to reconsider.** Set `OUROBOROS_SERVER_SHM_SIZE` at packaging or
+runtime (compose reads the same variable via `${OUROBOROS_SERVER_SHM_SIZE:-64gb}`
+substitution in both `python/compose.yml` and `python/compose.dev.yml`).
+Lower it on constrained hosts where you know the pipelines you run stay
+well under the limit; raise it only if you routinely see shared-memory
+`ENOMEM` errors from the server. Landed in [PR #109][pr-109].
 
 ### Python base image
 
@@ -535,6 +599,12 @@ container build. `python/pyproject.toml` declares a matching
 **User-visible behavior.** Container builds are reproducible against a
 known Poetry and Python version. Bumping the tag without updating
 `pyproject.toml`'s Python range risks a resolver mismatch at build time.
+
+**Policy.** The pin is intentional and driven by transitive-dependency
+stability. Do **not** bump reactively (for example, in response to a
+new Poetry release or a routine security scan). Only bump when a
+concrete downstream requirement forces the move, and land the
+`pyproject.toml` update in the same commit.
 
 **When to reconsider.** Update this tag when you deliberately move to a
 newer Poetry or Python release, and keep `pyproject.toml` in sync.
@@ -592,6 +662,15 @@ versions in `extra-resources/preinstalled-plugins/`. First launch copies
 each into the user's plugin folder if the installed version is older or
 missing.
 
+**Bump workflow.** `productionPluginPins` and the fallback
+`neuroglancerArtifactForTag` / `autosegArtifactForTag` builders in
+[`scripts/prepare-package-flavor.mjs`][prepare-package-flavor] move
+together on every plugin release. The single-file edit lives in
+`scripts/prepare-package-flavor.mjs`: update the tags in
+`productionPluginPins`, and the fallback builders pick up the new
+filename shape automatically. The environment overrides above take
+precedence over both.
+
 **When to reconsider.** Update these pins whenever a new upstream plugin
 release becomes the intended default. Bump both the tag and the artifact
 filename together, since the artifact filename embeds the tag.
@@ -630,6 +709,7 @@ commit so operators and plugin authors can rely on it.
 [pr-104]: https://github.com/ChengLabResearch/ouroboros/pull/104
 [pr-105]: https://github.com/ChengLabResearch/ouroboros/pull/105
 [pr-106]: https://github.com/ChengLabResearch/ouroboros/pull/106
+[pr-109]: https://github.com/ChengLabResearch/ouroboros/pull/109
 [filesystem-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts
 [iframe-context]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/IFrameContext.tsx
 [file-server-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/file-server.ts

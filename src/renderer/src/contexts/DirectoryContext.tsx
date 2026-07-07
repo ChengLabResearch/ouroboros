@@ -1,12 +1,15 @@
 import { joinWithSeparator } from '@renderer/interfaces/file'
 import { AlertContext } from '@renderer/contexts/AlertContext'
-import { JSX, createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { JSX, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { COLLAPSE_TEARDOWN_DELAY_MS } from '../../../shared/constants'
 
 export type DirectoryContextValue = {
 	nodes: NodeChildren
 	directoryPath: string | null
 	directoryName: string | null
 	setDirectory: (directory: string) => void
+	expandFolder: (subPath: string) => void
+	collapseFolder: (subPath: string) => void
 }
 
 export const DirectoryContext = createContext<DirectoryContextValue>(null as never)
@@ -28,7 +31,6 @@ type FSError = {
 	directoryPath: string
 	message: string
 	code?: string
-	depth: number
 	limit: number
 }
 
@@ -48,6 +50,11 @@ function DirectoryProvider({ children }: { children: React.ReactNode }): JSX.Ele
 	const [nodes, setNodes] = useState<NodeChildren>({})
 	const { addAlert } = useContext(AlertContext)
 
+	// Mirror the main-side collapse teardown: renderer-side state for a
+	// collapsed subfolder is pruned on the same delay. Re-expanding within
+	// the window cancels both timers so the existing slice stays.
+	const pendingCollapseTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
 	const setDirectory = useCallback(
 		(directory: string): void => {
 			// Make sure the directory is not empty
@@ -62,10 +69,50 @@ function DirectoryProvider({ children }: { children: React.ReactNode }): JSX.Ele
 			const directorySplit = directory.split(/[/\\]/)
 			setDirectoryName(directorySplit[directorySplit.length - 1])
 
-			// Clear the folder contents
+			// Clear the folder contents and any pending collapse timers -
+			// they refer to paths under the old root.
+			for (const timer of pendingCollapseTimers.current.values()) {
+				clearTimeout(timer)
+			}
+			pendingCollapseTimers.current.clear()
 			setNodes({})
 		},
 		[directoryPath]
+	)
+
+	const expandFolder = useCallback(
+		(subPath: string): void => {
+			if (!subPath) return
+
+			// Cancel a pending renderer-side prune if we re-expand in time.
+			const timer = pendingCollapseTimers.current.get(subPath)
+			if (timer) {
+				clearTimeout(timer)
+				pendingCollapseTimers.current.delete(subPath)
+			}
+
+			window.electron.ipcRenderer.invoke('expand-folder', subPath)
+		},
+		[]
+	)
+
+	const collapseFolder = useCallback(
+		(subPath: string): void => {
+			if (!subPath) return
+
+			// If a prune is already scheduled for this path, do not restart
+			// the timer.
+			if (pendingCollapseTimers.current.has(subPath)) return
+
+			window.electron.ipcRenderer.invoke('collapse-folder', subPath)
+
+			const timer = setTimeout(() => {
+				pendingCollapseTimers.current.delete(subPath)
+				setNodes((prev) => pruneSubtree(prev, subPath))
+			}, COLLAPSE_TEARDOWN_DELAY_MS)
+			pendingCollapseTimers.current.set(subPath, timer)
+		},
+		[]
 	)
 
 	useEffect(() => {
@@ -114,8 +161,27 @@ function DirectoryProvider({ children }: { children: React.ReactNode }): JSX.Ele
 		refreshDirectory()
 	}, [directoryPath])
 
+	// Clear any pending collapse timers on provider teardown.
+	useEffect(() => {
+		return (): void => {
+			for (const timer of pendingCollapseTimers.current.values()) {
+				clearTimeout(timer)
+			}
+			pendingCollapseTimers.current.clear()
+		}
+	}, [])
+
 	return (
-		<DirectoryContext.Provider value={{ nodes, directoryPath, directoryName, setDirectory }}>
+		<DirectoryContext.Provider
+			value={{
+				nodes,
+				directoryPath,
+				directoryName,
+				setDirectory,
+				expandFolder,
+				collapseFolder
+			}}
+		>
 			{children}
 		</DirectoryContext.Provider>
 	)
@@ -215,4 +281,42 @@ function handleFSEvent(nodes: NodeChildren, fsEvent: FSEvent): NodeChildren {
 	}
 
 	return nodesCopy
+}
+
+/**
+ * Drop the children of the folder identified by `subPath` from the nested
+ * `nodes` map, leaving the folder itself in place so its collapsed shell can
+ * still render. The folder is located by walking the tree and matching each
+ * node's absolute `path`; this keeps the reducer independent of the current
+ * root because `path` is the absolute filesystem path already.
+ */
+export function pruneSubtree(nodes: NodeChildren, subPath: string): NodeChildren {
+	if (!subPath) return nodes
+
+	let mutated = false
+	const walk = (children: NodeChildren): NodeChildren => {
+		let next: NodeChildren | null = null
+		for (const key of Object.keys(children)) {
+			const node = children[key]
+			if (node.path === subPath) {
+				if (node.children && Object.keys(node.children).length > 0) {
+					if (!next) next = { ...children }
+					next[key] = { ...node, children: {} }
+					mutated = true
+				}
+				continue
+			}
+			if (node.children) {
+				const walked = walk(node.children)
+				if (walked !== node.children) {
+					if (!next) next = { ...children }
+					next[key] = { ...node, children: walked }
+				}
+			}
+		}
+		return next ?? children
+	}
+
+	const result = walk(nodes)
+	return mutated ? result : nodes
 }

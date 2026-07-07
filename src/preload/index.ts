@@ -1,6 +1,16 @@
 import { contextBridge, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
+// The file explorer uses these renderer -> main IPC channels (handled in
+// `src/main/event-handlers/filesystem.ts`):
+//   - `fetch-folder-contents(root)`    open a root, close all watchers
+//   - `expand-folder(subPath)`         start a non-recursive watcher lazily
+//   - `collapse-folder(subPath)`       schedule watcher teardown (see
+//                                      COLLAPSE_TEARDOWN_DELAY_MS in
+//                                      `src/shared/constants.ts`)
+// `electronAPI.ipcRenderer.invoke` accepts arbitrary channel strings, so no
+// per-channel type is required here.
+
 // Custom APIs for renderer
 const api = {
   getFilePath: (file: File): string => {

@@ -513,11 +513,11 @@ private registry for internal builds.
 
 - Symbol: `productionPluginPins`
 - Value:
-    - `neuroglancer.tag` = `v1.0.1`
-    - `neuroglancer.artifact` = `neuroglancer-plugin-v1.0.1.zip`
-    - `autoseg.tag` = `v0.4.0-beta.1`
-    - `autoseg.cpuArtifact` = `auto-segmentation-v0.4.0-beta.1-cpu.zip`
-    - `autoseg.cudaArtifact` = `auto-segmentation-v0.4.0-beta.1-cuda.zip`
+    - `neuroglancer.tag` = `v1.1.1`
+    - `neuroglancer.artifact` = `neuroglancer-plugin-v1.1.1.zip`
+    - `autoseg.tag` = `v0.4.0-beta.2`
+    - `autoseg.cpuArtifact` = `auto-segmentation-v0.4.0-beta.2-cpu.zip`
+    - `autoseg.cudaArtifact` = `auto-segmentation-v0.4.0-beta.2-cuda.zip`
 - Source: [`scripts/prepare-package-flavor.mjs`][prepare-package-flavor]
   lines 7-16
 - Environment overrides: `OUROBOROS_NEUROGLANCER_PLUGIN_TAG`,

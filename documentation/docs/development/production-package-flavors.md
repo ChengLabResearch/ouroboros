@@ -24,19 +24,19 @@ bundled plugins to explicit production pins. Manual workflow runs can override
 these inputs:
 
 - `server_image_tag` or `server_image_digest`
-- `neuroglancer_plugin_tag` (default `v1.0.1`)
-- `neuroglancer_plugin_artifact` (default `neuroglancer-plugin-v1.0.1.zip`)
-- `autoseg_plugin_tag` (default `v0.4.0-beta.1`)
-- `autoseg_cpu_plugin_artifact` (default `auto-segmentation-v0.4.0-beta.1-cpu.zip`)
-- `autoseg_cuda_plugin_artifact` (default `auto-segmentation-v0.4.0-beta.1-cuda.zip`)
+- `neuroglancer_plugin_tag` (default `v1.1.1`)
+- `neuroglancer_plugin_artifact` (default `neuroglancer-plugin-v1.1.1.zip`)
+- `autoseg_plugin_tag` (default `v0.4.0-beta.2`)
+- `autoseg_cpu_plugin_artifact` (default `auto-segmentation-v0.4.0-beta.2-cpu.zip`)
+- `autoseg_cuda_plugin_artifact` (default `auto-segmentation-v0.4.0-beta.2-cuda.zip`)
 
 The current plugin pins are:
 
-- Neuroglancer plugin: `ChengLabResearch/neuroglancer-plugin` tag `v1.0.1`,
-  asset `neuroglancer-plugin-v1.0.1.zip`
+- Neuroglancer plugin: `ChengLabResearch/neuroglancer-plugin` tag `v1.1.1`,
+  asset `neuroglancer-plugin-v1.1.1.zip`
 - Automatic segmentation plugin: `ChengLabResearch/ouroboros_autoseg_plugin`
-  tag `v0.4.0-beta.1`, assets `auto-segmentation-v0.4.0-beta.1-cpu.zip` and
-  `auto-segmentation-v0.4.0-beta.1-cuda.zip`
+  tag `v0.4.0-beta.2`, assets `auto-segmentation-v0.4.0-beta.2-cpu.zip` and
+  `auto-segmentation-v0.4.0-beta.2-cuda.zip`
 
 `extra-resources/package-flavor.json` records the selected package flavor,
 server image metadata, and exact plugin release tag/artifact inputs. When a
@@ -46,6 +46,15 @@ into `package-flavor.json` as well.
 If plugin release repositories are private, set
 `OUROBOROS_RELEASE_ASSET_TOKEN` to a token that can read those release assets.
 The workflow falls back to `GITHUB_TOKEN` when that secret is not set.
+
+## Dependency audit
+
+The release workflow runs `npm run audit:release` against the locked dependency
+tree. npm currently combines the React Router 7 and 8 ranges for
+[`GHSA-qwww-vcr4-c8h2`](https://github.com/remix-run/react-router/security/advisories/GHSA-qwww-vcr4-c8h2)
+and incorrectly reports React Router 7.18.2. The audit validator permits only
+that advisory while both `react-router` and `react-router-dom` resolve to the
+patched v7 release 7.18.2. It fails for any other advisory or resolved version.
 
 ## Local checks
 

@@ -15,23 +15,23 @@ on:
       neuroglancer_plugin_tag:
         description: Neuroglancer plugin release tag. Defaults to the production pin.
         required: false
-        default: v1.0.1
+        default: v1.1.1
       neuroglancer_plugin_artifact:
         description: Neuroglancer plugin artifact name. Defaults to the production pin.
         required: false
-        default: neuroglancer-plugin-v1.0.1.zip
+        default: neuroglancer-plugin-v1.1.1.zip
       autoseg_plugin_tag:
         description: Automatic segmentation plugin release tag. Defaults to the production pin.
         required: false
-        default: v0.4.0-beta.1
+        default: v0.4.0-beta.2
       autoseg_cpu_plugin_artifact:
         description: CPU automatic segmentation plugin artifact name. Defaults to the production pin.
         required: false
-        default: auto-segmentation-v0.4.0-beta.1-cpu.zip
+        default: auto-segmentation-v0.4.0-beta.2-cpu.zip
       autoseg_cuda_plugin_artifact:
         description: CUDA automatic segmentation plugin artifact name. Defaults to the production pin.
         required: false
-        default: auto-segmentation-v0.4.0-beta.1-cuda.zip
+        default: auto-segmentation-v0.4.0-beta.2-cuda.zip
 
 env: 
   GH_TOKEN: "${{ secrets.OUROBOROS_RELEASE_ASSET_TOKEN || secrets.GITHUB_TOKEN }}"
@@ -55,15 +55,23 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
+          cache: npm
 
-      - name: Install Dependencies
-        run: npm install
+      - name: Install npm
+        run: npm install --global npm@11.19.0
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Audit release dependencies
+        if: matrix.os == 'ubuntu-latest' && matrix.package.flavor == 'core'
+        run: npm run audit:release
 
       - name: Prepare registry-backed server resources
         run: npm run prepare:production-server
@@ -75,9 +83,9 @@ jobs:
         run: npm run prepare:package-flavor
         env:
           OUROBOROS_PACKAGE_FLAVOR: ${{ matrix.package.flavor }}
-          OUROBOROS_NEUROGLANCER_PLUGIN_TAG: ${{ github.event.inputs.neuroglancer_plugin_tag || 'v1.0.1' }}
+          OUROBOROS_NEUROGLANCER_PLUGIN_TAG: ${{ github.event.inputs.neuroglancer_plugin_tag || 'v1.1.1' }}
           OUROBOROS_NEUROGLANCER_PLUGIN_ARTIFACT: ${{ github.event.inputs.neuroglancer_plugin_artifact }}
-          OUROBOROS_AUTOSEG_PLUGIN_TAG: ${{ github.event.inputs.autoseg_plugin_tag || 'v0.4.0-beta.1' }}
+          OUROBOROS_AUTOSEG_PLUGIN_TAG: ${{ github.event.inputs.autoseg_plugin_tag || 'v0.4.0-beta.2' }}
           OUROBOROS_AUTOSEG_CPU_PLUGIN_ARTIFACT: ${{ github.event.inputs.autoseg_cpu_plugin_artifact }}
           OUROBOROS_AUTOSEG_CUDA_PLUGIN_ARTIFACT: ${{ github.event.inputs.autoseg_cuda_plugin_artifact }}
 
@@ -99,7 +107,7 @@ jobs:
           OUROBOROS_PACKAGE_FLAVOR: ${{ matrix.package.flavor }}
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.os }}-${{ matrix.package.flavor }}-release-assets
           if-no-files-found: error
@@ -124,13 +132,13 @@ jobs:
 
     steps:
       - name: Download release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: release-assets
           merge-multiple: true
 
       - name: Publish draft release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           draft: true
           files: |

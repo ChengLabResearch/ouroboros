@@ -402,7 +402,7 @@
 <nav>
     <ul>
         <li><a href="#production-package-flavors">Production package flavors</a></li>
-        <li><a href="#release-inputs">Release inputs</a></li><li><a href="#local-checks">Local checks</a></li>
+        <li><a href="#release-inputs">Release inputs</a></li><li><a href="#dependency-audit">Dependency audit</a></li><li><a href="#local-checks">Local checks</a></li>
     </ul>
 </nav>
 </aside>
@@ -431,19 +431,19 @@ bundled plugins to explicit production pins. Manual workflow runs can override
 these inputs:</p>
 <ul>
 <li><code>server_image_tag</code> or <code>server_image_digest</code></li>
-<li><code>neuroglancer_plugin_tag</code> (default <code>v1.0.1</code>)</li>
-<li><code>neuroglancer_plugin_artifact</code> (default <code>neuroglancer-plugin-v1.0.1.zip</code>)</li>
-<li><code>autoseg_plugin_tag</code> (default <code>v0.4.0-beta.1</code>)</li>
-<li><code>autoseg_cpu_plugin_artifact</code> (default <code>auto-segmentation-v0.4.0-beta.1-cpu.zip</code>)</li>
-<li><code>autoseg_cuda_plugin_artifact</code> (default <code>auto-segmentation-v0.4.0-beta.1-cuda.zip</code>)</li>
+<li><code>neuroglancer_plugin_tag</code> (default <code>v1.1.1</code>)</li>
+<li><code>neuroglancer_plugin_artifact</code> (default <code>neuroglancer-plugin-v1.1.1.zip</code>)</li>
+<li><code>autoseg_plugin_tag</code> (default <code>v0.4.0-beta.2</code>)</li>
+<li><code>autoseg_cpu_plugin_artifact</code> (default <code>auto-segmentation-v0.4.0-beta.2-cpu.zip</code>)</li>
+<li><code>autoseg_cuda_plugin_artifact</code> (default <code>auto-segmentation-v0.4.0-beta.2-cuda.zip</code>)</li>
 </ul>
 <p>The current plugin pins are:</p>
 <ul>
-<li>Neuroglancer plugin: <code>ChengLabResearch/neuroglancer-plugin</code> tag <code>v1.0.1</code>,
-  asset <code>neuroglancer-plugin-v1.0.1.zip</code></li>
+<li>Neuroglancer plugin: <code>ChengLabResearch/neuroglancer-plugin</code> tag <code>v1.1.1</code>,
+  asset <code>neuroglancer-plugin-v1.1.1.zip</code></li>
 <li>Automatic segmentation plugin: <code>ChengLabResearch/ouroboros_autoseg_plugin</code>
-  tag <code>v0.4.0-beta.1</code>, assets <code>auto-segmentation-v0.4.0-beta.1-cpu.zip</code> and
-  <code>auto-segmentation-v0.4.0-beta.1-cuda.zip</code></li>
+  tag <code>v0.4.0-beta.2</code>, assets <code>auto-segmentation-v0.4.0-beta.2-cpu.zip</code> and
+  <code>auto-segmentation-v0.4.0-beta.2-cuda.zip</code></li>
 </ul>
 <p><code>extra-resources/package-flavor.json</code> records the selected package flavor,
 server image metadata, and exact plugin release tag/artifact inputs. When a
@@ -452,6 +452,13 @@ into <code>package-flavor.json</code> as well.</p>
 <p>If plugin release repositories are private, set
 <code>OUROBOROS_RELEASE_ASSET_TOKEN</code> to a token that can read those release assets.
 The workflow falls back to <code>GITHUB_TOKEN</code> when that secret is not set.</p>
+<h2 id="dependency-audit">Dependency audit</h2>
+<p>The release workflow runs <code>npm run audit:release</code> against the locked dependency
+tree. npm currently combines the React Router 7 and 8 ranges for
+<a href="https://github.com/remix-run/react-router/security/advisories/GHSA-qwww-vcr4-c8h2"><code>GHSA-qwww-vcr4-c8h2</code></a>
+and incorrectly reports React Router 7.18.2. The audit validator permits only
+that advisory while both <code>react-router</code> and <code>react-router-dom</code> resolve to the
+patched v7 release 7.18.2. It fails for any other advisory or resolved version.</p>
 <h2 id="local-checks">Local checks</h2>
 <p>Prepare the core package resources with:</p>
 <pre><code class="language-sh">npm run prepare:production-server

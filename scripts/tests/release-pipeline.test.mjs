@@ -11,7 +11,8 @@ import {
 	validateReleaseLock
 } from '../lib/release-lock.mjs'
 import { gitOutput } from '../lib/git.mjs'
-import { isReleaseAssetName, npmInvocation, parsePlatform } from '../build-release-artifacts.mjs'
+import { npmInvocation } from '../lib/npm.mjs'
+import { isReleaseAssetName, parsePlatform } from '../build-release-artifacts.mjs'
 import { verifyReleaseArtifacts } from '../verify-release-artifacts.mjs'
 
 const root = process.cwd()

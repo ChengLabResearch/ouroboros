@@ -1,31 +1,57 @@
-name: Bump version
-on:
-  pull_request:
-    types:
-      - closed
-    branches:
-      - master
-      - main
+name: Tag Certified Release
 
-env:
-  ACTION_PR: "${{ secrets.ACTION_PR }}"
+on:
+    workflow_run:
+        workflows:
+            - Build Release Artifacts
+        branches:
+            - main
+        types:
+            - completed
 
 jobs:
-  build:
-    if: github.event.pull_request.merged == true
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: write
-    steps:
-    - uses: actions/checkout@v7
-      with:
-        token: ${{ secrets.ACTION_PR }}
-        ref: ${{ github.ref }}
-        fetch-depth: 0
+    tag:
+        if: >-
+            github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.event == 'push'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
 
-    - name: Bump version and push tag
-      uses: anothrNick/github-tag-action@v1 # Don't use @master or @v1 unless you're happy to test the latest version
-      env:
-        GITHUB_TOKEN: ${{ secrets.ACTION_PR }}
-        TAG_PREFIX: v
-        DEFAULT_BUMP: patch
+        steps:
+            - name: Check out certified release commit
+              uses: actions/checkout@v7
+              with:
+                  token: ${{ secrets.ACTION_PR }}
+                  ref: ${{ github.event.workflow_run.head_sha }}
+                  fetch-depth: 0
+
+            - name: Verify release version and create tag
+              env:
+                  RELEASE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+                  LOCK_VERSION="$(node -p "require('./release/release-lock.json').releaseVersion")"
+                  if [[ "$PACKAGE_VERSION" != "$LOCK_VERSION" ]]; then
+                    echo "package.json version $PACKAGE_VERSION does not match release lock $LOCK_VERSION" >&2
+                    exit 1
+                  fi
+
+                  RELEASE_TAG="v${PACKAGE_VERSION}"
+                  if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null; then
+                    git fetch origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+                    EXISTING_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
+                    if [[ "$EXISTING_COMMIT" != "$RELEASE_COMMIT" ]]; then
+                      echo "$RELEASE_TAG already points to $EXISTING_COMMIT, not $RELEASE_COMMIT" >&2
+                      exit 1
+                    fi
+                    echo "$RELEASE_TAG already certifies $RELEASE_COMMIT"
+                    exit 0
+                  fi
+
+                  git config user.name github-actions[bot]
+                  git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+                  git tag -a "$RELEASE_TAG" "$RELEASE_COMMIT" -m "Release $RELEASE_TAG"
+                  git push origin "refs/tags/${RELEASE_TAG}"

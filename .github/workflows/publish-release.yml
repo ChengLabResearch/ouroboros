@@ -1,0 +1,80 @@
+name: Publish Prebuilt Release
+
+on:
+    push:
+        tags:
+            - v*.*.*
+
+concurrency:
+    group: publish-release-${{ github.ref_name }}
+    cancel-in-progress: false
+
+jobs:
+    publish:
+        runs-on: ubuntu-latest
+
+        permissions:
+            actions: read
+            contents: write
+
+        steps:
+            - name: Check out tagged release commit
+              uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
+
+            - name: Install Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 24
+
+            - name: Find certified main build
+              id: certified-build
+              uses: actions/github-script@v8
+              with:
+                  result-encoding: string
+                  script: |
+                      const response = await github.rest.actions.listWorkflowRuns({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        workflow_id: 'build-and-release.yml',
+                        head_sha: context.sha,
+                        event: 'push',
+                        status: 'success',
+                        per_page: 100
+                      })
+                      const run = response.data.workflow_runs.find(candidate =>
+                        candidate.head_sha === context.sha &&
+                        candidate.head_branch === 'main' &&
+                        candidate.event === 'push' &&
+                        candidate.conclusion === 'success'
+                      )
+                      if (!run) {
+                        core.setFailed(`No successful main release-artifact build exists for ${context.sha}`)
+                        return
+                      }
+                      core.info(`Publishing artifacts from ${run.html_url}`)
+                      return run.id
+
+            - name: Download certified release artifacts
+              uses: actions/download-artifact@v8
+              with:
+                  run-id: ${{ steps.certified-build.outputs.result }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  pattern: release-assets-*
+                  merge-multiple: true
+                  path: release-assets
+
+            - name: Verify commit, input lock, manifests, and hashes
+              run: >-
+                  node scripts/verify-release-artifacts.mjs
+                  --dir release-assets
+                  --commit ${{ github.sha }}
+                  --ref ${{ github.ref_name }}
+
+            - name: Publish draft release from prebuilt artifacts
+              uses: softprops/action-gh-release@v3
+              with:
+                  draft: true
+                  fail_on_unmatched_files: true
+                  files: release-assets/*

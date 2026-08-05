@@ -1,17 +1,19 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { loadReleaseLock } from './lib/release-lock.mjs'
 
 const root = process.cwd()
 const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
 const outputDir = join(root, 'extra-resources', 'server')
+const { lock, sha256: releaseLockSha256 } = await loadReleaseLock(root)
 
-const imageRepository =
-	process.env.OUROBOROS_SERVER_IMAGE_REPOSITORY ??
-	'ghcr.io/chenglabresearch/ouroboros-server'
-const explicitImage = process.env.OUROBOROS_SERVER_IMAGE ?? null
-const imageTag = process.env.OUROBOROS_SERVER_IMAGE_TAG ?? process.env.GITHUB_REF_NAME ?? `v${packageJson.version}`
-const imageDigest = process.env.OUROBOROS_SERVER_IMAGE_DIGEST ?? null
-const image = explicitImage ?? imageReference()
+if (packageJson.version !== lock.releaseVersion) {
+	throw new Error(
+		`package.json version ${packageJson.version} does not match release lock version ${lock.releaseVersion}`
+	)
+}
+
+const image = `${lock.serverImage.repository}@${lock.serverImage.digest}`
 // shm_size is an artificial Docker limit: without it, Docker caps
 // /dev/shm at 64 MB, which the pipeline exceeds immediately. Setting it too
 // large only shifts OOM from the container-side limit to actual host OOM.
@@ -26,21 +28,17 @@ await writeFile(
 	`${JSON.stringify(
 		{
 			image,
-			repository: imageRepository,
-			tag: explicitImage || imageDigest ? null : imageTag,
-			digest: imageDigest,
-			commit: process.env.GITHUB_SHA ?? null,
-			ref: process.env.GITHUB_REF_NAME ?? null
+			repository: lock.serverImage.repository,
+			digest: lock.serverImage.digest,
+			sourceCommit: lock.serverImage.sourceCommit,
+			packageCommit: process.env.GITHUB_SHA ?? null,
+			packageRef: process.env.GITHUB_REF_NAME ?? null,
+			releaseLockSha256
 		},
 		null,
 		2
 	)}\n`
 )
-
-function imageReference() {
-	if (imageDigest) return `${imageRepository}@${imageDigest}`
-	return `${imageRepository}:${imageTag}`
-}
 
 function composeForImage(serverImage) {
 	return `services:

@@ -1,0 +1,44 @@
+{
+	"schemaVersion": 1,
+	"releaseVersion": "1.5.1",
+	"packageFlavors": ["with-plugins-cuda"],
+	"serverImage": {
+		"repository": "ghcr.io/chenglabresearch/ouroboros-server",
+		"digest": "sha256:01973aa9e857022d2f0b17ca98a7613dd081847ccf4c7db309a3ac5acf24b67f",
+		"sourceCommit": "a2d111e01ff4ae9a73e90688b4ac5f376071fc1b"
+	},
+	"plugins": {
+		"neuroglancer": {
+			"id": "neuroglancer-plugin",
+			"repository": "ChengLabResearch/neuroglancer-plugin",
+			"tag": "v1.1.1",
+			"asset": "neuroglancer-plugin-v1.1.1.zip",
+			"assetSha256": "35efc4b73b9f65fd8bc1a74a471ab00d7b0668d173f181ac9b8fcaa5febac571",
+			"sourceCommit": "be983b33d6fd62bad58d81daaeb0eb5bf0aee253"
+		},
+		"autosegCpu": {
+			"id": "auto-segmentation",
+			"variant": "cpu",
+			"repository": "ChengLabResearch/ouroboros_autoseg_plugin",
+			"tag": "v0.4.0-beta.2",
+			"asset": "auto-segmentation-v0.4.0-beta.2-cpu.zip",
+			"assetSha256": "8a07e68874449aeb9d8a2ddb7d1cf8c1cd22787add8ecac074b6ed4b5bf0e52e",
+			"sourceCommit": "9da28af29089f69c22d1a5f06e167e5848a0949f",
+			"backendImage": "ghcr.io/chenglabresearch/ouroboros-autoseg-backend:v0.4.0-beta.2",
+			"backendImageDigest": "sha256:aed13c66f200bfbb2e0b12df3a15b986763f7d9b8daec60c11ce79212aa1825e",
+			"verifyEmbeddedBackendImage": false
+		},
+		"autosegCuda": {
+			"id": "auto-segmentation",
+			"variant": "cuda",
+			"repository": "ChengLabResearch/ouroboros_autoseg_plugin",
+			"tag": "v0.4.0-beta.3",
+			"asset": "auto-segmentation-v0.4.0-beta.3-cuda.zip",
+			"assetSha256": "e456152fd23c5f776015c8ddfdcd2078f42d2c098332fc1764eefd013bdd25e5",
+			"sourceCommit": "e0d2d82e7687f940e5481ac2252bf626aae1be1f",
+			"backendImage": "ghcr.io/chenglabresearch/ouroboros-autoseg-backend@sha256:238346625628119a310dce102f813a4386011a3265d9e29775a7a3449fde49ce",
+			"backendImageDigest": "sha256:238346625628119a310dce102f813a4386011a3265d9e29775a7a3449fde49ce",
+			"verifyEmbeddedBackendImage": true
+		}
+	}
+}

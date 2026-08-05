@@ -1,13 +1,14 @@
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { npmInvocation } from './lib/npm.mjs'
 
 const approvedAdvisory = 'GHSA-qwww-vcr4-c8h2'
 const patchedVersion = '7.18.2'
 const approvedPackages = new Set(['react-router', 'react-router-dom'])
 
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-const audit = spawnSync(npm, ['audit', '--json'], {
+const npm = npmInvocation(['audit', '--json'])
+const audit = spawnSync(npm.command, npm.args, {
 	encoding: 'utf8',
 	stdio: ['ignore', 'pipe', 'inherit']
 })

@@ -20,7 +20,7 @@ export async function loadReleaseLock(root = process.cwd()) {
 	return {
 		lock,
 		path,
-		sha256: sha256(bytes)
+		sha256: sha256(Buffer.from(JSON.stringify(lock)))
 	}
 }
 

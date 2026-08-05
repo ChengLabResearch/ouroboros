@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { gitOutput } from './lib/git.mjs'
+import { npmInvocation } from './lib/npm.mjs'
 import {
 	RELEASE_PLATFORMS,
 	loadReleaseLock,
@@ -207,28 +208,6 @@ async function copyAndDescribe({ source, destination, name, flavor, type }) {
 		bytes: details.size,
 		sha256: await sha256File(destination)
 	}
-}
-
-export function npmInvocation(
-	args,
-	{
-		nodeExecutable = process.execPath,
-		npmExecutable = process.env.npm_execpath,
-		platform = process.platform
-	} = {}
-) {
-	if (npmExecutable) {
-		return {
-			command: nodeExecutable,
-			args: [npmExecutable, ...args]
-		}
-	}
-	if (platform === 'win32') {
-		throw new Error(
-			'npm_execpath is required on Windows so npm can be launched without a command shell'
-		)
-	}
-	return { command: 'npm', args }
 }
 
 async function runNpm(args, options) {

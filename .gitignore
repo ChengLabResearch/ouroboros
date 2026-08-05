@@ -6,6 +6,8 @@ out
 documentation/site
 extra-resources
 .package-plugin-artifacts
+release-assets
+server-image-manifest.json
 data
 ignoreme.py
 temp

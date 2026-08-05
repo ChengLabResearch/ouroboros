@@ -2,29 +2,24 @@ import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promise
 import { existsSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { spawn } from 'node:child_process'
-
-const supportedFlavors = new Set(['core', 'with-plugins-cpu', 'with-plugins-cuda'])
-const productionPluginPins = {
-	neuroglancer: {
-		tag: 'v1.1.1',
-		artifact: 'neuroglancer-plugin-v1.1.1.zip'
-	},
-	autoseg: {
-		tag: 'v0.4.0-beta.2',
-		cpuArtifact: 'auto-segmentation-v0.4.0-beta.2-cpu.zip',
-		cudaArtifact: 'auto-segmentation-v0.4.0-beta.2-cuda.zip'
-	}
-}
+import { loadReleaseLock, pluginLocksForFlavor, sha256File } from './lib/release-lock.mjs'
 
 const root = process.cwd()
 const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
-const flavor = process.env.OUROBOROS_PACKAGE_FLAVOR ?? 'core'
+const { lock, sha256: releaseLockSha256 } = await loadReleaseLock(root)
+const flavor = process.env.OUROBOROS_PACKAGE_FLAVOR
 
-if (!supportedFlavors.has(flavor)) {
+if (packageJson.version !== lock.releaseVersion) {
 	throw new Error(
-		`Unsupported OUROBOROS_PACKAGE_FLAVOR "${flavor}". Expected one of: ${[
-			...supportedFlavors
-		].join(', ')}`
+		`package.json version ${packageJson.version} does not match release lock version ${lock.releaseVersion}`
+	)
+}
+if (!flavor) {
+	throw new Error('OUROBOROS_PACKAGE_FLAVOR must be set explicitly')
+}
+if (!lock.packageFlavors.includes(flavor)) {
+	throw new Error(
+		`Package flavor "${flavor}" is not selected by the release lock (${lock.packageFlavors.join(', ')})`
 	)
 }
 
@@ -41,30 +36,13 @@ await rm(preinstalledPluginDir, { recursive: true, force: true })
 if (flavor !== 'core') {
 	await mkdir(preinstalledPluginDir, { recursive: true })
 
-	const neuroglancerTag =
-		process.env.OUROBOROS_NEUROGLANCER_PLUGIN_TAG || productionPluginPins.neuroglancer.tag
-	await installPlugin({
-		id: 'neuroglancer-plugin',
-		label: 'Neuroglancer',
-		repo: 'ChengLabResearch/neuroglancer-plugin',
-		tag: neuroglancerTag,
-		artifact:
-			process.env.OUROBOROS_NEUROGLANCER_PLUGIN_ARTIFACT ||
-			neuroglancerArtifactForTag(neuroglancerTag)
-	})
-
-	const autosegTag = process.env.OUROBOROS_AUTOSEG_PLUGIN_TAG || productionPluginPins.autoseg.tag
-	const autosegVariant = flavor === 'with-plugins-cuda' ? 'cuda' : 'cpu'
-	await installPlugin({
-		id: 'auto-segmentation',
-		label: `Automatic Segmentation (${autosegVariant.toUpperCase()})`,
-		repo: 'ChengLabResearch/ouroboros_autoseg_plugin',
-		tag: autosegTag,
-		artifact:
-			process.env[`OUROBOROS_AUTOSEG_${autosegVariant.toUpperCase()}_PLUGIN_ARTIFACT`] ||
-			autosegArtifactForTag(autosegTag, autosegVariant),
-		variant: autosegVariant
-	})
+	for (const pluginLock of pluginLocksForFlavor(lock, flavor)) {
+		const label =
+			pluginLock.id === 'neuroglancer-plugin'
+				? 'Neuroglancer'
+				: `Automatic Segmentation (${pluginLock.variant.toUpperCase()})`
+		await installPlugin({ pluginLock, label })
+	}
 }
 
 await writeFile(
@@ -73,6 +51,7 @@ await writeFile(
 		{
 			flavor,
 			appVersion: packageJson.version,
+			releaseLockSha256,
 			serverImage: await readServerImageMetadata(),
 			plugins,
 			commit: process.env.GITHUB_SHA ?? null,
@@ -83,55 +62,76 @@ await writeFile(
 	)}\n`
 )
 
-async function installPlugin({ id, label, repo, tag, artifact, variant = null }) {
-	const artifactPath = await resolveArtifact({ repo, tag, artifact })
-	const target = join(preinstalledPluginDir, id)
+async function installPlugin({ pluginLock, label }) {
+	const artifactPath = await resolveArtifact(pluginLock)
+	const target = join(preinstalledPluginDir, pluginLock.id)
 
 	await rm(target, { recursive: true, force: true })
 	await mkdir(target, { recursive: true })
 	await extractZip(artifactPath, target)
 	await normalizePluginRoot(target)
 
-	const pluginPackage = await validatePluginPackage(target, id)
-	const releaseManifest = await readPluginReleaseManifest(target, id)
+	const pluginPackage = await validatePluginPackage(target, pluginLock.id)
+	const releaseManifest = await readPluginReleaseManifest(target, pluginLock.id)
+	validateReleaseManifest(releaseManifest, pluginLock)
 	plugins.push({
-		id,
+		id: pluginLock.id,
 		name: pluginPackage.pluginName,
 		version: pluginPackage.version ?? null,
 		packageVersion: pluginPackage.version ?? null,
 		releaseVersion: releaseManifest?.version ?? null,
 		label,
-		repo,
-		tag,
-		artifact,
-		releaseTag: tag,
-		releaseArtifact: artifact,
+		repo: pluginLock.repository,
+		tag: pluginLock.tag,
+		artifact: pluginLock.asset,
+		assetSha256: pluginLock.assetSha256,
+		sourceCommit: pluginLock.sourceCommit,
+		releaseTag: pluginLock.tag,
+		releaseArtifact: pluginLock.asset,
 		releaseManifest: summarizeReleaseManifest(releaseManifest),
-		variant
+		backendImage: pluginLock.backendImage ?? null,
+		backendImageDigest: pluginLock.backendImageDigest ?? null,
+		embeddedBackendImageVerified: pluginLock.verifyEmbeddedBackendImage ?? false,
+		variant: pluginLock.variant ?? null
 	})
 }
 
-async function resolveArtifact({ repo, tag, artifact }) {
+async function resolveArtifact({ repository, tag, asset, assetSha256 }) {
 	await mkdir(artifactDir, { recursive: true })
 
-	const artifactPath = join(artifactDir, artifact)
-	if (existsSync(artifactPath)) return artifactPath
+	const artifactPath = join(artifactDir, asset)
+	if (existsSync(artifactPath)) {
+		const actualSha256 = await sha256File(artifactPath)
+		if (actualSha256 === assetSha256) return artifactPath
+
+		console.warn(
+			`Removing stale plugin asset ${asset}: expected ${assetSha256}, found ${actualSha256}`
+		)
+		await rm(artifactPath, { force: true })
+	}
 
 	await run('gh', [
 		'release',
 		'download',
 		tag,
 		'--repo',
-		repo,
+		repository,
 		'--pattern',
-		artifact,
+		asset,
 		'--dir',
 		artifactDir,
 		'--clobber'
 	])
 
 	if (!existsSync(artifactPath)) {
-		throw new Error(`Expected release asset was not downloaded: ${repo} ${tag} ${artifact}`)
+		throw new Error(`Expected release asset was not downloaded: ${repository} ${tag} ${asset}`)
+	}
+
+	const actualSha256 = await sha256File(artifactPath)
+	if (actualSha256 !== assetSha256) {
+		throw new Error(
+			`Plugin asset SHA-256 mismatch for ${repository} ${tag} ${asset}: expected ${assetSha256}, found ${actualSha256}`
+		)
 	}
 
 	return artifactPath
@@ -182,10 +182,7 @@ async function validatePluginPackage(pluginRoot, expectedId) {
 		throw new Error(`Plugin artifact for ${expectedId} does not contain ${pluginPackage.index}`)
 	}
 
-	if (
-		pluginPackage.dockerCompose &&
-		!existsSync(join(pluginRoot, pluginPackage.dockerCompose))
-	) {
+	if (pluginPackage.dockerCompose && !existsSync(join(pluginRoot, pluginPackage.dockerCompose))) {
 		throw new Error(
 			`Plugin artifact for ${expectedId} does not contain ${pluginPackage.dockerCompose}`
 		)
@@ -196,7 +193,9 @@ async function validatePluginPackage(pluginRoot, expectedId) {
 
 async function readPluginReleaseManifest(pluginRoot, expectedId) {
 	const manifestPath = join(pluginRoot, 'plugin-release.json')
-	if (!existsSync(manifestPath)) return null
+	if (!existsSync(manifestPath)) {
+		throw new Error(`Plugin artifact for ${expectedId} does not contain plugin-release.json`)
+	}
 
 	const releaseManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
 	if (releaseManifest.name && releaseManifest.name !== expectedId) {
@@ -208,9 +207,41 @@ async function readPluginReleaseManifest(pluginRoot, expectedId) {
 	return releaseManifest
 }
 
-function summarizeReleaseManifest(releaseManifest) {
-	if (!releaseManifest) return null
+function validateReleaseManifest(releaseManifest, pluginLock) {
+	const expectedFields = {
+		releaseTag: pluginLock.tag,
+		artifactName: pluginLock.asset,
+		commit: pluginLock.sourceCommit
+	}
+	if (pluginLock.variant) expectedFields.variant = pluginLock.variant
 
+	for (const [field, expected] of Object.entries(expectedFields)) {
+		if (releaseManifest[field] !== expected) {
+			throw new Error(
+				`Plugin release manifest ${field} mismatch for ${pluginLock.id}: expected ${expected}, found ${releaseManifest[field]}`
+			)
+		}
+	}
+
+	if (
+		pluginLock.verifyEmbeddedBackendImage &&
+		releaseManifest.backendImage !== pluginLock.backendImage
+	) {
+		throw new Error(
+			`Plugin release manifest backendImage mismatch for ${pluginLock.id} (${pluginLock.variant}): expected ${pluginLock.backendImage}, found ${releaseManifest.backendImage}`
+		)
+	}
+	if (
+		pluginLock.verifyEmbeddedBackendImage &&
+		!releaseManifest.backendImage.endsWith(`@${pluginLock.backendImageDigest}`)
+	) {
+		throw new Error(
+			`Plugin release manifest backendImage does not contain locked digest ${pluginLock.backendImageDigest}`
+		)
+	}
+}
+
+function summarizeReleaseManifest(releaseManifest) {
 	return {
 		version: releaseManifest.version ?? null,
 		packageVersion: releaseManifest.packageVersion ?? null,
@@ -230,24 +261,6 @@ async function readServerImageMetadata() {
 	const serverImagePath = join(extraResourcesDir, 'server', 'server-image.json')
 	if (!existsSync(serverImagePath)) return null
 	return JSON.parse(await readFile(serverImagePath, 'utf8'))
-}
-
-function neuroglancerArtifactForTag(tag) {
-	if (tag === productionPluginPins.neuroglancer.tag) {
-		return productionPluginPins.neuroglancer.artifact
-	}
-
-	return `neuroglancer-plugin-${tag}.zip`
-}
-
-function autosegArtifactForTag(tag, variant) {
-	if (tag === productionPluginPins.autoseg.tag) {
-		return variant === 'cuda'
-			? productionPluginPins.autoseg.cudaArtifact
-			: productionPluginPins.autoseg.cpuArtifact
-	}
-
-	return `auto-segmentation-${tag}-${variant}.zip`
 }
 
 function resolvePathFromRoot(path) {

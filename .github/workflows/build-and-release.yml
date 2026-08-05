@@ -1,154 +1,173 @@
-name: Build and Release App
+name: Build Release Artifacts
 
 on:
-  push:
-    tags:
-      - v*.*.*
-  workflow_dispatch:
-    inputs:
-      server_image_tag:
-        description: Server image tag to package. Defaults to the release tag.
-        required: false
-      server_image_digest:
-        description: Optional server image digest. Overrides the tag when set.
-        required: false
-      neuroglancer_plugin_tag:
-        description: Neuroglancer plugin release tag. Defaults to the production pin.
-        required: false
-        default: v1.1.1
-      neuroglancer_plugin_artifact:
-        description: Neuroglancer plugin artifact name. Defaults to the production pin.
-        required: false
-        default: neuroglancer-plugin-v1.1.1.zip
-      autoseg_plugin_tag:
-        description: Automatic segmentation plugin release tag. Defaults to the production pin.
-        required: false
-        default: v0.4.0-beta.2
-      autoseg_cpu_plugin_artifact:
-        description: CPU automatic segmentation plugin artifact name. Defaults to the production pin.
-        required: false
-        default: auto-segmentation-v0.4.0-beta.2-cpu.zip
-      autoseg_cuda_plugin_artifact:
-        description: CUDA automatic segmentation plugin artifact name. Defaults to the production pin.
-        required: false
-        default: auto-segmentation-v0.4.0-beta.2-cuda.zip
+    pull_request:
+        paths:
+            - .github/workflows/build-and-release.yml
+            - .github/workflows/pr-tag.yml
+            - .github/workflows/publish-release.yml
+            - electron-builder.yml
+            - electron.vite.config.ts
+            - package.json
+            - package-lock.json
+            - release/**
+            - scripts/**
+            - src/**
+    push:
+        branches:
+            - main
+        paths:
+            - .github/workflows/build-and-release.yml
+            - .github/workflows/pr-tag.yml
+            - .github/workflows/publish-release.yml
+            - electron-builder.yml
+            - electron.vite.config.ts
+            - package.json
+            - package-lock.json
+            - release/**
+            - scripts/**
+            - src/**
+    workflow_dispatch:
 
-env: 
-  GH_TOKEN: "${{ secrets.OUROBOROS_RELEASE_ASSET_TOKEN || secrets.GITHUB_TOKEN }}"
-  GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+concurrency:
+    group: release-artifacts-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+env:
+    GH_TOKEN: ${{ secrets.OUROBOROS_RELEASE_ASSET_TOKEN || secrets.GITHUB_TOKEN }}
 
 jobs:
-  build-packages:
-    runs-on: ${{ matrix.os }}
+    resolve-pr-build:
+        runs-on: ubuntu-latest
+        permissions:
+            actions: read
+            contents: read
+            pull-requests: read
+        outputs:
+            run-id: ${{ steps.candidate.outputs.result }}
+        steps:
+            - name: Find matching same-repository PR build
+              id: candidate
+              uses: actions/github-script@v8
+              with:
+                  result-encoding: string
+                  script: |
+                      if (context.eventName !== 'push' || context.ref !== 'refs/heads/main') {
+                        return ''
+                      }
+                      const associated = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        commit_sha: context.sha
+                      })
+                      const pullRequest = associated.data.find(candidate =>
+                        candidate.merged_at &&
+                        candidate.base.ref === 'main' &&
+                        candidate.head.repo?.full_name === `${context.repo.owner}/${context.repo.repo}` &&
+                        candidate.merge_commit_sha === context.sha
+                      )
+                      if (!pullRequest) {
+                        core.info('No merged same-repository PR is associated with this main commit')
+                        return ''
+                      }
+                      const response = await github.rest.actions.listWorkflowRuns({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        workflow_id: 'build-and-release.yml',
+                        head_sha: pullRequest.head.sha,
+                        event: 'pull_request',
+                        status: 'success',
+                        per_page: 100
+                      })
+                      const run = response.data.workflow_runs.find(candidate =>
+                        candidate.conclusion === 'success' &&
+                        candidate.pull_requests.some(item => item.number === pullRequest.number)
+                      )
+                      if (!run) {
+                        core.info(`No successful artifact build found for PR #${pullRequest.number}`)
+                        return ''
+                      }
+                      core.info(`Candidate PR artifact build: ${run.html_url}`)
+                      return run.id
 
-    permissions:
-      contents: read
+    build-packages:
+        name: Build ${{ matrix.platform }} release artifacts
+        needs: resolve-pr-build
+        runs-on: ${{ matrix.os }}
 
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        package:
-          - flavor: core
-          - flavor: with-plugins-cpu
-          - flavor: with-plugins-cuda
+        permissions:
+            actions: read
+            contents: read
 
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v7
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - os: ubuntu-latest
+                      platform: linux
+                    - os: macos-latest
+                      platform: mac
+                    - os: windows-latest
+                      platform: win
 
-      - name: Install Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
+        steps:
+            - name: Check out release commit
+              uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
 
-      - name: Install npm
-        run: npm install --global npm@11.19.0
+            - name: Install Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 24
+                  cache: npm
 
-      - name: Install locked dependencies
-        run: npm ci
+            - name: Download matching PR artifact candidate
+              id: candidate-download
+              if: needs.resolve-pr-build.outputs.run-id != ''
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  run-id: ${{ needs.resolve-pr-build.outputs.run-id }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  name: release-assets-${{ matrix.platform }}
+                  path: release-assets
 
-      - name: Audit release dependencies
-        if: matrix.os == 'ubuntu-latest' && matrix.package.flavor == 'core'
-        run: npm run audit:release
+            - name: Certify matching PR artifacts for the merge commit
+              id: candidate-certify
+              if: steps.candidate-download.outcome == 'success'
+              continue-on-error: true
+              run: >-
+                  node scripts/certify-release-artifacts.mjs
+                  --dir release-assets
+                  --platform ${{ matrix.platform }}
+                  --commit ${{ github.sha }}
+                  --source-run ${{ needs.resolve-pr-build.outputs.run-id }}
 
-      - name: Prepare registry-backed server resources
-        run: npm run prepare:production-server
-        env:
-          OUROBOROS_SERVER_IMAGE_TAG: ${{ github.event.inputs.server_image_tag || github.ref_name }}
-          OUROBOROS_SERVER_IMAGE_DIGEST: ${{ github.event.inputs.server_image_digest }}
+            - name: Install npm
+              if: steps.candidate-certify.outcome != 'success'
+              run: npm install --global npm@11.19.0
 
-      - name: Prepare production package flavor
-        run: npm run prepare:package-flavor
-        env:
-          OUROBOROS_PACKAGE_FLAVOR: ${{ matrix.package.flavor }}
-          OUROBOROS_NEUROGLANCER_PLUGIN_TAG: ${{ github.event.inputs.neuroglancer_plugin_tag || 'v1.1.1' }}
-          OUROBOROS_NEUROGLANCER_PLUGIN_ARTIFACT: ${{ github.event.inputs.neuroglancer_plugin_artifact }}
-          OUROBOROS_AUTOSEG_PLUGIN_TAG: ${{ github.event.inputs.autoseg_plugin_tag || 'v0.4.0-beta.2' }}
-          OUROBOROS_AUTOSEG_CPU_PLUGIN_ARTIFACT: ${{ github.event.inputs.autoseg_cpu_plugin_artifact }}
-          OUROBOROS_AUTOSEG_CUDA_PLUGIN_ARTIFACT: ${{ github.event.inputs.autoseg_cuda_plugin_artifact }}
+            - name: Install locked dependencies
+              if: steps.candidate-certify.outcome != 'success'
+              run: npm ci
 
-      - name: build-linux
-        if: matrix.os == 'ubuntu-latest'
-        run: npm run build:linux
+            - name: Audit release dependencies
+              if: steps.candidate-certify.outcome != 'success' && matrix.platform == 'linux'
+              run: npm run audit:release
 
-      - name: build-mac
-        if: matrix.os == 'macos-latest'
-        run: npm run build:mac
+            - name: Test release lock and artifact validation
+              if: steps.candidate-certify.outcome != 'success' && matrix.platform == 'linux'
+              run: npm run test:release
 
-      - name: build-win
-        if: matrix.os == 'windows-latest'
-        run: npm run build:win
+            - name: Compile once and package selected flavors
+              if: steps.candidate-certify.outcome != 'success'
+              run: npm run build:release-artifacts -- --platform ${{ matrix.platform }}
 
-      - name: Add package flavor to artifact names
-        run: npm run rename:release-artifacts
-        env:
-          OUROBOROS_PACKAGE_FLAVOR: ${{ matrix.package.flavor }}
-
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.os }}-${{ matrix.package.flavor }}-release-assets
-          if-no-files-found: error
-          path: |
-            dist/*.exe
-            dist/*.zip
-            dist/*.dmg
-            dist/*.AppImage
-            dist/*.snap
-            dist/*.deb
-            dist/*.rpm
-            dist/*.tar.gz
-            dist/*.yml
-            dist/*.blockmap
-
-  release:
-    runs-on: ubuntu-latest
-    needs: build-packages
-
-    permissions:
-      contents: write
-
-    steps:
-      - name: Download release artifacts
-        uses: actions/download-artifact@v8
-        with:
-          path: release-assets
-          merge-multiple: true
-
-      - name: Publish draft release
-        uses: softprops/action-gh-release@v3
-        with:
-          draft: true
-          files: |
-            release-assets/*.exe
-            release-assets/*.zip
-            release-assets/*.dmg
-            release-assets/*.AppImage
-            release-assets/*.snap
-            release-assets/*.deb
-            release-assets/*.rpm
-            release-assets/*.tar.gz
-            release-assets/*.yml
-            release-assets/*.blockmap
+            - name: Upload immutable release inputs
+              uses: actions/upload-artifact@v7
+              with:
+                  name: release-assets-${{ matrix.platform }}
+                  if-no-files-found: error
+                  retention-days: 14
+                  path: release-assets/*

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -39,6 +39,26 @@ test('release lock validation rejects mutable or malformed identities', async ()
 	const duplicateFlavor = structuredClone(lock)
 	duplicateFlavor.packageFlavors.push(duplicateFlavor.packageFlavors[0])
 	assert.throws(() => validateReleaseLock(duplicateFlavor), /duplicates/)
+})
+
+test('release lock identity is independent of checkout line endings', async () => {
+	const directory = await mkdtemp(join(tmpdir(), 'ouroboros-release-lock-test-'))
+	try {
+		const releaseDirectory = join(directory, 'release')
+		const lockPath = join(releaseDirectory, 'release-lock.json')
+		const source = await readFile(join(root, 'release', 'release-lock.json'), 'utf8')
+		await mkdir(releaseDirectory)
+
+		await writeFile(lockPath, source.replace(/\r?\n/g, '\n'))
+		const lf = await loadReleaseLock(directory)
+		await writeFile(lockPath, source.replace(/\r?\n/g, '\r\n'))
+		const crlf = await loadReleaseLock(directory)
+
+		assert.deepEqual(crlf.lock, lf.lock)
+		assert.equal(crlf.sha256, lf.sha256)
+	} finally {
+		await rm(directory, { recursive: true, force: true })
+	}
 })
 
 test('release fingerprints change with the source tree or input lock', () => {

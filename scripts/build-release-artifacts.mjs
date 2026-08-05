@@ -59,7 +59,7 @@ export async function buildReleaseArtifacts({
 	await mkdir(outputDir, { recursive: true })
 
 	const compileStartedMs = performance.now()
-	await run(npmCommand(), ['run', 'build'], { cwd: root })
+	await runNpm(['run', 'build'], { cwd: root })
 	const compileDurationMs = Math.round(performance.now() - compileStartedMs)
 	if (!existsSync(join(root, 'out'))) {
 		throw new Error('Electron compilation completed without producing out/')
@@ -81,8 +81,7 @@ export async function buildReleaseArtifacts({
 			env: environment
 		})
 		await rm(distDir, { recursive: true, force: true })
-		await run(
-			npmCommand(),
+		await runNpm(
 			['exec', '--', 'electron-builder', `--${platform}`, '--config', '--publish', 'never'],
 			{ cwd: root, env: environment }
 		)
@@ -210,8 +209,31 @@ async function copyAndDescribe({ source, destination, name, flavor, type }) {
 	}
 }
 
-function npmCommand() {
-	return process.platform === 'win32' ? 'npm.cmd' : 'npm'
+export function npmInvocation(
+	args,
+	{
+		nodeExecutable = process.execPath,
+		npmExecutable = process.env.npm_execpath,
+		platform = process.platform
+	} = {}
+) {
+	if (npmExecutable) {
+		return {
+			command: nodeExecutable,
+			args: [npmExecutable, ...args]
+		}
+	}
+	if (platform === 'win32') {
+		throw new Error(
+			'npm_execpath is required on Windows so npm can be launched without a command shell'
+		)
+	}
+	return { command: 'npm', args }
+}
+
+async function runNpm(args, options) {
+	const invocation = npmInvocation(args)
+	await run(invocation.command, invocation.args, options)
 }
 
 async function run(command, args, options) {

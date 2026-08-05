@@ -11,7 +11,7 @@ import {
 	validateReleaseLock
 } from '../lib/release-lock.mjs'
 import { gitOutput } from '../lib/git.mjs'
-import { isReleaseAssetName, parsePlatform } from '../build-release-artifacts.mjs'
+import { isReleaseAssetName, npmInvocation, parsePlatform } from '../build-release-artifacts.mjs'
 import { verifyReleaseArtifacts } from '../verify-release-artifacts.mjs'
 
 const root = process.cwd()
@@ -69,6 +69,33 @@ test('release artifact selection excludes electron-builder diagnostics', () => {
 	}
 	assert.equal(parsePlatform(['--platform', 'linux']), 'linux')
 	assert.throws(() => parsePlatform(['--platform', 'solaris']), /must be one of/)
+})
+
+test('npm lifecycle commands stay shell-free on Windows', () => {
+	const currentInvocation = npmInvocation(['--version'])
+	if (process.env.npm_execpath) {
+		assert.equal(currentInvocation.command, process.execPath)
+		assert.equal(currentInvocation.args[0], process.env.npm_execpath)
+		assert.equal(currentInvocation.args[1], '--version')
+	} else {
+		assert.deepEqual(currentInvocation, { command: 'npm', args: ['--version'] })
+	}
+
+	assert.deepEqual(
+		npmInvocation(['run', 'build'], {
+			nodeExecutable: 'C:\\Program Files\\nodejs\\node.exe',
+			npmExecutable: 'C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js',
+			platform: 'win32'
+		}),
+		{
+			command: 'C:\\Program Files\\nodejs\\node.exe',
+			args: ['C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js', 'run', 'build']
+		}
+	)
+	assert.throws(
+		() => npmInvocation(['run', 'build'], { npmExecutable: '', platform: 'win32' }),
+		/npm_execpath is required/
+	)
 })
 
 test('tag publication verification fails closed when a prebuilt file changes', async () => {

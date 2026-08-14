@@ -20,7 +20,11 @@ function DraggableEntry({
 	handleChange: (event: InputEvent) => void
 }): JSX.Element {
 	// Determine the type of the entry
-	const type = node.children ? 'folder' : (node.name.endsWith('.tif') || node.name.endsWith('.tiff')) ? 'image' : 'file'
+	const type = node.children
+		? 'folder'
+		: node.name.endsWith('.tif') || node.name.endsWith('.tiff')
+			? 'image'
+			: 'file'
 	const isFolder = type === 'folder'
 	const isEmpty = !node.children || Object.keys(node.children).length === 0
 	// With lazy expansion an unopened folder starts with an empty children
@@ -96,9 +100,7 @@ function DraggableEntry({
 
 	return (
 		<div ref={isFolder ? setDropNodeRef : null}>
-			<div
-				className={isFolder ? (isEmpty ? styles.emptyFolder : styles.folder) : styles.file}
-			>
+			<div className={isFolder ? styles.folder : styles.file}>
 				{showChevron && (
 					<svg
 						xmlns="http://www.w3.org/2000/svg"

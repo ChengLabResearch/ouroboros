@@ -1,11 +1,22 @@
-import { JSX } from "react"
+import { JSX } from 'react'
 import Start from './assets/start.svg?react'
 import styles from './OptionSubmit.module.css'
 
-function OptionSubmit(): JSX.Element {
+export type SubmitState = 'idle' | 'starting' | 'running'
+
+function OptionSubmit({ state }: { state: SubmitState }): JSX.Element {
+	const busy = state !== 'idle'
+	const label = state === 'starting' ? 'Starting…' : 'Running…'
+
 	return (
-		<button className={`${styles.submitButton} poppins-bold`} type="submit">
-			<Start />
+		<button
+			aria-busy={busy}
+			aria-label={busy ? label : 'Start'}
+			className={`${styles.submitButton} poppins-bold`}
+			disabled={busy}
+			type="submit"
+		>
+			{busy ? <span className={styles.busyLabel}>{label}</span> : <Start />}
 		</button>
 	)
 }

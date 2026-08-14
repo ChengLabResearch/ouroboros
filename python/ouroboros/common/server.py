@@ -20,6 +20,26 @@ DOCKER_HOST = os.environ.get("OUROBOROS_DOCKER_SERVER_HOST", "0.0.0.0")
 DOCKER_PORT = int(os.environ.get("OUROBOROS_DOCKER_SERVER_PORT", "8000"))
 
 
+async def process_requests(
+    queue: asyncio.Queue,
+    pool: Executor,
+    task_handler,
+):
+    while True:
+        task = await queue.get()
+        try:
+            if task.status == "cancelled":
+                continue
+
+            task.status = "started"
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(pool, task_handler, task)
+            if task.status != "error":
+                task.status = "done"
+        finally:
+            queue.task_done()
+
+
 def create_server(docker: bool = False) -> FastAPI:
     """
     Create Ouroboros's FastAPI server.
@@ -37,20 +57,11 @@ def create_server(docker: bool = False) -> FastAPI:
 
     task_handler = handle_task_docker if docker else handle_task
 
-    async def process_requests(queue: asyncio.Queue, pool: Executor):
-        while True:
-            task = await queue.get()
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(pool, task_handler, task)
-            queue.task_done()
-            if task.status != "error":
-                task.status = "done"
-
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         queue = asyncio.Queue()  # note that asyncio.Queue() is not thread safe
         pool = ThreadPoolExecutor()
-        asyncio.create_task(process_requests(queue, pool))
+        asyncio.create_task(process_requests(queue, pool, task_handler))
         yield {"queue": queue, "pool": pool}
         pool.shutdown()
 

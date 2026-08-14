@@ -43,6 +43,7 @@ function SlicesPage(): JSX.Element {
 		connected,
 		entries,
 		onSubmit,
+		isRunning,
 		visualizationData,
 		isNewVisualization,
 		onEntryChange,
@@ -67,6 +68,7 @@ function SlicesPage(): JSX.Element {
 			<OptionsPanel
 				entries={entries}
 				onSubmit={onSubmit}
+				isRunning={isRunning}
 				onEntryChange={onEntryChange}
 				onHeaderDrop={onHeaderDrop}
 			/>
@@ -80,6 +82,7 @@ type SlicePageState = {
 	connected: boolean
 	entries: (Entry | CompoundEntry)[]
 	onSubmit: () => Promise<void>
+	isRunning: boolean
 	visualizationData: VisualizationOutput | null
 	isNewVisualization: boolean
 	onEntryChange: (entry: Entry) => Promise<void>
@@ -104,7 +107,11 @@ function useSlicePageState(): SlicePageState {
 
 	const [progress, setProgress] = useState<ProgressType[]>([])
 
-	const { results: sliceResults } = useFetchListener('/slice/')
+	const {
+		results: sliceResults,
+		error: sliceRequestError,
+		pending: sliceRequestPending
+	} = useFetchListener('/slice/')
 	const {
 		results: streamResults,
 		error: streamError,
@@ -134,9 +141,9 @@ function useSlicePageState(): SlicePageState {
 		const { result, error } = parseSliceResult(sliceResults)
 
 		if (!error) {
-			performStream(SLICE_STREAM, result)
+			void performStream(SLICE_STREAM, result)
 		}
-	}, [sliceResults])
+	}, [performStream, sliceResults])
 
 	// Update the progress state when new data is received
 	useEffect(() => {
@@ -153,6 +160,16 @@ function useSlicePageState(): SlicePageState {
 			addAlert(streamError.message, 'error')
 		}
 	}, [streamDone, streamError])
+
+	useEffect(() => {
+		if (sliceRequestError.status) {
+			addAlert(sliceRequestError.message, 'error')
+		}
+	}, [sliceRequestError])
+
+	useEffect(() => {
+		return (): void => clearStream(SLICE_STREAM)
+	}, [clearStream])
 
 	const saveOptionsToFile = async (): Promise<string | undefined> => {
 		if (!directoryPath) return
@@ -302,11 +319,15 @@ function useSlicePageState(): SlicePageState {
 
 		// Delete the previous task if it exists
 		if (!error) {
-			performFetch('/delete/', result, { method: 'POST' }).then(() => {
-				// Clear the task once it has been deleted
-				clearFetch('/slice/')
-				clearStream(SLICE_STREAM)
-			})
+			const deleteResult = await performFetch('/delete/', result, { method: 'POST' })
+			if (deleteResult.error.status) {
+				addAlert(deleteResult.error.message, 'error')
+				return
+			}
+
+			// Clear the task once it has been deleted
+			clearFetch('/slice/')
+			clearStream(SLICE_STREAM)
 		}
 
 		const outputOptions = await saveOptionsToFile()
@@ -314,7 +335,7 @@ function useSlicePageState(): SlicePageState {
 		if (!outputOptions) return
 
 		// Run the slice generation
-		performFetch('/slice/', { options: outputOptions }, { method: 'POST' })
+		await performFetch('/slice/', { options: outputOptions }, { method: 'POST' })
 	}
 
 	////// HANDLE FILE DROP ONTO HEADER OF OPTIONS PANEL //////
@@ -361,6 +382,8 @@ function useSlicePageState(): SlicePageState {
 	const boundingBoxProgress = visualizationData
 		? (progress.find(([name]) => name === SLICE_STEP_NAME) ?? [SLICE_STEP_NAME, 0.0])[1]
 		: 0.0
+	const sliceTaskActive = !parseSliceResult(sliceResults).error && !streamDone
+	const isRunning = sliceRequestPending || sliceTaskActive
 
 	return {
 		progress,
@@ -368,6 +391,7 @@ function useSlicePageState(): SlicePageState {
 		connected,
 		entries,
 		onSubmit,
+		isRunning,
 		visualizationData,
 		isNewVisualization,
 		onEntryChange,

@@ -15,6 +15,7 @@ jobs:
             github.event.workflow_run.conclusion == 'success' &&
             github.event.workflow_run.event == 'push'
         runs-on: ubuntu-latest
+        timeout-minutes: 10
         permissions:
             contents: write
 

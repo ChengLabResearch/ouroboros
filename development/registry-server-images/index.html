@@ -402,7 +402,7 @@
 <nav>
     <ul>
         <li><a href="#registry-server-images">Registry Server Images</a></li>
-        <li><a href="#published-image">Published Image</a></li><li><a href="#release-compose-usage">Release Compose Usage</a></li><li><a href="#manual-runs">Manual Runs</a></li>
+        <li><a href="#published-image">Published Image</a></li><li><a href="#base-image-pin">Base Image Pin</a></li><li><a href="#release-compose-usage">Release Compose Usage</a></li><li><a href="#manual-runs">Manual Runs</a></li>
     </ul>
 </nav>
 </aside>
@@ -417,6 +417,12 @@
 <li><code>ghcr.io/chenglabresearch/ouroboros-server:sha-&lt;commit&gt;</code> for the exact source revision</li>
 </ul>
 <p>Both tags are produced from the same wheel artifact that the Dockerfile installs.</p>
+<h2 id="base-image-pin">Base Image Pin</h2>
+<p>Both Python Dockerfiles keep the readable <code>thehale/python-poetry</code> tag paired
+with an immutable digest. When upgrading that base, review the upstream image,
+resolve the new tag's digest, and update the tag and digest in
+<code>python/Dockerfile</code> and <code>python/Dockerfile-prod</code> together in the same reviewed
+change. Do not refresh the digest without an intentional base-image review.</p>
 <h2 id="release-compose-usage">Release Compose Usage</h2>
 <p>Release packaging uses <code>npm run prepare:production-server</code> to write
 <code>extra-resources/server/compose.yml</code> and <code>extra-resources/server/server-image.json</code>.

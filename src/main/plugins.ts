@@ -4,7 +4,7 @@ import fs from 'fs/promises'
 import { join } from 'path'
 import { parsePluginPackageJSON, PluginPackageJSON } from './schemas'
 import { fetchFolderContents, readFile } from './helpers'
-import { withDownloadedPluginRelease } from './plugin-release.mjs'
+import { downloadRelease } from './plugin-release.mjs'
 import {
 	buildDockerCompose,
 	checkDocker,
@@ -267,10 +267,38 @@ export async function addLocalPlugin(pluginFolder: string): Promise<void> {
  * Downloads the plugin from the given github releases URL
  */
 export async function downloadPlugin(url: string): Promise<void> {
+	// Make sure the URL is a github repository
+	const isGithub = url.includes('github.com')
+
+	if (!isGithub) {
+		console.error('URL is not a github repository URL')
+		return
+	}
+
+	// Get the user and repo from the URL
+	const user = url.split('/')[3]
+	const repo = url.split('/')[4]
+
+	const outputDir = join(app.getPath('temp'), `${user}-${repo}`)
+
+	// Make sure the output directory is empty
+	if (existsSync(outputDir)) {
+		await fs.rm(outputDir, { recursive: true })
+	}
+
 	try {
-		await withDownloadedPluginRelease(url, app.getPath('temp'), addLocalPlugin)
+		await downloadRelease(user, repo, outputDir)
 	} catch (error) {
 		console.error(error)
+		return
+	}
+
+	if (existsSync(outputDir)) {
+		// Add the plugin to the local plugins
+		await addLocalPlugin(outputDir)
+
+		// Delete the downloaded release
+		await fs.rm(outputDir, { recursive: true })
 	}
 }
 

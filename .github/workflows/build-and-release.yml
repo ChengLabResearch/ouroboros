@@ -39,6 +39,7 @@ env:
 jobs:
     resolve-pr-build:
         runs-on: ubuntu-latest
+        timeout-minutes: 10
         permissions:
             actions: read
             contents: read
@@ -94,6 +95,7 @@ jobs:
         name: Build ${{ matrix.platform }} release artifacts
         needs: resolve-pr-build
         runs-on: ${{ matrix.os }}
+        timeout-minutes: 45
 
         permissions:
             actions: read

@@ -29,6 +29,13 @@ def create_api(app: FastAPI, docker: bool = False):
 
     tasks = {}
 
+    def has_active_task(task_type):
+        return any(
+            isinstance(task, task_type)
+            and task.status in {"enqueued", "started"}
+            for task in tasks.values()
+        )
+
     @app.get("/")
     async def server_active():
         return JSONResponse("Server is active")
@@ -47,6 +54,12 @@ def create_api(app: FastAPI, docker: bool = False):
 
     @app.post("/slice/")
     async def add_slice_task(options: str, request: Request):
+        if has_active_task(SliceTask):
+            return JSONResponse(
+                {"detail": "A slice task is already queued or running."},
+                status_code=409,
+            )
+
         task_id = str(uuid.uuid4())
         task = SliceTask(task_id=task_id, options=options)
         tasks[task_id] = task
@@ -163,6 +176,12 @@ def create_api(app: FastAPI, docker: bool = False):
         request: Request,
         options: str,
     ):
+        if has_active_task(BackProjectTask):
+            return JSONResponse(
+                {"detail": "A backprojection task is already queued or running."},
+                status_code=409,
+            )
+
         task_id = str(uuid.uuid4())
         task = BackProjectTask(
             task_id=task_id,
@@ -237,7 +256,7 @@ def create_api(app: FastAPI, docker: bool = False):
                     "data": json.dumps(result),
                 }
 
-                if event == "done":
+                if event in {"done_event", "error_event"}:
                     break
 
                 await asyncio.sleep(update_freq / 1000.0)
@@ -272,7 +291,7 @@ def create_api(app: FastAPI, docker: bool = False):
                     "data": json.dumps(result),
                 }
 
-                if event == "done":
+                if event in {"done_event", "error_event"}:
                     break
 
                 await asyncio.sleep(update_freq / 1000.0)
@@ -282,6 +301,19 @@ def create_api(app: FastAPI, docker: bool = False):
     @app.post("/delete/")
     async def delete_task(task_id: str):
         if task_id in tasks:
+            task = tasks[task_id]
+            if task.status == "started":
+                return JSONResponse(
+                    {
+                        "success": False,
+                        "detail": "A running task cannot be deleted.",
+                    },
+                    status_code=409,
+                )
+
+            if task.status == "enqueued":
+                task.status = "cancelled"
+
             del tasks[task_id]
             return JSONResponse({"success": True}, status_code=200)
         else:

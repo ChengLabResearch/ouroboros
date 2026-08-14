@@ -11,9 +11,23 @@
 	right: 1rem;
 	color: var(--panel-header-text);
 	transition: 0.3s;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
 }
 
-.submitButton:hover {
+.submitButton:not(:disabled):hover {
 	color: #e3e3e3;
 	cursor: pointer;
+}
+
+.submitButton:disabled {
+	color: var(--primary-text);
+	cursor: wait;
+	opacity: 0.8;
+}
+
+.busyLabel {
+	font-size: 0.85rem;
+	white-space: nowrap;
 }

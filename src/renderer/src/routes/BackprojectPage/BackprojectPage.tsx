@@ -1,4 +1,4 @@
-import { JSX } from "react"
+import { JSX } from 'react'
 import OptionsPanel from '@renderer/components/OptionsPanel/OptionsPanel'
 import styles from './BackprojectPage.module.css'
 import VisualizePanel from '@renderer/components/VisualizePanel/VisualizePanel'
@@ -22,13 +22,19 @@ import { parseBackprojectStatusResult } from '@renderer/schemas/backproject-stat
 const BACKPROJECT_STREAM = '/backproject_status_stream/'
 
 function BackprojectPage(): JSX.Element {
-	const { progress, connected, entries, onSubmit, onHeaderDrop } = useBackprojectPageState()
+	const { progress, connected, entries, onSubmit, onHeaderDrop, isRunning } =
+		useBackprojectPageState()
 
 	return (
 		<div className={styles.backprojectPage}>
 			<VisualizePanel></VisualizePanel>
 			<ProgressPanel progress={progress} connected={connected} />
-			<OptionsPanel entries={entries} onSubmit={onSubmit} onHeaderDrop={onHeaderDrop} />
+			<OptionsPanel
+				entries={entries}
+				onSubmit={onSubmit}
+				onHeaderDrop={onHeaderDrop}
+				isRunning={isRunning}
+			/>
 		</div>
 	)
 }
@@ -39,6 +45,7 @@ type BackprojectPageState = {
 	entries: (Entry | CompoundEntry)[]
 	onSubmit: () => Promise<void>
 	onHeaderDrop: (content: string) => Promise<void>
+	isRunning: boolean
 }
 
 function useBackprojectPageState(): BackprojectPageState {
@@ -61,7 +68,11 @@ function useBackprojectPageState(): BackprojectPageState {
 
 	const [progress, setProgress] = useState<ProgressType[]>([])
 
-	const { results: backprojectResults } = useFetchListener('/backproject/')
+	const {
+		results: backprojectResults,
+		error: backprojectRequestError,
+		pending: backprojectRequestPending
+	} = useFetchListener('/backproject/')
 	const {
 		results: streamResults,
 		error: streamError,
@@ -73,9 +84,9 @@ function useBackprojectPageState(): BackprojectPageState {
 		const { result, error } = parseBackprojectResult(backprojectResults)
 
 		if (!error) {
-			performStream(BACKPROJECT_STREAM, result)
+			void performStream(BACKPROJECT_STREAM, result)
 		}
-	}, [backprojectResults])
+	}, [backprojectResults, performStream])
 
 	// Update the progress state when new data is received
 	useEffect(() => {
@@ -93,6 +104,16 @@ function useBackprojectPageState(): BackprojectPageState {
 		}
 	}, [streamDone, streamError])
 
+	useEffect(() => {
+		if (backprojectRequestError.status) {
+			addAlert(backprojectRequestError.message, 'error')
+		}
+	}, [backprojectRequestError])
+
+	useEffect(() => {
+		return (): void => clearStream(BACKPROJECT_STREAM)
+	}, [clearStream])
+
 	////// HANDLE OPTIONS PANEL FORM SUBMISSION //////
 	const onSubmit = async (): Promise<void> => {
 		if (!connected || !directoryPath) {
@@ -103,11 +124,15 @@ function useBackprojectPageState(): BackprojectPageState {
 
 		// Delete the previous task if it exists
 		if (!error) {
-			performFetch('/delete/', result, { method: 'POST' }).then(() => {
-				// Clear the task once it has been deleted
-				clearFetch('/slice/')
-				clearStream(BACKPROJECT_STREAM)
-			})
+			const deleteResult = await performFetch('/delete/', result, { method: 'POST' })
+			if (deleteResult.error.status) {
+				addAlert(deleteResult.error.message, 'error')
+				return
+			}
+
+			// Clear the task once it has been deleted
+			clearFetch('/backproject/')
+			clearStream(BACKPROJECT_STREAM)
 		}
 
 		const optionsObject = entries[0].toObject()
@@ -158,7 +183,7 @@ function useBackprojectPageState(): BackprojectPageState {
 		const outputOptions = await join(outputFolder, modifiedName)
 
 		// Run the slice generation
-		performFetch(
+		await performFetch(
 			'/backproject/',
 			{
 				options: outputOptions
@@ -199,7 +224,10 @@ function useBackprojectPageState(): BackprojectPageState {
 		setEntries([...entries])
 	}
 
-	return { progress, connected, entries, onSubmit, onHeaderDrop }
+	const backprojectTaskActive = !parseBackprojectResult(backprojectResults).error && !streamDone
+	const isRunning = backprojectRequestPending || backprojectTaskActive
+
+	return { progress, connected, entries, onSubmit, onHeaderDrop, isRunning }
 }
 
 export default BackprojectPage

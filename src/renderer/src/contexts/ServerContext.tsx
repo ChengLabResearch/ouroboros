@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { JSX, createContext, useCallback, useEffect, useState } from 'react'
+import { JSX, createContext, useCallback, useEffect, useRef, useState } from 'react'
 
 const DEFAULT_SERVER_URL = 'http://127.0.0.1:8000'
 
@@ -11,6 +11,7 @@ export type ServerError = {
 export type FetchResult = {
 	results: object | null
 	error: ServerError
+	pending: boolean
 }
 
 export type StreamResult = {
@@ -26,8 +27,8 @@ export type ServerContextValue = {
 		relativeURL: string,
 		query?: Record<string, any>,
 		options?: RequestInit
-	) => Promise<void>
-	performStream: (relativeURL: string, query?: Record<string, any>) => void
+	) => Promise<FetchResult>
+	performStream: (relativeURL: string, query?: Record<string, any>) => Promise<void>
 	clearFetch: (relativeURL: string) => void
 	clearStream: (relativeURL: string) => void
 	useFetchListener: (relativeURL: string) => FetchResult
@@ -36,45 +37,57 @@ export type ServerContextValue = {
 
 export const ServerContext = createContext<ServerContextValue>(null as any)
 
+type ActiveStream = {
+	eventSource: EventSource
+	taskId: string
+	resolve: () => void
+}
+
+function emptyFetchResult(): FetchResult {
+	return {
+		results: null,
+		error: { status: false, message: '' },
+		pending: false
+	}
+}
+
+function responseErrorMessage(data: object, status: number): string {
+	if ('detail' in data && typeof data.detail === 'string') return data.detail
+	if ('error' in data && typeof data.error === 'string') return data.error
+	return `Request failed with status ${status}.`
+}
+
 function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextValue {
 	const [connected, setConnected] = useState(false)
 	const retryDelay = 5000 // Delay between checks in milliseconds
 
 	const [fetchStates, setFetchStates] = useState<Map<string, FetchResult>>(new Map())
 	const [streamStates, setStreamStates] = useState<Map<string, StreamResult>>(new Map())
-	const [abortControllers, setAbortControllers] = useState<Map<string, AbortController>>(
-		new Map()
-	)
+	const abortControllers = useRef<Map<string, AbortController>>(new Map())
+	const activeFetches = useRef<Map<string, Promise<FetchResult>>>(new Map())
+	const activeStreams = useRef<Map<string, ActiveStream>>(new Map())
 	const [fetchQueue, setFetchQueue] = useState<unknown[][]>([])
 
 	const setFetchStatesHelper = useCallback(
 		({
 			relativeURL,
 			results,
-			error
+			error,
+			pending
 		}: {
 			relativeURL: string
 			results?: object | null
 			error?: ServerError
+			pending?: boolean
 		}) => {
-			setFetchStates(
-				(prev) =>
-					new Map(
-						prev.set(relativeURL, {
-							results:
-								results == undefined
-									? prev.get(relativeURL)?.results ?? null
-									: results,
-							error:
-								error == undefined
-									? prev.get(relativeURL)?.error ?? {
-											status: false,
-											message: ''
-										}
-									: error
-						})
-					)
-			)
+			setFetchStates((prev) => {
+				const previous = prev.get(relativeURL) ?? emptyFetchResult()
+				return new Map(prev).set(relativeURL, {
+					results: results === undefined ? previous.results : results,
+					error: error === undefined ? previous.error : error,
+					pending: pending === undefined ? previous.pending : pending
+				})
+			})
 		},
 		[]
 	)
@@ -97,16 +110,16 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 						prev.set(relativeURL, {
 							results:
 								results == undefined
-									? prev.get(relativeURL)?.results ?? null
+									? (prev.get(relativeURL)?.results ?? null)
 									: results,
 							error:
 								error == undefined
-									? prev.get(relativeURL)?.error ?? {
+									? (prev.get(relativeURL)?.error ?? {
 											status: false,
 											message: ''
-										}
+										})
 									: error,
-							done: done == undefined ? prev.get(relativeURL)?.done ?? false : done
+							done: done == undefined ? (prev.get(relativeURL)?.done ?? false) : done
 						})
 					)
 			)
@@ -134,46 +147,87 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 	)
 
 	const performFetch = useCallback(
-		async (relativeURL: string, query: Record<string, any> = {}, options: RequestInit = {}) => {
+		async (
+			relativeURL: string,
+			query: Record<string, any> = {},
+			options: RequestInit = {}
+		): Promise<FetchResult> => {
 			// Enqueue the fetch request if the server is not connected
 			if (!connected) {
 				setFetchQueue((prev) => [...prev, [relativeURL, query, options]])
-				return
+				return emptyFetchResult()
 			}
 
 			const fullURL = getFullURL(relativeURL, query)
+			const requestKey = `${(options.method ?? 'GET').toUpperCase()} ${fullURL}`
+			const activeFetch = activeFetches.current.get(requestKey)
+			if (activeFetch) return activeFetch
 
-			setFetchStatesHelper({
-				relativeURL,
-				error: { status: false, message: '' }
-			})
-
-			try {
+			const request = (async (): Promise<FetchResult> => {
 				const abortController = new AbortController()
-				const signal = abortController.signal
-
-				const response = await fetch(fullURL, { ...options, signal })
-				const data = await response.json()
-
-				// Add the abort controller to the state
-				setAbortControllers((prev) => new Map(prev.set(relativeURL, abortController)))
-
 				setFetchStatesHelper({
 					relativeURL,
-					results: data
+					error: { status: false, message: '' },
+					pending: true
 				})
-			} catch (error) {
-				const message =
-					error instanceof Error
-						? error.message
-						: 'Unknown error occurred while fetching data.'
-				setFetchStatesHelper({
-					relativeURL,
-					error: { status: true, message: message }
-				})
-			}
+				abortControllers.current.set(relativeURL, abortController)
+
+				try {
+					const response = await fetch(fullURL, {
+						...options,
+						signal: abortController.signal
+					})
+					const data = (await response.json()) as object
+
+					const result: FetchResult = response.ok
+						? {
+								results: data,
+								error: { status: false, message: '' },
+								pending: false
+							}
+						: {
+								results: null,
+								error: {
+									status: true,
+									message: responseErrorMessage(data, response.status)
+								},
+								pending: false
+							}
+
+					setFetchStatesHelper({ relativeURL, ...result })
+					return result
+				} catch (error) {
+					if (abortController.signal.aborted) return emptyFetchResult()
+
+					const result: FetchResult = {
+						results: null,
+						error: {
+							status: true,
+							message:
+								error instanceof Error
+									? error.message
+									: 'Unknown error occurred while fetching data.'
+						},
+						pending: false
+					}
+					setFetchStatesHelper({ relativeURL, ...result })
+					return result
+				} finally {
+					if (abortControllers.current.get(relativeURL) === abortController) {
+						abortControllers.current.delete(relativeURL)
+					}
+				}
+			})()
+
+			activeFetches.current.set(requestKey, request)
+			void request.finally(() => {
+				if (activeFetches.current.get(requestKey) === request) {
+					activeFetches.current.delete(requestKey)
+				}
+			})
+			return request
 		},
-		[getFullURL, connected, fetchQueue]
+		[getFullURL, connected, setFetchStatesHelper]
 	)
 
 	const clearFetch = useCallback(
@@ -181,126 +235,160 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 			setFetchStatesHelper({
 				relativeURL,
 				results: null,
-				error: { status: false, message: '' }
+				error: { status: false, message: '' },
+				pending: false
 			})
 
-			const abortController = abortControllers.get(relativeURL)
+			const abortController = abortControllers.current.get(relativeURL)
 
 			// Abort the fetch request if it is still pending
 			if (abortController) {
 				abortController.abort()
-				setAbortControllers((prev) => {
-					prev.delete(relativeURL)
-					return new Map(prev)
-				})
+				abortControllers.current.delete(relativeURL)
 			}
 		},
-		[abortControllers]
+		[setFetchStatesHelper]
 	)
+
+	const closeStream = useCallback((relativeURL: string): void => {
+		const activeStream = activeStreams.current.get(relativeURL)
+		if (!activeStream) return
+
+		activeStreams.current.delete(relativeURL)
+		activeStream.eventSource.close()
+		activeStream.resolve()
+	}, [])
 
 	const performStream = useCallback(
 		(relativeURL: string, query: Record<string, any> = {}): Promise<void> => {
+			closeStream(relativeURL)
+
 			const fullURL = getFullURL(relativeURL, query)
 			const eventSource = new EventSource(fullURL)
+			return new Promise((resolve) => {
+				const activeStream = {
+					eventSource,
+					taskId: typeof query.task_id === 'string' ? query.task_id : '',
+					resolve
+				}
+				activeStreams.current.set(relativeURL, activeStream)
 
-			eventSource.addEventListener('open', () => {
-				setStreamStatesHelper({
-					relativeURL,
-					done: false,
-					error: { status: false, message: '' }
-				})
-			})
+				const isCurrent = (event?: MessageEvent<string>): boolean => {
+					if (activeStreams.current.get(relativeURL) !== activeStream) return false
+					return event === undefined || event.lastEventId === activeStream.taskId
+				}
 
-			eventSource.addEventListener('update_event', (event) => {
-				const data = JSON.parse(event.data)
-				setStreamStatesHelper({
-					relativeURL,
-					results: data
-				})
-			})
-
-			eventSource.addEventListener('done_event', (event) => {
-				const data = JSON.parse(event.data)
-				setStreamStatesHelper({
-					relativeURL,
-					results: data,
-					done: true
-				})
-				eventSource.close()
-			})
-
-			eventSource.addEventListener('error_event', (event) => {
-				const data = JSON.parse(event.data)
-				setStreamStatesHelper({
-					relativeURL,
-					results: data
-				})
-
-				let error = 'Unknown error occurred while streaming data.'
-
-				if ('error' in data && data.error && typeof data.error === 'string') {
-					error = data.error
+				const finish = (): void => {
+					if (activeStreams.current.get(relativeURL) === activeStream) {
+						closeStream(relativeURL)
+					}
 				}
 
 				setStreamStatesHelper({
 					relativeURL,
-					error: { status: true, message: error },
-					done: true
-				})
-				eventSource.close()
-			})
-
-			eventSource.addEventListener('error', (error) => {
-				const message =
-					error instanceof Error
-						? error.message
-						: 'Unknown error occurred while streaming data.'
-				setStreamStatesHelper({
-					relativeURL,
-					error: { status: true, message: message }
-				})
-				eventSource.close()
-			})
-
-			return new Promise((resolve) => {
-				// Resolve the promise when the done event is received
-				eventSource.addEventListener('done_event', () => {
-					resolve()
+					results: null,
+					error: { status: false, message: '' },
+					done: false
 				})
 
-				// Resolve the promise when the error event is received
-				eventSource.addEventListener('error_event', () => {
-					resolve()
+				eventSource.addEventListener('open', () => {
+					if (!isCurrent()) return
+					setStreamStatesHelper({
+						relativeURL,
+						done: false,
+						error: { status: false, message: '' }
+					})
+				})
+
+				eventSource.addEventListener('update_event', (event) => {
+					if (!isCurrent(event)) return
+					setStreamStatesHelper({
+						relativeURL,
+						results: JSON.parse(event.data) as object
+					})
+				})
+
+				eventSource.addEventListener('done_event', (event) => {
+					if (!isCurrent(event)) return
+					setStreamStatesHelper({
+						relativeURL,
+						results: JSON.parse(event.data) as object,
+						done: true
+					})
+					finish()
+				})
+
+				eventSource.addEventListener('error_event', (event) => {
+					if (!isCurrent(event)) return
+					const data = JSON.parse(event.data) as { error?: unknown }
+					const error =
+						typeof data.error === 'string'
+							? data.error
+							: 'Unknown error occurred while streaming data.'
+
+					setStreamStatesHelper({
+						relativeURL,
+						results: data,
+						error: { status: true, message: error },
+						done: true
+					})
+					finish()
+				})
+
+				eventSource.addEventListener('error', (error) => {
+					if (!isCurrent()) return
+					const message =
+						error instanceof Error
+							? error.message
+							: 'Unknown error occurred while streaming data.'
+					setStreamStatesHelper({
+						relativeURL,
+						error: { status: true, message },
+						done: true
+					})
+					finish()
 				})
 			})
 		},
-		[getFullURL]
+		[closeStream, getFullURL, setStreamStatesHelper]
 	)
 
-	const clearStream = useCallback((relativeURL: string) => {
-		setStreamStatesHelper({
-			relativeURL,
-			results: null,
-			error: { status: false, message: '' },
-			done: false
-		})
-	}, [])
+	const clearStream = useCallback(
+		(relativeURL: string) => {
+			closeStream(relativeURL)
+			setStreamStatesHelper({
+				relativeURL,
+				results: null,
+				error: { status: false, message: '' },
+				done: false
+			})
+		},
+		[closeStream, setStreamStatesHelper]
+	)
 
-	const useFetchListener = (
-		relativeURL: string
-	): { results: object | null; error: ServerError } => {
+	useEffect(() => {
+		return (): void => {
+			for (const relativeURL of activeStreams.current.keys()) {
+				closeStream(relativeURL)
+			}
+		}
+	}, [closeStream])
+
+	const useFetchListener = (relativeURL: string): FetchResult => {
 		const [results, setResults] = useState<object | null>(null)
 		const [error, setError] = useState<ServerError>({ status: false, message: '' })
+		const [pending, setPending] = useState(false)
 
 		useEffect(() => {
 			const state = fetchStates.get(relativeURL)
 			if (state) {
 				setResults(state.results)
 				setError(state.error)
+				setPending(state.pending)
 			}
 		}, [relativeURL, fetchStates])
 
-		return { results, error }
+		return { results, error, pending }
 	}
 
 	const useStreamListener = (

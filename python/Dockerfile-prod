@@ -2,7 +2,7 @@
 
 # Assumes that dist/*.whl has been built
 
-FROM thehale/python-poetry:2.1.3-py3.11-slim AS python-base
+FROM thehale/python-poetry:2.1.3-py3.11-slim@sha256:4e091da0d71700b404a2844ac3bbd4aaa3450a6421c469935ae165d41252a964 AS python-base
 
 ENV DCONF_DISABLE_ASYNC=1
 

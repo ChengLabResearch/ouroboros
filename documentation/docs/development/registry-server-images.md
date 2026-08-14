@@ -11,6 +11,14 @@ The `Publish Server Image` workflow builds the Python wheel, builds `python/Dock
 
 Both tags are produced from the same wheel artifact that the Dockerfile installs.
 
+## Base Image Pin
+
+Both Python Dockerfiles keep the readable `thehale/python-poetry` tag paired
+with an immutable digest. When upgrading that base, review the upstream image,
+resolve the new tag's digest, and update the tag and digest in
+`python/Dockerfile` and `python/Dockerfile-prod` together in the same reviewed
+change. Do not refresh the digest without an intentional base-image review.
+
 ## Release Compose Usage
 
 Release packaging uses `npm run prepare:production-server` to write

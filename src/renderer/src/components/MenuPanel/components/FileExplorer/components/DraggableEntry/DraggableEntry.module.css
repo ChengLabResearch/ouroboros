@@ -4,12 +4,6 @@
 	flex-direction: row;
 }
 
-.emptyFolder {
-	display: flex;
-	flex-direction: row;
-	margin-left: 1rem;
-}
-
 .file {
 	display: flex;
 	flex-direction: row;

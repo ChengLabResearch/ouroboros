@@ -3,8 +3,8 @@ import { existsSync } from 'fs'
 import fs from 'fs/promises'
 import { join } from 'path'
 import { parsePluginPackageJSON, PluginPackageJSON } from './schemas'
-import { downloadRelease } from '@terascope/fetch-github-release'
 import { fetchFolderContents, readFile } from './helpers'
+import { downloadRelease } from './plugin-release.mjs'
 import {
 	buildDockerCompose,
 	checkDocker,
@@ -286,19 +286,8 @@ export async function downloadPlugin(url: string): Promise<void> {
 		await fs.rm(outputDir, { recursive: true })
 	}
 
-	const leaveZipped = false
-	const disableLogging = false
-
 	try {
-		await downloadRelease(
-			user,
-			repo,
-			outputDir,
-			() => true,
-			() => true,
-			leaveZipped,
-			disableLogging
-		)
+		await downloadRelease(user, repo, outputDir)
 	} catch (error) {
 		console.error(error)
 		return

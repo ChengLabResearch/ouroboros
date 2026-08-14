@@ -37,6 +37,7 @@
 		"electron-log": "^5.4.3",
 		"electron-updater": "^6.7.3",
 		"express": "^5.2.1",
+		"node-stream-zip": "^1.16.0",
 		"serve-static": "^2.2.1"
 	},
 	"devDependencies": {
@@ -47,7 +48,6 @@
 		"@electron-toolkit/tsconfig": "^2.0.0",
 		"@react-three/drei": "^10.7.7",
 		"@react-three/fiber": "^9.5.0",
-		"@terascope/fetch-github-release": "^2.2.1",
 		"@types/node": "^25.1.0",
 		"@types/react": "^19.2.10",
 		"@types/react-dom": "^19.2.3",

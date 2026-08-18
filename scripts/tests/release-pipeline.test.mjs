@@ -103,6 +103,14 @@ test('release artifact selection excludes electron-builder diagnostics', () => {
 	assert.throws(() => parsePlatform(['--platform', 'solaris']), /must be one of/)
 })
 
+test('electron-builder excludes generated release inputs from packaged files', async () => {
+	const config = await readFile(join(root, 'electron-builder.yml'), 'utf8')
+	const lines = new Set(config.split(/\r?\n/).map((line) => line.trim()))
+
+	assert.equal(lines.has("- '!release-assets${/*}'"), true)
+	assert.equal(lines.has("- '!.package-plugin-artifacts${/*}'"), true)
+})
+
 test('npm lifecycle commands stay shell-free on Windows', () => {
 	const currentInvocation = npmInvocation(['--version'])
 	if (process.env.npm_execpath) {

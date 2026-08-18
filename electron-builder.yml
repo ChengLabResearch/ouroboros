@@ -4,6 +4,8 @@ directories:
     buildResources: build
 files:
     - '!**/.vscode/*'
+    - '!release-assets${/*}'
+    - '!.package-plugin-artifacts${/*}'
     - '!src/*'
     - '!python/*'
     - '!docs/*'

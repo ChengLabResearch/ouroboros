@@ -6,6 +6,7 @@ import test from 'node:test'
 import {
 	RELEASE_PLATFORMS,
 	loadReleaseLock,
+	pluginLocksForFlavor,
 	releaseFingerprint,
 	sha256File,
 	validateReleaseLock
@@ -19,11 +20,21 @@ const root = process.cwd()
 
 test('the release lock independently pins CPU and CUDA autoseg inputs', async () => {
 	const { lock } = await loadReleaseLock(root)
-	assert.notEqual(lock.plugins.autosegCpu.tag, lock.plugins.autosegCuda.tag)
+	const cpuPlugins = pluginLocksForFlavor(lock, 'with-plugins-cpu')
+	const cudaPlugins = pluginLocksForFlavor(lock, 'with-plugins-cuda')
+
+	assert.strictEqual(cpuPlugins[0], lock.plugins.neuroglancer)
+	assert.strictEqual(cpuPlugins[1], lock.plugins.autosegCpu)
+	assert.strictEqual(cudaPlugins[0], lock.plugins.neuroglancer)
+	assert.strictEqual(cudaPlugins[1], lock.plugins.autosegCuda)
 	assert.notEqual(lock.plugins.autosegCpu.asset, lock.plugins.autosegCuda.asset)
+	assert.notEqual(
+		lock.plugins.autosegCpu.backendImageDigest,
+		lock.plugins.autosegCuda.backendImageDigest
+	)
 	assert.equal(lock.plugins.autosegCpu.variant, 'cpu')
 	assert.equal(lock.plugins.autosegCuda.variant, 'cuda')
-	assert.equal(lock.plugins.autosegCpu.verifyEmbeddedBackendImage, false)
+	assert.equal(lock.plugins.autosegCpu.verifyEmbeddedBackendImage, true)
 	assert.equal(lock.plugins.autosegCuda.verifyEmbeddedBackendImage, true)
 })
 

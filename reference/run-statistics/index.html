@@ -415,7 +415,7 @@
 <nav>
     <ul>
         <li><a href="#pipeline-run-statistics">Pipeline run statistics</a></li>
-        <li><a href="#server-and-docker">Server and Docker</a></li><li><a href="#schema-version-1">Schema version 1</a></li><li><a href="#timing-definitions">Timing definitions</a></li><li><a href="#volume-and-storage-definitions">Volume and storage definitions</a></li><li><a href="#verification-and-ownership">Verification and ownership</a></li>
+        <li><a href="#server-and-docker">Server and Docker</a></li><li><a href="#schema-version-1">Schema version 1</a></li><li><a href="#timing-definitions">Timing definitions</a></li><li><a href="#volume-and-storage-definitions">Volume and storage definitions</a></li><li><a href="#verification-and-ownership">Verification and ownership</a></li><li><a href="#memory-measurements">Memory measurements</a></li>
     </ul>
 </nav>
 </aside>
@@ -434,7 +434,7 @@ single TIFF or a directory of TIFF planes. JSON numeric values retain their
 precision; byte counts are integers. Console headings and progress bars are
 outside the JSON payload.</p>
 <p>Without <code>--verbose</code>, the CLI skips the pipeline's accumulation of detailed timing
-samples, volume statistics, report formatting and report writes. Existing worker
+samples, memory sampler, volume statistics, report formatting and report writes. Existing worker
 phase clocks still run; basic step duration and progress remain available. The
 pipeline factory's <code>verbose</code> argument continues to control its progress bar; it
 is separate from run reporting.</p>
@@ -536,7 +536,7 @@ explicitly unavailable; no report is silently written to the current directory.<
 </tr>
 <tr>
 <td><code>memory</code></td>
-<td><code>null</code>: RAM accounting is deferred to issue #139</td>
+<td>Platform-specific sampled process-tree memory, coverage and collection cost</td>
 </tr>
 </tbody>
 </table>
@@ -661,14 +661,128 @@ own geometry and effective volume metadata. Downloads and reporting share
 <code>download_volume_geometry</code>. The volume reporting snapshot is a one-way
 serialization boundary before cleanup, never an input to scientific execution.
 Output naming, atomic file publication, Docker export, and recovery extend the
-existing file/volume facilities. No memory sampler is added by this change.</p>
+existing file/volume facilities. The memory collector extends this same lifecycle.</p>
 <p>The fixed-local-source benchmark and reproducible commands are documented in
 <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/benchmarks/README.md">the Python benchmark guide</a>.
 The target is at most 1% median pipeline elapsed-time overhead for instrumentation
 that runs during the data operation. Setup and final reporting costs are assessed
-separately. RAM collection must use that same in-operation budget when #139 is
-implemented. Report measured variability alongside overhead; a negative observed
+separately. RAM collection shares that same in-operation budget with timing and
+volume reporting. Report measured variability alongside overhead; a negative observed
 overhead reflects noise, not free instrumentation.</p>
+<h2 id="memory-measurements">Memory measurements</h2>
+<p>The collector belongs to <code>RunStatistics</code> and runs only around <code>Pipeline.process</code>.
+It stops before volume inspection, output transfer, cleanup and report delivery.
+Each operation starts a fresh sampling window and uses the same run identifier,
+status and report delivery as its timing statistics. No container-lifetime peak
+or host free-memory delta is attributed to a run.</p>
+<table>
+<thead>
+<tr>
+<th>Backend execution OS</th>
+<th>Metric</th>
+<th>Source and coverage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linux, including Docker on any host</td>
+<td><code>process_tree_pss_bytes</code></td>
+<td>Sum of current PSS from psutil's <code>/proc</code> memory reader; shared resident pages contribute each process's proportional share</td>
+</tr>
+<tr>
+<td>Native Windows (64-bit)</td>
+<td><code>process_tree_private_plus_tracked_shared_resident_bytes</code></td>
+<td>One <code>QueryWorkingSet</code> snapshot per process; unique resident pages outside tracked mappings plus shared backing pages deduplicated by allocation and offset inside them; private copy-on-write pages remain private</td>
+</tr>
+<tr>
+<td>Native macOS</td>
+<td><code>process_tree_private_plus_tracked_backing_resident_bytes</code></td>
+<td><code>libproc</code> private resident pages outside tracked mappings, plus <code>mincore</code> residency of tracked shared backing objects, counted once</td>
+</tr>
+</tbody>
+</table>
+<p>Windows and macOS observe the existing <code>SharedNPArray</code>, manager-held shared-memory
+handles, and TIFF mapping owners.
+They exclude <strong>untracked shared mappings</strong>. Neither uses the capped Windows share
+count to apportion a known shared buffer. macOS measures backing-object residency:
+file-cache pages can be resident without currently appearing in a tracked
+process's working set. Compressed/swapped pages are excluded. Unsupported mapping
+modes, access failures and unavailable APIs make coverage incomplete; they never
+silently substitute RSS, commit charge or zero. These three metrics have different
+semantics and must not be compared as interchangeable RAM measurements.</p>
+<p><strong>Open accounting limitation (#139):</strong> Linux PSS and Windows working-set scans
+can omit resident shared backing after the producer closes if no remaining
+process has faulted those pages into its page tables. An untouched manager
+mapping preserves the allocation but does not fix this accounting gap. Queued
+downloaded chunks can occupy this state. The draft collector therefore has not
+yet met shared-memory coverage acceptance; a successful sample is not proof of
+complete backing residency. A revised metric needs explicit semantics and
+validation before adoption.</p>
+<p>The scope includes the backend parent, discovered workers and helpers, including
+the shared-memory manager. It excludes the sampler itself. Parent state can
+predate the operation. Concurrent operations in the same server share the parent
+and descendants, so overlapping records describe overlapping process trees,
+<strong>not isolated per-job allocations</strong>. A descendant already observed remains in
+scope if it is subsequently reparented. Children born and gone between samples
+can be missed; process identities include creation times to guard against PID
+reuse. The host OS remains unknown from inside Docker; the selected metric follows
+the execution OS in <code>environment.os</code>.</p>
+<p>A small separate interpreter performs collection, avoiding a sampler thread in
+the parent before Linux forks workers. Windows/macOS worker initializers share
+observation context through the existing executor setup. Workers already running
+before any observation session cannot retroactively publish their mappings;
+their untracked shared pages remain outside native Windows/macOS coverage.
+Weak references retain no scientific allocations; inactive native sessions retain
+backing identities but do not write manifests.
+Ephemeral manifests and sampler-control files are one-way observation/IPC
+adapters, never alternative owners of allocations, task status or run identity.
+The final summary enters the existing report and the temporary workspace is
+removed. Disabled reporting creates no sampler or sampling workspace.</p>
+<p><code>status</code> is <code>sampled</code> when all admitted sweeps succeeded, <code>partial</code> when some
+failed, <code>unavailable</code> when none completed, or <code>not_started</code> if the pipeline was
+never reached. Manifest reads and publication reuse the control-file retry for Windows sharing
+violations (up to 0.5 seconds, 10 ms spacing). Persistent failures remain explicit.
+A failed mapping-manifest publication invalidates the native
+metric because the sampler cannot reconstruct its missing coverage.</p>
+<p>The peak is the maximum <strong>complete sampled tree total</strong>, not an OS high-water
+mark or a sum of independently observed process peaks. Reads within a sweep are
+sequential, not an atomic tree snapshot. Sampling may miss short-lived peaks;
+external processes sharing pages affect Linux PSS. Sweeps crossing the end of the
+operation are discarded. Requested and observed intervals, sweep cost, complete
+and incomplete counts and errors accompany the result. No complete sample means
+an unavailable value, never a successful zero. The default interval is one second;
+collection cost is assessed against combined reporting overhead. The real-data
+benchmark compares the existing slicing/backprojection step durations, excluding
+preceding source/cache setup and final reporting; it retains whole-pipeline times
+separately.</p>
+<p><code>last_complete_sample_bytes</code> is the last admitted complete sample, not a live
+reading at report publication. <code>sampling</code> gives the window length, first and last
+admitted sweep offsets, requested interval, observed start-to-start interval
+range, and discarded/incomplete/complete counts. <code>collector_cpu_seconds</code> includes
+polling and completion of an in-flight sweep discarded at stop;
+<code>max_sweep_seconds</code> includes discarded sweeps too. These costs diagnose the
+observer; only the external pipeline timer measures in-operation overhead.</p>
+<p>Native Linux, Windows and Apple Silicon macOS reader/controller tests run in CI
+on Python 3.11 and 3.12. Local verification also exercised a frozen Linux
+executable and real slicing/backprojection CLI runs inside the default Docker
+image on a Windows/WSL host. This does not constitute a new GUI/volume-server
+delivery test or validation on every Docker desktop host.</p>
+<p>The fixed-local Linux pipeline benchmark observed negative median differences
+for both operations. Subsequent real-data Linux tests ran two paired trials on
+three annotation paths, slicing and backprojecting each sliced intensity volume.
+The data-step differences varied in sign between pairs; positive median
+differences were smaller than at least one treatment's MAD. All enabled runs
+returned usable RAM samples. These small samples do not establish a 1% bound.</p>
+<p>Native Windows real-data tests required an isolated CloudFiles timing workaround
+and a production shared-memory cleanup fix. Five slicing/backprojection workflows
+then completed; seven slicing trials failed during shared-memory result transfer,
+so their dependent backprojections were skipped. Two of the four completed enabled
+operations reported unavailable RAM after mapping-manifest publication failures.
+These findings block native Windows acceptance. The separate +4.10% Windows
+component stress diagnostic is not a real pipeline acceptance measurement. Native macOS pipeline overhead
+has not been measured. See the benchmark guide for all times, variability,
+sampling cost, execution blockers and coverage limitations. No cross-platform
+1% guarantee is claimed.</p>
 </section>
 
             </main>

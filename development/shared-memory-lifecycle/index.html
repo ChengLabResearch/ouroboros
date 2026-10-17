@@ -585,15 +585,18 @@ the production dependency set, scientific pipelines, and RAM-reporting integrati
 were not validated by these probes. The project remains <code>&gt;=3.11,&lt;3.13</code>; raising
 that cap still requires dependency and platform validation.</p>
 <h2 id="ram-reporting-integration">RAM-reporting integration</h2>
-<p>The deferred integration and real-data acceptance from #145 are tracked in
-<a href="https://github.com/ChengLabResearch/ouroboros/issues/139">#139</a>, to be completed
-after rebasing PR #144 onto this ownership change. Its existing mapping observer
-must observe server-owned handles at allocation/registration and refresh after
-release, as well as observing each
-process-local attachment. The owning registry must remain the sole allocation
-authority; observation must not become another owner or registry of lifetimes.
-The new serialization path runs the attachment constructor, so observation belongs
-there rather than in a redundant <code>__setstate__</code> path.</p>
+<p>PR #144 now builds on this ownership change. Its existing mapping observer
+observes server-owned handles at allocation/registration and refreshes after
+release and shutdown, alongside each process-local attachment. Manager startup
+passes the active observation context through the existing initializer seam,
+before any caller initializer. <code>_OwnedSharedMemoryTracker</code> remains the sole
+allocation authority; observations are weak, derived mapping descriptions and
+retain no allocation. Serialization runs the attachment constructor, so the
+redundant <code>__setstate__</code> observation path has been removed.</p>
+<p>Focused tests inspect the manager's manifest after client attachments close,
+then verify removal after explicit release and shutdown, including inherited
+<code>ShareableList</code> registration. Native CI runs the ownership and collector suites
+in the same Python 3.11/3.12 platform matrix.</p>
 <p>Keeping a server handle mapped does not by itself fix the Linux PSS coverage gap:
 resident segments queued after the producer closes can remain untouched by every
 currently mapped process. #139 must validate accounting for that state using the
@@ -602,8 +605,9 @@ USS-plus-live-segment metric needs its own defined semantics and tests against
 double-counting; allocated capacity must not silently be labeled residency.</p>
 <p>Real-data slicing/backprojection and RAM overhead validation follow that rebase.
 Focused lifecycle tests on this branch do not establish scientific-pipeline or
-RAM-collector acceptance. The separate manifest-publication defect remains in
-scope for the RAM-reporting branch.</p>
+RAM-collector acceptance. Manifest publication and reads now use the same bounded Windows sharing-violation
+retry as collector control/result files. Persistent failures still invalidate
+coverage; this does not change the scientific allocation lifecycle.</p>
 </section>
 
             </main>

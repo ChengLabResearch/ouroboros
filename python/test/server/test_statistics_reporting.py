@@ -35,7 +35,7 @@ def run_fixture(tmp_path, monkeypatch):
     state = SimpleNamespace(
         output=output, annotation=annotation, volume=tmp_path / "volume",
         slice_path=slice_options_path, backproject_path=backproject_options_path,
-        events=[], pipelines=[], inputs=[], collected=[], behavior="success",
+        events=[], pipelines=[], inputs=[], collected=[], memory_events=[], behavior="success",
         transfer_failure=None, import_failure=None,
     )
 
@@ -115,6 +115,26 @@ def run_fixture(tmp_path, monkeypatch):
         return {"fixture_output": str(path), "operation": operation}
 
     monkeypatch.setattr(run_statistics, "collect_volume_statistics", collect)
+
+    class FixtureMemoryCollector:
+
+        def __init__(self):
+            self.active = False
+            self.summary = {"status": "not_started"}
+
+        def start(self):
+            self.active = True
+            state.memory_events.append("start")
+            state.events.append("memory-start")
+
+        def stop(self):
+            if self.active:
+                self.active = False
+                state.memory_events.append("stop")
+                state.events.append("memory-stop")
+                self.summary = {"status": "sampled", "sampled_peak_bytes": 12345}
+
+    monkeypatch.setattr(run_statistics, "MemoryCollector", FixtureMemoryCollector)
     return state
 
 
@@ -126,6 +146,21 @@ def _task(state, operation, **kwargs):
 
 def _record(task):
     return json.loads(Path(task.statistics.publication["path"]).read_text())
+
+
+@pytest.mark.parametrize("method", ["start", "stop"])
+def test_memory_observation_failure_keeps_scientific_outcome(run_fixture, monkeypatch, method):
+    def failed(self):
+        raise OSError("fixture memory API unavailable")
+
+    monkeypatch.setattr(run_statistics.MemoryCollector, method, failed)
+    task = _task(run_fixture, "slice")
+    server_handlers.handle_task(task)
+    record = _record(task)
+    assert task.status == "done"
+    assert record["memory"]["status"] == "unavailable"
+    assert record["memory"]["sampled_peak_bytes"] is None
+    assert "fixture memory API unavailable" in record["memory"]["errors"][0]["example"]
 
 
 @pytest.mark.parametrize("operation", ["slice", "backproject"])
@@ -155,7 +190,10 @@ def test_native_outcomes_finalize_one_record_from_the_canonical_pipeline(
     assert record["finished_at"] is not None
     assert record["steps"] == task.pipeline.get_step_statistics()
     assert record["steps"][0]["custom_times"]["compute"]["mean"] == 0.00123456789
-    assert record["memory"] is None
+    assert record["memory"] == task.statistics.memory_collector.summary
+    assert state.memory_events == ["start", "stop"]
+    assert state.events.index("memory-start") < state.events.index("scientific-output")
+    assert state.events.index("memory-stop") < state.events.index("collect-volumes")
     assert record["phase_wall_spans"] is None
     assert ("slicing" in record["effective_configuration"]) == (operation == "backproject")
     assert task.statistics.publication["status"] == "published"
@@ -178,6 +216,7 @@ def test_cli_verbose_prints_exact_saved_json_and_disabled_skips_collection(run_f
         assert json.loads(file_text)["outcome"] == "succeeded"
         assert len(state.collected) == 1
     else:
+        assert state.memory_events == []
         assert "Calculation Statistics:" not in stdout
         assert task.statistics is None
         assert state.collected == []
@@ -295,7 +334,7 @@ def test_docker_exports_science_then_cleans_before_report_delivery(run_fixture, 
     server_handlers.handle_task_docker(task)
     assert task.status == "done"
     assert state.events == [
-        "scientific-output", "collect-volumes", "export-main", "cleanup", "export-main-statistics",
+        "memory-start", "scientific-output", "memory-stop", "collect-volumes", "export-main", "cleanup", "export-main-statistics",
     ]
     record = _record(task)
     assert record["outcome"] == "succeeded"

@@ -10,6 +10,7 @@ import subprocess
 import time
 
 from ouroboros.common.file_system import publish_statistics
+from ouroboros.common.memory_statistics import MemoryCollector, unavailable
 from ouroboros.helpers.files import format_statistics_file
 from ouroboros.helpers.models import pretty_json_output
 from ouroboros.helpers.options import BackprojectOptions, SliceOptions
@@ -74,6 +75,7 @@ class RunStatistics:
         self.output_folder = None
         self.input_identifiers = {"options_path": task.options}
         self.volumes = None
+        self.memory_collector = None
         self.collection_errors = []
         self.publication = {"status": "pending", "path": None,
                             "recovery_path": None, "error": None,
@@ -108,7 +110,22 @@ class RunStatistics:
             self.collection_errors.append(f"Volume statistics: {type(error).__name__}: {error}")
             self.volumes = {"status": "unavailable", "reason": self.collection_errors[-1]}
 
+    def start_memory(self):
+        self.memory_collector = MemoryCollector()
+        try:
+            self.memory_collector.start()
+        except Exception as error:
+            self.memory_collector.summary = unavailable(f"Memory startup: {type(error).__name__}: {error}")
+
+    def stop_memory(self):
+        try:
+            if self.memory_collector is not None:
+                self.memory_collector.stop()
+        except Exception as error:
+            self.memory_collector.summary = unavailable(f"Memory cleanup: {type(error).__name__}: {error}")
+
     def finish(self):
+        self.stop_memory()
         self.elapsed_seconds = time.perf_counter() - self.started
         self.finished_at = datetime.now(timezone.utc).isoformat()
 
@@ -135,7 +152,8 @@ class RunStatistics:
             "phase_wall_spans": None,
             "steps": pipeline.get_step_statistics() if pipeline else [],
             "volumes": self.volumes or {"status": "unavailable", "reason": "pipeline inputs unavailable"},
-            "memory": None,
+            "memory": (self.memory_collector.summary if self.memory_collector is not None
+                       else unavailable("Pipeline was not reached", status="not_started")),
             "inputs": self.input_identifiers,
             "effective_configuration": {
                 "operation": options.model_dump(mode="json") if options else None,

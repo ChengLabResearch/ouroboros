@@ -16,7 +16,7 @@ precision; byte counts are integers. Console headings and progress bars are
 outside the JSON payload.
 
 Without `--verbose`, the CLI skips the pipeline's accumulation of detailed timing
-samples, volume statistics, report formatting and report writes. Existing worker
+samples, memory sampler, volume statistics, report formatting and report writes. Existing worker
 phase clocks still run; basic step duration and progress remain available. The
 pipeline factory's `verbose` argument continues to control its progress bar; it
 is separate from run reporting.
@@ -88,7 +88,7 @@ The record contains these groups:
 | `software`, `environment`, `execution` | Package/build/revision, OS/Python, observed thread settings, and actual dispatched worker/thread counts |
 | `cache` | Observed cache configuration; unknown cache warmth/network conditions remain explicit |
 | `collection_errors` | Instrumentation failures that prevented part of the record from being collected |
-| `memory` | `null`: RAM accounting is deferred to issue #139 |
+| `memory` | Platform-specific sampled process-tree memory, coverage and collection cost |
 
 Source checkouts record their Git revision and whether the working tree is dirty.
 Packaged deployments can provide `OUROBOROS_BUILD_REVISION` and
@@ -122,8 +122,11 @@ All elapsed measurements use `time.perf_counter()`.
 
 Operation time excludes queue wait, application/container startup, and statistics
 serialization/publication. The performance-overhead benchmark separately times
-`Pipeline.process()` with detailed instrumentation enabled and disabled; metadata
-collection, formatting, printing, and report delivery are outside that interval.
+`Pipeline.process()` with detailed instrumentation enabled and disabled. The
+real-data comparison uses the existing data-step duration to exclude earlier
+preparation; both boundaries remain in the raw benchmark record. Metadata
+collection, formatting, printing, and report delivery are outside the pipeline
+interval.
 Volume metadata is captured before cleanup while output headers are still
 available, so that work is included in operation time.
 
@@ -210,12 +213,125 @@ own geometry and effective volume metadata. Downloads and reporting share
 `download_volume_geometry`. The volume reporting snapshot is a one-way
 serialization boundary before cleanup, never an input to scientific execution.
 Output naming, atomic file publication, Docker export, and recovery extend the
-existing file/volume facilities. No memory sampler is added by this change.
+existing file/volume facilities. The memory collector extends this same lifecycle.
 
 The fixed-local-source benchmark and reproducible commands are documented in
 [the Python benchmark guide](https://github.com/ChengLabResearch/ouroboros/blob/main/python/benchmarks/README.md).
-The target is at most 1% median pipeline elapsed-time overhead for instrumentation
-that runs during the data operation. Setup and final reporting costs are assessed
-separately. RAM collection must use that same in-operation budget when #139 is
-implemented. Report measured variability alongside overhead; a negative observed
-overhead reflects noise, not free instrumentation.
+The owner-approved 1% combined in-operation engineering target applies to longer
+runs, assessed alongside inter-run variability and fixed startup/shutdown costs.
+For the recorded #139 real-data evidence, acceptance is scoped to the long
+Salivary Duct path; short-path costs remain reported and are not a general 1%
+guarantee. RAM collection shares the budget with timing and volume reporting.
+The real-data comparison uses the canonical data-step duration, retaining worker/
+manager startup and shutdown inside that step. Earlier preparation, sampler
+startup/shutdown and final reporting are excluded. These measurements do not
+isolate every cause of a timing difference; negative changes reflect variation,
+not free instrumentation. Two pairs do not establish a statistical upper bound.
+
+## Memory measurements
+
+The collector belongs to `RunStatistics` and runs only around `Pipeline.process`.
+It stops before volume inspection, output transfer, cleanup and report delivery.
+Each operation starts a fresh sampling window and uses the same run identifier,
+status and report delivery as its timing statistics. No container-lifetime peak
+or host free-memory delta is attributed to a run.
+
+| Backend execution OS | Metric | Source and coverage |
+| --- | --- | --- |
+| Linux, including Docker on any host | `process_tree_nonshmem_pss_plus_managed_resident_bytes` | Sum of `/proc/<pid>/smaps_rollup` `Pss - Pss_Shmem`, plus `mincore` residency of each live managed shared segment once |
+| Native Windows (64-bit) | `process_tree_private_resident_plus_managed_allocated_bytes` | Sum of `PROCESS_MEMORY_COUNTERS_EX2.PrivateWorkingSetSize`, plus the size of each live managed allocation once |
+| Native macOS | `process_tree_private_plus_managed_resident_bytes` | `libproc` private resident pages, excluding the manager's owned segment ranges, plus `mincore` residency of each live managed segment once |
+
+Linux removes the process counter's entire shared-memory PSS contribution before
+adding managed residency. This avoids counting a managed page again when it has
+only one reader. Reading the backing object's residency also includes resident
+managed buffers queued after their producer closes, before another process has
+accessed them. Shared-memory segments outside the manager's ownership are not
+added back. Other shared memory, such as fork-shared anonymous pages and mapped
+files, retains the OS's proportional accounting.
+
+Windows uses one private working-set counter per process instead of enumerating
+its working-set pages. Its managed term is **allocated bytes, not resident
+bytes**: unused, paged-out or otherwise nonresident parts of live allocations
+remain included. The metric name makes this distinction explicit. The counter
+requires 64-bit Python and Windows 10 or 11 version 22H2 with the September 2023
+update or later. Missing counter support makes the metric unavailable; it does
+not silently fall back to the old working-set scan.
+
+macOS retains a `libproc` region walk for private residency. A segment can appear
+private when the manager is its only mapper, so the manager's ranges are excluded
+before managed residency is added. Compressed/swapped pages are not included.
+Native CI exercises the macOS reader and short collector lifecycle. Native
+macOS slice/backprojection performance and macOS-host Docker delivery are deferred
+on #139; focused CI does not replace those workflow checks.
+
+There is no separate TIFF or resident file-cache accounting. Ordinary mapped-file
+pages may still contribute to the native process counter; cached pages absent
+from process mappings are not added separately. The platform metrics differ in
+how they treat shared pages and, on Windows, managed allocation residency. They
+must not be treated as interchangeable measurements of exactly the same RAM.
+
+The scope includes the backend parent, discovered workers and helpers, including
+the shared-memory manager. It excludes the sampler itself. Parent state can
+predate the operation. Concurrent operations in the same server share the parent
+and descendants, so overlapping records describe overlapping process trees,
+**not isolated per-job allocations**. A descendant already observed remains in
+scope if it is subsequently reparented. Children born and gone between samples
+can be missed; process identities include creation times to guard against PID
+reuse. The host OS remains unknown from inside Docker; the selected metric follows
+the execution OS in `environment.os`.
+
+A small separate interpreter performs collection, avoiding a sampler thread in
+the parent before Linux forks workers. The manager's existing `_segments`
+registry remains the sole owner of live allocation handles and release policy.
+At allocation, registration and release boundaries, it publishes a derived
+snapshot of names and sizes, plus its own mapping addresses on macOS. Overlapping
+runs share one observation session. Manager startup receives that session through
+its existing initializer seam; workers and array attachments need no observation
+context, mapping registry or TIFF wrappers.
+
+Snapshots and sampler-control files are one-way observation/IPC adapters. They
+never supply allocation or lifecycle state back to the manager. POSIX residency
+queries temporarily open a read-only mapping without faulting in the buffer or
+acquiring unlink authority. A manager started before an observation session is
+not retroactively observed. The scientific pipelines start their managers inside
+the collection window. Disabled reporting creates no sampler or observation
+workspace.
+
+`status` is `sampled` when all admitted sweeps succeeded, `partial` when some
+failed, `unavailable` when none completed, or `not_started` if the pipeline was
+never reached. Process or allocation changes during a sweep make that sweep
+incomplete. Manifest reads and publication reuse the control-file retry for
+Windows sharing violations (up to 0.5 seconds, 10 ms spacing). Persistent
+failures remain explicit. A failed manager-manifest publication invalidates the
+metric rather than silently omitting managed allocations.
+
+The peak is the maximum **complete sampled tree total**, not an OS high-water
+mark or a sum of independently observed process peaks. Reads within a sweep are
+sequential, not an atomic tree snapshot. Sampling may miss short-lived peaks;
+external processes sharing pages affect Linux PSS. Sweeps crossing the end of the
+operation are discarded. Requested and observed intervals, sweep cost, complete
+and incomplete counts and errors accompany the result. No complete sample means
+an unavailable value, never a successful zero. The default interval is one second;
+collection cost is assessed against combined reporting overhead.
+
+`last_complete_sample_bytes` is the last admitted complete sample, not a live
+reading at report publication. `sampling` gives the window length, first and last
+admitted sweep offsets, requested interval, observed start-to-start interval
+range, and discarded/incomplete/complete counts. `collector_cpu_seconds` includes
+polling and completion of an in-flight sweep discarded at stop;
+`max_sweep_seconds` includes discarded sweeps too. These costs diagnose the
+observer; only an external pipeline timer measures in-operation overhead.
+
+The native CI matrix covers Linux, Windows and Apple Silicon macOS on Python
+3.11 and 3.12. The current simplification is checked with focused ownership,
+accounting and reporting tests; it has not repeated the long real-data benchmark
+campaign. Historical Linux and Windows pipeline results, component diagnostics,
+and Docker/frozen-executable checks are retained in
+[the Python benchmark guide](https://github.com/ChengLabResearch/ouroboros/blob/main/python/benchmarks/README.md).
+Those results describe earlier collectors. In particular, the earlier Windows
+long-path overhead finding applies to the removed working-set enumeration and
+mapping-tracking implementation, not a measurement of this replacement.
+
+Focused tests do not establish a 1% overhead bound or native macOS pipeline
+acceptance. No cross-platform 1% guarantee is claimed.

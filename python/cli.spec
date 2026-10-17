@@ -8,7 +8,7 @@ a = Analysis(
     ['./ouroboros/cli.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('ouroboros/common/licenses/psutil.txt', 'licenses')],
     hiddenimports=hiddenimports + ['scipy._lib.messagestream', 'scipy', 'scipy.signal', 'scipy.signal.bsplines', 'scipy.special', 'scipy.special._ufuncs_cxx',
                             'scipy.linalg.cython_blas',
                             'scipy.linalg.cython_lapack',

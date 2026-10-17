@@ -24,9 +24,12 @@ def _process(task, pipeline, input_data):
     task.pipeline_input = input_data
     pipeline.set_statistics_enabled(task.reporting_enabled)
     try:
+        if task.statistics is not None:
+            task.statistics.start_memory()
         return pipeline.process(input_data)
     finally:
         if task.statistics is not None:
+            task.statistics.stop_memory()
             task.statistics.capture_volumes()
 
 

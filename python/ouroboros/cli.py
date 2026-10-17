@@ -1,3 +1,7 @@
+from ouroboros.common.memory_observer import dispatch_frozen_observer
+
+dispatch_frozen_observer()
+
 import argparse
 import json
 from multiprocessing import freeze_support

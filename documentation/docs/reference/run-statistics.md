@@ -47,6 +47,9 @@ scientific outcome.
 Docker copies scientific outputs to the host and cleans its working folder
 before finalizing the operation timer. It then stages and transfers the report
 through the existing volume server into the configured host output directory.
+Reports retain private file permissions (`0600` on POSIX). For Docker exports
+on POSIX hosts, the volume server assigns the copied report to its host user and
+group so that user can read it. Windows retains Docker Desktop's host mapping.
 Undelivered reports are retained under `/volume/main-statistics/`, outside the
 scientific working folder. The status response gives the recovery path.
 Successful delivery removes the staging copy. Normal operation and desktop

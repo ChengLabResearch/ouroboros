@@ -4,6 +4,7 @@ import path, { basename, dirname } from 'path'
 import { exec } from 'child_process'
 import bodyParser from 'body-parser'
 import { deleteFilesFromVolumeFolder } from './volume-cleanup.mjs'
+import { copyFileToHostCommand } from './volume-copy.mjs'
 
 const app = express()
 app.use(cors())
@@ -47,7 +48,8 @@ const copyHandler = (toVolume) => async (req, res) => {
 						sourceFolder,
 						sourceFileName,
 						volumeName,
-						targetDir
+						targetDir,
+						pluginFolderName
 					)
 
 				await runCommand(command)
@@ -107,29 +109,6 @@ function copyFileToVolumeCommand(sourceFolder, fileName, volumeName, destFolder)
     docker run --rm -v "${sourceFolder}":/host -v ${volumeName}:/volume -w /host alpine sh -c "
     mkdir -p '${newDestFolder}' && cp -r '${innerFilePath}' '${destFile}'"
 `
-		.replace(/\s+/g, ' ')
-		.trim()
-
-	return command
-}
-
-/**
- * Creates a command to copy a file from a volume to the host file system
- * @param {string} sourceFolder The folder of the file on the host
- * @param {string} fileName The name of the file
- * @param {string} volumeName The volume to copy into
- * @param {string} destFolder The target folder in the volume
- * @returns An executable command
- */
-function copyFileToHostCommand(sourceFolder, fileName, volumeName, destFolder) {
-	const innerFilePath = path.posix.join('/host/', fileName)
-	const destFile = path.posix.join('/volume/', destFolder, fileName)
-
-	// Construct the Docker command
-	const command = `
-        docker run --rm -v "${sourceFolder}":/host -v ${volumeName}:/volume -w /host alpine 
-        sh -c "rm -rf '${innerFilePath}' && cp -r '${destFile}' '${innerFilePath}'"
-    `
 		.replace(/\s+/g, ' ')
 		.trim()
 

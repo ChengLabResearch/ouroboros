@@ -35,10 +35,6 @@ def clock(values):
     return SimpleNamespace(perf_counter=iter(values).__next__)
 
 
-def no_clock():
-    return SimpleNamespace(perf_counter=Mock(side_effect=AssertionError("Detailed clock was called")))
-
-
 def test_overlapping_worker_samples_have_explicit_nested_semantics_and_repeatable_summaries(monkeypatch):
     barrier = threading.Barrier(2)
 
@@ -107,10 +103,12 @@ def test_disabled_statistics_keep_progress_and_step_duration_but_no_detailed_sam
     pipeline.process(BasePipelineInput())
     assert pipeline.get_step_statistics()[0]["custom_times"] == {}
     assert pipeline.get_step_statistics()[0]["byte_counts"] == {}
+    assert step.timing["custom_times"] == {} and step.byte_counts == {}
     assert step.get_progress() == 1
     assert pipeline.elapsed_seconds >= step.get_duration() > 0
     pipeline.set_statistics_enabled(True).process(BasePipelineInput())
     assert step.get_time_statistics()["custom_times"]["worker"]["loops"] == 1
+    assert step.byte_counts == {"intermediate_payload_bytes": 100}
     pipeline.process(BasePipelineInput())
     assert step.get_time_statistics()["custom_times"]["worker"]["loops"] == 1
 
@@ -124,38 +122,34 @@ def slice_options(tmp_path):
                         slice_width=2, slice_height=2)
 
 
-def test_slice_worker_disabled_clocks_preserve_scientific_output(tmp_path, monkeypatch):
+def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(tmp_path, monkeypatch):
     rects = make_rects()
     box = BoundingBox(BoundingBox.bounds_to_rect(0, 3, 0, 3, 0, 3))
     options = slice_options(tmp_path)
-    arrays = []
-    for enabled in (True, False):
-        path = tmp_path / f"{enabled}.tif"
-        tifffile.memmap(path, shape=(1, 2, 2), dtype=np.float32, photometric="minisblack")
-        if not enabled:
-            monkeypatch.setattr(slice_module, "time", no_clock())
-        result = slice_module.process_worker_save_parallel(
-            options, np.arange(27).reshape(3, 3, 3), box, [0], 0, rects, str(path),
-            collect_statistics=enabled,
-        )
-        assert bool(result[1]) is enabled
-        arrays.append(tifffile.imread(path))
-    np.testing.assert_array_equal(arrays[0], arrays[1])
+    path = tmp_path / "slices.tif"
+    tifffile.memmap(path, shape=(1, 2, 2), dtype=np.float32, photometric="minisblack")
+    monkeypatch.setattr(slice_module, "time", clock(range(9)))
+    index, durations, _, _ = slice_module.process_worker_save_parallel(
+        options, np.arange(27).reshape(3, 3, 3), box, [0], 0, rects, str(path),
+    )
+    assert index == 0
+    assert durations == {
+        "initial_load": [1], "generate_grid": [1], "slice_volume": [1],
+        "memmap_write": [1], "total_process": [8],
+    }
 
 
-def test_download_worker_disabled_clocks_preserve_padding_and_output(monkeypatch):
+def test_download_worker_returns_elapsed_time_with_the_owned_geometry(monkeypatch):
     source = SimpleNamespace(
         bounds=Bbox((0, 0, 0), (4, 4, 4)), num_channels=1,
         download=lambda bbox, **kwargs: np.full((*bbox.size3(), 1), 5),
     )
     cv = SimpleNamespace(cv=source)
     box = BoundingBox(BoundingBox.bounds_to_rect(-1, 3, 0, 3, 0, 3))
-    expected = cache_module.download_volume(cv, box, mip=0)[0]
-    monkeypatch.setattr(cache_module, "time", no_clock())
-    actual, returned_box, elapsed = cache_module.download_volume(cv, box, mip=0, collect_statistics=False)
+    monkeypatch.setattr(cache_module, "time", clock([10, 12]))
+    actual, returned_box, elapsed = cache_module.download_volume(cv, box, mip=0)
     assert returned_box is box
-    assert elapsed is None
-    np.testing.assert_array_equal(actual, expected)
+    assert elapsed == 2
     assert np.all(actual[0] == 0)
     assert np.all(actual[1:] == 5)
 
@@ -167,43 +161,37 @@ def test_backproject_worker_timers_are_disjoint_and_bytes_are_separate(tmp_path,
     monkeypatch.setattr(backproject_module, "backproject_box", lambda *args: (
         np.array([0, 1], dtype=np.uint32), np.array([3, 4], dtype=np.float32), np.array([1, 1], dtype=np.float32)))
     monkeypatch.setattr(backproject_module, "time", clock(range(13)))
-    results = []
-    for enabled in (True, False):
-        options = BackprojectOptions(output_file_folder=str(tmp_path / str(enabled)), output_file_name="sample",
-                                     straightened_volume_path="unused", slice_options_path="unused")
-        if not enabled:
-            monkeypatch.setattr(backproject_module, "time", no_clock())
-        durations, byte_count, index, stack = backproject_module.process_chunk(
-            options, "unused", rects, (slice(None),) * 3, (0, 0, 0), box,
-            collect_statistics=enabled, intermediate_threads=1,
-        )
-        if enabled:
-            assert durations["split"] == durations["stack"] == [1]
-            assert durations["total_chunk_process"] == [12]
-            assert byte_count == 24
-            assert "total_bytes" not in durations
-        else:
-            assert durations == {} and byte_count is None
-        results.append(next((tmp_path / str(enabled)).glob("**/*.dat")).read_bytes())
-    assert results[0] == results[1]
+    options = BackprojectOptions(output_file_folder=str(tmp_path), output_file_name="sample",
+                                 straightened_volume_path="unused", slice_options_path="unused")
+    durations, byte_count, index, stack = backproject_module.process_chunk(
+        options, "unused", rects, (slice(None),) * 3, (0, 0, 0), box,
+        intermediate_threads=1,
+    )
+    assert durations["split"] == durations["stack"] == [1]
+    assert durations["total_chunk_process"] == [12]
+    assert byte_count == 24
+    assert "total_bytes" not in durations
+    assert index == (0, 0, 0)
+    assert stack.tolist() == [0]
 
 
-def test_writer_disabled_clocks_preserve_scientific_output(tmp_path, monkeypatch):
-    monkeypatch.setattr(files_module, "volume_from_intermediates", lambda *args, **kwargs: np.arange(4, dtype=np.float32))
-    arrays = []
-    for enabled in (True, False):
-        if not enabled:
-            monkeypatch.setattr(files_module, "time", no_clock())
-        timings = files_module.write_conv_vol(
-            lambda path, data: arrays.append(data), tmp_path, ImgSliceC(2, 2, 1), np.uint8, None,
-            tmp_path, 0, 0, False, collect_statistics=enabled,
-        )
-        assert bool(timings) is enabled
-    np.testing.assert_array_equal(arrays[0], arrays[1])
+def test_writer_returns_nested_timings_and_uses_dispatched_merge_threads(tmp_path, monkeypatch):
+    merge = Mock(return_value=np.arange(4, dtype=np.float32))
+    writer = Mock()
+    shape = ImgSliceC(2, 2, 1)
+    monkeypatch.setattr(files_module, "volume_from_intermediates", merge)
+    monkeypatch.setattr(files_module, "time", clock([0, 2, 3, 7, 8]))
+    timings = files_module.write_conv_vol(
+        writer, tmp_path, shape, np.uint8, None, tmp_path, 0, 0, False, merge_threads=3,
+    )
+    assert timings == {"Merge Volume": 2, "Write Merged": 4, "Total Chunk Merge": 8}
+    merge.assert_called_once_with(tmp_path, shape, False, thread_count=3)
+    assert writer.call_count == 1
 
 
 @pytest.mark.parametrize("failed_stage", ["download", "slice"])
-def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, monkeypatch, failed_stage):
+@pytest.mark.parametrize("enabled", [False, True])
+def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, monkeypatch, failed_stage, enabled):
     options = slice_options(tmp_path)
     rects = make_rects()
     cache = Mock(spec=cache_module.VolumeCache)
@@ -227,7 +215,7 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
         def submit(self, func, **kwargs):
             future = concurrent.futures.Future()
             if func.func is slice_module.download_volume and failed_stage != "download":
-                future.set_result((np.ones((1, 1, 1)), cache.bounding_boxes[0], None, 0))
+                future.set_result((np.ones((1, 1, 1)), cache.bounding_boxes[0], 0.25, 0))
             else:
                 future.set_exception(RuntimeError(f"{failed_stage} failed"))
             return future
@@ -257,7 +245,7 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
     monkeypatch.setattr(slice_module.threading, "Event", ObservedEvent)
     step = slice_module.SliceParallelPipelineStep(processes=4)
     data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
-    output, error = Pipeline([step]).process(data)
+    output, error = Pipeline([step]).set_statistics_enabled(enabled).process(data)
     assert output is None and f"{failed_stage} failed" in error
     assert wait_results == [True]
     assert step.timing["status"] == "failed"
@@ -265,6 +253,7 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
     assert step.get_duration() > 0
     assert step.execution_resources["download_processes"] == 1
     assert step.execution_resources["slice_processes"] == 3
+    assert step.timing["custom_times"] == ({"Download Time": [0.25]} if enabled and failed_stage == "slice" else {})
 
 
 def test_statistics_filename_keeps_operation_and_run_identity():
@@ -274,8 +263,9 @@ def test_statistics_filename_keeps_operation_and_run_identity():
 
 
 @pytest.mark.parametrize("failure_source", ["writer", "progress_callback"])
+@pytest.mark.parametrize("enabled", [False, True])
 def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
-    tmp_path, monkeypatch, caplog, failure_source
+    tmp_path, monkeypatch, caplog, failure_source, enabled
 ):
     source = tmp_path / "straightened.tif"
     tifffile.imwrite(source, np.ones((1, 2, 2), dtype=np.uint8), photometric="minisblack")
@@ -298,11 +288,9 @@ def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
             future = concurrent.futures.Future()
             if func is backproject_module.process_chunk:
                 assert kwargs["intermediate_threads"] == 12
-                assert kwargs["collect_statistics"] is False
-                future.set_result(({}, None, (0, 0, 0), [0]))
+                future.set_result(({"back_project": [1], "total_chunk_process": [2]}, 24, (0, 0, 0), [0]))
             else:
                 assert kwargs["merge_threads"] == 4
-                assert kwargs["collect_statistics"] is False
                 if failure_source == "writer":
                     future.set_exception(OSError("cannot write output"))
                 else:
@@ -311,6 +299,7 @@ def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
 
     monkeypatch.setattr(backproject_module.concurrent.futures, "ProcessPoolExecutor", InlineExecutor)
     step = backproject_module.BackprojectPipelineStep()
+    step.add_byte_count = Mock(wraps=step.add_byte_count)
     if failure_source == "progress_callback":
         def fail_completed_progress(progress):
             if progress == 1:
@@ -318,7 +307,7 @@ def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
         step.listen_for_progress(fail_completed_progress)
     data = PipelineInput(backproject_options=options, slice_options=slice_options(tmp_path),
                          volume_cache=cache, slice_rects=rects)
-    output, error = Pipeline([step]).process(data)
+    output, error = Pipeline([step]).set_statistics_enabled(enabled).process(data)
     message = "cannot write output" if failure_source == "writer" else "cannot publish progress"
     assert output is None and message in error
     assert step.timing["status"] == "failed"
@@ -328,3 +317,10 @@ def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
     assert submitted_resources == [step.execution_resources["backproject_processes"],
                                    step.execution_resources["writer_processes"]]
     assert "exception calling callback" not in caplog.text
+    step.add_byte_count.assert_called_once_with("intermediate_payload_bytes", 24)
+    assert step.byte_counts == ({"intermediate_payload_bytes": 24} if enabled else {})
+    if enabled:
+        assert step.timing["custom_times"]["back_project"] == [1]
+        assert step.get_time_statistics()["custom_times"]["total_chunk_process"]["includes"] == ["back_project"]
+    else:
+        assert step.timing["custom_times"] == {}

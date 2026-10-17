@@ -86,59 +86,25 @@ target when that collector is introduced.
 
 ## Recorded pipeline-only measurement
 
-The [pipeline-only result](results/issue-138-pipeline-only.json) reused the same
-384³ local source and segmentation with four workers and one BLAS/OpenMP thread.
-It contains three alternating pairs per operation after one disabled warmup.
-No data was regenerated and no pixel hashes were computed. Production code
-remained unchanged throughout the test.
+The [pipeline-only result](results/issue-138-pipeline-only.json) was refreshed after
+removing the per-clock switches and worker reporting arguments. Both treatments
+retain the pre-existing worker clocks; the existing `PipelineStep` methods
+control accumulation. The run reused the same 384³ local source and segmentation
+with four workers and one BLAS/OpenMP thread, using three alternating pairs per
+operation after one disabled warmup. No data was regenerated or pixel-hashed.
+Production code remained unchanged throughout the test, and the recorded source
+digest matches the simplified implementation.
 
 | Operation | Disabled median | Enabled median | Difference | Observed overhead | MAD, disabled / enabled |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Slicing | 8.442667 s | 8.287394 s | −155.273 ms | −1.839% | 103.377 / 152.529 ms |
-| Backprojection | 5.312992 s | 5.395594 s | +82.601 ms | +1.555% | 6.957 / 85.244 ms |
+| Slicing | 16.893485 s | 16.726067 s | -167.418 ms | -0.991% | 401.156 / 155.981 ms |
+| Backprojection | 9.516044 s | 9.521981 s | +5.937 ms | +0.062% | 105.412 / 96.389 ms |
 
-These measurements are consistent with negligible in-operation overhead at this
-workload's measurement resolution: backprojection's 82.601 ms median difference
-is smaller than its enabled-run MAD of 85.244 ms, while slicing's difference is
-negative. The negative value is not evidence of an instrumentation speedup, and
-three pairs do not prove a strict 1% upper bound. All individual samples are
-retained; no additional runs were selected to improve the result.
+Backprojection's +5.937 ms difference (+0.062%) is much smaller than its enabled-run MAD of 96.389 ms; slicing's difference is negative. These results remain consistent with negligible in-operation overhead at this measurement resolution. A negative difference is measurement variation, not a speedup claim, and three pairs do not prove a strict statistical upper bound. All samples are retained; no further runs were selected to improve the result.
 
-## Historical full-handler measurements
+The development Electron preview was using CPU rendering during this run (a process snapshot showed about 149% CPU). Background activity was not controlled, so absolute runtimes should not be compared with the earlier session, and this is not an idle-machine microbenchmark. The within-run enabled/disabled comparison and its variability are reported together.
 
-The [recorded lifecycle implementation run](results/issue-138-local-384.json)
-used the default fixture and seven pairs on an Intel Xeon W-10855M, 12 logical
-CPUs, Linux under WSL2, Python 3.11.13, and four workers. It was measured before
-the final report-schema simplification; its source digest identifies the exact
-measured Python code. The earlier
-[pre-lifecycle-fix measurements](results/issue-138-local-384-before-lifecycle-fixes.json)
-are retained separately and are not pooled with this run.
-
-| Operation | Disabled median | Enabled median | Observed overhead | MAD, disabled / enabled |
-| --- | ---: | ---: | ---: | ---: |
-| Slicing | 8.463 s | 8.621 s | +1.87% | 0.149 / 0.146 s |
-| Backprojection | 5.536 s | 5.565 s | +0.51% | 0.071 / 0.245 s |
-
-These historical figures include setup and final reporting, so they do not
-evaluate the clarified in-operation budget. Variation in both operations also
-exceeded 1%. The full ranges and all individual samples are in the artifact.
-Later schema changes have not been measured by this run. No live Docker daemon
-was available, so these numbers make no claim about Docker transfer overhead.
-
-All measured TIFF pixels matched across both treatments and matched one
-scientific run of each operation at baseline commit `1cf19b6`. The sliced image
-contained 576 × 192 × 192 `uint16` pixels (42,467,328 pixel bytes), and the
-backprojection contained 388 × 314 × 310 `uint8` pixels (37,767,920 pixel bytes;
-552,589 compressed file bytes). Every verbose run delivered statistics identical
-to its stdout JSON without collection errors; no run emitted a warning.
-
-A separate diagnostic slice, excluded from the acceptance samples, timed the
-existing reporting methods with wrappers: volume collection took 6.54 ms,
-publication took 10.96 ms including record construction, formatting, and file
-writing, and parent timing aggregation accumulated 1.30 ms. Those approximately
-18.8 ms did not identify a reporting cost at the scale of the paired median
-difference. They exclude worker-side timing and serialization costs; nested and
-concurrent spans must not be summed indiscriminately. The diagnostic does not
-establish the in-operation overhead. The external handler-minus-operation
-interval was about 11 ms for slicing and 12 ms for backprojection, also recorded
-per sample in the artifact.
+Earlier full-handler artifacts and summaries were removed because they measured
+superseded implementations. The original accepted pipeline measurement and those
+older artifacts remain in Git history; #138 links its original acceptance numbers
+directly to that revision rather than to this refreshed file.

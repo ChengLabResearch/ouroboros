@@ -15,10 +15,11 @@ single TIFF or a directory of TIFF planes. JSON numeric values retain their
 precision; byte counts are integers. Console headings and progress bars are
 outside the JSON payload.
 
-Without `--verbose`, the CLI skips detailed timing samples, volume statistics,
-report formatting and report writes. Basic step duration and progress remain
-available. The pipeline factory's `verbose` argument continues to control its
-progress bar; it is separate from run reporting.
+Without `--verbose`, the CLI skips the pipeline's accumulation of detailed timing
+samples, volume statistics, report formatting and report writes. Existing worker
+phase clocks still run; basic step duration and progress remain available. The
+pipeline factory's `verbose` argument continues to control its progress bar; it
+is separate from run reporting.
 
 ## Server and Docker
 
@@ -61,10 +62,13 @@ scientific-output transfer makes the operation fail. A failed statistics write
 or transfer leaves a successful scientific outcome intact but exposes the
 publication error through status, an error event, and server logging. A console
 or log presentation failure is exposed separately as `presentation_error`; an
-already-published file keeps its delivery status and path. The CLI exits with
+example is `BrokenPipeError` when a consumer such as `head` closes stdout while
+`--verbose` prints the saved report. `presentation_interrupted` distinguishes an
+interruption during this final output. Neither changes the scientific outcome
+or an already-published file's delivery status and path. The CLI exits with
 status 1 on failure and 130 on interruption, including interrupted report
-delivery or presentation. When
-options cannot be loaded and no output destination is known, the report is
+delivery or presentation. When options cannot be loaded and no output
+destination is known, the report is
 explicitly unavailable; no report is silently written to the current directory.
 
 ## Schema version 1
@@ -97,10 +101,13 @@ OS, and remote caches and remains unknown without observation.
 The schema defines timing boundaries, units, axis conventions, and unavailable
 values here rather than repeating explanatory text in every record. The
 effective slicing configuration is included separately for backprojection; a
-slicing run already has it in `effective_configuration.operation`. Input paths
-retain their original host identifiers before Docker remapping. Annotation and
-layer names remain in the effective configuration, and the resolved dataset URL
-is `volumes.source.url`.
+slicing run already has it in `effective_configuration.operation`. Under Docker,
+`volumes.*.path` and paths in `effective_configuration` describe effective
+container paths; scratch files may already have been removed by cleanup.
+`inputs` retains original host identifiers before Docker remapping, while
+`statistics.path` in the status response identifies the published host report.
+Annotation and layer names remain in the effective configuration, and the
+resolved dataset URL is `volumes.source.url`.
 
 ## Timing definitions
 

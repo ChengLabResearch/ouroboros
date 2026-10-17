@@ -219,9 +219,9 @@ def download_volume_geometry(cv: CloudVolumeInterface, bounding_box: BoundingBox
 def download_volume(
     cv: CloudVolumeInterface, bounding_box: BoundingBox, mip, parallel: int = 1,
     use_shared=False, shm_address: str = None, shm_authkey: str = None,
-    collect_statistics: bool = True, **kwargs
+    **kwargs
 ) -> VolumeCutout:
-    start = time.perf_counter() if collect_statistics else None
+    start = time.perf_counter()
     bbox, dl_box, vol_shape = download_volume_geometry(cv, bounding_box)
 
     # Limit size of area we are grabbing, in case we go out of bounds.
@@ -244,7 +244,7 @@ def download_volume(
         volume[local_bounds] = cv.cv.download(dl_box, mip=mip, parallel=parallel)
 
     # Return volume
-    elapsed = time.perf_counter() - start if collect_statistics else None
+    elapsed = time.perf_counter() - start
     return volume, bounding_box, elapsed, *kwargs.values()
 
 

@@ -205,7 +205,6 @@ class BackprojectPipelineStep(PipelineStep):
                         chunk=chunk,
                         index=index,
                         full_bounding_box=full_bounding_box,
-                        collect_statistics=self.statistics_enabled,
                         intermediate_threads=self.execution_resources["intermediate_threads_per_process"],
                     ))
 
@@ -235,11 +234,10 @@ class BackprojectPipelineStep(PipelineStep):
                         callback_errors.append(error)
 
                 for bp_future in concurrent.futures.as_completed(bp_futures):
-                    start = time.perf_counter() if self.statistics_enabled else None
+                    start = time.perf_counter()
                     # Store the durations for each bounding box
                     durations, intermediate_bytes, index, z_stack = bp_future.result()
-                    if self.statistics_enabled:
-                        self.add_byte_count("intermediate_payload_bytes", intermediate_bytes)
+                    self.add_byte_count("intermediate_payload_bytes", intermediate_bytes)
                     for key, value in durations.items():
                         includes = tuple(name for name in durations if name != key) \
                             if key == "total_chunk_process" else ()
@@ -273,15 +271,13 @@ class BackprojectPipelineStep(PipelineStep):
                                 index=index,
                                 interpolation=config.upsample_order,
                                 discrete=config.make_backprojection_discrete,
-                                collect_statistics=self.statistics_enabled,
                                 merge_threads=self.execution_resources["merge_threads_per_writer"],
                             ))
                             write_futures[-1].add_done_callback(note_written)
 
                         writeable[write] = 2
 
-                    if self.statistics_enabled:
-                        self.add_timing("Process Backproject Future", time.perf_counter() - start, scope="coordinator")
+                    self.add_timing("Process Backproject Future", time.perf_counter() - start, scope="coordinator")
 
                 for write_future in concurrent.futures.as_completed(write_futures):
                     write_future.result()
@@ -293,7 +289,7 @@ class BackprojectPipelineStep(PipelineStep):
             traceback.print_tb(e.__traceback__, file=sys.stderr)
             return f"An error occurred while processing the bounding boxes: {e}"
 
-        start = time.perf_counter() if self.statistics_enabled else None
+        start = time.perf_counter()
 
         if config.make_single_file:
             pipeline_input.output_file_path += ".tif"
@@ -305,8 +301,7 @@ class BackprojectPipelineStep(PipelineStep):
         # Update the pipeline input with the output file path
         pipeline_input.backprojected_folder_path = folder_path
 
-        if self.statistics_enabled:
-            self.add_timing("export", time.perf_counter() - start, scope="coordinator")
+        self.add_timing("export", time.perf_counter() - start, scope="coordinator")
 
         if config.make_single_file:
             shutil.rmtree(folder_path)
@@ -322,34 +317,31 @@ def process_chunk(
     chunk: tuple[slice],
     index: tuple[int],
     full_bounding_box: BoundingBox,
-    collect_statistics: bool = True,
     intermediate_threads: int = 12,
-) -> tuple[dict, int | None, tuple[int], np.ndarray | list]:
+) -> tuple[dict, int, tuple[int], np.ndarray | list]:
     durations = {}
 
-    start_total = time.perf_counter() if collect_statistics else None
+    start_total = time.perf_counter()
 
     # Load the straightened volume
     try:
         straightened_volume = tifffile.memmap(straightened_volume_path, mode="r")
-        if collect_statistics:
-            durations["memmap"] = [time.perf_counter() - start_total]
+        durations["memmap"] = [time.perf_counter() - start_total]
     except BaseException as be:
         print(f"Error loading Volume: {be} : {straightened_volume_path}")
         traceback.print_tb(be.__traceback__, file=sys.stderr)
         raise be
 
     # Get the slices from the straightened volume  Dumb but maybe bugfix?
-    start = time.perf_counter() if collect_statistics else None
+    start = time.perf_counter()
     slices = straightened_volume[chunk].squeeze()
     bounding_box = BoundingBox.from_rects(chunk_rects)
 
     # Close the memmap
     del straightened_volume
-    if collect_statistics:
-        durations["get_slices"] = [time.perf_counter() - start]
+    durations["get_slices"] = [time.perf_counter() - start]
 
-    start = time.perf_counter() if collect_statistics else None
+    start = time.perf_counter()
     try:
         lookup, values, weights = backproject_box(bounding_box, chunk_rects, slices)
     except BaseException as be:
@@ -357,19 +349,17 @@ def process_chunk(
         traceback.print_tb(be.__traceback__, file=sys.stderr)
         raise be
 
-    if collect_statistics:
-        durations["back_project"] = [time.perf_counter() - start]
-    intermediate_bytes = int(lookup.nbytes + values.nbytes + weights.nbytes) if collect_statistics else None
+    durations["back_project"] = [time.perf_counter() - start]
+    intermediate_bytes = int(lookup.nbytes + values.nbytes + weights.nbytes)
 
     if values.nbytes == 0:
         # No data to write from this chunk, so return as such.
-        if collect_statistics:
-            durations["total_chunk_process"] = [time.perf_counter() - start_total]
+        durations["total_chunk_process"] = [time.perf_counter() - start_total]
         return durations, intermediate_bytes, index, []
 
     # Save the data
     try:
-        start = time.perf_counter() if collect_statistics else None
+        start = time.perf_counter()
 
         z_vals, yx_vals = np.divmod(lookup, np.prod(bounding_box.get_shape()[:2], dtype=np.uint32))
         offset = np.flip(bounding_box.get_min(np.int64) - full_bounding_box.get_min(np.int64)).astype(np.uint32)
@@ -383,18 +373,16 @@ def process_chunk(
             "channel_count": np.uint32(1 if len(slices.shape) < 4 else slices.shape[-1]),
         }
         type_ar = np.array([yx_vals.dtype.str, values.dtype.str, weights.dtype.str], dtype='S8')
-        if collect_statistics:
-            durations["split"] = [time.perf_counter() - start]
+        durations["split"] = [time.perf_counter() - start]
 
-        start = time.perf_counter() if collect_statistics else None
+        start = time.perf_counter()
         # Gets slices off full array corresponding to each Z value.
         z_idx = [0] + list(np.where(z_vals[:-1] != z_vals[1:])[0] + 1) + [len(z_vals)]
         z_stack = z_vals[z_idx[:-1]]
         z_slices = [np.s_[z_idx[i]: z_idx[i + 1]] for i in range(len(z_idx) - 1)]
 
-        if collect_statistics:
-            durations["stack"] = [time.perf_counter() - start]
-        start = time.perf_counter() if collect_statistics else None
+        durations["stack"] = [time.perf_counter() - start]
+        start = time.perf_counter()
 
         i_path = Path(config.output_file_folder, f"{os.getppid()}_{config.output_file_name}")
         i_path.mkdir(exist_ok=True, parents=True)
@@ -415,15 +403,13 @@ def process_chunk(
         with ThreadPool(intermediate_threads) as pool:
             pool.starmap(make_z, enumerate(z_slices))
 
-        if collect_statistics:
-            durations["write_intermediate"] = [time.perf_counter() - start]
+        durations["write_intermediate"] = [time.perf_counter() - start]
     except BaseException as be:
         print(f"Error on BP: {be}")
         traceback.print_tb(be.__traceback__, file=sys.stderr)
         raise be
 
-    if collect_statistics:
-        durations["total_chunk_process"] = [time.perf_counter() - start_total]
+    durations["total_chunk_process"] = [time.perf_counter() - start_total]
 
     return durations, intermediate_bytes, index, z_stack + offset[0]
 

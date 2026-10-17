@@ -173,8 +173,7 @@ class SliceParallelPipelineStep(PipelineStep):
                                 config=config,
                                 slice_rects=slice_rects,
                                 temporary_path=temp_file_path,
-                                shared=volume_cache.use_shared,
-                                collect_statistics=self.statistics_enabled)
+                                shared=volume_cache.use_shared)
 
                 partial_dl_executor = partial(download_volume,
                                               cv=volume_cache.cv,
@@ -182,8 +181,7 @@ class SliceParallelPipelineStep(PipelineStep):
                                               parallel=self.execution_resources["download_threads_per_process"],
                                               use_shared=volume_cache.use_shared,
                                               shm_address=shm_host.address,
-                                              shm_authkey=authkey,
-                                              collect_statistics=self.statistics_enabled)
+                                              shm_authkey=authkey)
 
                 callback_lock = threading.RLock()
                 failures = []
@@ -206,8 +204,7 @@ class SliceParallelPipelineStep(PipelineStep):
                             return
                         try:
                             volume, bounding_box, download_time, index = future.result()
-                            if self.statistics_enabled:
-                                self.add_timing("Download Time", download_time)
+                            self.add_timing("Download Time", download_time)
                             if volume_cache.use_shared or volume_cache.cache_volume:
                                 volume_cache.volumes[index] = volume
                             downloaded_volumes += 1
@@ -276,7 +273,7 @@ class SliceParallelPipelineStep(PipelineStep):
                     raise failures[0]
 
                 with multiprocessing.pool.ThreadPool(self.execution_resources["rewrite_threads"]) as pool:
-                    start_time = time.perf_counter() if self.statistics_enabled else None
+                    start_time = time.perf_counter()
                     convert_func = partial(np_convert,
                                            target_dtype=volume_cache.get_volume_dtype(),
                                            normalize=config.normalize_output,
@@ -296,8 +293,7 @@ class SliceParallelPipelineStep(PipelineStep):
                                        i) for i in range(len(temp_file))])
                     del temp_file
                     temp_file_path.unlink()
-                    if self.statistics_enabled:
-                        self.add_timing("Rewrite Temp", time.perf_counter() - start_time, scope="coordinator")
+                    self.add_timing("Rewrite Temp", time.perf_counter() - start_time, scope="coordinator")
         except Exception as e:
             traceback.print_tb(e.__traceback__, file=sys.stderr)
             return f"Error downloading data: {e}"
@@ -320,9 +316,8 @@ def process_worker_save_parallel(
     slice_rects: np.ndarray,
     temporary_path: str = None,
     shared: bool = False,
-    collect_statistics: bool = True,
 ) -> tuple[int, dict[str, list[float]]]:
-    start_total = time.perf_counter() if collect_statistics else None
+    start_total = time.perf_counter()
 
     if shared:
         volume_data = volume.array()
@@ -330,35 +325,31 @@ def process_worker_save_parallel(
         volume_data = volume
 
     durations = {}
-    if collect_statistics:
-        durations["initial_load"] = [time.perf_counter() - start_total]
+    durations["initial_load"] = [time.perf_counter() - start_total]
 
     # Generate a grid for each slice and stack them along the first axis
-    start = time.perf_counter() if collect_statistics else None
+    start = time.perf_counter()
 
     grid_call = partial(coordinate_grid, shape=(config.slice_height, config.slice_width), floor=bounding_box.get_min())
     grids = np.array(list(map(grid_call, slice_rects[slice_indices])))
-    if collect_statistics:
-        durations["generate_grid"] = [time.perf_counter() - start]
+    durations["generate_grid"] = [time.perf_counter() - start]
 
     # Slice the volume using the grids
-    start = time.perf_counter() if collect_statistics else None
+    start = time.perf_counter()
     slices = slice_volume_from_grids(
         volume_data, bounding_box, grids, config.slice_width, config.slice_height
     )
-    if collect_statistics:
-        durations["slice_volume"] = [time.perf_counter() - start]
+    durations["slice_volume"] = [time.perf_counter() - start]
 
-    start = time.perf_counter() if collect_statistics else None
+    start = time.perf_counter()
     # Save the slices to a previously created tiff file
     mmap = memmap(temporary_path)
     mmap[slice_indices] = slices
     mmap.flush()
     del mmap
 
-    if collect_statistics:
-        durations["memmap_write"] = [time.perf_counter() - start]
-        durations["total_process"] = [time.perf_counter() - start_total]
+    durations["memmap_write"] = [time.perf_counter() - start]
+    durations["total_process"] = [time.perf_counter() - start_total]
 
     return volume_index, durations, np.min(slices), np.max(slices)
 

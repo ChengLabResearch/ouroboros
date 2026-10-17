@@ -95,7 +95,8 @@ def test_existing_owner_is_observed_when_first_session_starts(monkeypatch):
             assert len(calls) == 1
             record, = observed["mappings"]
             assert record["identity"] == ["shm", shared.name]
-            assert record["size"] == 4096  # Full mapping, not the eight-byte logical array.
+            # Use the actual mapping, including native page-size rounding.
+            assert record["size"] == len(shared.buf) > 8
             assert record["offset"] == 0
             with array as data:
                 assert record["address"] == data.ctypes.data
@@ -147,7 +148,7 @@ def test_shared_views_pickle_and_shutdown_follow_actual_handles():
             assert len(records) == 3
             assert len({record["address"] for record in records}) == 3
             assert all(record["identity"] == ["shm", shared.name] for record in records)
-            assert all(record["size"] == 4096 for record in records)
+            assert all(record["size"] == len(shared.buf) for record in records)
             for remaining, array in zip((2, 1, 0), arrays):
                 array.shutdown()
                 assert len(snapshot(session.context)["mappings"]) == remaining
@@ -172,7 +173,7 @@ def test_executor_initializer_precedes_shared_array_unpickle():
             assert before["pid"] != os.getpid()
             record, = before["mappings"]
             assert record["identity"] == ["shm", shared.name]
-            assert record["size"] == 4096
+            assert record["size"] == len(shared.buf)
             assert before["errors"] == after["errors"] == []
             assert after["mappings"] == []
             assert session.context.failure_flag.value == 0

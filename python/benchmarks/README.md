@@ -111,3 +111,64 @@ Earlier full-handler artifacts and summaries were removed because they measured
 superseded implementations. The original accepted pipeline measurement and those
 older artifacts remain in Git history; #138 links its original acceptance numbers
 directly to that revision rather than to this refreshed file.
+
+## RAM collector measurement (#139)
+
+[All Linux pipeline samples and memory summaries](results/issue-139-pipeline-only.json)
+use the same prepared 384³ source, four workers and one BLAS/OpenMP thread,
+three alternating pairs per operation, and one disabled warmup. No pixels were
+hashed. Production Python sources remained unchanged throughout the measurement.
+The sampler requested a one-second interval.
+
+| Operation | Disabled median | Enabled median | Difference | Observed overhead | MAD, disabled / enabled |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Slicing | 20.279846 s | 17.251620 s | -3028.226 ms | -14.932% | 415.349 / 594.883 ms |
+| Backprojection | 9.115685 s | 8.975244 s | -140.441 ms | -1.541% | 45.338 / 108.476 ms |
+
+Neither operation showed positive median overhead in this run. The large negative
+slicing difference must not be interpreted as a speedup; this shared development
+machine was not otherwise controlled, and three pairs do not establish a strict
+upper bound. All samples are retained, without rerunning to select favorable
+results. These observations meet the numerical engineering target on this Linux
+workload; they do not validate native Windows/macOS overhead.
+
+Slicing observed up to seven processes, 17–19 complete sweeps per run, 113–152 ms
+maximum sweep durations and 1.493–1.900 s of observer CPU. Backprojection observed
+up to five processes, 8–10 complete sweeps, 75–85 ms maximum sweep durations and
+0.551–0.629 s of observer CPU. One backprojection sweep was incomplete because a
+worker vanished during the read; the peak uses only complete sweeps. Observed
+start-to-start intervals were approximately 1.000–1.010 s. Observer CPU is not
+wall-time overhead: it can run concurrently on another core and includes polling
+and completion of discarded end-of-window work.
+
+### Native Windows diagnostic and unresolved performance limit
+
+The [native Windows diagnostic](results/issue-139-windows-diagnostic.json) is a
+separate component stress test, **not the full pipeline acceptance benchmark**.
+Eight spawned workers each perform 81 in-place float32 additions on a disjoint
+128 MiB slice of one 1 GiB `SharedNPArray`; the parent and workers map the full
+allocation. It measures dispatch through worker completion, excluding collector
+startup/shutdown, with a one-second requested sampling interval.
+
+| Pair | Disabled | Enabled | Change |
+| --- | ---: | ---: | ---: |
+| 1 | 7.130173 s | 7.506819 s | +5.282% |
+| 2 | 7.301253 s | 7.422279 s | +1.658% |
+| 3 | 6.978654 s | 7.272467 s | +4.210% |
+
+The ratio of medians is **+4.097%**: 7.130173 s versus 7.422279 s, a 292.105 ms
+increase. MADs are 151.519 ms disabled and 84.540 ms enabled. The third pair used
+a fresh identical fixture after the diagnostic's evidence write to a WSL UNC
+path failed; the artifact records this interruption. All three enabled trials
+produced complete samples, without collection errors. Actual sweeps reached
+4.38–4.82 s during active writes, despite the requested one-second interval.
+Shorter (~2 s) stress operations could end without any complete sample and
+correctly reported unavailable memory.
+
+The idle native reader cost was 50.66 ms for a 256 MiB allocation across three
+processes and 511.09 ms for 1 GiB across nine. It counted the shared allocation
+once in every sweep, beyond Windows' share-count cap. The diagnostic preserves
+all paired times, sample/CPU details and idle measurements. Full native Windows
+pipeline overhead remains unvalidated; these results do **not** justify a 1%
+claim. A native-Windows performance exception or further work is required before
+acceptance. The default Docker backend uses the Linux collector.

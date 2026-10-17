@@ -287,3 +287,16 @@ range, and discarded/incomplete/complete counts. `collector_cpu_seconds` include
 polling and completion of an in-flight sweep discarded at stop;
 `max_sweep_seconds` includes discarded sweeps too. These costs diagnose the
 observer; only the external pipeline timer measures in-operation overhead.
+
+Native Linux, Windows and Apple Silicon macOS reader/controller tests run in CI
+on Python 3.11 and 3.12. Local verification also exercised a frozen Linux
+executable and real slicing/backprojection CLI runs inside the default Docker
+image on a Windows/WSL host. This does not constitute a new GUI/volume-server
+delivery test or validation on every Docker desktop host.
+
+The fixed-local Linux pipeline benchmark observed negative median differences
+for both operations. Native Windows stress testing observed +4.10% operation
+elapsed time and expensive sweeps under active shared-buffer writes; its overhead
+requirement remains unresolved. Native macOS pipeline overhead has not been
+measured. See the benchmark guide for all times, variability, sampling cost and
+coverage limitations. No cross-platform 1% guarantee is claimed.

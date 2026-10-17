@@ -65,7 +65,10 @@ def test_control_write_retries_windows_replace_without_exposing_partial_json(mon
     monkeypatch.setattr(Path, "replace", briefly_locked)
     memory._write_json(path, {"new": "complete"})
     assert memory._read_json(path) == {"new": "complete"}
-    assert sleeps == [0.01]
+    # Native Windows may add a real sharing violation after the injected one.
+    assert len(attempts) >= 2
+    assert sleeps and all(0 < delay <= 0.01 for delay in sleeps)
+    assert sum(sleeps) <= 0.5
     assert not path.with_suffix(".tmp").exists()
 
 

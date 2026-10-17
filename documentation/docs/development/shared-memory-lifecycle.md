@@ -164,7 +164,8 @@ segment's residency once with `mincore`. This includes resident queued buffers
 whose producer has closed even if no remaining process has accessed their pages.
 macOS adds the same managed residency to `libproc` private residency, excluding
 the owner's segment ranges to avoid counting a sole-mapper segment twice. Its
-revised reader still needs native validation. POSIX residency queries use a
+reader and controller are tested in native CI; pipeline load remains unmeasured.
+POSIX residency queries use a
 temporary read-only mapping without faulting in the data or taking unlink
 authority.
 

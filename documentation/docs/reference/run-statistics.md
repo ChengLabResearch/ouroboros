@@ -253,8 +253,8 @@ not silently fall back to the old working-set scan.
 macOS retains a `libproc` region walk for private residency. A segment can appear
 private when the manager is its only mapper, so the manager's ranges are excluded
 before managed residency is added. Compressed/swapped pages are not included.
-The revised macOS collector still needs native validation, including pipeline
-collection cost.
+Native CI exercises the macOS reader and short collector lifecycle. Native
+macOS pipeline collection cost remains unmeasured.
 
 There is no separate TIFF or resident file-cache accounting. Ordinary mapped-file
 pages may still contribute to the native process counter; cached pages absent

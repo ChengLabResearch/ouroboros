@@ -9,7 +9,7 @@ collectors; their overhead is not a measurement of this replacement. The Linux
 candidate probes informed the new accounting, but isolated query costs likewise
 are not pipeline overhead. This revision uses focused native accounting,
 ownership and reporting tests, without another long real-data benchmark campaign.
-Native macOS validation and a cross-platform 1% overhead bound are not established.
+Native macOS pipeline overhead and a cross-platform 1% overhead bound are not established.
 
 The current real-data comparison applies the overhead budget to instrumentation
 **during the actual slicing or backprojection step**, excluding preceding source

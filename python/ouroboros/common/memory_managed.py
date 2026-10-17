@@ -7,6 +7,7 @@ allocation/release boundaries; only the sampler reads the resulting snapshots.
 import ctypes
 from dataclasses import dataclass
 from functools import lru_cache
+from itertools import count
 import json
 import mmap
 import multiprocessing
@@ -16,7 +17,6 @@ import shutil
 import sys
 import tempfile
 from threading import RLock
-import time
 
 import psutil
 
@@ -33,13 +33,15 @@ _pid = os.getpid()
 _lock = RLock()
 _context = None
 _session_count = 0
+_generations = count()
 _RESIDENT_BITS = bytes(value & 1 for value in range(256))
 
 
 def _ensure_process():
-    global _pid, _lock, _context, _session_count
+    global _pid, _lock, _context, _session_count, _generations
     if _pid != os.getpid():
         _pid, _lock, _context, _session_count = os.getpid(), RLock(), None, 0
+        _generations = count()
 
 
 def current_context():
@@ -107,8 +109,10 @@ def publish_owned_segments(segments):
                 # its range from private residency before adding the segment.
                 record["address"] = ctypes.addressof(ctypes.c_char.from_buffer(memory.buf))
             records.append(record)
+        # A clock is not a revision: Windows can return the same timestamp for
+        # several allocations/releases, including an empty -> live -> empty cycle.
         payload = json.dumps({"pid": os.getpid(), "create_time": psutil.Process().create_time(),
-                              "generation": time.monotonic_ns(), "segments": records})
+                              "generation": next(_generations), "segments": records})
 
         def publish():
             temporary.write_text(payload, encoding="utf-8")

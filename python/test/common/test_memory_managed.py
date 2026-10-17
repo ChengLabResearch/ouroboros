@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import pickle
 import sys
+import time
 
 import numpy as np
 import psutil
@@ -181,6 +182,21 @@ def test_observation_write_failure_does_not_break_owner_allocation(monkeypatch):
             owner.unlink()
         with pytest.raises(FileNotFoundError):
             SharedMemory(name)
+
+
+def test_allocate_release_cycle_changes_snapshot_even_with_a_coarse_clock(monkeypatch):
+    monkeypatch.setattr(time, "monotonic_ns", lambda: 123)
+    with managed.ManagerSession() as session:
+        owner = _OwnedSharedMemoryTracker()
+        try:
+            before = snapshot(session.context, os.getpid())
+            name = owner.allocate(64)
+            owner.destroy_segment(name)
+            after = snapshot(session.context, os.getpid())
+            assert before["segments"] == after["segments"] == []
+            assert before["generation"] != after["generation"]
+        finally:
+            owner.unlink()
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX backing residency")

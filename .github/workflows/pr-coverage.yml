@@ -25,6 +25,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
+      - name: Install PostgreSQL client build tools
+        if: runner.os == 'macOS'
+        run: |
+          brew install libpq
+          echo "$(brew --prefix libpq)/bin" >> "$GITHUB_PATH"
       - name: Install pipeline and lifecycle test dependencies
         working-directory: python
         run: python -m pip install . pytest

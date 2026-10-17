@@ -535,7 +535,7 @@ def test_write_conv_vol(tmp_path, monkeypatch):
     monkeypatch.setattr(
         files_mod,
         "volume_from_intermediates",
-        lambda source_path, shape, discrete: np.array([0, 1, 2, 3], dtype=np.float32),
+        lambda source_path, shape, discrete, thread_count: np.array([0, 1, 2, 3], dtype=np.float32),
     )
 
     def writer(path, data):

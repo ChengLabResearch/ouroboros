@@ -18,6 +18,20 @@ Project the straightened slices back into the space of the original volume.
 
 `ouroboros-cli backproject <options.json> [--verbose]`
 
+`--verbose` prints and saves the same formatted statistics JSON beside the
+configured outputs. Reports are named
+`<output_file_name>-<operation>-<run_id>-statistics.json`, so repeated runs retain
+separate records. They include operation and pipeline timings, volume/storage
+metrics, effective configuration, and explicit success/failure/interruption
+status. RAM accounting is deferred to issue #139. Without the flag, detailed
+collection and report writes are disabled; progress remains available.
+
+Server reporting is enabled by default; pass `reporting_enabled=false` when
+submitting a task to opt out. Task status exposes report delivery and recovery
+information. See the [run-statistics reference](../documentation/docs/reference/run-statistics.md)
+for timing boundaries, schema definitions, Docker behavior, and limitations, and
+the [benchmark guide](benchmarks/README.md) for reproducible overhead measurements.
+
 Export sample options files into the current folder.
 
 `ouroboros-cli sample-options`

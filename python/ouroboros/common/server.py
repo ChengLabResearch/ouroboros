@@ -34,7 +34,7 @@ async def process_requests(
             task.status = "started"
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(pool, task_handler, task)
-            if task.status != "error":
+            if task.status == "started":
                 task.status = "done"
         finally:
             queue.task_done()

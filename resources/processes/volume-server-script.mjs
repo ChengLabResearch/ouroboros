@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/explicit-function-return-type */
-
 import express from 'express'
 import cors from 'cors'
 import path, { basename, dirname } from 'path'
 import { exec } from 'child_process'
 import bodyParser from 'body-parser'
+import { deleteFilesFromVolumeFolder } from './volume-cleanup.mjs'
 
 const app = express()
 app.use(cors())
@@ -131,26 +130,6 @@ function copyFileToHostCommand(sourceFolder, fileName, volumeName, destFolder) {
         docker run --rm -v "${sourceFolder}":/host -v ${volumeName}:/volume -w /host alpine 
         sh -c "rm -rf '${innerFilePath}' && cp -r '${destFile}' '${innerFilePath}'"
     `
-		.replace(/\s+/g, ' ')
-		.trim()
-
-	return command
-}
-
-/**
- * Creates a command to delete all files from a specific folder in a given volume
- * @param {string} volumeName The volume containing the folder
- * @param {string} targetFolder The folder to delete files from within the volume
- * @returns An executable command
- */
-function deleteFilesFromVolumeFolder(volumeName, targetFolder) {
-	const targetFolderPath = path.posix.join('/volume/', targetFolder, '/*')
-
-	// Construct the Docker command
-	const command = `
-    docker run --rm -v ${volumeName}:/volume alpine sh -c "
-    rm -rf ${targetFolderPath}"
-`
 		.replace(/\s+/g, ' ')
 		.trim()
 

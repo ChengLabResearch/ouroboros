@@ -192,6 +192,10 @@ def format_slice_output_config_file(output_name: str) -> str:
     return output_name + "-configuration.json"
 
 
+def format_statistics_file(output_file_name: str, operation: str, run_id: str) -> str:
+    return f"{output_file_name}-{operation}-{run_id}-statistics.json"
+
+
 def format_backproject_output_file(output_name: str, offset: tuple[int] | None = None) -> str:
     if offset is not None:
         offset_str = "-".join(map(str, offset))
@@ -331,26 +335,32 @@ def volume_from_intermediates(path: Path, shape: DataShape, discrete: bool = Fal
     return vol[0]
 
 
-def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_folder, index, interpolation, discrete):
+def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_folder, index, interpolation, discrete,
+                   collect_statistics: bool = True, merge_threads: int = 4):
     perf = {}
-    vol_start = time.perf_counter()
-    vol = volume_from_intermediates(source_path, shape, discrete)
-    perf["Merge Volume"] = time.perf_counter() - vol_start
+    vol_start = time.perf_counter() if collect_statistics else None
+    vol = volume_from_intermediates(source_path, shape, discrete, thread_count=merge_threads)
+    if collect_statistics:
+        perf["Merge Volume"] = time.perf_counter() - vol_start
     if scaling is not None:
-        start = time.perf_counter()
+        start = time.perf_counter() if collect_statistics else None
         # CV2 is only 2D but we're resizing from the 1D image anyway at the moment.
         new_volume = cv2.resize(
                         np_convert(dtype, vol.T.reshape(shape.Y, shape.X, shape.C), normalize=False, safe_bool=True),
                         None, fx=scaling[1], fy=scaling[2], interpolation=interpolation)
-        perf["Zoom"] = time.perf_counter() - start
-        start = time.perf_counter()
+        if collect_statistics:
+            perf["Zoom"] = time.perf_counter() - start
+        start = time.perf_counter() if collect_statistics else None
         for i in range(round(scaling[0])):
             writer(target_folder.joinpath(f"{(index * round(scaling[0]) + i):05}.tif"), data=new_volume)
-        perf["Write Merged"] = time.perf_counter() - start
+        if collect_statistics:
+            perf["Write Merged"] = time.perf_counter() - start
     else:
-        start = time.perf_counter()
+        start = time.perf_counter() if collect_statistics else None
         writer(target_folder.joinpath(f"{index}.tif"),
                data=np_convert(dtype, vol.T.reshape(shape.Y, shape.X, shape.C), normalize=False, safe_bool=True))
-        perf["Write Merged"] = time.perf_counter() - start
-    perf["Total Chunk Merge"] = time.perf_counter() - vol_start
+        if collect_statistics:
+            perf["Write Merged"] = time.perf_counter() - start
+    if collect_statistics:
+        perf["Total Chunk Merge"] = time.perf_counter() - vol_start
     return perf

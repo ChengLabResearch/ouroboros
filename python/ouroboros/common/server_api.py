@@ -32,7 +32,7 @@ def create_api(app: FastAPI, docker: bool = False):
     def has_active_task(task_type):
         return any(
             isinstance(task, task_type)
-            and task.status in {"enqueued", "started"}
+            and task.is_active
             for task in tasks.values()
         )
 
@@ -53,7 +53,7 @@ def create_api(app: FastAPI, docker: bool = False):
         return JSONResponse(step_names_payload())
 
     @app.post("/slice/")
-    async def add_slice_task(options: str, request: Request):
+    async def add_slice_task(options: str, request: Request, reporting_enabled: bool = True):
         if has_active_task(SliceTask):
             return JSONResponse(
                 {"detail": "A slice task is already queued or running."},
@@ -61,7 +61,7 @@ def create_api(app: FastAPI, docker: bool = False):
             )
 
         task_id = str(uuid.uuid4())
-        task = SliceTask(task_id=task_id, options=options)
+        task = SliceTask(task_id=task_id, options=options, reporting_enabled=reporting_enabled)
         tasks[task_id] = task
         request.state.queue.put_nowait(task)  # Add request to the queue
         return {"task_id": task_id}
@@ -175,6 +175,7 @@ def create_api(app: FastAPI, docker: bool = False):
     async def add_backproject_task(
         request: Request,
         options: str,
+        reporting_enabled: bool = True,
     ):
         if has_active_task(BackProjectTask):
             return JSONResponse(
@@ -186,6 +187,7 @@ def create_api(app: FastAPI, docker: bool = False):
         task = BackProjectTask(
             task_id=task_id,
             options=options,
+            reporting_enabled=reporting_enabled,
         )
         tasks[task_id] = task
         request.state.queue.put_nowait(task)  # Add request to the queue
@@ -194,21 +196,26 @@ def create_api(app: FastAPI, docker: bool = False):
     def get_status(task_id: str):
         if task_id in tasks:
             task = tasks[task_id]
-            if task.status == "started" or task.status == "done":
+            progress_error = None
+            progress = []
+            if task.pipeline is not None:
                 try:
-                    task.last_progress = tasks[
-                        task_id
-                    ].pipeline.get_steps_progress_and_durations()
+                    progress = task.pipeline.get_steps_progress_and_durations()
                 except BaseException as e:
-                    task.status = "error"
-                    task.error = (
-                        f"Error occurred while getting progress details: {str(e)}."
-                    )
-                    task.last_progress = []
+                    progress_error = f"Error occurred while getting progress details: {e}."
+            publication = (task.statistics.publication if task.statistics is not None else
+                           {"status": "pending" if task.reporting_enabled else "disabled",
+                            "path": None, "recovery_path": None, "error": None,
+                            "presentation_error": None, "presentation_interrupted": False})
+            publishing = task.publication_pending
             return {
-                "status": task.status,
-                "progress": task.last_progress,
-                "error": task.error,
+                "status": "started" if publishing else task.status,
+                "progress": progress,
+                "error": None if publishing else (
+                    task.error or publication["error"] or publication.get("presentation_error")
+                ),
+                "progress_error": progress_error,
+                "statistics": publication,
             }
         else:
             return {
@@ -242,12 +249,15 @@ def create_api(app: FastAPI, docker: bool = False):
                 event = ""
 
                 match result["status"]:
-                    case "error":
+                    case "error" | "interrupted":
                         event = "error_event"
                     case "done":
                         event = "done_event"
                     case _:
                         event = "update_event"
+
+                if result["error"]:
+                    event = "error_event"
 
                 yield {
                     "event": event,
@@ -277,12 +287,15 @@ def create_api(app: FastAPI, docker: bool = False):
                 event = ""
 
                 match result["status"]:
-                    case "error":
+                    case "error" | "interrupted":
                         event = "error_event"
                     case "done":
                         event = "done_event"
                     case _:
                         event = "update_event"
+
+                if result["error"]:
+                    event = "error_event"
 
                 yield {
                     "event": event,
@@ -302,7 +315,7 @@ def create_api(app: FastAPI, docker: bool = False):
     async def delete_task(task_id: str):
         if task_id in tasks:
             task = tasks[task_id]
-            if task.status == "started":
+            if task.is_running:
                 return JSONResponse(
                     {
                         "success": False,

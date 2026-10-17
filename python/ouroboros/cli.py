@@ -3,16 +3,17 @@ import json
 from multiprocessing import freeze_support
 from pathlib import Path
 import sys
+from uuid import uuid4
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from ouroboros.common.pipelines import backproject_pipeline, slice_pipeline, geometry_pipeline
-from ouroboros.helpers.models import pretty_json_output
+from ouroboros.common.pipelines import geometry_pipeline
+from ouroboros.common.server_handlers import handle_task
+from ouroboros.common.server_types import BackProjectTask, SliceTask
 from ouroboros.helpers.options import (
     DEFAULT_BACKPROJECT_OPTIONS,
     DEFAULT_SLICE_OPTIONS,
-    BackprojectOptions,
     SliceOptions,
 )
 
@@ -37,7 +38,7 @@ def main():
     parser_slice.add_argument(
         "--verbose",
         action="store_true",
-        help="Output timing statistics for the calculations.",
+        help="Print and save formatted timing and volume statistics beside the outputs.",
     )
 
     # Create the parser for the backproject command
@@ -53,7 +54,7 @@ def main():
     parser_backproject.add_argument(
         "--verbose",
         action="store_true",
-        help="Output timing statistics for the calculations.",
+        help="Print and save formatted timing and volume statistics beside the outputs.",
     )
 
     # Create the parser for the sample-options command
@@ -132,59 +133,34 @@ def handle_geometry(args):
             json.dump(ng_points, handle)
 
 
+def _handle_operation(args, task_type):
+    print(f"Loading options from: {args.options}")
+    task = task_type(task_id=str(uuid4()), options=args.options,
+                     reporting_enabled=args.verbose, show_progress=True)
+    handle_task(task, print_statistics=True)
+    if task.error:
+        print(f"Pipeline Error: {task.error}", file=sys.stderr)
+    publication = task.statistics.publication if task.statistics else {}
+    publication_error = publication.get("error")
+    presentation_error = publication.get("presentation_error")
+    if publication_error:
+        print(f"Statistics Error: {publication_error}", file=sys.stderr)
+    if presentation_error:
+        print(presentation_error, file=sys.stderr)
+    if (task.status == "interrupted" or publication.get("status") == "interrupted"
+            or publication.get("presentation_interrupted")):
+        raise SystemExit(130)
+    if task.error or publication_error or presentation_error:
+        raise SystemExit(1)
+    return task
+
+
 def handle_slice(args):
-    print(f"Loading slice options from: {args.options}")
-    slice_options = SliceOptions.load_from_json(args.options)
-
-    if isinstance(slice_options, str):
-        print("Exiting due to errors loading slice options.", file=sys.stderr)
-        sys.exit(1)
-
-    print("Slice options loaded successfully.")
-    pipeline, input_data = slice_pipeline(slice_options, True)
-
-    _, error = pipeline.process(input_data)
-
-    if error:
-        print(f"Pipeline Error: {error}", file=sys.stderr)
-
-    if args.verbose:
-        print("\nCalculation Statistics:\n")
-        stat_dict = {stat.pop("pipeline"): stat for stat in pipeline.get_step_statistics()}
-        print(pretty_json_output(stat_dict))
+    return _handle_operation(args, SliceTask)
 
 
 def handle_backproject(args):
-    print(f"Loading backproject options from: {args.options}")
-    backproject_options = BackprojectOptions.load_from_json(args.options)
-
-    if isinstance(backproject_options, str):
-        print("Exiting due to errors loading backproject options.", file=sys.stderr)
-        sys.exit(1)
-
-    print("Backproject options loaded successfully."
-          f"Loading slice options from: {backproject_options.slice_options_path}")
-
-    slice_options = SliceOptions.load_from_json(backproject_options.slice_options_path)
-
-    if isinstance(slice_options, str):
-        print("Exiting due to errors loading slice options file specified within backproject options"
-              f"({backproject_options.slice_options_path}).", file=sys.stderr)
-        sys.exit(1)
-
-    print("Slice options loaded successfully.")
-    pipeline, input_data = backproject_pipeline(backproject_options, slice_options, True)
-
-    _, error = pipeline.process(input_data)
-
-    if error:
-        print(f"Pipeline Error: {error}", file=sys.stderr)
-
-    if args.verbose:
-        print("\nCalculation Statistics:\n")
-        stat_dict = {stat.pop("pipeline"): stat for stat in pipeline.get_step_statistics()}
-        # print(stat_dict)
-        print(pretty_json_output(stat_dict))
+    return _handle_operation(args, BackProjectTask)
 
 
 def handle_sample_options():

@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+from tempfile import NamedTemporaryFile
+from typing import Callable
 from ouroboros.common.volume_server_interface import (
     get_volume_path,
     clear_plugin_folder,
@@ -14,6 +16,53 @@ from ouroboros.helpers.files import (
     format_slice_output_multiple,
 )
 from ouroboros.helpers.options import BackprojectOptions, SliceOptions
+
+
+STATISTICS_FOLDER = "main-statistics"
+
+
+def write_statistics_file(path: Path, formatted_statistics: str) -> None:
+    """Publish a complete JSON document; never leave a truncated final report."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                prefix=f".{path.name}.", suffix=".tmp", delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write(formatted_statistics)
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def publish_statistics(formatted_statistics: str, filename: str, output_folder: str,
+                       docker: bool = False) -> dict:
+    """Use the output transfer seam, retaining undelivered reports outside scientific scratch."""
+    local_path = Path(get_volume_path(STATISTICS_FOLDER) if docker else output_folder, filename)
+    destination = combine_unknown_folder(output_folder, filename) if docker else str(local_path)
+    delivery = {"status": "failed", "path": destination, "recovery_path": None, "error": None,
+                "presentation_error": None, "presentation_interrupted": False}
+    try:
+        write_statistics_file(local_path, formatted_statistics)
+        if docker:
+            delivery["recovery_path"] = str(local_path)
+            success, error = copy_to_host(
+                [{"sourcePath": destination, "targetPath": "./"}],
+                plugin_folder_name=STATISTICS_FOLDER,
+            )
+            if not success:
+                delivery["error"] = error or "Statistics transfer failed."
+                return delivery
+            local_path.unlink()
+        delivery.update(status="published", recovery_path=None)
+    except (Exception, KeyboardInterrupt, SystemExit) as error:
+        if isinstance(error, (KeyboardInterrupt, SystemExit)):
+            delivery["status"] = "interrupted"
+        delivery["error"] = str(error) or type(error).__name__
+        if local_path.exists():
+            delivery["recovery_path"] = str(local_path)
+    return delivery
 
 
 def get_path_name(path: str):
@@ -41,7 +90,7 @@ def load_options_for_backproject(options_path: str) -> BackprojectOptions | str:
 
 
 def load_options_for_backproject_docker(
-    options_path: str, target_path: str = "./"
+    options_path: str, target_path: str = "./", *, on_options: Callable | None = None
 ) -> tuple[BackprojectOptions, SliceOptions, str, str | None, str] | str:
     """
     Loads the options for backprojecting a volume and copies the necessary files to the docker volume.
@@ -75,6 +124,9 @@ def load_options_for_backproject_docker(
 
     if isinstance(options, str):
         return options
+
+    if on_options is not None:
+        on_options(options)
 
     # Copy the straightened volume and config files to the docker volume
     files = [
@@ -111,7 +163,7 @@ def load_options_for_backproject_docker(
     # Load the options for slicing the volume,
     # which contains necessary information for backprojecting the volume
     slice_load_result = load_options_for_slice_docker(
-        options.slice_options_path, target_path
+        options.slice_options_path, target_path, on_options=on_options
     )
 
     if isinstance(slice_load_result, str):
@@ -132,6 +184,7 @@ def save_output_for_backproject_docker(
     host_output_file: str,
     host_output_slices: str = None,
     target_path: str = "./",
+    *, cleanup: bool = True,
 ) -> None | str:
     """
     Saves the output files for backprojecting a volume to the host.
@@ -169,7 +222,10 @@ def save_output_for_backproject_docker(
         return error
 
     # Clear the plugin folder
-    clear_plugin_folder()
+    if cleanup:
+        success, error = clear_plugin_folder()
+        if not success:
+            return error or "Output cleanup failed."
 
 
 def load_options_for_slice(options_path: str) -> SliceOptions | str:
@@ -193,7 +249,7 @@ def load_options_for_slice(options_path: str) -> SliceOptions | str:
 
 
 def load_options_for_slice_docker(
-    options_path: str, target_path: str = "./"
+    options_path: str, target_path: str = "./", *, on_options: Callable | None = None
 ) -> tuple[SliceOptions, str, str | None] | str:
     """
     Loads the options for slicing a volume and copies the necessary files to the docker volume.
@@ -225,6 +281,9 @@ def load_options_for_slice_docker(
 
     if isinstance(slice_options, str):
         return slice_options
+
+    if on_options is not None:
+        on_options(slice_options)
 
     host_output_folder = slice_options.output_file_folder
     host_output_file = combine_unknown_folder(
@@ -267,6 +326,7 @@ def save_output_for_slice_docker(
     host_output_file: str,
     host_output_slices: str = None,
     target_path: str = "./",
+    *, cleanup: bool = True,
 ) -> None | str:
     """
     Saves the output files for slicing a volume to the host.
@@ -303,4 +363,7 @@ def save_output_for_slice_docker(
         return error
 
     # Clear the plugin folder
-    clear_plugin_folder()
+    if cleanup:
+        success, error = clear_plugin_folder()
+        if not success:
+            return error or "Output cleanup failed."

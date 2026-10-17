@@ -4,11 +4,11 @@ VOLUME_SERVER_URL = "http://host.docker.internal:3001"
 PLUGIN_NAME = "main"
 
 
-def get_volume_path() -> str:
+def get_volume_path(plugin_folder_name: str = PLUGIN_NAME) -> str:
     """
     Get the path to the main server's volume folder.
     """
-    return f"/volume/{PLUGIN_NAME}/"
+    return f"/volume/{plugin_folder_name}/"
 
 
 def copy_to_volume(files: list[dict]) -> tuple[bool, str]:
@@ -36,7 +36,7 @@ def copy_to_volume(files: list[dict]) -> tuple[bool, str]:
     return request_volume_server("copy-to-volume", data)
 
 
-def copy_to_host(files: list[dict]) -> tuple[bool, str]:
+def copy_to_host(files: list[dict], plugin_folder_name: str = PLUGIN_NAME) -> tuple[bool, str]:
     """
     Copy files from the main server's volume folder to the host.
 
@@ -54,7 +54,7 @@ def copy_to_host(files: list[dict]) -> tuple[bool, str]:
 
     data = {
         "volumeName": "ouroboros-volume",
-        "pluginFolderName": "main",
+        "pluginFolderName": plugin_folder_name,
         "files": files,
     }
 

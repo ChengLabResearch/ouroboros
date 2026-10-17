@@ -23,6 +23,12 @@ class Pipeline:
             step.statistics_enabled = self.statistics_enabled
         return self
 
+    def set_memory_context(self, context) -> "Pipeline":
+        """Pass observation context through the existing worker-dispatch owners."""
+        for step in self.steps:
+            step.memory_context = context
+        return self
+
     def process(
         self, input_data: BasePipelineInput
     ) -> tuple[BasePipelineInput, None] | tuple[None, str]:
@@ -70,6 +76,7 @@ class PipelineStep(ABC):
     def __init__(self, inputs: tuple[str]) -> None:
         self.step_name = type(self).__name__
         self.statistics_enabled = False
+        self.memory_context = None
         self._statistics_lock = RLock()
         self.reset_statistics()
         self.progress_listener_callables = []

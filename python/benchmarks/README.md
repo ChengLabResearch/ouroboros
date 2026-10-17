@@ -11,9 +11,9 @@ Use the existing prepared local fixture for a short focused comparison:
 
 This mode uses an external timer around the same pipeline call for enabled and
 disabled reporting. It includes scientific preparation, worker instrumentation,
-transport/aggregation of worker measurements, output writing, and pool shutdown.
+transport/aggregation of worker measurements, concurrent RAM collection, output writing, and pool shutdown.
 Options loading, volume-statistics collection, JSON construction, printing, and
-report-file delivery are outside that timer. Both treatments retain the basic
+report-file delivery and sampler startup/shutdown are outside that timer. Both treatments retain the basic
 duration/progress measurements needed by the application. It performs one
 disabled warmup per operation, alternates treatment order across pairs, and
 skips output pixel hashing. A reused fixture is neither regenerated nor hashed.
@@ -80,9 +80,12 @@ fixture is useful for correctness checks, not the default acceptance measurement
 (default 600 seconds). Linux sandbox environments must permit local
 multiprocessing manager sockets for the existing shared-memory pipeline.
 
-RAM sampling is excluded from this benchmark until issue #139 supplies its
-collector. The combined instrumentation must be measured against the same 1%
-target when that collector is introduced.
+Enabled runs include RAM sampling and retain the full memory summary in each
+measurement: metric, interval, process counts, complete/incomplete samples and
+collector cost. Missing usable memory samples fail the benchmark rather than
+silently benchmarking a disabled collector. The combined instrumentation uses
+the same 1% target. Native Windows/macOS also include mapping-observation work in
+the measured pipeline interval; the separate sampler excludes its own memory.
 
 ## Recorded pipeline-only measurement
 

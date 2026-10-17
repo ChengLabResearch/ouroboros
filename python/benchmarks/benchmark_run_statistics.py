@@ -211,6 +211,10 @@ def run_once(folder: Path, operation: str, options: dict, enabled: bool,
             raise RuntimeError(f"Reporting failed in {report_path}: {record['collection_errors']}")
         if formatted.strip() not in (run_folder / "stdout.txt").read_text():
             raise RuntimeError(f"Saved statistics differ from stdout in {run_folder}")
+        memory = record.get("memory")
+        if not memory or memory["sampled_peak_bytes"] is None:
+            raise RuntimeError(f"Memory sampling unavailable in {report_path}: {memory}")
+        result["memory"] = memory
     write_json(timing_path, result)
     return result, output
 
@@ -275,7 +279,8 @@ def benchmark(args: argparse.Namespace) -> None:
     result = {
         "schema_version": 1,
         "scope": ("External timer around Pipeline.process only: includes scientific preparation, data operations, "
-                  "worker measurement transport/aggregation and scientific output; excludes options loading, "
+                  "worker measurement transport/aggregation, concurrent RAM sampling and scientific output; excludes options loading, "
+                  "sampler startup/shutdown, "
                   "volume-statistics collection, report construction/printing/publication. Basic duration/progress "
                   "timers remain enabled in both treatments. No pixel hashing."
                   if args.scope == "pipeline" else
@@ -289,7 +294,7 @@ def benchmark(args: argparse.Namespace) -> None:
                      "cpu_affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None},
         "production_python_sha256": production_digest(),
         "benchmark_python_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        "versions": {name: importlib.metadata.version(name) for name in ("numpy", "scipy", "tifffile", "cloud-volume")},
+        "versions": {name: importlib.metadata.version(name) for name in ("numpy", "scipy", "tifffile", "cloud-volume", "psutil")},
         "fixture": fixture,
         "pairs": args.pairs,
         "operations": {},

@@ -15,14 +15,9 @@ import numpy as np
 
 from .shapes import DataShape
 from .log import log, LOG
+from ouroboros.common.memory_mappings import observe_shared_memory, refresh_mappings
 
-# Polling interval for the memory logger loop in ``mem_monitor``.
-MEM_LOG_INTERVAL_S = 1.0
-
-# Pre-exit sleep in ``exit_cleanly``: gives the monitor loop a full cycle to
-# flush its final line before the process terminates. Held at the same value
-# as ``MEM_LOG_INTERVAL_S`` on purpose (one monitor iteration), but named
-# separately so tuning one does not silently change the other.
+# Existing pre-exit grace period in ``exit_cleanly``.
 SHUTDOWN_GRACE_S = 1.0
 
 
@@ -48,6 +43,8 @@ class SharedNPArray:
             self.__sm = SharedMemory(name=name, create=True, size=self.size())
         else:
             self.__sm = SharedMemory(name=name)
+        observe_shared_memory(self.__sm)
+
 
     def size(self, swap=None):
         """ Size of array in memory.
@@ -97,8 +94,10 @@ class SharedNPArray:
                 except FileNotFoundError:
                     pass
             self.__shutdown = True
+            refresh_mappings()
 
     close = shutdown
+
 
     def __del__(self):
         if not getattr(self, "_SharedNPArray__shutdown", True):
@@ -364,17 +363,6 @@ def exit_cleanly(step: str, *shm_objects, return_code: int = 0, statement: str =
     log.footer(error=throw)
 
     exit(return_code)
-
-
-def mem_monitor(mem_file, mem_store, pid):  # pragma: no cover - monitors a live external process.
-    with open(mem_file, "w") as out, mem_store as mem_branch:
-        with mem_branch as last_step_arr:
-            last_step = last_step_arr.tobytes().decode()
-
-            while last_step.strip() not in ["COMPLETED", "ERRORED"]:
-                last_step = last_step_arr.tobytes().decode()
-                log.write(last_step, out=out, pid=pid)
-                sleep(MEM_LOG_INTERVAL_S)
 
 
 def cleanup_mem(*shm_objects):

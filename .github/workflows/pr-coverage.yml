@@ -9,8 +9,8 @@ env:
   GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
 jobs:
-  native-memory-lifecycle:
-    name: Shared memory lifecycle (${{ matrix.os }}, Python ${{ matrix.python }})
+  native-memory:
+    name: Memory collector (${{ matrix.os }}, Python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     permissions:
@@ -27,9 +27,9 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Install focused test dependencies
         run: python -m pip install numpy==1.26.4 psutil==7.1.3 tifffile==2024.6.18 click typing-extensions pytest
-      - name: Test shared-memory ownership and release
+      - name: Test native memory readers and collector lifecycle
         working-directory: python
-        run: python -m pytest test/test_shared_memory_lifecycle.py -q
+        run: python -m pytest test/test_shared_memory_lifecycle.py test/common/test_memory_macos.py test/test_memory_windows.py test/common/test_memory_mappings.py test/common/test_memory_statistics.py -q
 
   coverage:
     runs-on: ubuntu-latest

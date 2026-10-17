@@ -6,7 +6,9 @@ validation belongs to the RAM-reporting branch after it is rebased onto #145.
 
 import gc
 import multiprocessing
+from multiprocessing.managers import RemoteError
 from multiprocessing.shared_memory import SharedMemory
+from multiprocessing.util import Finalize
 import os
 import pickle
 import signal
@@ -23,6 +25,7 @@ from ouroboros.helpers.shapes import ProjOrder
 
 SHAPE = ProjOrder(Y=2, Theta=3, X=4)
 SPAWN = multiprocessing.get_context("spawn")
+START_METHODS = multiprocessing.get_all_start_methods()
 
 
 def _produce(address, authkey, sender, termed, crash):
@@ -42,10 +45,10 @@ def _produce(address, authkey, sender, termed, crash):
         os._exit(7)
 
 
-def _owner_until_killed(sender, process_group):
+def _owner_until_killed(sender, process_group, start_method):
     if process_group:
         os.setsid()
-    with SharedNPManager(ctx=SPAWN) as (manager,):
+    with SharedNPManager(ctx=multiprocessing.get_context(start_method)) as (manager,):
         normal = manager.SharedNPArray(SHAPE, np.uint16)
         termed = manager.TermedNPArray(SHAPE, np.uint16)
         names = (normal.name, termed.name)
@@ -53,6 +56,11 @@ def _owner_until_killed(sender, process_group):
         termed.shutdown()
         sender.send((manager._process.pid, names))
         sender.recv()  # Parent kills us after receiving the names.
+
+
+def _record_initializer(sender, marker):
+    sender.send((os.getpid(), multiprocessing.parent_process().pid, marker))
+    sender.close()
 
 
 def _assert_absent(name):
@@ -71,10 +79,12 @@ def _join(process):
 
 @pytest.mark.parametrize("termed", [False, True])
 @pytest.mark.parametrize("crash", [False, True])
-def test_manager_owns_buffer_across_producer_exit(termed, crash):
-    with SharedNPManager(ctx=SPAWN) as (manager,):
-        receiver, sender = SPAWN.Pipe(duplex=False)
-        producer = SPAWN.Process(
+@pytest.mark.parametrize("start_method", START_METHODS)
+def test_manager_owns_buffer_across_producer_exit(termed, crash, start_method):
+    context = multiprocessing.get_context(start_method)
+    with SharedNPManager(ctx=context) as (manager,):
+        receiver, sender = context.Pipe(duplex=False)
+        producer = context.Process(
             target=_produce,
             args=(manager.address, bytes(manager._authkey), sender, termed, crash),
         )
@@ -104,6 +114,37 @@ def test_manager_owns_buffer_across_producer_exit(termed, crash):
             if producer.is_alive():
                 producer.kill()
                 producer.join(5)
+    _assert_absent(name)
+
+
+@pytest.mark.parametrize("start_method", START_METHODS)
+def test_cpython_startup_dispatch_and_shutdown_contract(start_method):
+    context = multiprocessing.get_context(start_method)
+    receiver, sender = context.Pipe(duplex=False)
+    manager = SharedNPManager(ctx=context)
+    marker = "initializer arguments survived startup"
+    try:
+        manager.start(initializer=_record_initializer, initargs=(sender, marker))
+        sender.close()
+        assert receiver.poll(15)
+        assert receiver.recv() == (manager._process.pid, os.getpid(), marker)
+        # BaseManager.start must install the finalizer; cleanup must therefore
+        # be implemented at the server's shared_memory_context boundary.
+        assert isinstance(manager.shutdown, Finalize)
+        with pytest.raises(RemoteError, match="ValueError"):
+            manager.SharedMemory(0)
+        assert manager._request("list_segments") == []
+        with pytest.raises(FileNotFoundError, match="not a termed shared memory array"):
+            manager.remove_termed("unknown-segment")
+        raw = manager.SharedMemory(48)
+        name = raw.name
+        raw.close()
+        assert manager._request("list_segments") == [name]
+    finally:
+        sender.close()
+        receiver.close()
+        if hasattr(manager, "shutdown"):
+            manager.shutdown()
     _assert_absent(name)
 
 
@@ -284,11 +325,15 @@ def test_partially_initialized_array_cleanup():
 
 
 @pytest.mark.parametrize("stop", ["terminate", "kill", "kill_group"])
-def test_manager_cleans_up_after_owner_death(stop):
+@pytest.mark.parametrize("start_method", START_METHODS)
+def test_manager_cleans_up_after_owner_death(stop, start_method):
     if stop == "kill_group" and not hasattr(os, "killpg"):
         pytest.skip("POSIX process groups only")
     receiver, sender = SPAWN.Pipe()
-    owner = SPAWN.Process(target=_owner_until_killed, args=(sender, stop == "kill_group"))
+    owner = SPAWN.Process(
+        target=_owner_until_killed,
+        args=(sender, stop == "kill_group", start_method),
+    )
     owner.start()
     sender.close()
     manager_pid = None

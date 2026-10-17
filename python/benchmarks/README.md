@@ -1,5 +1,16 @@
 # Run-statistics overhead benchmark
 
+**Collector revision (2026-10-17):** PR #144 now uses manager-only shared-buffer
+observations, Linux non-shmem PSS plus managed residency, Windows private
+working-set bytes plus managed allocation size, and macOS private residency plus
+managed residency. Worker/TIFF tracking and Windows working-set enumeration have
+been removed. The recorded pipeline benchmarks below describe earlier
+collectors; their overhead is not a measurement of this replacement. The Linux
+candidate probes informed the new accounting, but isolated query costs likewise
+are not pipeline overhead. This revision uses focused native accounting,
+ownership and reporting tests, without another long real-data benchmark campaign.
+Native macOS validation and a cross-platform 1% overhead bound are not established.
+
 The current real-data comparison applies the overhead budget to instrumentation
 **during the actual slicing or backprojection step**, excluding preceding source
 and cache setup. It reuses the existing step timers in both treatments and retains
@@ -89,8 +100,8 @@ Enabled runs include RAM sampling and retain the full memory summary in each
 measurement: metric, interval, process counts, complete/incomplete samples and
 collector cost. Missing usable memory samples fail the benchmark rather than
 silently benchmarking a disabled collector. The combined instrumentation uses
-the same 1% target. Native Windows/macOS also include mapping-observation work in
-the measured pipeline interval; the separate sampler excludes its own memory.
+the same 1% target. Manager snapshot publication is included in
+the measured pipeline interval on every backend; the separate sampler excludes its own memory.
 
 ## Existing real-data paths
 

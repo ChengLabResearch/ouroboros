@@ -114,7 +114,6 @@ class RunStatistics:
         self.memory_collector = MemoryCollector()
         try:
             self.memory_collector.start()
-            self.task.pipeline.set_memory_context(self.memory_collector.mapping_context)
         except Exception as error:
             self.memory_collector.summary = unavailable(f"Memory startup: {type(error).__name__}: {error}")
 
@@ -124,9 +123,6 @@ class RunStatistics:
                 self.memory_collector.stop()
         except Exception as error:
             self.memory_collector.summary = unavailable(f"Memory cleanup: {type(error).__name__}: {error}")
-        finally:
-            if self.task.pipeline is not None:
-                self.task.pipeline.set_memory_context(None)
 
     def finish(self):
         self.stop_memory()

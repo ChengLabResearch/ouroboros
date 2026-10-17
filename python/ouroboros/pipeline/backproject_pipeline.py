@@ -37,7 +37,6 @@ from ouroboros.helpers.files import (
     write_raw_intermediate
 )
 from ouroboros.helpers.shapes import DataRange, ImgSliceC
-from ouroboros.common.memory_mappings import executor_mapping_options, tracked_tiff_memmap
 
 
 class BackprojectPipelineStep(PipelineStep):
@@ -104,9 +103,9 @@ class BackprojectPipelineStep(PipelineStep):
         cannot_memmap = False
         try:
             if Path(straightened_volume_path).is_dir():
-                _ = tracked_tiff_memmap(volume_info.sample_path, mode="r")
+                _ = tifffile.memmap(volume_info.sample_path, mode="r")
             else:
-                _ = tracked_tiff_memmap(straightened_volume_path, mode="r")
+                _ = tifffile.memmap(straightened_volume_path, mode="r")
         except:     # noqa: E722
             # Check here is because memmap needs certain types of dataoffsets, which aren't always there
             # separate to compression.
@@ -189,11 +188,9 @@ class BackprojectPipelineStep(PipelineStep):
         try:
             with (concurrent.futures.ProcessPoolExecutor(
                       self.execution_resources["backproject_processes"],
-                      **executor_mapping_options(self.memory_context),
                   ) as executor,
                   concurrent.futures.ProcessPoolExecutor(
                       self.execution_resources["writer_processes"],
-                      **executor_mapping_options(self.memory_context),
                   ) as write_executor):
                 bp_futures = []
                 write_futures = []
@@ -332,7 +329,7 @@ def process_chunk(
 
     # Load the straightened volume
     try:
-        straightened_volume = tracked_tiff_memmap(straightened_volume_path, mode="r")
+        straightened_volume = tifffile.memmap(straightened_volume_path, mode="r")
         durations["memmap"] = [time.perf_counter() - start_total]
     except BaseException as be:
         print(f"Error loading Volume: {be} : {straightened_volume_path}")

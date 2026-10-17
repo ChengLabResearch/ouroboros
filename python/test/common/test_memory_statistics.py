@@ -8,7 +8,6 @@ import time
 from types import SimpleNamespace
 import weakref
 
-import numpy as np
 import psutil
 import pytest
 
@@ -145,13 +144,17 @@ def sampler(monkeypatch, *, system="Linux", directory=None):
     root = Process(123)
     monkeypatch.setattr(memory.psutil, "Process", lambda pid=None: root)
     monkeypatch.setattr(memory.platform, "system", lambda: system)
-    return root, memory.TreeSampler(root.pid, root.created, mappings_directory=directory)
+    reader = memory.TreeSampler(root.pid, root.created, managers_directory=directory)
+    monkeypatch.setattr(memory, "_linux_nonshmem_pss", lambda pid: next(
+        process for process in reader.known.values() if process.pid == pid
+    ).memory_full_info().pss)
+    return root, reader
 
 
-def manifest(directory, process, mappings=(), errors=()):
+def manifest(directory, process, segments=(), errors=()):
     memory._write_json(Path(directory) / f"{process.pid}.json", {
         "pid": process.pid, "create_time": process.created,
-        "mappings": list(mappings), "errors": list(errors),
+        "segments": list(segments), "errors": list(errors),
     })
 
 
@@ -210,41 +213,41 @@ def test_access_denied_does_not_become_a_zero_sample(monkeypatch):
         reader.sample()
 
 
-def test_windows_shared_offsets_are_unioned_across_processes(monkeypatch, tmp_path):
-    from ouroboros.common import memory_windows
+@pytest.mark.parametrize("system", ["Linux", "Windows", "Darwin"])
+def test_managed_buffers_are_counted_once_without_worker_manifests(monkeypatch, tmp_path, system):
+    from ouroboros.common import memory_managed, memory_macos, memory_windows
 
-    root, reader = sampler(monkeypatch, system="Windows", directory=tmp_path)
-    root.descendants = [Process(124)]
-    monkeypatch.setattr(memory_windows, "PAGE_SIZE", 4096)
-    monkeypatch.setattr(memory_windows, "read_process", lambda pid, mappings: (
-        10, {("shm", "allocation"): np.array([0, 4096]) if pid == 123 else np.array([4096, 8192])},
-    ))
-    assert reader.sample() == (20 + 3 * 4096, 2)
-
-
-def test_macos_reuses_identical_queries_and_unions_backing_offsets(monkeypatch, tmp_path):
-    from ouroboros.common import memory_macos
-
-    root, reader = sampler(monkeypatch, system="Darwin", directory=tmp_path)
-    child = Process(124)
-    root.descendants = [child]
-    mapping = {"identity": ["shm", "allocation"], "offset": 0, "size": 8192}
-    manifest(tmp_path, root, [mapping])
-    manifest(tmp_path, child, [mapping])
-    calls = []
-    monkeypatch.setattr(memory_macos, "PAGE_SIZE", 4096)
-    monkeypatch.setattr(memory_macos, "private_resident_bytes", lambda pid, mappings: 10)
-
-    def resident(value):
-        calls.append(value)
-        return np.array([0, 4096])
-
-    monkeypatch.setattr(memory_macos, "resident_pages", resident)
-    assert reader.sample() == (20 + 8192, 2)
-    assert calls == [mapping]
+    root, reader = sampler(monkeypatch, system=system, directory=tmp_path)
+    manager, worker = Process(124), Process(125)
+    root.descendants = [manager, worker]
+    segment = {"name": "managed", "size": 8192, "address": 4096}
+    manifest(tmp_path, manager, [segment])
+    queries = []
+    monkeypatch.setattr(memory_managed, "resident_bytes", lambda item: queries.append(item) or 4096)
+    monkeypatch.setattr(memory_windows, "private_resident_bytes", lambda pid: 10)
+    exclusions = []
+    monkeypatch.setattr(memory_macos, "private_resident_bytes",
+                        lambda pid, owned: exclusions.append((pid, owned)) or 10)
+    expected_shared = 8192 if system == "Windows" else 4096
+    assert reader.sample() == (30 + expected_shared, 3)
+    assert queries == ([] if system == "Windows" else [segment])
+    if system == "Darwin":
+        assert exclusions == [(123, []), (124, [segment]), (125, [])]
 
 
-def test_mapping_change_during_a_sweep_is_incomplete(monkeypatch, tmp_path):
+def test_linux_reader_subtracts_shared_pss_including_single_reader_pages(monkeypatch, tmp_path):
+    monkeypatch.setattr(memory.psutil, "PROCFS_PATH", str(tmp_path), raising=False)
+    process_dir = tmp_path / "123"
+    process_dir.mkdir()
+    rollup = process_dir / "smaps_rollup"
+    rollup.write_text("00000000-ffffffff ---p\nPss: 12288 kB\nPss_Shmem: 8192 kB\nRss: 99999 kB\n")
+    assert memory._linux_nonshmem_pss(123) == 4096 * 1024
+    rollup.write_text("Pss: 12288 kB\n")
+    with pytest.raises(NotImplementedError, match="Pss_Shmem"):
+        memory._linux_nonshmem_pss(123)
+
+
+def test_manager_change_during_a_sweep_is_incomplete(monkeypatch, tmp_path):
     root, reader = sampler(monkeypatch, directory=tmp_path)
     manifest(tmp_path, root)
     root.on_read = lambda: manifest(tmp_path, root, [{"new": "mapping"}])
@@ -252,16 +255,16 @@ def test_mapping_change_during_a_sweep_is_incomplete(monkeypatch, tmp_path):
         reader.sample()
 
 
-def test_stale_manifest_cannot_supply_another_process_mapping(monkeypatch, tmp_path):
+def test_stale_manifest_cannot_supply_another_process_segments(monkeypatch, tmp_path):
     root, reader = sampler(monkeypatch, directory=tmp_path)
     manifest(tmp_path, Process(root.pid, created=0), [{"stale": "mapping"}])
-    mappings, generation = reader._mappings((root.pid, root.created))
+    mappings, generation = reader._segments((root.pid, root.created))
     assert mappings == [] and generation is not None
 
 
-def test_failed_mapping_observation_is_explicit(monkeypatch, tmp_path):
+def test_failed_manager_observation_is_explicit(monkeypatch, tmp_path):
     root, reader = sampler(monkeypatch, directory=tmp_path)
-    manifest(tmp_path, root, errors=["cannot publish mapping"])
+    manifest(tmp_path, root, errors=["cannot publish manager snapshot"])
     with pytest.raises(OSError, match="observation failed"):
         reader.sample()
 
@@ -319,7 +322,7 @@ def test_failed_samples_preserve_coverage_without_retaining_tracebacks():
 
 def test_observer_discards_sweep_when_stop_publication_was_delayed(monkeypatch, tmp_path):
     memory._write_json(tmp_path / "config.json", {
-        "root_pid": 123, "root_created": 1, "interval": 1, "mappings_directory": None,
+        "root_pid": 123, "root_created": 1, "interval": 1, "managers_directory": None,
     })
     memory._write_json(tmp_path / "start.json", 0)
     reader = SimpleNamespace(system="Linux", root=Process(123), sample=lambda: (999, 1))
@@ -377,9 +380,8 @@ def start_collector(monkeypatch, *, system="Linux", timeout=False, failure_flag=
         directory="unused", failure_flag=SimpleNamespace(value=failure_flag)), released=False)
     session.acquire = lambda: session
     session.release = lambda: setattr(session, "released", True)
-    if system != "Linux":
-        from ouroboros.common import memory_mappings
-        monkeypatch.setattr(memory_mappings, "MappingSession", lambda: session)
+    from ouroboros.common import memory_managed
+    monkeypatch.setattr(memory_managed, "ManagerSession", lambda: session)
     invocation = {}
 
     def popen(command, **kwargs):
@@ -426,26 +428,26 @@ def test_observer_timeout_kills_child_and_releases_all_resources(monkeypatch):
     assert collector.summary["status"] == "unavailable"
     assert invocation["child"].terminated and invocation["child"].killed
     assert session.released and not directory.exists()
-    assert collector.mapping_context is None
+    assert collector.manager_context is None
 
 
-def test_unpublished_mapping_failure_invalidates_sampled_peak(monkeypatch):
+def test_unpublished_manager_failure_invalidates_sampled_peak(monkeypatch):
     collector, _, session = start_collector(monkeypatch, system="Darwin", failure_flag=1)
     collector.stop()
     assert collector.summary["status"] == "unavailable"
     assert collector.summary["sampled_peak_bytes"] is None
-    assert collector.summary["errors"][-1]["kind"] == "mapping_observation"
+    assert collector.summary["errors"][-1]["kind"] == "manager_observation"
     assert session.released
 
 
-def test_spawn_failure_releases_mapping_session_and_workspace(monkeypatch):
-    from ouroboros.common import memory_mappings
+def test_spawn_failure_releases_manager_session_and_workspace(monkeypatch):
+    from ouroboros.common import memory_managed
 
     monkeypatch.setattr(memory.platform, "system", lambda: "Darwin")
     session = SimpleNamespace(context=SimpleNamespace(directory="unused"), released=False)
     session.acquire = lambda: session
     session.release = lambda: setattr(session, "released", True)
-    monkeypatch.setattr(memory_mappings, "MappingSession", lambda: session)
+    monkeypatch.setattr(memory_managed, "ManagerSession", lambda: session)
 
     def fail(*args, **kwargs):
         raise OSError("cannot spawn")
@@ -455,7 +457,7 @@ def test_spawn_failure_releases_mapping_session_and_workspace(monkeypatch):
     with pytest.raises(OSError, match="cannot spawn"):
         collector.start()
     assert session.released
-    assert collector.process is collector.workspace is collector.mapping_session is None
+    assert collector.process is collector.workspace is collector.manager_session is None
 
 
 def test_startup_failure_preserves_the_native_error(monkeypatch):
@@ -503,13 +505,13 @@ collector = MemoryCollector(interval=0.1)
 collector.start()
 observer = collector.process
 workspace = Path(collector.workspace.name)
-mappings = Path(collector.mapping_context.directory) if collector.mapping_context else None
+mappings = Path(collector.manager_context.directory) if collector.manager_context else None
 try:
     time.sleep(0.3)
 finally:
     collector.stop()
 assert observer.poll() is not None
-assert collector.process is collector.workspace is collector.mapping_session is None
+assert collector.process is collector.workspace is collector.manager_session is None
 assert not workspace.exists()
 assert mappings is None or not mappings.exists()
 print(json.dumps(collector.summary))
@@ -593,7 +595,7 @@ os.waitpid(pid, 0)
 def test_manifest_read_retries_transient_windows_denial(monkeypatch, tmp_path):
     identity = (os.getpid(), psutil.Process().create_time())
     path = tmp_path / f"{identity[0]}.json"
-    path.write_text(json.dumps({"pid": identity[0], "create_time": identity[1], "mappings": []}))
+    path.write_text(json.dumps({"pid": identity[0], "create_time": identity[1], "segments": []}))
     _, sleeps = retry_clock(monkeypatch)
     read = Path.read_bytes
     attempts = []
@@ -605,8 +607,8 @@ def test_manifest_read_retries_transient_windows_denial(monkeypatch, tmp_path):
         return read(self)
 
     monkeypatch.setattr(Path, "read_bytes", briefly_locked)
-    sampler = memory.TreeSampler(*identity, mappings_directory=tmp_path)
-    records, generation = sampler._mappings(identity)
+    sampler = memory.TreeSampler(*identity, managers_directory=tmp_path)
+    records, generation = sampler._segments(identity)
     assert records == []
     assert generation == read(path)
     assert sleeps == [0.01]

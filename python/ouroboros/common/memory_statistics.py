@@ -23,9 +23,9 @@ DEFAULT_INTERVAL_SECONDS = 1.0
 _OBSERVER_MODULE = "ouroboros.common.memory_observer"
 _OBSERVER_FLAG = "--ouroboros-memory-observer"
 _METRICS = {
-    "Linux": ("process_tree_pss_bytes", "psutil memory_full_info PSS"),
-    "Windows": ("process_tree_private_plus_tracked_shared_resident_bytes", "QueryWorkingSet and tracked allocation/page union"),
-    "Darwin": ("process_tree_private_plus_tracked_backing_resident_bytes", "libproc private residency and tracked backing mincore union"),
+    "Linux": ("process_tree_nonshmem_pss_plus_managed_resident_bytes", "smaps_rollup Pss - Pss_Shmem + managed segment mincore"),
+    "Windows": ("process_tree_private_resident_plus_managed_allocated_bytes", "PrivateWorkingSetSize + manager-owned allocation sizes"),
+    "Darwin": ("process_tree_private_plus_managed_resident_bytes", "libproc private residency + managed segment mincore"),
 }
 
 
@@ -65,16 +65,31 @@ def _observer(process):
             or len(command) >= 2 and command[1] == _OBSERVER_FLAG)
 
 
+def _linux_nonshmem_pss(pid):
+    # PSS includes single-reader shared pages as well as multiply mapped ones.
+    # Subtract the entire shared-memory contribution before adding each live
+    # managed backing once, including buffers queued without a reader.
+    values = {}
+    with Path(psutil.PROCFS_PATH, str(pid), "smaps_rollup").open() as source:
+        for line in source:
+            field, _, value = line.partition(":")
+            if field in ("Pss", "Pss_Shmem"):
+                values[field] = int(value.split()[0]) * 1024
+    if values.keys() != {"Pss", "Pss_Shmem"}:
+        raise NotImplementedError("Linux smaps_rollup requires Pss and Pss_Shmem")
+    return values["Pss"] - values["Pss_Shmem"]
+
+
 class TreeSampler:
     """Retain observed identities, never individual-process lifetime peaks."""
 
-    def __init__(self, root_pid, root_created, *, mappings_directory=None):
+    def __init__(self, root_pid, root_created, *, managers_directory=None):
         self.root = psutil.Process(root_pid)
         if self.root.create_time() != root_created:
             raise psutil.NoSuchProcess(root_pid, msg="Backend PID was reused")
         self.known = {_identity(self.root): self.root}
         self.excluded = set()
-        self.mappings_directory = Path(mappings_directory) if mappings_directory else None
+        self.managers_directory = Path(managers_directory) if managers_directory else None
         self.system = platform.system()
         if self.system not in _METRICS:
             raise NotImplementedError(f"Memory collection is unavailable on {self.system}")
@@ -99,28 +114,28 @@ class TreeSampler:
         self.excluded.intersection_update(discovered)
         return dict(self.known)
 
-    def _mappings(self, identity):
-        if self.mappings_directory is None:
+    def _segments(self, identity):
+        if self.managers_directory is None:
             return [], None
-        path = self.mappings_directory / f"{identity[0]}.json"
+        path = self.managers_directory / f"{identity[0]}.json"
         try:
             raw = observation_file_io(path.read_bytes)
         except FileNotFoundError:
-            return [], None  # Helpers without mapping owners need no manifest.
+            return [], None  # Only shared-memory managers publish a manifest.
         record = json.loads(raw)
         if (record["pid"], record["create_time"]) != identity:
             return [], raw  # Stale file from a different process identity.
         if record.get("errors"):
-            raise OSError(f"Mapping observation failed: {record['errors']}")
-        return record["mappings"], raw
+            raise OSError(f"Manager observation failed: {record['errors']}")
+        return record["segments"], raw
 
     def sample(self):
+        from ouroboros.common.memory_managed import resident_bytes
+
         processes = self._discover()
         total = 0
-        shared = {}
         observed = {}
-        if self.system != "Linux":
-            import numpy as np
+        segments = {}
         if self.system == "Windows":
             from ouroboros.common import memory_windows as native
         elif self.system == "Darwin":
@@ -128,38 +143,30 @@ class TreeSampler:
         for identity, process in processes.items():
             if not process.is_running():
                 raise psutil.NoSuchProcess(process.pid)
-            mappings, generation = self._mappings(identity)
-            if self.system == "Linux":
-                total += process.memory_full_info().pss
-            elif self.system == "Windows":
-                private, resident = native.read_process(process.pid, mappings)
-                total += private
-                for key, pages in resident.items():
-                    shared.setdefault(key, []).append(pages)
-            else:
-                total += native.private_resident_bytes(process.pid, mappings)
-                # Query each live mapping range once. Aliases with different
-                # ranges still union by the allocation's backing byte offsets.
-                for mapping in mappings:
-                    key = tuple(mapping["identity"])
-                    query = (key, mapping["offset"], mapping["size"])
-                    if query not in observed:
-                        shared.setdefault(key, []).append(native.resident_pages(mapping))
-                        observed[query] = True
+            owned, generation = self._segments(identity)
             observed[identity] = generation
+            for segment in owned:
+                previous = segments.setdefault(segment["name"], segment)
+                if previous["size"] != segment["size"]:
+                    raise OSError("Conflicting managed segment observations")
+            if self.system == "Linux":
+                total += _linux_nonshmem_pss(process.pid)
+            elif self.system == "Windows":
+                total += native.private_resident_bytes(process.pid)
+            else:
+                total += native.private_resident_bytes(process.pid, owned)
             if not process.is_running():
                 raise psutil.NoSuchProcess(process.pid)
-        # A mapping or process created/closed during a sweep invalidates its
-        # provenance; do not silently attribute recycled addresses or omit it.
+        total += sum(segment["size"] if self.system == "Windows" else resident_bytes(segment)
+                     for segment in segments.values())
+        # Allocation/release and process churn invalidate a sweep, rather than
+        # mixing observations from different owners or recycled process IDs.
         for identity in processes:
-            if self._mappings(identity)[1] != observed[identity]:
-                raise OSError("Mapping observations changed during memory sweep")
+            if self._segments(identity)[1] != observed[identity]:
+                raise OSError("Manager observations changed during memory sweep")
         after = self._discover()
         if set(after) != set(processes):
             raise OSError("Process tree changed during memory sweep")
-        if self.system != "Linux":
-            total += sum(int(np.unique(parts[0] if len(parts) == 1 else np.concatenate(parts)).size)
-                         * native.PAGE_SIZE for parts in shared.values())
         return int(total), len(processes)
 
 
@@ -222,26 +229,25 @@ class MemoryCollector:
         if interval <= 0:
             raise ValueError("Memory sampling interval must be positive")
         self.interval = interval
-        self.process = self.workspace = self.mapping_session = None
+        self.process = self.workspace = self.manager_session = None
         self.summary = unavailable("Pipeline has not started", status="not_started")
 
     @property
-    def mapping_context(self):
-        return self.mapping_session.context if self.mapping_session is not None else None
+    def manager_context(self):
+        return self.manager_session.context if self.manager_session is not None else None
 
     def start(self):
         if self.process is not None or self.workspace is not None:
             raise RuntimeError("Memory collector is already running")
         try:
-            if platform.system() in ("Windows", "Darwin"):
-                from ouroboros.common.memory_mappings import MappingSession
-                self.mapping_session = MappingSession().acquire()
+            from ouroboros.common.memory_managed import ManagerSession
+            self.manager_session = ManagerSession().acquire()
             self.workspace = tempfile.TemporaryDirectory(prefix="ouroboros-memory-")
             directory = Path(self.workspace.name)
             _write_json(directory / "config.json", {
                 "root_pid": os.getpid(), "root_created": psutil.Process().create_time(),
                 "interval": self.interval,
-                "mappings_directory": self.mapping_context.directory if self.mapping_context else None,
+                "managers_directory": self.manager_context.directory if self.manager_context else None,
             })
             command = ([sys.executable, _OBSERVER_FLAG] if getattr(sys, "frozen", False)
                        else [sys.executable, "-m", _OBSERVER_MODULE])
@@ -285,10 +291,10 @@ class MemoryCollector:
             _write_json(directory / "stop.json", time.perf_counter())
             self.process.wait(timeout=10)
             self.summary = _read_json(directory / "result.json")
-            if self.mapping_context is not None and self.mapping_context.failure_flag.value:
+            if self.manager_context is not None and self.manager_context.failure_flag.value:
                 self.summary.update(status="unavailable", sampled_peak_bytes=None, last_complete_sample_bytes=None)
-                self.summary["errors"].append({"kind": "mapping_observation", "count": 1,
-                                               "example": "A mapping manifest could not be published; coverage is unknown"})
+                self.summary["errors"].append({"kind": "manager_observation", "count": 1,
+                                               "example": "A manager snapshot could not be published; coverage is unknown"})
         except Exception as error:
             self.summary = unavailable(f"Memory observer failed: {type(error).__name__}: {error}")
         finally:
@@ -306,10 +312,10 @@ class MemoryCollector:
         finally:
             self.process = None
             try:
-                if self.mapping_session is not None:
-                    self.mapping_session.release()
+                if self.manager_session is not None:
+                    self.manager_session.release()
             finally:
-                self.mapping_session = None
+                self.manager_session = None
                 if self.workspace is not None:
                     workspace = self.workspace
                     self.workspace = None

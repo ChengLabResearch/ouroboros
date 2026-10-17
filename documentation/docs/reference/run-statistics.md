@@ -230,28 +230,37 @@ or host free-memory delta is attributed to a run.
 
 | Backend execution OS | Metric | Source and coverage |
 | --- | --- | --- |
-| Linux, including Docker on any host | `process_tree_pss_bytes` | Sum of current PSS from psutil's `/proc` memory reader; shared resident pages contribute each process's proportional share |
-| Native Windows (64-bit) | `process_tree_private_plus_tracked_shared_resident_bytes` | One `QueryWorkingSet` snapshot per process; unique resident pages outside tracked mappings plus shared backing pages deduplicated by allocation and offset inside them; private copy-on-write pages remain private |
-| Native macOS | `process_tree_private_plus_tracked_backing_resident_bytes` | `libproc` private resident pages outside tracked mappings, plus `mincore` residency of tracked shared backing objects, counted once |
+| Linux, including Docker on any host | `process_tree_nonshmem_pss_plus_managed_resident_bytes` | Sum of `/proc/<pid>/smaps_rollup` `Pss - Pss_Shmem`, plus `mincore` residency of each live managed shared segment once |
+| Native Windows (64-bit) | `process_tree_private_resident_plus_managed_allocated_bytes` | Sum of `PROCESS_MEMORY_COUNTERS_EX2.PrivateWorkingSetSize`, plus the size of each live managed allocation once |
+| Native macOS | `process_tree_private_plus_managed_resident_bytes` | `libproc` private resident pages, excluding the manager's owned segment ranges, plus `mincore` residency of each live managed segment once |
 
-Windows and macOS observe the existing `SharedNPArray`, manager-held shared-memory
-handles, and TIFF mapping owners.
-They exclude **untracked shared mappings**. Neither uses the capped Windows share
-count to apportion a known shared buffer. macOS measures backing-object residency:
-file-cache pages can be resident without currently appearing in a tracked
-process's working set. Compressed/swapped pages are excluded. Unsupported mapping
-modes, access failures and unavailable APIs make coverage incomplete; they never
-silently substitute RSS, commit charge or zero. These three metrics have different
-semantics and must not be compared as interchangeable RAM measurements.
+Linux removes the process counter's entire shared-memory PSS contribution before
+adding managed residency. This avoids counting a managed page again when it has
+only one reader. Reading the backing object's residency also includes resident
+managed buffers queued after their producer closes, before another process has
+accessed them. Shared-memory segments outside the manager's ownership are not
+added back. Other shared memory, such as fork-shared anonymous pages and mapped
+files, retains the OS's proportional accounting.
 
-**Open accounting limitation (#139):** Linux PSS and Windows working-set scans
-can omit resident shared backing after the producer closes if no remaining
-process has faulted those pages into its page tables. An untouched manager
-mapping preserves the allocation but does not fix this accounting gap. Queued
-downloaded chunks can occupy this state. The draft collector therefore has not
-yet met shared-memory coverage acceptance; a successful sample is not proof of
-complete backing residency. A revised metric needs explicit semantics and
-validation before adoption.
+Windows uses one private working-set counter per process instead of enumerating
+its working-set pages. Its managed term is **allocated bytes, not resident
+bytes**: unused, paged-out or otherwise nonresident parts of live allocations
+remain included. The metric name makes this distinction explicit. The counter
+requires 64-bit Python and Windows 10 or 11 version 22H2 with the September 2023
+update or later. Missing counter support makes the metric unavailable; it does
+not silently fall back to the old working-set scan.
+
+macOS retains a `libproc` region walk for private residency. A segment can appear
+private when the manager is its only mapper, so the manager's ranges are excluded
+before managed residency is added. Compressed/swapped pages are not included.
+The revised macOS collector still needs native validation, including pipeline
+collection cost.
+
+There is no separate TIFF or resident file-cache accounting. Ordinary mapped-file
+pages may still contribute to the native process counter; cached pages absent
+from process mappings are not added separately. The platform metrics differ in
+how they treat shared pages and, on Windows, managed allocation residency. They
+must not be treated as interchangeable measurements of exactly the same RAM.
 
 The scope includes the backend parent, discovered workers and helpers, including
 the shared-memory manager. It excludes the sampler itself. Parent state can
@@ -264,23 +273,29 @@ reuse. The host OS remains unknown from inside Docker; the selected metric follo
 the execution OS in `environment.os`.
 
 A small separate interpreter performs collection, avoiding a sampler thread in
-the parent before Linux forks workers. Windows/macOS worker initializers share
-observation context through the existing executor setup. Workers already running
-before any observation session cannot retroactively publish their mappings;
-their untracked shared pages remain outside native Windows/macOS coverage.
-Weak references retain no scientific allocations; inactive native sessions retain
-backing identities but do not write manifests.
-Ephemeral manifests and sampler-control files are one-way observation/IPC
-adapters, never alternative owners of allocations, task status or run identity.
-The final summary enters the existing report and the temporary workspace is
-removed. Disabled reporting creates no sampler or sampling workspace.
+the parent before Linux forks workers. The manager's existing `_segments`
+registry remains the sole owner of live allocation handles and release policy.
+At allocation, registration and release boundaries, it publishes a derived
+snapshot of names and sizes, plus its own mapping addresses on macOS. Overlapping
+runs share one observation session. Manager startup receives that session through
+its existing initializer seam; workers and array attachments need no observation
+context, mapping registry or TIFF wrappers.
+
+Snapshots and sampler-control files are one-way observation/IPC adapters. They
+never supply allocation or lifecycle state back to the manager. POSIX residency
+queries temporarily open a read-only mapping without faulting in the buffer or
+acquiring unlink authority. A manager started before an observation session is
+not retroactively observed. The scientific pipelines start their managers inside
+the collection window. Disabled reporting creates no sampler or observation
+workspace.
 
 `status` is `sampled` when all admitted sweeps succeeded, `partial` when some
 failed, `unavailable` when none completed, or `not_started` if the pipeline was
-never reached. Manifest reads and publication reuse the control-file retry for Windows sharing
-violations (up to 0.5 seconds, 10 ms spacing). Persistent failures remain explicit.
-A failed mapping-manifest publication invalidates the native
-metric because the sampler cannot reconstruct its missing coverage.
+never reached. Process or allocation changes during a sweep make that sweep
+incomplete. Manifest reads and publication reuse the control-file retry for
+Windows sharing violations (up to 0.5 seconds, 10 ms spacing). Persistent
+failures remain explicit. A failed manager-manifest publication invalidates the
+metric rather than silently omitting managed allocations.
 
 The peak is the maximum **complete sampled tree total**, not an OS high-water
 mark or a sum of independently observed process peaks. Reads within a sweep are
@@ -289,10 +304,7 @@ external processes sharing pages affect Linux PSS. Sweeps crossing the end of th
 operation are discarded. Requested and observed intervals, sweep cost, complete
 and incomplete counts and errors accompany the result. No complete sample means
 an unavailable value, never a successful zero. The default interval is one second;
-collection cost is assessed against combined reporting overhead. The real-data
-benchmark compares the existing slicing/backprojection step durations, excluding
-preceding source/cache setup and final reporting; it retains whole-pipeline times
-separately.
+collection cost is assessed against combined reporting overhead.
 
 `last_complete_sample_bytes` is the last admitted complete sample, not a live
 reading at report publication. `sampling` gives the window length, first and last
@@ -300,37 +312,17 @@ admitted sweep offsets, requested interval, observed start-to-start interval
 range, and discarded/incomplete/complete counts. `collector_cpu_seconds` includes
 polling and completion of an in-flight sweep discarded at stop;
 `max_sweep_seconds` includes discarded sweeps too. These costs diagnose the
-observer; only the external pipeline timer measures in-operation overhead.
+observer; only an external pipeline timer measures in-operation overhead.
 
-Native Linux, Windows and Apple Silicon macOS reader/controller tests run in CI
-on Python 3.11 and 3.12. Local verification also exercised a frozen Linux
-executable and real slicing/backprojection CLI runs inside the default Docker
-image on a Windows/WSL host. This does not constitute a new GUI/volume-server
-delivery test or validation on every Docker desktop host.
+The native CI matrix covers Linux, Windows and Apple Silicon macOS on Python
+3.11 and 3.12. The current simplification is checked with focused ownership,
+accounting and reporting tests; it has not repeated the long real-data benchmark
+campaign. Historical Linux and Windows pipeline results, component diagnostics,
+and Docker/frozen-executable checks are retained in
+[the Python benchmark guide](https://github.com/ChengLabResearch/ouroboros/blob/main/python/benchmarks/README.md).
+Those results describe earlier collectors. In particular, the earlier Windows
+long-path overhead finding applies to the removed working-set enumeration and
+mapping-tracking implementation, not a measurement of this replacement.
 
-The fixed-local Linux pipeline benchmark observed negative median differences
-for both operations. Subsequent real-data Linux tests ran two paired trials on
-three annotation paths, slicing and backprojecting each sliced intensity volume.
-The data-step differences varied in sign between pairs; positive median
-differences were smaller than at least one treatment's MAD. All enabled runs
-returned usable RAM samples. These small samples do not establish a 1% bound.
-
-The fresh native Windows rerun after PR #146 and manager-observer integration
-completed all 12 slicing/backprojection workflows (24 operations). All 12 enabled
-operations returned usable partial peaks; the previous transfer and manifest
-publication failures did not recur. The isolated CloudFiles workaround remained
-identical in both treatments and is still not a shipped dependency fix.
-
-Long-path median in-operation overhead was +6.498% for slicing and +3.851% for
-backprojection. Both operations were slower in both pairs and their median
-differences exceeded either treatment's MAD. This is an unresolved performance
-finding, not negligible overhead or completion of the 1% engineering target.
-The short-path positive median differences were below at least one treatment's
-MAD. Two pairs on a shared host do not establish a strict bound. The queued,
-untouched shared-backing gap described above also remains open.
-
-The earlier failed Windows batch is retained, as is the separate component stress
-diagnostic; neither substitutes for the fresh real-data evidence. Native macOS
-pipeline overhead has not been measured. See the benchmark guide for every
-attempt, timing, variability, sampling cost and remaining deployment limitation.
-No cross-platform 1% guarantee is claimed.
+Focused tests do not establish a 1% overhead bound or native macOS pipeline
+acceptance. No cross-platform 1% guarantee is claimed.

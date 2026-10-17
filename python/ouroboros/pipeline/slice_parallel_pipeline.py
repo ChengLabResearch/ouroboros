@@ -23,10 +23,9 @@ from ouroboros.helpers.files import (
 from .pipeline import PipelineStep
 from ouroboros.helpers.mem import SharedNPArray
 from ouroboros.helpers.options import SliceOptions
-from ouroboros.common.memory_mappings import executor_mapping_options, tracked_tiff_memmap
 import numpy as np
 import concurrent.futures
-from tifffile import imwrite
+from tifffile import imwrite, memmap
 import multiprocessing
 import time
 
@@ -133,7 +132,7 @@ class SliceParallelPipelineStep(PipelineStep):
             config.slice_width,
         ) + ((int(num_color_channels),) if has_color_channels else ())
 
-        temp_file = tracked_tiff_memmap(temp_file_path, shape=temp_shape, dtype=np.float32, **tiff_metadata)
+        temp_file = memmap(temp_file_path, shape=temp_shape, dtype=np.float32, **tiff_metadata)
 
         # Calculate the number of digits needed to store the number of slices
         num_digits = num_digits_for_n_files(len(slice_rects))
@@ -158,10 +157,8 @@ class SliceParallelPipelineStep(PipelineStep):
         try:
             with concurrent.futures.ProcessPoolExecutor(
                 max_workers=self.execution_resources["download_processes"],
-                **executor_mapping_options(self.memory_context),
             ) as download_executor, concurrent.futures.ProcessPoolExecutor(
                 max_workers=self.execution_resources["slice_processes"],
-                **executor_mapping_options(self.memory_context),
             ) as process_executor, SharedNPManager(authkey=authkey) as (shm_host, ):
                 # Start fork workers before they can inherit downloaded buffers
                 # that would otherwise survive the manager's release.
@@ -288,7 +285,7 @@ class SliceParallelPipelineStep(PipelineStep):
                                            preset_min=np.min(min_bounds),
                                            preset_max=np.max(max_bounds))
                     if config.make_single_file:
-                        target_file = tracked_tiff_memmap(output_file_path, shape=temp_shape, dtype=volume_cache.get_volume_dtype(),
+                        target_file = memmap(output_file_path, shape=temp_shape, dtype=volume_cache.get_volume_dtype(),
                                              **tiff_metadata)
                         pool.starmap(memmap_normalized, [(temp_file, target_file, convert_func, i)
                                                          for i in range(len(temp_file))])
@@ -350,7 +347,7 @@ def process_worker_save_parallel(
 
     start = time.perf_counter()
     # Save the slices to a previously created tiff file
-    mmap = tracked_tiff_memmap(temporary_path)
+    mmap = memmap(temporary_path)
     mmap[slice_indices] = slices
     mmap.flush()
     del mmap

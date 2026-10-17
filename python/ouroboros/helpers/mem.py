@@ -15,8 +15,8 @@ import numpy as np
 
 from .shapes import DataShape
 from .log import log, LOG
-from ouroboros.common.memory_mappings import (
-    configure_mappings, executor_mapping_options, observe_shared_memory, refresh_mappings,
+from ouroboros.common.memory_managed import (
+    configure_manager, current_context, publish_owned_segments,
 )
 
 # Existing pre-exit grace period in ``exit_cleanly``.
@@ -45,7 +45,6 @@ class SharedNPArray:
             self.__sm = SharedMemory(name=name, create=True, size=self.size())
         else:
             self.__sm = SharedMemory(name=name)
-        observe_shared_memory(self.__sm)
 
 
     def size(self, swap=None):
@@ -96,7 +95,6 @@ class SharedNPArray:
                 except FileNotFoundError:
                     pass
             self.__shutdown = True
-            refresh_mappings()
 
     close = shutdown
 
@@ -165,6 +163,7 @@ class _OwnedSharedMemoryTracker:
         self._segments: dict[str, tuple[SharedMemory, bool]] = {}
         self._lock = threading.RLock()
         self._closing = False
+        publish_owned_segments(self._segments)
 
     @property
     def segment_names(self):
@@ -177,7 +176,7 @@ class _OwnedSharedMemoryTracker:
                 raise RuntimeError("Shared memory manager is shutting down")
             memory = SharedMemory(create=True, size=size)
             self._segments[memory.name] = (memory, termed)
-            observe_shared_memory(memory)
+            publish_owned_segments(self._segments)
             return memory.name
 
     def register_segment(self, name):
@@ -188,7 +187,7 @@ class _OwnedSharedMemoryTracker:
                 raise RuntimeError("Shared memory manager is shutting down")
             if name not in self._segments:
                 self._segments[name] = (SharedMemory(name), False)
-                observe_shared_memory(self._segments[name][0])
+                publish_owned_segments(self._segments)
 
     def destroy_segment(self, name, termed_only=False):
         with self._lock:
@@ -207,7 +206,7 @@ class _OwnedSharedMemoryTracker:
             finally:
                 memory.close()
                 del self._segments[name]
-                refresh_mappings()
+                publish_owned_segments(self._segments)
 
     def unlink(self):
         with self._lock:
@@ -239,7 +238,7 @@ class _OwnedSharedMemoryServer(SharedMemoryServer):
 
 
 def _initialize_manager_observation(context, initializer, initargs):
-    configure_mappings(context)
+    configure_manager(context)
     if initializer is not None:
         initializer(*initargs)
 
@@ -300,11 +299,10 @@ class SharedNPManager(SharedMemoryManager):
                 self.__mem_queue.append([mem[0], mem[1]])
 
     def start(self, initializer=None, initargs=()):
-        # Reuse the active process-observation channel and BaseManager's
-        # initializer seam; the allocation registry remains server-owned.
-        options = executor_mapping_options(None)
-        if options:
-            context, = options["initargs"]
+        # Only the canonical manager publishes allocation observations.
+        # Worker pools and array attachments need no observation initializer.
+        context = current_context()
+        if context is not None:
             if initializer is not None and not callable(initializer):
                 raise TypeError("initializer must be a callable")
             super().start(_initialize_manager_observation, (context, initializer, initargs))

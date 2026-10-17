@@ -117,7 +117,6 @@ def run_fixture(tmp_path, monkeypatch):
     monkeypatch.setattr(run_statistics, "collect_volume_statistics", collect)
 
     class FixtureMemoryCollector:
-        mapping_context = None
 
         def __init__(self):
             self.active = False
@@ -162,7 +161,6 @@ def test_memory_observation_failure_keeps_scientific_outcome(run_fixture, monkey
     assert record["memory"]["status"] == "unavailable"
     assert record["memory"]["sampled_peak_bytes"] is None
     assert "fixture memory API unavailable" in record["memory"]["errors"][0]["example"]
-    assert task.pipeline.steps[0].memory_context is None
 
 
 @pytest.mark.parametrize("operation", ["slice", "backproject"])

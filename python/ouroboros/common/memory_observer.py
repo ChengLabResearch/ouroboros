@@ -18,7 +18,7 @@ def main(directory):
     try:
         config = _read_json(directory / "config.json")
         sampler = TreeSampler(config["root_pid"], config["root_created"],
-                              mappings_directory=config["mappings_directory"])
+                              managers_directory=config["managers_directory"])
         samples = Samples(config["interval"])
         # Load native adapters before declaring readiness, outside data operations.
         if sampler.system == "Windows":

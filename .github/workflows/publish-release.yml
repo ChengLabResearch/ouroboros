@@ -18,9 +18,6 @@ jobs:
             actions: read
             contents: write
 
-        env:
-            OUROBOROS_RELEASE_ARTIFACT_DIR: ${{ runner.temp }}/ouroboros-release-assets
-
         steps:
             - name: Check out tagged release commit
               uses: actions/checkout@v7
@@ -31,6 +28,13 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 24
+
+            - name: Set release artifact directory
+              id: artifact-directory
+              env:
+                  OUROBOROS_RELEASE_ARTIFACT_DIR: ${{ runner.temp }}/ouroboros-release-assets
+              run: >-
+                  node -e "require('node:fs').appendFileSync(process.env.GITHUB_ENV, 'OUROBOROS_RELEASE_ARTIFACT_DIR=' + process.env.OUROBOROS_RELEASE_ARTIFACT_DIR + '\n')"
 
             - name: Find certified main build
               id: certified-build

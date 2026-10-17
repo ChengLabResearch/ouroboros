@@ -82,7 +82,6 @@ jobs:
 
         env:
             GH_TOKEN: ${{ secrets.OUROBOROS_RELEASE_ASSET_TOKEN || secrets.GITHUB_TOKEN }}
-            OUROBOROS_RELEASE_ARTIFACT_DIR: ${{ runner.temp }}/ouroboros-release-assets/${{ matrix.platform }}
 
         strategy:
             fail-fast: false
@@ -106,6 +105,13 @@ jobs:
               with:
                   node-version: 24
                   cache: npm
+
+            - name: Set release artifact directory
+              id: artifact-directory
+              env:
+                  OUROBOROS_RELEASE_ARTIFACT_DIR: ${{ runner.temp }}/ouroboros-release-assets/${{ matrix.platform }}
+              run: >-
+                  node -e "require('node:fs').appendFileSync(process.env.GITHUB_ENV, 'OUROBOROS_RELEASE_ARTIFACT_DIR=' + process.env.OUROBOROS_RELEASE_ARTIFACT_DIR + '\n')"
 
             - name: Install npm
               run: npm install --global npm@11.19.0

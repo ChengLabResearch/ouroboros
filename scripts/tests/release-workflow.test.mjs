@@ -54,8 +54,9 @@ test('native installers run only for main while pull requests and branch dispatc
 
 test('native build and publication artifacts stay outside the checkout', async () => {
 	const native = (await workflow('build-and-release.yml')).jobs['build-packages']
+	const nativeSetup = native.steps.find(({ id }) => id === 'artifact-directory')
 	assert.equal(
-		native.env.OUROBOROS_RELEASE_ARTIFACT_DIR,
+		nativeSetup.env.OUROBOROS_RELEASE_ARTIFACT_DIR,
 		'${{ runner.temp }}/ouroboros-release-assets/${{ matrix.platform }}'
 	)
 	const upload = native.steps.find(({ uses }) => uses?.startsWith('actions/upload-artifact'))
@@ -63,8 +64,9 @@ test('native build and publication artifacts stay outside the checkout', async (
 	assert.equal(upload.with.name, 'release-assets-${{ matrix.platform }}')
 
 	const publish = (await workflow('publish-release.yml')).jobs.publish
+	const publishSetup = publish.steps.find(({ id }) => id === 'artifact-directory')
 	assert.equal(
-		publish.env.OUROBOROS_RELEASE_ARTIFACT_DIR,
+		publishSetup.env.OUROBOROS_RELEASE_ARTIFACT_DIR,
 		'${{ runner.temp }}/ouroboros-release-assets'
 	)
 	const download = publish.steps.find(({ uses }) => uses?.startsWith('actions/download-artifact'))
@@ -78,6 +80,22 @@ test('native build and publication artifacts stay outside the checkout', async (
 		uses?.startsWith('softprops/action-gh-release')
 	)
 	assert.equal(release.with.files, '${{ env.OUROBOROS_RELEASE_ARTIFACT_DIR }}/*')
+	for (const job of [native, publish]) {
+		// runner is available in step env, but GitHub rejects it in job env.
+		assert.doesNotMatch(JSON.stringify(job.env ?? {}), /\$\{\{[^}]*\brunner\./)
+		assert.equal(job.env?.OUROBOROS_RELEASE_ARTIFACT_DIR, undefined)
+		const setupIndex = job.steps.findIndex(({ id }) => id === 'artifact-directory')
+		const nodeIndex = job.steps.findIndex(({ uses }) => uses?.startsWith('actions/setup-node'))
+		assert(setupIndex > nodeIndex)
+		assert.match(job.steps[setupIndex].run, /appendFileSync\(process\.env\.GITHUB_ENV,/)
+		assert.match(job.steps[setupIndex].run, /process\.env\.OUROBOROS_RELEASE_ARTIFACT_DIR/)
+		const firstConsumer = job.steps.findIndex(
+			({ uses, run }) =>
+				uses?.startsWith('actions/download-artifact') ||
+				run?.includes('build:release-artifacts')
+		)
+		assert(setupIndex < firstConsumer)
+	}
 })
 
 test('release preflight watches packaging resources and build configuration', async () => {

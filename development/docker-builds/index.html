@@ -426,7 +426,7 @@
 <h2 id="current-behavior">Current behavior</h2>
 <ul>
 <li>Development startup uses <code>python/compose.dev.yml</code>, bind-mounts the Python source tree, and runs the Docker server through Uvicorn reload. Ordinary Python source edits should not require a compose rebuild.</li>
-<li>Production startup now uses plain compose startup. Docker will build the bundled server image the first time it is missing, but repeated app launches should not force a rebuild.</li>
+<li>Production startup uses the server image pinned by digest in the <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/release/release-lock.json">release lock</a>. Docker pulls a missing image; the installed app does not build a server wheel or image.</li>
 <li>Local plugin installation still runs an explicit compose build after copying a plugin into the app data folder. That is the correct time to build a packaged plugin backend because the app has just installed new backend files.</li>
 <li>The plugin template uses <code>backend/compose.dev.yml</code> during <code>npm run dev-backend</code>, bind-mounts <code>backend/app</code>, and runs the backend in FastAPI development mode.</li>
 </ul>
@@ -438,9 +438,7 @@
 </ul>
 <h2 id="remaining-follow-ups">Remaining follow-ups</h2>
 <ul>
-<li>Publish the production server image to a registry during releases, then ship a compose file that references the immutable image tag instead of building from the bundled wheel at first launch.</li>
 <li>Keep GPU-specific containers in plugins or optional compose overrides rather than making the core app image GPU-first. The core server image does not currently require CUDA, while segmentation plugins such as SAM-backed plugins are the better place for CUDA runtime bases.</li>
-<li>Preserve the current wheel-based release path until registry-published server images exist, because it keeps releases reproducible without depending on a mutable external image name.</li>
 </ul>
 </section>
 

@@ -422,14 +422,17 @@
             <main id="terminal-mkdocs-main-content">
 <section id="mkdocs-terminal-content">
     <h1 id="registry-server-images">Registry Server Images</h1>
-<p>Ouroboros can publish the Python server Docker image to GHCR during release-tag workflows. This avoids turning every production startup into a local image build once release packaging is ready to reference immutable image tags.</p>
+<p>The Python server image has a separate build lifecycle from desktop installers.
+Production packages use the image digest pinned in
+<a href="https://github.com/ChengLabResearch/ouroboros/blob/main/release/release-lock.json"><code>release/release-lock.json</code></a>,
+so application startup pulls the image instead of building it locally.</p>
 <h2 id="published-image">Published Image</h2>
-<p>The <code>Publish Server Image</code> workflow builds the Python wheel, builds <code>python/Dockerfile-prod</code>, and publishes:</p>
-<ul>
-<li><code>ghcr.io/chenglabresearch/ouroboros-server:&lt;release-tag&gt;</code> for release tags such as <code>v1.4.0</code></li>
-<li><code>ghcr.io/chenglabresearch/ouroboros-server:sha-&lt;commit&gt;</code> for the exact source revision</li>
-</ul>
-<p>Both tags are produced from the same wheel artifact that the Dockerfile installs.</p>
+<p>The <code>Build and Certify Server Image</code> workflow tests Python changes, builds the
+wheel, and builds <code>python/Dockerfile-prod</code> on pull requests. PR runs do not publish
+an image. On <code>main</code>, the workflow publishes <code>sha-&lt;full-commit&gt;</code> and records the
+registry repository, image digest, and source commit in a certified server
+manifest. A later release-lock update selects that image for desktop packages.
+Application version tags do not rebuild the wheel or server image.</p>
 <h2 id="base-image-pin">Base Image Pin</h2>
 <p>Both Python Dockerfiles keep the readable <code>thehale/python-poetry</code> tag paired
 with an immutable digest. When upgrading that base, review the upstream image,
@@ -437,24 +440,26 @@ resolve the new tag's digest, and update the tag and digest in
 <code>python/Dockerfile</code> and <code>python/Dockerfile-prod</code> together in the same reviewed
 change. Do not refresh the digest without an intentional base-image review.</p>
 <h2 id="release-compose-usage">Release Compose Usage</h2>
-<p>Release packaging uses <code>npm run prepare:production-server</code> to write
-<code>extra-resources/server/compose.yml</code> and <code>extra-resources/server/server-image.json</code>.
-For a tag build, the app package workflow sets:</p>
-<pre><code class="language-yaml">OUROBOROS_SERVER_IMAGE_TAG=v1.4.0
-</code></pre>
+<p>Release packaging derives <code>extra-resources/server/compose.yml</code> and
+<code>extra-resources/server/server-image.json</code> from the release lock inside its
+external workspace. These generated files are package outputs, not editable
+production image pins. The source checkout remains unchanged.</p>
 <p>The generated compose file preserves the production ports, <code>ouroboros-volume</code>
 mount, <code>host.docker.internal</code> mapping, <code>OUR_ENV=docker</code>, and <code>shm_size</code> settings,
 but uses <code>image:</code> instead of <code>build:</code>. Production first launch therefore pulls
 the published GHCR image instead of building the server locally.</p>
-<p>For digest-pinned packages, set:</p>
-<pre><code class="language-bash">OUROBOROS_SERVER_IMAGE_REPOSITORY=ghcr.io/chenglabresearch/ouroboros-server
-OUROBOROS_SERVER_IMAGE_DIGEST=sha256:&lt;digest&gt;
-npm run prepare:production-server
-</code></pre>
+<p>To change the packaged server, update the lock's <code>serverImage</code> entry using the
+certified server manifest. There are no per-image workflow inputs or preparation
+commands that override the lock. Use the
+<a href="../production-package-flavors/#local-checks">package build entrypoint</a> to stage
+and build desktop packages.</p>
 <p>Development compose files still build locally from source so local edits do not
 depend on registry state.</p>
 <h2 id="manual-runs">Manual Runs</h2>
-<p>The workflow also supports <code>workflow_dispatch</code> for validating or re-publishing the image from the current branch. Release consumers should still use tag or SHA image references rather than mutable names.</p>
+<p>The server workflow also supports <code>workflow_dispatch</code> for testing and publishing
+the selected revision. Desktop releases still consume its certified digest
+through the release lock; dispatching the server workflow does not change that
+lock or publish a desktop release.</p>
 </section>
 
             </main>

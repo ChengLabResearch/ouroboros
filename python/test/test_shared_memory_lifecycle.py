@@ -248,7 +248,8 @@ def test_failed_second_view_closes_first_and_releases_server_allocation(monkeypa
 
 
 def test_pickle_transfers_attachment_without_unlink_authority_or_cached_pixels():
-    owner = SharedNPArray(f"ouroboros-{uuid4().hex}", SHAPE, np.uint16, allocate=True)
+    # Keep explicit test names below macOS's shared-memory name limit.
+    owner = SharedNPArray(f"ob-{uuid4().hex[:16]}", SHAPE, np.uint16, allocate=True)
     try:
         # Leave a cached ndarray in the owner; serialization must ignore it.
         owner.array()[:] = 13
@@ -278,7 +279,7 @@ def test_partially_initialized_array_cleanup():
     partial.__del__()
     partial.__exit__()
     with pytest.raises(FileNotFoundError):
-        SharedNPArray(f"missing-{uuid4().hex}", SHAPE, np.uint16)
+        SharedNPArray(f"missing-{uuid4().hex[:16]}", SHAPE, np.uint16)
     gc.collect()
 
 

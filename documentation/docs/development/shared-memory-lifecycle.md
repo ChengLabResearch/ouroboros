@@ -128,7 +128,12 @@ typing-extensions 4.16.0. The command, from `python/`, was
 `python -m pytest test/test_shared_memory_lifecycle.py -q -W error::ResourceWarning`,
 with BLAS/OpenMP thread counts set to one. All five runs had empty stderr and no
 pytest warning summary. The native CI matrix retains Python 3.11/3.12 on Linux,
-Windows, and macOS and runs the same expanded tests.
+Windows, and macOS and runs the same expanded tests. The
+[audit CI run](https://github.com/ChengLabResearch/ouroboros/actions/runs/39046361979)
+passed on both supported versions: 34 tests on each Linux/macOS job, and 17 passed
+plus the POSIX-only skip on each Windows job. No warnings appeared in those test
+summaries. The full local supported-environment suite passed 270 tests with 99%
+helper coverage.
 
 These results audit the shared-memory component, not the full application on
 new Python releases. Python 3.13–3.15 Windows/macOS runs, free-threaded builds,

@@ -10,6 +10,10 @@ on:
             - electron.vite.config.ts
             - package.json
             - package-lock.json
+            - .npmrc
+            - tsconfig*.json
+            - build/**
+            - resources/**
             - release/**
             - scripts/**
             - src/**
@@ -24,6 +28,10 @@ on:
             - electron.vite.config.ts
             - package.json
             - package-lock.json
+            - .npmrc
+            - tsconfig*.json
+            - build/**
+            - resources/**
             - release/**
             - scripts/**
             - src/**
@@ -33,73 +41,48 @@ concurrency:
     group: release-artifacts-${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
 
-env:
-    GH_TOKEN: ${{ secrets.OUROBOROS_RELEASE_ASSET_TOKEN || secrets.GITHUB_TOKEN }}
-
 jobs:
-    resolve-pr-build:
+    release-preflight:
+        name: Validate release inputs
         runs-on: ubuntu-latest
         timeout-minutes: 10
         permissions:
-            actions: read
             contents: read
-            pull-requests: read
-        outputs:
-            run-id: ${{ steps.candidate.outputs.result }}
         steps:
-            - name: Find matching same-repository PR build
-              id: candidate
-              uses: actions/github-script@v8
+            - name: Check out release inputs
+              uses: actions/checkout@v7
+
+            - name: Install Node.js
+              uses: actions/setup-node@v7
               with:
-                  result-encoding: string
-                  script: |
-                      if (context.eventName !== 'push' || context.ref !== 'refs/heads/main') {
-                        return ''
-                      }
-                      const associated = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        commit_sha: context.sha
-                      })
-                      const pullRequest = associated.data.find(candidate =>
-                        candidate.merged_at &&
-                        candidate.base.ref === 'main' &&
-                        candidate.head.repo?.full_name === `${context.repo.owner}/${context.repo.repo}` &&
-                        candidate.merge_commit_sha === context.sha
-                      )
-                      if (!pullRequest) {
-                        core.info('No merged same-repository PR is associated with this main commit')
-                        return ''
-                      }
-                      const response = await github.rest.actions.listWorkflowRuns({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        workflow_id: 'build-and-release.yml',
-                        head_sha: pullRequest.head.sha,
-                        event: 'pull_request',
-                        status: 'success',
-                        per_page: 100
-                      })
-                      const run = response.data.workflow_runs.find(candidate =>
-                        candidate.conclusion === 'success' &&
-                        candidate.pull_requests.some(item => item.number === pullRequest.number)
-                      )
-                      if (!run) {
-                        core.info(`No successful artifact build found for PR #${pullRequest.number}`)
-                        return ''
-                      }
-                      core.info(`Candidate PR artifact build: ${run.html_url}`)
-                      return run.id
+                  node-version: 24
+                  cache: npm
+
+            - name: Install npm
+              run: npm install --global npm@11.19.0
+
+            - name: Install locked dependencies
+              run: npm ci
+
+            - name: Test release lock and artifact validation
+              run: npm run test:release
+
+            - name: Validate locked release inputs and package boundary
+              run: npm run preflight:release
 
     build-packages:
         name: Build ${{ matrix.platform }} release artifacts
-        needs: resolve-pr-build
+        needs: release-preflight
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         runs-on: ${{ matrix.os }}
         timeout-minutes: 45
 
         permissions:
-            actions: read
             contents: read
+
+        env:
+            GH_TOKEN: ${{ secrets.OUROBOROS_RELEASE_ASSET_TOKEN || secrets.GITHUB_TOKEN }}
+            OUROBOROS_RELEASE_ARTIFACT_DIR: ${{ runner.temp }}/ouroboros-release-assets/${{ matrix.platform }}
 
         strategy:
             fail-fast: false
@@ -124,46 +107,17 @@ jobs:
                   node-version: 24
                   cache: npm
 
-            - name: Download matching PR artifact candidate
-              id: candidate-download
-              if: needs.resolve-pr-build.outputs.run-id != ''
-              continue-on-error: true
-              uses: actions/download-artifact@v8
-              with:
-                  run-id: ${{ needs.resolve-pr-build.outputs.run-id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-                  name: release-assets-${{ matrix.platform }}
-                  path: release-assets
-
-            - name: Certify matching PR artifacts for the merge commit
-              id: candidate-certify
-              if: steps.candidate-download.outcome == 'success'
-              continue-on-error: true
-              run: >-
-                  node scripts/certify-release-artifacts.mjs
-                  --dir release-assets
-                  --platform ${{ matrix.platform }}
-                  --commit ${{ github.sha }}
-                  --source-run ${{ needs.resolve-pr-build.outputs.run-id }}
-
             - name: Install npm
-              if: steps.candidate-certify.outcome != 'success'
               run: npm install --global npm@11.19.0
 
             - name: Install locked dependencies
-              if: steps.candidate-certify.outcome != 'success'
               run: npm ci
 
             - name: Audit release dependencies
-              if: steps.candidate-certify.outcome != 'success' && matrix.platform == 'linux'
+              if: matrix.platform == 'linux'
               run: npm run audit:release
 
-            - name: Test release lock and artifact validation
-              if: steps.candidate-certify.outcome != 'success' && matrix.platform == 'linux'
-              run: npm run test:release
-
             - name: Compile once and package selected flavors
-              if: steps.candidate-certify.outcome != 'success'
               run: npm run build:release-artifacts -- --platform ${{ matrix.platform }}
 
             - name: Upload immutable release inputs
@@ -172,4 +126,4 @@ jobs:
                   name: release-assets-${{ matrix.platform }}
                   if-no-files-found: error
                   retention-days: 14
-                  path: release-assets/*
+                  path: ${{ env.OUROBOROS_RELEASE_ARTIFACT_DIR }}/*

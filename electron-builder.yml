@@ -3,21 +3,16 @@ productName: Ouroboros
 directories:
     buildResources: build
 files:
-    - '!**/.vscode/*'
-    - '!release-assets${/*}'
-    - '!.package-plugin-artifacts${/*}'
-    - '!src/*'
-    - '!python/*'
-    - '!docs/*'
-    - '!plugins/*'
-    - '!electron.vite.config.{js,ts,mjs,cjs}'
-    - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-    - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-    - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+    - out/**
+    - resources/**
+    - package.json
 asarUnpack:
     - resources/**
 extraResources:
-    - extra-resources/**
+    - extra-resources/server/compose.yml
+    - extra-resources/server/server-image.json
+    - extra-resources/package-flavor.json
+    - extra-resources/preinstalled-plugins/**
 win:
     executableName: Ouroboros
 nsis:

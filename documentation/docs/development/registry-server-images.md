@@ -1,15 +1,18 @@
 # Registry Server Images
 
-Ouroboros can publish the Python server Docker image to GHCR during release-tag workflows. This avoids turning every production startup into a local image build once release packaging is ready to reference immutable image tags.
+The Python server image has a separate build lifecycle from desktop installers.
+Production packages use the image digest pinned in
+[`release/release-lock.json`](https://github.com/ChengLabResearch/ouroboros/blob/main/release/release-lock.json),
+so application startup pulls the image instead of building it locally.
 
 ## Published Image
 
-The `Publish Server Image` workflow builds the Python wheel, builds `python/Dockerfile-prod`, and publishes:
-
-- `ghcr.io/chenglabresearch/ouroboros-server:<release-tag>` for release tags such as `v1.4.0`
-- `ghcr.io/chenglabresearch/ouroboros-server:sha-<commit>` for the exact source revision
-
-Both tags are produced from the same wheel artifact that the Dockerfile installs.
+The `Build and Certify Server Image` workflow tests Python changes, builds the
+wheel, and builds `python/Dockerfile-prod` on pull requests. PR runs do not publish
+an image. On `main`, the workflow publishes `sha-<full-commit>` and records the
+registry repository, image digest, and source commit in a certified server
+manifest. A later release-lock update selects that image for desktop packages.
+Application version tags do not rebuild the wheel or server image.
 
 ## Base Image Pin
 
@@ -21,30 +24,28 @@ change. Do not refresh the digest without an intentional base-image review.
 
 ## Release Compose Usage
 
-Release packaging uses `npm run prepare:production-server` to write
-`extra-resources/server/compose.yml` and `extra-resources/server/server-image.json`.
-For a tag build, the app package workflow sets:
-
-```yaml
-OUROBOROS_SERVER_IMAGE_TAG=v1.4.0
-```
+Release packaging derives `extra-resources/server/compose.yml` and
+`extra-resources/server/server-image.json` from the release lock inside its
+external workspace. These generated files are package outputs, not editable
+production image pins. The source checkout remains unchanged.
 
 The generated compose file preserves the production ports, `ouroboros-volume`
 mount, `host.docker.internal` mapping, `OUR_ENV=docker`, and `shm_size` settings,
 but uses `image:` instead of `build:`. Production first launch therefore pulls
 the published GHCR image instead of building the server locally.
 
-For digest-pinned packages, set:
-
-```bash
-OUROBOROS_SERVER_IMAGE_REPOSITORY=ghcr.io/chenglabresearch/ouroboros-server
-OUROBOROS_SERVER_IMAGE_DIGEST=sha256:<digest>
-npm run prepare:production-server
-```
+To change the packaged server, update the lock's `serverImage` entry using the
+certified server manifest. There are no per-image workflow inputs or preparation
+commands that override the lock. Use the
+[package build entrypoint](production-package-flavors.md#local-checks) to stage
+and build desktop packages.
 
 Development compose files still build locally from source so local edits do not
 depend on registry state.
 
 ## Manual Runs
 
-The workflow also supports `workflow_dispatch` for validating or re-publishing the image from the current branch. Release consumers should still use tag or SHA image references rather than mutable names.
+The server workflow also supports `workflow_dispatch` for testing and publishing
+the selected revision. Desktop releases still consume its certified digest
+through the release lock; dispatching the server workflow does not change that
+lock or publish a desktop release.

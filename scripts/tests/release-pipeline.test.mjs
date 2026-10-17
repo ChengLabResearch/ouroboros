@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
+import { load as loadYaml } from 'js-yaml'
+import { getFileMatchers, getMainFileMatchers } from 'app-builder-lib/out/fileMatcher.js'
+import { Platform } from 'app-builder-lib'
+import { getRepositoryInfo } from 'app-builder-lib/out/util/repositoryInfo.js'
+import { getAppUpdatePublishConfiguration } from 'app-builder-lib/out/publish/PublishManager.js'
 import {
 	RELEASE_PLATFORMS,
 	loadReleaseLock,
@@ -103,12 +108,110 @@ test('release artifact selection excludes electron-builder diagnostics', () => {
 	assert.throws(() => parsePlatform(['--platform', 'solaris']), /must be one of/)
 })
 
-test('electron-builder excludes generated release inputs from packaged files', async () => {
-	const config = await readFile(join(root, 'electron-builder.yml'), 'utf8')
-	const lines = new Set(config.split(/\r?\n/).map((line) => line.trim()))
+test('staged package metadata preserves GitHub update configuration without a git checkout', async (t) => {
+	const directory = await mkdtemp(join(tmpdir(), 'ouroboros-package-repository-test-'))
+	t.after(() => rm(directory, { recursive: true, force: true }))
+	await copyFile(join(root, 'package.json'), join(directory, 'package.json'))
+	await assert.rejects(stat(join(directory, '.git')), { code: 'ENOENT' })
+	const metadata = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'))
+	const repositoryInfo = await getRepositoryInfo(directory, metadata)
+	assert.equal(repositoryInfo?.type, 'github')
+	assert.equal(repositoryInfo.user, 'ChengLabResearch')
+	assert.equal(repositoryInfo.project, 'ouroboros')
 
-	assert.equal(lines.has("- '!release-assets${/*}'"), true)
-	assert.equal(lines.has("- '!.package-plugin-artifacts${/*}'"), true)
+	const config = loadYaml(await readFile(join(root, 'electron-builder.yml'), 'utf8'))
+	const appInfo = { channel: null, updaterCacheDirName: 'ouroboros-updater' }
+	const updateConfiguration = await getAppUpdatePublishConfiguration(
+		{
+			info: { repositoryInfo: Promise.resolve(repositoryInfo), config, appInfo },
+			config,
+			appInfo,
+			platformSpecificBuildOptions: {},
+			platform: Platform.LINUX,
+			expandMacro: (value) => value
+		},
+		null,
+		1,
+		false
+	)
+	assert.equal(updateConfiguration?.provider, 'github')
+	assert.equal(updateConfiguration.owner, 'ChengLabResearch')
+	assert.equal(updateConfiguration.repo, 'ouroboros')
+})
+
+test('electron-builder selects only runtime files and approved extra resources', async (t) => {
+	const directory = await mkdtemp(join(tmpdir(), 'ouroboros-package-allowlist-test-'))
+	t.after(() => rm(directory, { recursive: true, force: true }))
+	const config = loadYaml(await readFile(join(root, 'electron-builder.yml'), 'utf8'))
+	const output = join(directory, 'dist')
+	const destination = join(output, 'resources', 'app')
+	const macroExpander = (value) => value
+	const info = {
+		config,
+		projectDir: directory,
+		buildResourcesDir: 'build',
+		debugLogger: { isEnabled: false }
+	}
+	const mainMatchers = getMainFileMatchers(
+		directory,
+		destination,
+		macroExpander,
+		{},
+		{ info },
+		output,
+		false
+	)
+	const extraMatchers = getFileMatchers(config, 'extraResources', join(output, 'resources'), {
+		macroExpander,
+		customBuildOptions: {},
+		globalOutDir: output,
+		defaultSrc: directory
+	})
+	const expectedRuntime = [
+		'package.json',
+		'out/main/index.js',
+		'out/preload/index.js',
+		'out/renderer/index.html',
+		'resources/icon.png',
+		'resources/processes/volume-server-script.mjs'
+	]
+	const expectedExtra = [
+		'extra-resources/server/compose.yml',
+		'extra-resources/server/server-image.json',
+		'extra-resources/package-flavor.json',
+		'extra-resources/preinstalled-plugins/example/package.json',
+		'extra-resources/preinstalled-plugins/example/assets/index.js'
+	]
+	const unwanted = [
+		'src/main/index.ts',
+		'python/payload.bin',
+		'documentation/README.md',
+		'release-assets/previous.zip',
+		'.package-plugin-artifacts/plugin.zip',
+		'release/release-lock.json',
+		'scripts/build-release-artifacts.mjs',
+		'extra-resources/unapproved.json',
+		'extra-resources/server/unapproved.json',
+		'notes.json',
+		'package-lock.json',
+		'.env',
+		'.npmrc',
+		'build/icon.png'
+	]
+	const selectedRuntime = []
+	const selectedExtra = []
+	const runtimeFilters = mainMatchers.map((matcher) => matcher.createFilter())
+	const extraFilters = extraMatchers.map((matcher) => matcher.createFilter())
+	for (const name of [...expectedRuntime, ...expectedExtra, ...unwanted]) {
+		const path = join(directory, name)
+		await mkdir(dirname(path), { recursive: true })
+		await writeFile(path, name)
+		const details = await stat(path)
+		if (runtimeFilters.some((filter) => filter(path, details))) selectedRuntime.push(name)
+		if (extraFilters.some((filter) => filter(path, details))) selectedExtra.push(name)
+	}
+	assert.deepEqual(selectedRuntime.sort(), expectedRuntime.sort())
+	assert.deepEqual(selectedExtra.sort(), expectedExtra.sort())
 })
 
 test('npm lifecycle commands stay shell-free on Windows', () => {

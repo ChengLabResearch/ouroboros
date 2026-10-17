@@ -1,7 +1,8 @@
 # Production package flavors
 
-The release workflow builds three production package flavors for each supported
-desktop runner:
+The release workflow builds the flavors selected by
+[`release/release-lock.json`](https://github.com/ChengLabResearch/ouroboros/blob/main/release/release-lock.json)
+for each supported desktop runner. The available flavors are:
 
 - `core`: Ouroboros only, with the production server compose file pointing at
   the registry-published server image.
@@ -13,59 +14,95 @@ desktop runner:
   CUDA backend image and Docker Compose GPU reservation.
 
 Plugin flavors stage release artifacts into
-`extra-resources/preinstalled-plugins` before Electron Builder runs. The app
-installs those bundled plugin folders into the user plugin directory on startup,
-so production packages can ship with plugins already available.
+`extra-resources/preinstalled-plugins` inside the external packaging workspace
+before Electron Builder runs. The app installs those bundled plugin folders into
+the user plugin directory on startup.
 
 ## Release inputs
 
-Tag releases default the server image to the Ouroboros release tag and default
-bundled plugins to explicit production pins. Manual workflow runs can override
-these inputs:
+The release lock is the only source of production pins and selected flavors.
+Update it to change the server image or bundled plugins; there are no separate
+per-image or per-plugin workflow inputs. The application version must match the
+lock's `releaseVersion`.
 
-- `server_image_tag` or `server_image_digest`
-- `neuroglancer_plugin_tag` (default `v1.1.1`)
-- `neuroglancer_plugin_artifact` (default `neuroglancer-plugin-v1.1.1.zip`)
-- `autoseg_plugin_tag` (default `v0.4.0-beta.2`)
-- `autoseg_cpu_plugin_artifact` (default `auto-segmentation-v0.4.0-beta.2-cpu.zip`)
-- `autoseg_cuda_plugin_artifact` (default `auto-segmentation-v0.4.0-beta.2-cuda.zip`)
+The server is pinned by registry repository, immutable image digest, and source
+commit. Plugin inputs are pinned by repository, release tag, asset filename,
+SHA-256, and source commit, with separate CPU and CUDA backend identities.
+Packaging verifies downloaded archive hashes and requires `plugin-release.json`
+to match the locked release identity. Backend image verification follows the
+corresponding lock entry. See the lock for current versions and digests.
 
-The current plugin pins are:
-
-- Neuroglancer plugin: `ChengLabResearch/neuroglancer-plugin` tag `v1.1.1`,
-  asset `neuroglancer-plugin-v1.1.1.zip`
-- Automatic segmentation plugin: `ChengLabResearch/ouroboros_autoseg_plugin`
-  tag `v0.4.0-beta.2`, assets `auto-segmentation-v0.4.0-beta.2-cpu.zip` and
-  `auto-segmentation-v0.4.0-beta.2-cuda.zip`
-
-`extra-resources/package-flavor.json` records the selected package flavor,
-server image metadata, and exact plugin release tag/artifact inputs. When a
-plugin archive includes `plugin-release.json`, its release metadata is copied
-into `package-flavor.json` as well.
+The staged `extra-resources/package-flavor.json` records the selected flavor,
+release-lock hash, server image metadata, and exact plugin identities, including
+the verified plugin release metadata. This file describes the package; the
+release lock remains authoritative.
 
 If plugin release repositories are private, set
 `OUROBOROS_RELEASE_ASSET_TOKEN` to a token that can read those release assets.
 The workflow falls back to `GITHUB_TOKEN` when that secret is not set.
 
-## Dependency audit
+## Build and publication
 
-The release workflow runs `npm run audit:release` against the locked dependency
-tree. npm currently combines the React Router 7 and 8 ranges for
-[`GHSA-qwww-vcr4-c8h2`](https://github.com/remix-run/react-router/security/advisories/GHSA-qwww-vcr4-c8h2)
-and incorrectly reports React Router 7.18.2. The audit validator permits only
-that advisory while both `react-router` and `react-router-dom` resolve to the
-patched v7 release 7.18.2. It fails for any other advisory or resolved version.
+Pull requests run release preflight checks without building native installers.
+Native builds run on `main`, compiling Electron once per operating system and
+packaging each selected flavor. On CI, build workspaces, generated resources,
+dependency trees, plugin downloads, and final artifacts live under `RUNNER_TEMP`,
+outside `GITHUB_WORKSPACE`; the source checkout is read-only input. Electron
+Builder uses an explicit application-file allowlist rather than packaging the
+checkout.
+
+A successful `main` build records the exact source commit, input lock, artifact
+sizes, and SHA-256 hashes. The tag-triggered publication workflow verifies those
+prebuilt artifacts and creates a draft release without rebuilding Electron or the
+server. See the [release pipeline guide](https://github.com/ChengLabResearch/ouroboros/blob/main/release/README.md).
+
+Dependency auditing uses `npm run audit:release` against locked dependencies.
+Any reviewed audit exceptions are defined in the
+[audit validator](https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/validate-npm-audit.mjs).
 
 ## Local checks
 
-Prepare the core package resources with:
+Run the fast release preflight from the repository root:
 
 ```sh
-npm run prepare:production-server
-OUROBOROS_PACKAGE_FLAVOR=core npm run prepare:package-flavor
+npm run preflight:release
 ```
 
-Plugin flavors can be checked against local release zips by placing them in
-`.package-plugin-artifacts` or setting `OUROBOROS_PLUGIN_ARTIFACT_DIR`.
-Use `OUROBOROS_PACKAGE_FLAVOR=with-plugins-cpu` or
-`OUROBOROS_PACKAGE_FLAVOR=with-plugins-cuda` to stage bundled plugin packages.
+It validates the lock, application version, and packaging configuration, and
+exercises disposable external staging without compiling Electron, downloading
+plugin assets, or producing installers.
+
+Build all locked flavors on the corresponding native platform:
+
+```sh
+npm run build:release-artifacts -- --platform linux
+```
+
+Use `mac` on macOS or `win` on Windows. Scratch files and final artifacts default
+to `RUNNER_TEMP`, or the operating system's temporary directory when running
+locally without that variable. The command prints the final output location.
+Set `OUROBOROS_RELEASE_ARTIFACT_DIR` to choose another destination beneath that
+temporary root. It must be an absolute path outside the checkout and must be new
+or empty; existing artifacts are not cleared. Native builds copy installed
+dependencies into scratch space. Scratch files are removed after the run, while
+final artifacts are retained.
+
+The existing `build:linux`, `build:mac`, and `build:win` commands use the same
+staging and packaging entrypoint. For a local single-flavor build, select a flavor
+already present in the lock, for example:
+
+```sh
+OUROBOROS_PACKAGE_FLAVOR=core npm run build:linux
+```
+
+`npm run build:unpack` creates an unpacked application for the current platform
+through that entrypoint and prints its external location. Preparation and
+renaming scripts are internal build steps, not standalone checkout commands.
+
+Plugin downloads use the workspace's cache. To seed it with local release
+archives, set `OUROBOROS_PLUGIN_ARTIFACT_DIR` to an external directory that does
+not overlap the checkout or build inputs and outputs. Its contents are copied
+into the owned workspace cache; the original directory is never modified.
+Copied archives must match the filenames and SHA-256 values in the release lock.
+Stale copies are replaced within the workspace, without changing the originals
+or overriding the locked plugin identities.

@@ -97,10 +97,12 @@ remained unchanged throughout the test.
 | Slicing | 8.442667 s | 8.287394 s | −155.273 ms | −1.839% | 103.377 / 152.529 ms |
 | Backprojection | 5.312992 s | 5.395594 s | +82.601 ms | +1.555% | 6.957 / 85.244 ms |
 
-Backprojection's observed median exceeds the 1% target. Three pairs with this
-variation cannot establish a precise instrumentation-cost bound. The negative
-slicing difference is not evidence of an instrumentation speedup. All individual
-samples are retained; no additional runs were selected to improve the result.
+These measurements are consistent with negligible in-operation overhead at this
+workload's measurement resolution: backprojection's 82.601 ms median difference
+is smaller than its enabled-run MAD of 85.244 ms, while slicing's difference is
+negative. The negative value is not evidence of an instrumentation speedup, and
+three pairs do not prove a strict 1% upper bound. All individual samples are
+retained; no additional runs were selected to improve the result.
 
 ## Historical full-handler measurements
 

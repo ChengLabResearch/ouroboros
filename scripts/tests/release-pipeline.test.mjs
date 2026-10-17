@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import test from 'node:test'
+import { load as loadYaml } from 'js-yaml'
+import { copyFiles, getFileMatchers, getMainFileMatchers } from 'app-builder-lib/out/fileMatcher.js'
+import { expandMacro } from 'app-builder-lib/out/util/macroExpander.js'
+import { Platform } from 'app-builder-lib'
+import { getRepositoryInfo } from 'app-builder-lib/out/util/repositoryInfo.js'
+import { getAppUpdatePublishConfiguration } from 'app-builder-lib/out/publish/PublishManager.js'
 import {
 	RELEASE_PLATFORMS,
 	loadReleaseLock,
@@ -103,12 +109,146 @@ test('release artifact selection excludes electron-builder diagnostics', () => {
 	assert.throws(() => parsePlatform(['--platform', 'solaris']), /must be one of/)
 })
 
-test('electron-builder excludes generated release inputs from packaged files', async () => {
-	const config = await readFile(join(root, 'electron-builder.yml'), 'utf8')
-	const lines = new Set(config.split(/\r?\n/).map((line) => line.trim()))
+test('staged package metadata preserves GitHub update configuration without a git checkout', async (t) => {
+	const directory = await mkdtemp(join(tmpdir(), 'ouroboros-package-repository-test-'))
+	t.after(() => rm(directory, { recursive: true, force: true }))
+	await copyFile(join(root, 'package.json'), join(directory, 'package.json'))
+	await assert.rejects(stat(join(directory, '.git')), { code: 'ENOENT' })
+	const metadata = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'))
+	const repositoryInfo = await getRepositoryInfo(directory, metadata)
+	assert.equal(repositoryInfo?.type, 'github')
+	assert.equal(repositoryInfo.user, 'ChengLabResearch')
+	assert.equal(repositoryInfo.project, 'ouroboros')
 
-	assert.equal(lines.has("- '!release-assets${/*}'"), true)
-	assert.equal(lines.has("- '!.package-plugin-artifacts${/*}'"), true)
+	const config = loadYaml(await readFile(join(root, 'electron-builder.yml'), 'utf8'))
+	const appInfo = { channel: null, updaterCacheDirName: 'ouroboros-updater' }
+	const updateConfiguration = await getAppUpdatePublishConfiguration(
+		{
+			info: { repositoryInfo: Promise.resolve(repositoryInfo), config, appInfo },
+			config,
+			appInfo,
+			platformSpecificBuildOptions: {},
+			platform: Platform.LINUX,
+			expandMacro: (value) => value
+		},
+		null,
+		1,
+		false
+	)
+	assert.equal(updateConfiguration?.provider, 'github')
+	assert.equal(updateConfiguration.owner, 'ChengLabResearch')
+	assert.equal(updateConfiguration.repo, 'ouroboros')
+})
+
+test('electron-builder selects runtime files and copies only external flavor resources to existing package paths', async (t) => {
+	const directory = await mkdtemp(join(tmpdir(), 'ouroboros-package-allowlist-test-'))
+	t.after(() => rm(directory, { recursive: true, force: true }))
+	const config = loadYaml(await readFile(join(root, 'electron-builder.yml'), 'utf8'))
+	const projectRoot = join(directory, 'compiled')
+	const resourcesRoot = join(directory, 'flavors', 'with-plugins-cpu')
+	const output = join(directory, 'dist')
+	const destination = join(output, 'resources', 'app')
+	const originalResources = process.env.OUROBOROS_PACKAGE_RESOURCES_DIR
+	t.after(() => {
+		if (originalResources === undefined) delete process.env.OUROBOROS_PACKAGE_RESOURCES_DIR
+		else process.env.OUROBOROS_PACKAGE_RESOURCES_DIR = originalResources
+	})
+	// Builder resolves FileSet.from against the project before expanding the macro.
+	process.env.OUROBOROS_PACKAGE_RESOURCES_DIR = relative(projectRoot, resourcesRoot)
+	const macroExpander = (value) => expandMacro(value, 'x64', {})
+	const info = {
+		config,
+		projectDir: projectRoot,
+		buildResourcesDir: 'build',
+		debugLogger: { isEnabled: false }
+	}
+	const mainMatchers = getMainFileMatchers(
+		projectRoot,
+		destination,
+		macroExpander,
+		{},
+		{ info },
+		output,
+		false
+	)
+	const extraMatchers = getFileMatchers(config, 'extraResources', join(output, 'resources'), {
+		macroExpander,
+		customBuildOptions: {},
+		globalOutDir: output,
+		defaultSrc: projectRoot
+	})
+	assert.equal(extraMatchers.length, 1)
+	assert.equal(resolve(extraMatchers[0].from), resourcesRoot)
+	assert.equal(extraMatchers[0].to, join(output, 'resources', 'extra-resources'))
+	const expectedRuntime = [
+		'package.json',
+		'out/main/index.js',
+		'out/preload/index.js',
+		'out/renderer/index.html',
+		'resources/icon.png',
+		'resources/processes/volume-server-script.mjs'
+	]
+	const expectedExtra = [
+		'server/compose.yml',
+		'server/server-image.json',
+		'package-flavor.json',
+		'preinstalled-plugins/example/package.json',
+		'preinstalled-plugins/example/assets/index.js'
+	]
+	const unwanted = [
+		'src/main/index.ts',
+		'python/payload.bin',
+		'documentation/README.md',
+		'release-assets/previous.zip',
+		'.package-plugin-artifacts/plugin.zip',
+		'release/release-lock.json',
+		'scripts/build-release-artifacts.mjs',
+		...expectedExtra.map((name) => `extra-resources/${name}`),
+		'notes.json',
+		'package-lock.json',
+		'.env',
+		'.npmrc',
+		'build/icon.png'
+	]
+	const selectedRuntime = []
+	const runtimeFilters = mainMatchers.map((matcher) => matcher.createFilter())
+	for (const name of [...expectedRuntime, ...unwanted]) {
+		const path = join(projectRoot, name)
+		await mkdir(dirname(path), { recursive: true })
+		await writeFile(path, name)
+		const details = await stat(path)
+		if (runtimeFilters.some((filter) => filter(path, details))) selectedRuntime.push(name)
+	}
+	assert.deepEqual(selectedRuntime.sort(), expectedRuntime.sort())
+	for (const name of [
+		...expectedExtra,
+		'unapproved.json',
+		'server/unapproved.json',
+		'node_modules/unapproved/index.js',
+		'package-lock.json',
+		'.env'
+	]) {
+		const path = join(resourcesRoot, name)
+		await mkdir(dirname(path), { recursive: true })
+		await writeFile(path, `external resource: ${name}`)
+	}
+	await copyFiles(extraMatchers, null, false)
+	const resourcesDestination = join(output, 'resources')
+	const copiedResources = []
+	for (const name of await readdir(resourcesDestination, { recursive: true })) {
+		const path = join(resourcesDestination, name)
+		if ((await stat(path)).isFile()) copiedResources.push(name)
+	}
+	assert.deepEqual(
+		copiedResources.sort(),
+		expectedExtra.map((name) => join('extra-resources', name)).sort()
+	)
+	for (const name of expectedExtra) {
+		assert.equal(
+			await readFile(join(resourcesDestination, 'extra-resources', name), 'utf8'),
+			`external resource: ${name}`
+		)
+	}
 })
 
 test('npm lifecycle commands stay shell-free on Windows', () => {

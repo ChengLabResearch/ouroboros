@@ -29,6 +29,13 @@ jobs:
               with:
                   node-version: 24
 
+            - name: Set release artifact directory
+              id: artifact-directory
+              env:
+                  OUROBOROS_RELEASE_ARTIFACT_DIR: ${{ runner.temp }}/ouroboros-release-assets
+              run: >-
+                  node -e "require('node:fs').appendFileSync(process.env.GITHUB_ENV, 'OUROBOROS_RELEASE_ARTIFACT_DIR=' + process.env.OUROBOROS_RELEASE_ARTIFACT_DIR + '\n')"
+
             - name: Find certified main build
               id: certified-build
               uses: actions/github-script@v8
@@ -64,12 +71,12 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
                   pattern: release-assets-*
                   merge-multiple: true
-                  path: release-assets
+                  path: ${{ env.OUROBOROS_RELEASE_ARTIFACT_DIR }}
 
             - name: Verify commit, input lock, manifests, and hashes
               run: >-
                   node scripts/verify-release-artifacts.mjs
-                  --dir release-assets
+                  --dir "${{ env.OUROBOROS_RELEASE_ARTIFACT_DIR }}"
                   --commit ${{ github.sha }}
                   --ref ${{ github.ref_name }}
 
@@ -78,4 +85,4 @@ jobs:
               with:
                   draft: true
                   fail_on_unmatched_files: true
-                  files: release-assets/*
+                  files: ${{ env.OUROBOROS_RELEASE_ARTIFACT_DIR }}/*

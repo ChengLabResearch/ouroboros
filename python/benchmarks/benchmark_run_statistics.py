@@ -39,6 +39,20 @@ def child_run(args: argparse.Namespace) -> None:
 
     import ouroboros.cli as cli
     import ouroboros.common.server_handlers as handlers
+    from ouroboros.pipeline.pipeline import Pipeline
+
+    pipeline_times = []
+    if args.scope == "pipeline":
+        process = Pipeline.process
+
+        def timed_process(pipeline, input_data):
+            started = time.perf_counter()
+            try:
+                return process(pipeline, input_data)
+            finally:
+                pipeline_times.append(time.perf_counter() - started)
+
+        Pipeline.process = timed_process
 
     # Use the existing process-count seam, leaving production execution intact.
     # The slicing CLI has no worker-count option; four workers means one download
@@ -63,7 +77,12 @@ def child_run(args: argparse.Namespace) -> None:
     sys.stdout.flush()
     sys.stderr.flush()
     elapsed = time.perf_counter() - started
-    write_json(args.measurement, {"handler_elapsed_seconds": elapsed})
+    measurement = {"handler_elapsed_seconds": elapsed}
+    if args.scope == "pipeline":
+        if len(pipeline_times) != 1:
+            raise RuntimeError(f"Expected one pipeline call, measured {len(pipeline_times)}")
+        measurement["pipeline_elapsed_seconds"] = pipeline_times[0]
+    write_json(args.measurement, measurement)
 
 
 def make_fixture(folder: Path, size: int, workers: int) -> dict:
@@ -152,7 +171,7 @@ def tiff_evidence(path: Path) -> dict:
 
 
 def run_once(folder: Path, operation: str, options: dict, enabled: bool,
-             workers: int, label: str, timeout: int) -> tuple[dict, Path]:
+             workers: int, label: str, timeout: int, scope: str = "handler") -> tuple[dict, Path]:
     run_folder = folder / label
     run_folder.mkdir()
     output_folder = run_folder / "output"
@@ -163,7 +182,7 @@ def run_once(folder: Path, operation: str, options: dict, enabled: bool,
     timing_path = run_folder / "measurement.json"
     command = [sys.executable, str(Path(__file__).resolve()), "--child",
                "--operation", operation, "--options", str(options_path),
-               "--measurement", str(timing_path), "--workers", str(workers)]
+               "--measurement", str(timing_path), "--workers", str(workers), "--scope", scope]
     if enabled:
         command.append("--enabled")
     started = time.perf_counter()
@@ -177,9 +196,10 @@ def run_once(folder: Path, operation: str, options: dict, enabled: bool,
     output = outputs[0]
     result = dict(json.loads(timing_path.read_text()), enabled=enabled,
                   process_elapsed_seconds=process_elapsed, label=label,
-                  output=tiff_evidence(output),
                   statistics_files=[str(path.relative_to(folder))
                                     for path in output_folder.glob("*-statistics.json")])
+    if scope == "handler":
+        result["output"] = tiff_evidence(output)
     if enabled and not result["statistics_files"]:
         raise RuntimeError(f"Verbose run did not deliver a statistics file: {run_folder}")
     if not enabled and result["statistics_files"]:
@@ -195,9 +215,9 @@ def run_once(folder: Path, operation: str, options: dict, enabled: bool,
     return result, output
 
 
-def summary(runs: list[dict]) -> dict:
-    disabled = [run["handler_elapsed_seconds"] for run in runs if not run["enabled"]]
-    enabled = [run["handler_elapsed_seconds"] for run in runs if run["enabled"]]
+def summary(runs: list[dict], elapsed_field: str = "handler_elapsed_seconds") -> dict:
+    disabled = [run[elapsed_field] for run in runs if not run["enabled"]]
+    enabled = [run[elapsed_field] for run in runs if run["enabled"]]
 
     def distribution(values: list[float]) -> dict:
         median = statistics.median(values)
@@ -208,7 +228,7 @@ def summary(runs: list[dict]) -> dict:
     overhead = (statistics.median(enabled) / statistics.median(disabled) - 1) * 100
     pairs = []
     for index in range(0, len(runs), 2):
-        pair = {run["enabled"]: run["handler_elapsed_seconds"] for run in runs[index:index + 2]}
+        pair = {run["enabled"]: run[elapsed_field] for run in runs[index:index + 2]}
         pairs.append((pair[True] / pair[False] - 1) * 100)
     return {
         "disabled": distribution(disabled),
@@ -216,7 +236,8 @@ def summary(runs: list[dict]) -> dict:
         "median_elapsed_overhead_percent": overhead,
         "paired_overhead_percent": pairs,
         "measured_median_at_most_one_percent": overhead <= 1,
-        "pixel_equivalence": len({run["output"]["pixel_sha256"] for run in runs}) == 1,
+        "pixel_equivalence": (len({run["output"]["pixel_sha256"] for run in runs}) == 1
+                              if all("output" in run for run in runs) else None),
         "runs": runs,
     }
 
@@ -235,10 +256,17 @@ def benchmark(args: argparse.Namespace) -> None:
 
     folder = args.work_dir.resolve()
     folder.mkdir(parents=True, exist_ok=False)
-    os.environ["CLOUD_VOLUME_DIR"] = str(folder / "cloudvolume")
-    os.environ["CLOUD_VOLUME_CACHE_DIR"] = str(folder / "cloudvolume-cache")
-    os.environ["CLOUD_FILES_DIR"] = str(folder / "cloudfiles")
-    fixture = make_fixture(folder, args.size, args.workers)
+    fixture_folder = args.reuse_fixture.resolve() if args.reuse_fixture else folder
+    os.environ["CLOUD_VOLUME_DIR"] = str(fixture_folder / "cloudvolume")
+    os.environ["CLOUD_VOLUME_CACHE_DIR"] = str(fixture_folder / "cloudvolume-cache")
+    os.environ["CLOUD_FILES_DIR"] = str(fixture_folder / "cloudfiles")
+    if args.reuse_fixture:
+        fixture = json.loads((fixture_folder / "results.json").read_text())["fixture"]
+        if not (fixture_folder / "segmentation.tif").is_file():
+            raise ValueError("Reused fixture has no prepared segmentation.tif")
+    else:
+        fixture = make_fixture(folder, args.size, args.workers)
+    elapsed_field = "pipeline_elapsed_seconds" if args.scope == "pipeline" else "handler_elapsed_seconds"
     cpu_model = platform.processor()
     if Path("/proc/cpuinfo").exists():
         cpu_model = next((line.split(":", 1)[1].strip()
@@ -246,8 +274,16 @@ def benchmark(args: argparse.Namespace) -> None:
                           if line.startswith("model name")), cpu_model)
     result = {
         "schema_version": 1,
-        "scope": "Native CLI handler including options load, pipeline, report formatting, stdout flush, and report write; no Docker transfer.",
-        "cache_policy": "Warm filesystem and CloudVolume caches; one unmeasured run of each treatment per operation.",
+        "scope": ("External timer around Pipeline.process only: includes scientific preparation, data operations, "
+                  "worker measurement transport/aggregation and scientific output; excludes options loading, "
+                  "volume-statistics collection, report construction/printing/publication. Basic duration/progress "
+                  "timers remain enabled in both treatments. No pixel hashing."
+                  if args.scope == "pipeline" else
+                  "Native CLI handler including options load, pipeline, report formatting, stdout flush, and report write; no Docker transfer."),
+        "elapsed_field": elapsed_field,
+        "cache_policy": ("Warm filesystem and CloudVolume caches; one disabled warmup per operation."
+                         if args.scope == "pipeline" else
+                         "Warm filesystem and CloudVolume caches; one unmeasured run of each treatment per operation."),
         "hardware": {"platform": platform.platform(), "processor": cpu_model,
                      "logical_cpus": os.cpu_count(), "python": platform.python_version(),
                      "cpu_affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None},
@@ -262,8 +298,8 @@ def benchmark(args: argparse.Namespace) -> None:
     for operation in ("slice", "backproject"):
         if operation == "backproject":
             options = {
-                "straightened_volume_path": str(folder / "segmentation.tif"),
-                "slice_options_path": str(folder / "slice-reference-options.json"),
+                "straightened_volume_path": str(fixture_folder / "segmentation.tif"),
+                "slice_options_path": str(fixture_folder / "slice-reference-options.json"),
                 "make_single_file": True,
                 "make_backprojection_binary": True,
                 "backprojection_compression": "zlib",
@@ -271,12 +307,12 @@ def benchmark(args: argparse.Namespace) -> None:
                 "chunk_size": 64,
             }
         warmups = []
-        for enabled in (False, True):
+        for enabled in ((False,) if args.scope == "pipeline" else (False, True)):
             print(f"{operation}: warmup enabled={enabled}", flush=True)
             warmup, output = run_once(folder, operation, options, enabled, args.workers,
-                                      f"{operation}-warmup-{int(enabled)}", args.timeout)
+                                      f"{operation}-warmup-{int(enabled)}", args.timeout, args.scope)
             warmups.append(warmup)
-            if operation == "slice" and not enabled:
+            if operation == "slice" and not enabled and not args.reuse_fixture:
                 # A fixed segmentation derived once from actual slicing is shared
                 # by every backprojection treatment, never regenerated per pair.
                 pixels = tifffile.imread(output)
@@ -292,16 +328,16 @@ def benchmark(args: argparse.Namespace) -> None:
             for enabled in ((False, True) if pair % 2 == 0 else (True, False)):
                 print(f"{operation}: pair {pair + 1}/{args.pairs} enabled={enabled}", flush=True)
                 measurement, output = run_once(folder, operation, options, enabled, args.workers,
-                                               f"{operation}-{pair:02}-{int(enabled)}", args.timeout)
+                                               f"{operation}-{pair:02}-{int(enabled)}", args.timeout, args.scope)
                 runs.append(measurement)
                 output.unlink()
-        result["operations"][operation] = summary(runs)
+        result["operations"][operation] = summary(runs, elapsed_field)
         result["operations"][operation]["warmups"] = warmups
         write_json(folder / "results.json", result)
         measured = result["operations"][operation]
         print(f"{operation}: median overhead {measured['median_elapsed_overhead_percent']:.3f}%; "
               f"pixel equivalent={measured['pixel_equivalence']}", flush=True)
-        if not measured["pixel_equivalence"]:
+        if measured["pixel_equivalence"] is False:
             raise RuntimeError(f"{operation} output pixels differed; inspect {folder / 'results.json'}")
     result["production_code_unchanged"] = production_digest() == result["production_python_sha256"]
     write_json(folder / "results.json", result)
@@ -313,6 +349,9 @@ def benchmark(args: argparse.Namespace) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--work-dir", type=Path, default=Path("/tmp/ouroboros-statistics-benchmark"))
+    parser.add_argument("--reuse-fixture", type=Path, help="Reuse a previous benchmark's prepared local data.")
+    parser.add_argument("--scope", choices=("handler", "pipeline"), default="handler",
+                        help="Timing boundary; pipeline excludes all final reporting and skips pixel hashing.")
     parser.add_argument("--size", type=int, default=384, help="Cubic source edge in voxels (default: 384).")
     parser.add_argument("--workers", type=int, default=4, help="Multiple of four (default: 4).")
     parser.add_argument("--pairs", type=int, default=7)

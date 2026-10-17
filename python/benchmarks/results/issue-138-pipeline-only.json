@@ -1,0 +1,284 @@
+{
+  "schema_version": 1,
+  "scope": "External timer around Pipeline.process only: includes scientific preparation, data operations, worker measurement transport/aggregation and scientific output; excludes options loading, volume-statistics collection, report construction/printing/publication. Basic duration/progress timers remain enabled in both treatments. No pixel hashing.",
+  "elapsed_field": "pipeline_elapsed_seconds",
+  "cache_policy": "Warm filesystem and CloudVolume caches; one disabled warmup per operation.",
+  "hardware": {
+    "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "processor": "Intel(R) Xeon(R) W-10855M CPU @ 2.80GHz",
+    "logical_cpus": 12,
+    "python": "3.11.13",
+    "cpu_affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ]
+  },
+  "production_python_sha256": "3637e22b9157efc620194d7d896e63dfe7cc83186ded8cf50557344e2d889c3c",
+  "benchmark_python_sha256": "a0c9d8ff54d594b0f2f20e526c979a610ca29df5b080df903b0274d5758ca3db",
+  "versions": {
+    "numpy": "1.26.4",
+    "scipy": "1.11.2",
+    "tifffile": "2024.12.12",
+    "cloud-volume": "12.7.0"
+  },
+  "fixture": {
+    "volume_shape_xyz": [
+      384,
+      384,
+      384
+    ],
+    "source_dtype": "uint16",
+    "source_voxel_bytes": 113246208,
+    "source_pixel_sha256": "67e3b5914f113de9e28f45e7c97e311ad2da0fe1d5c0fd4d0d21dbc5e69add8c",
+    "source_storage_bytes": 113246654,
+    "seed": 138,
+    "workers": 4,
+    "slice_options": {
+      "slice_width": 192,
+      "slice_height": 192,
+      "neuroglancer_json": "<fixture-dir>/annotations.json",
+      "neuroglancer_image_layer": "local",
+      "neuroglancer_annotation_layer": "path",
+      "slicing_params": {
+        "dist_between_slices": 0.5,
+        "use_adaptive_slicing": false
+      },
+      "bounding_box_params": {
+        "target_slices_per_box": 32,
+        "max_depth": 10
+      },
+      "normalize_output": false,
+      "zeroguard_output": false,
+      "make_single_file": true
+    },
+    "segmentation": {
+      "shape": [
+        576,
+        192,
+        192
+      ],
+      "dtype": "uint8",
+      "pages": 576,
+      "pixel_bytes": 21233664,
+      "storage_bytes": 21329386,
+      "pixel_sha256": "d9a1a90836c03858d6074d383be4d36a5137aab1931f73748bbfda339f08283b"
+    }
+  },
+  "pairs": 3,
+  "operations": {
+    "slice": {
+      "disabled": {
+        "median_seconds": 8.442666688002646,
+        "min_seconds": 8.339289469004143,
+        "max_seconds": 9.004115601012018,
+        "median_absolute_deviation_seconds": 0.10337721899850294,
+        "samples_seconds": [
+          8.339289469004143,
+          9.004115601012018,
+          8.442666688002646
+        ]
+      },
+      "enabled": {
+        "median_seconds": 8.287394059996586,
+        "min_seconds": 8.13486546400236,
+        "max_seconds": 8.548098932020366,
+        "median_absolute_deviation_seconds": 0.15252859599422663,
+        "samples_seconds": [
+          8.287394059996586,
+          8.548098932020366,
+          8.13486546400236
+        ]
+      },
+      "median_elapsed_overhead_percent": -1.8391419884751348,
+      "paired_overhead_percent": [
+        -0.6223001276121187,
+        -5.064535921111424,
+        -3.645782018585242
+      ],
+      "measured_median_at_most_one_percent": true,
+      "pixel_equivalence": null,
+      "runs": [
+        {
+          "handler_elapsed_seconds": 8.34064255800331,
+          "pipeline_elapsed_seconds": 8.339289469004143,
+          "enabled": false,
+          "process_elapsed_seconds": 9.504366247012513,
+          "label": "slice-00-0",
+          "statistics_files": []
+        },
+        {
+          "handler_elapsed_seconds": 8.301736718014581,
+          "pipeline_elapsed_seconds": 8.287394059996586,
+          "enabled": true,
+          "process_elapsed_seconds": 9.345656008983497,
+          "label": "slice-00-1",
+          "statistics_files": [
+            "slice-00-1/output/slice-slice-d2eb3f4b-feb6-4877-b6c4-c0455985975e-statistics.json"
+          ]
+        },
+        {
+          "handler_elapsed_seconds": 8.564203132002149,
+          "pipeline_elapsed_seconds": 8.548098932020366,
+          "enabled": true,
+          "process_elapsed_seconds": 9.605664661998162,
+          "label": "slice-01-1",
+          "statistics_files": [
+            "slice-01-1/output/slice-slice-b442366c-f0c5-4cb2-92e3-7d3dc873eaf0-statistics.json"
+          ]
+        },
+        {
+          "handler_elapsed_seconds": 9.005824294988997,
+          "pipeline_elapsed_seconds": 9.004115601012018,
+          "enabled": false,
+          "process_elapsed_seconds": 10.153620477009099,
+          "label": "slice-01-0",
+          "statistics_files": []
+        },
+        {
+          "handler_elapsed_seconds": 8.444432016985957,
+          "pipeline_elapsed_seconds": 8.442666688002646,
+          "enabled": false,
+          "process_elapsed_seconds": 9.552218737982912,
+          "label": "slice-02-0",
+          "statistics_files": []
+        },
+        {
+          "handler_elapsed_seconds": 8.150968415982788,
+          "pipeline_elapsed_seconds": 8.13486546400236,
+          "enabled": true,
+          "process_elapsed_seconds": 9.342186711000977,
+          "label": "slice-02-1",
+          "statistics_files": [
+            "slice-02-1/output/slice-slice-65391a30-80ef-4194-8db8-aec7667ded12-statistics.json"
+          ]
+        }
+      ],
+      "warmups": [
+        {
+          "handler_elapsed_seconds": 8.3579701440176,
+          "pipeline_elapsed_seconds": 8.356335835007485,
+          "enabled": false,
+          "process_elapsed_seconds": 9.493597079999745,
+          "label": "slice-warmup-0",
+          "statistics_files": []
+        }
+      ]
+    },
+    "backproject": {
+      "disabled": {
+        "median_seconds": 5.312992311984999,
+        "min_seconds": 5.306035382003756,
+        "max_seconds": 5.4040359649807215,
+        "median_absolute_deviation_seconds": 0.006956929981242865,
+        "samples_seconds": [
+          5.306035382003756,
+          5.312992311984999,
+          5.4040359649807215
+        ]
+      },
+      "enabled": {
+        "median_seconds": 5.395593601017026,
+        "min_seconds": 5.3103494819952175,
+        "max_seconds": 5.9858277949970216,
+        "median_absolute_deviation_seconds": 0.08524411902180873,
+        "samples_seconds": [
+          5.395593601017026,
+          5.3103494819952175,
+          5.9858277949970216
+        ]
+      },
+      "median_elapsed_overhead_percent": 1.5547037183866408,
+      "paired_overhead_percent": [
+        1.6878556693575852,
+        -0.04974277835524399,
+        10.76587635216406
+      ],
+      "measured_median_at_most_one_percent": false,
+      "pixel_equivalence": null,
+      "runs": [
+        {
+          "handler_elapsed_seconds": 5.307716993003851,
+          "pipeline_elapsed_seconds": 5.306035382003756,
+          "enabled": false,
+          "process_elapsed_seconds": 6.431910768005764,
+          "label": "backproject-00-0",
+          "statistics_files": []
+        },
+        {
+          "handler_elapsed_seconds": 5.40727397397859,
+          "pipeline_elapsed_seconds": 5.395593601017026,
+          "enabled": true,
+          "process_elapsed_seconds": 6.481921925995266,
+          "label": "backproject-00-1",
+          "statistics_files": [
+            "backproject-00-1/output/backproject-backproject-237256ab-c5cd-4a68-9f8a-833ed1d32133-statistics.json"
+          ]
+        },
+        {
+          "handler_elapsed_seconds": 5.322353077004664,
+          "pipeline_elapsed_seconds": 5.3103494819952175,
+          "enabled": true,
+          "process_elapsed_seconds": 6.431553812988568,
+          "label": "backproject-01-1",
+          "statistics_files": [
+            "backproject-01-1/output/backproject-backproject-2f61699e-c521-4f30-a703-d0ea2d5fb5d0-statistics.json"
+          ]
+        },
+        {
+          "handler_elapsed_seconds": 5.315452469018055,
+          "pipeline_elapsed_seconds": 5.312992311984999,
+          "enabled": false,
+          "process_elapsed_seconds": 6.43159040302271,
+          "label": "backproject-01-0",
+          "statistics_files": []
+        },
+        {
+          "handler_elapsed_seconds": 5.40569246999803,
+          "pipeline_elapsed_seconds": 5.4040359649807215,
+          "enabled": false,
+          "process_elapsed_seconds": 6.487161462981021,
+          "label": "backproject-02-0",
+          "statistics_files": []
+        },
+        {
+          "handler_elapsed_seconds": 5.997917394008255,
+          "pipeline_elapsed_seconds": 5.9858277949970216,
+          "enabled": true,
+          "process_elapsed_seconds": 7.038804195006378,
+          "label": "backproject-02-1",
+          "statistics_files": [
+            "backproject-02-1/output/backproject-backproject-2144588f-7e91-4fef-b1d0-94d436aa6deb-statistics.json"
+          ]
+        }
+      ],
+      "warmups": [
+        {
+          "handler_elapsed_seconds": 5.4034926800231915,
+          "pipeline_elapsed_seconds": 5.4019058770209085,
+          "enabled": false,
+          "process_elapsed_seconds": 6.581502885994269,
+          "label": "backproject-warmup-0",
+          "statistics_files": []
+        }
+      ]
+    }
+  },
+  "production_code_unchanged": true,
+  "measurement_notes": [
+    "Three alternating enabled/disabled pairs per operation, fixed before the run; one disabled warmup per operation. No acceptance resampling.",
+    "Pipeline.process is timed externally in both treatments. Options loading and final metadata collection, report construction, printing, and publication are excluded.",
+    "The existing local 384-cubed fixture and fixed segmentation were reused. Fixture hashes are inherited metadata; no source or output pixel hashes were computed in this run.",
+    "The enabled-minus-disabled median is -1.8391419885 percent for slicing and +1.5547037184 percent for backprojection. The backprojection observed median exceeds the one-percent target; three pairs with this variability do not establish a precise instrumentation-cost bound.",
+    "Both treatments retain the existing basic duration/progress timers. Production source remained unchanged throughout the test."
+  ]
+}

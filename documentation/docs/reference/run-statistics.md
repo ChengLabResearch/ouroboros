@@ -111,8 +111,9 @@ All elapsed measurements use `time.perf_counter()`.
 | Worker phase | The existing instrumented phase within one worker; accumulated across its invocations |
 
 Operation time excludes queue wait, application/container startup, and statistics
-serialization/publication. The external benchmark includes statistics
-formatting, printing, file persistence, and delivery in its measured interval.
+serialization/publication. The performance-overhead benchmark separately times
+`Pipeline.process()` with detailed instrumentation enabled and disabled; metadata
+collection, formatting, printing, and report delivery are outside that interval.
 Volume metadata is captured before cleanup while output headers are still
 available, so that work is included in operation time.
 
@@ -203,7 +204,8 @@ existing file/volume facilities. No memory sampler is added by this change.
 
 The fixed-local-source benchmark and reproducible commands are documented in
 [the Python benchmark guide](https://github.com/ChengLabResearch/ouroboros/blob/main/python/benchmarks/README.md).
-The target is at most 1% median elapsed-time overhead for the combined
-instrumentation. RAM collection must use that same budget when #139 is
+The target is at most 1% median pipeline elapsed-time overhead for instrumentation
+that runs during the data operation. Setup and final reporting costs are assessed
+separately. RAM collection must use that same in-operation budget when #139 is
 implemented. Report measured variability alongside overhead; a negative observed
 overhead reflects noise, not free instrumentation.

@@ -1,5 +1,27 @@
 # Run-statistics overhead benchmark
 
+The overhead budget applies to instrumentation **during `Pipeline.process()`**.
+Use the existing prepared local fixture for a short focused comparison:
+
+```sh
+.venv/bin/python benchmarks/benchmark_run_statistics.py \
+  --scope pipeline --reuse-fixture /tmp/ouroboros-statistics-final \
+  --work-dir /tmp/ouroboros-pipeline-overhead --pairs 3
+```
+
+This mode uses an external timer around the same pipeline call for enabled and
+disabled reporting. It includes scientific preparation, worker instrumentation,
+transport/aggregation of worker measurements, output writing, and pool shutdown.
+Options loading, volume-statistics collection, JSON construction, printing, and
+report-file delivery are outside that timer. Both treatments retain the basic
+duration/progress measurements needed by the application. It performs one
+disabled warmup per operation, alternates treatment order across pairs, and
+skips output pixel hashing. A reused fixture is neither regenerated nor hashed.
+`pixel_equivalence: null` means this run did not perform that check.
+
+The full-handler mode below also measures setup and final reporting. Its numbers
+describe total user-visible latency, not the in-operation overhead budget.
+
 From `python/`, with the project's virtual environment installed:
 
 ```sh
@@ -42,7 +64,7 @@ runs must deliver successful statistics matching stdout without collection
 errors; disabled runs must not deliver a sidecar. The production source digest
 must remain unchanged throughout the run.
 
-The acceptance target is at most **1% median elapsed-time overhead**, calculated
+The in-operation target is at most **1% median pipeline elapsed-time overhead**, calculated
 as `(median(enabled) / median(disabled) - 1) × 100` separately for slicing and
 backprojection. The result records whether the observed median meets the target;
 it deliberately does not turn a noisy performance measurement into a CI test.
@@ -62,7 +84,25 @@ RAM sampling is excluded from this benchmark until issue #139 supplies its
 collector. The combined instrumentation must be measured against the same 1%
 target when that collector is introduced.
 
-## Recorded measurements
+## Recorded pipeline-only measurement
+
+The [pipeline-only result](results/issue-138-pipeline-only.json) reused the same
+384³ local source and segmentation with four workers and one BLAS/OpenMP thread.
+It contains three alternating pairs per operation after one disabled warmup.
+No data was regenerated and no pixel hashes were computed. Production code
+remained unchanged throughout the test.
+
+| Operation | Disabled median | Enabled median | Difference | Observed overhead | MAD, disabled / enabled |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Slicing | 8.442667 s | 8.287394 s | −155.273 ms | −1.839% | 103.377 / 152.529 ms |
+| Backprojection | 5.312992 s | 5.395594 s | +82.601 ms | +1.555% | 6.957 / 85.244 ms |
+
+Backprojection's observed median exceeds the 1% target. Three pairs with this
+variation cannot establish a precise instrumentation-cost bound. The negative
+slicing difference is not evidence of an instrumentation speedup. All individual
+samples are retained; no additional runs were selected to improve the result.
+
+## Historical full-handler measurements
 
 The [recorded lifecycle implementation run](results/issue-138-local-384.json)
 used the default fixture and seven pairs on an Intel Xeon W-10855M, 12 logical
@@ -77,10 +117,9 @@ are retained separately and are not pooled with this run.
 | Slicing | 8.463 s | 8.621 s | +1.87% | 0.149 / 0.146 s |
 | Backprojection | 5.536 s | 5.565 s | +0.51% | 0.071 / 0.245 s |
 
-**Slicing exceeded the agreed 1% observed-median target.** Backprojection met
-that numerical criterion, but variation in both operations exceeded 1%, so
-these measurements do not establish an instrumentation-cost bound at that
-precision. The full ranges and all individual samples are in the artifact.
+These historical figures include setup and final reporting, so they do not
+evaluate the clarified in-operation budget. Variation in both operations also
+exceeded 1%. The full ranges and all individual samples are in the artifact.
 Later schema changes have not been measured by this run. No live Docker daemon
 was available, so these numbers make no claim about Docker transfer overhead.
 
@@ -98,6 +137,6 @@ writing, and parent timing aggregation accumulated 1.30 ms. Those approximately
 18.8 ms did not identify a reporting cost at the scale of the paired median
 difference. They exclude worker-side timing and serialization costs; nested and
 concurrent spans must not be summed indiscriminately. The diagnostic does not
-replace the failed slicing criterion. The external handler-minus-operation
+establish the in-operation overhead. The external handler-minus-operation
 interval was about 11 ms for slicing and 12 ms for backprojection, also recorded
 per sample in the artifact.

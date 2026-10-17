@@ -206,16 +206,25 @@ class CloudVolumeInterface:
         self.cv.cache.flush()
 
 
+def download_volume_geometry(cv: CloudVolumeInterface, bounding_box: BoundingBox) -> tuple[Bbox, Bbox, NGOrder]:
+    """Own the exact requested, clipped, and allocated geometry used by downloads.
+
+    CloudVolume's integer half-open extent differs from BoundingBox.get_shape().
+    Keep the conversion here so reporting cannot independently reinterpret it.
+    """
+    bbox = bounding_box.to_cloudvolume_bbox().astype(int)
+    return bbox, Bbox.intersection(cv.cv.bounds, bbox), NGOrder(*bbox.size3(), cv.cv.num_channels)
+
+
 def download_volume(
     cv: CloudVolumeInterface, bounding_box: BoundingBox, mip, parallel: int = 1,
-    use_shared=False, shm_address: str = None, shm_authkey: str = None, **kwargs
+    use_shared=False, shm_address: str = None, shm_authkey: str = None,
+    **kwargs
 ) -> VolumeCutout:
     start = time.perf_counter()
-    bbox = bounding_box.to_cloudvolume_bbox().astype(int)
-    vol_shape = NGOrder(*bbox.size3(), cv.cv.num_channels)
+    bbox, dl_box, vol_shape = download_volume_geometry(cv, bounding_box)
 
     # Limit size of area we are grabbing, in case we go out of bounds.
-    dl_box = Bbox.intersection(cv.cv.bounds, bbox)
     local_min = [int(start) for start in np.subtract(dl_box.minpt, bbox.minpt)]
 
     local_bounds = np.s_[*[slice(start, stop) for start, stop in
@@ -235,7 +244,8 @@ def download_volume(
         volume[local_bounds] = cv.cv.download(dl_box, mip=mip, parallel=parallel)
 
     # Return volume
-    return volume, bounding_box, time.perf_counter() - start, *kwargs.values()
+    elapsed = time.perf_counter() - start
+    return volume, bounding_box, elapsed, *kwargs.values()
 
 
 def get_mip_volume_sizes(source_url: str) -> dict:

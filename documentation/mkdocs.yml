@@ -13,6 +13,7 @@ nav:
     - Plugins: 'guide/plugins.md'
   - Reference:
     - Technical Constants: 'reference/technical-constants.md'
+    - Pipeline Run Statistics: 'reference/run-statistics.md'
   - Development:
     - App: https://github.com/ChengLabResearch/ouroboros/blob/main/README.md
     - Python: https://github.com/ChengLabResearch/ouroboros/blob/main/python/README.md

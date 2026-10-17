@@ -11,7 +11,6 @@ import traceback
 
 from filelock import FileLock
 import numpy as np
-import psutil
 import tifffile
 
 from ouroboros.helpers.memory_usage import (
@@ -178,13 +177,17 @@ class BackprojectPipelineStep(PipelineStep):
 
         # Allocate procs equally between BP math and writing if we're rescaling, otherwise 3-1 favoring
         # the BP calculation.
-        exec_procs = config.process_count // 4 * (2 if scaling_factors is not None else 3)
-        write_procs = config.process_count // 4 * (2 if scaling_factors is not None else 1)
+        self.execution_resources = {
+            "backproject_processes": config.process_count // 4 * (2 if scaling_factors is not None else 3),
+            "writer_processes": config.process_count // 4 * (2 if scaling_factors is not None else 1),
+            "intermediate_threads_per_process": 12,
+            "merge_threads_per_writer": 4,
+        }
 
         # Process each bounding box in parallel, writing the results to the backprojected volume
         try:
-            with (concurrent.futures.ProcessPoolExecutor(exec_procs) as executor,
-                 concurrent.futures.ProcessPoolExecutor(write_procs) as write_executor):
+            with (concurrent.futures.ProcessPoolExecutor(self.execution_resources["backproject_processes"]) as executor,
+                 concurrent.futures.ProcessPoolExecutor(self.execution_resources["writer_processes"]) as write_executor):
                 bp_futures = []
                 write_futures = []
 
@@ -201,7 +204,8 @@ class BackprojectPipelineStep(PipelineStep):
                         chunk_rects=chunk_rects,
                         chunk=chunk,
                         index=index,
-                        full_bounding_box=full_bounding_box
+                        full_bounding_box=full_bounding_box,
+                        intermediate_threads=self.execution_resources["intermediate_threads_per_process"],
                     ))
 
                 # Track what's written.
@@ -209,30 +213,46 @@ class BackprojectPipelineStep(PipelineStep):
                 num_pages = full_bounding_box.get_shape()[2]
                 writeable = np.zeros(num_pages)
                 pages_written = 0
+                callback_errors = []
 
                 def note_written(write_future):
-                    self.add_timing("Free Memory", psutil.virtual_memory().available)
                     nonlocal pages_written
-                    pages_written += 1
-                    self.update_progress((np.sum(processed) / len(chunk_range)) * (exec_procs / config.process_count)
-                                         + (pages_written / num_pages) * (write_procs / config.process_count))
-                    for key, value in write_future.result().items():
-                        self.add_timing(key, value)
+                    try:
+                        durations = write_future.result()
+                        pages_written += 1
+                        self.update_progress(
+                            (np.sum(processed) / len(chunk_range))
+                            * (self.execution_resources["backproject_processes"] / config.process_count)
+                            + (pages_written / num_pages)
+                            * (self.execution_resources["writer_processes"] / config.process_count)
+                        )
+                        for key, value in durations.items():
+                            includes = tuple(name for name in durations if name != key) \
+                                if key == "Total Chunk Merge" else ()
+                            self.add_timing(key, value, includes=includes)
+                    except BaseException as error:
+                        callback_errors.append(error)
 
                 for bp_future in concurrent.futures.as_completed(bp_futures):
-                    self.add_timing("Free Memory", psutil.virtual_memory().available)
                     start = time.perf_counter()
                     # Store the durations for each bounding box
-                    durations, index, z_stack = bp_future.result()
+                    durations, intermediate_bytes, index, z_stack = bp_future.result()
+                    self.add_byte_count("intermediate_payload_bytes", intermediate_bytes)
                     for key, value in durations.items():
-                        self.add_timing_list(key, value)
+                        includes = tuple(name for name in durations if name != key) \
+                            if key == "total_chunk_process" else ()
+                        self.add_timing_list(key, value, includes=includes)
 
                     z_sources[(z_stack, ) + index] = True
 
                     # Update the progress bar
                     processed[index] = 1
-                    self.update_progress((np.sum(processed) / len(chunk_range)) * (exec_procs / config.process_count)
-                                         + (pages_written / num_pages) * (write_procs / config.process_count))
+                    self.update_progress(
+                        (np.sum(processed) / len(chunk_range))
+                        * (self.execution_resources["backproject_processes"] / config.process_count)
+                        + (pages_written / num_pages)
+                        * (self.execution_resources["writer_processes"] / config.process_count)
+                    )
 
                     update_writable_rects(processed, slice_rects, min_dim, writeable, config.chunk_size)
 
@@ -250,34 +270,38 @@ class BackprojectPipelineStep(PipelineStep):
                                 target_folder=folder_path,
                                 index=index,
                                 interpolation=config.upsample_order,
-                                discrete=config.make_backprojection_discrete
+                                discrete=config.make_backprojection_discrete,
+                                merge_threads=self.execution_resources["merge_threads_per_writer"],
                             ))
                             write_futures[-1].add_done_callback(note_written)
 
                         writeable[write] = 2
 
-                    self.add_timing("Process Backproject Future", time.perf_counter() - start)
+                    self.add_timing("Process Backproject Future", time.perf_counter() - start, scope="coordinator")
 
-        except BaseException as e:
+                for write_future in concurrent.futures.as_completed(write_futures):
+                    write_future.result()
+            # Executor shutdown joins its callback thread before this check.
+            if callback_errors:
+                raise callback_errors[0]
+
+        except Exception as e:
             traceback.print_tb(e.__traceback__, file=sys.stderr)
             return f"An error occurred while processing the bounding boxes: {e}"
-
-        for write_future in concurrent.futures.as_completed(write_futures):
-            # Consume them to make sure they're finished.
-            pass
 
         start = time.perf_counter()
 
         if config.make_single_file:
             pipeline_input.output_file_path += ".tif"
-            writer = tif_write(tifffile.TiffWriter(folder_path.with_suffix(".tif"), bigtiff=is_big_tiff).write)
-            for fname in get_sorted_tif_files(folder_path):
-                writer(tifffile.imread(folder_path.joinpath(fname)))
+            with tifffile.TiffWriter(folder_path.with_suffix(".tif"), bigtiff=is_big_tiff) as output_tiff:
+                writer = tif_write(output_tiff.write)
+                for fname in get_sorted_tif_files(folder_path):
+                    writer(tifffile.imread(folder_path.joinpath(fname)))
 
         # Update the pipeline input with the output file path
         pipeline_input.backprojected_folder_path = folder_path
 
-        self.add_timing("export", time.perf_counter() - start)
+        self.add_timing("export", time.perf_counter() - start, scope="coordinator")
 
         if config.make_single_file:
             shutil.rmtree(folder_path)
@@ -292,8 +316,9 @@ def process_chunk(
     chunk_rects: list[np.ndarray],
     chunk: tuple[slice],
     index: tuple[int],
-    full_bounding_box: BoundingBox
-) -> tuple[dict, str, int]:
+    full_bounding_box: BoundingBox,
+    intermediate_threads: int = 12,
+) -> tuple[dict, int, tuple[int], np.ndarray | list]:
     durations = {}
 
     start_total = time.perf_counter()
@@ -325,12 +350,12 @@ def process_chunk(
         raise be
 
     durations["back_project"] = [time.perf_counter() - start]
-    durations["total_bytes"] = [int(lookup.nbytes + values.nbytes + weights.nbytes)]
+    intermediate_bytes = int(lookup.nbytes + values.nbytes + weights.nbytes)
 
     if values.nbytes == 0:
         # No data to write from this chunk, so return as such.
         durations["total_chunk_process"] = [time.perf_counter() - start_total]
-        return durations, index, []
+        return durations, intermediate_bytes, index, []
 
     # Save the data
     try:
@@ -350,6 +375,7 @@ def process_chunk(
         type_ar = np.array([yx_vals.dtype.str, values.dtype.str, weights.dtype.str], dtype='S8')
         durations["split"] = [time.perf_counter() - start]
 
+        start = time.perf_counter()
         # Gets slices off full array corresponding to each Z value.
         z_idx = [0] + list(np.where(z_vals[:-1] != z_vals[1:])[0] + 1) + [len(z_vals)]
         z_stack = z_vals[z_idx[:-1]]
@@ -371,10 +397,10 @@ def process_chunk(
         def make_z(i, z_slice):
             offset_z = z_stack[i] + offset[0]
             z_path = i_path.joinpath(f"i_{offset_z:05}.dat")
-            with FileLock(z_path.with_suffix(".lock")):
-                write_z(open(z_path, "ab"), z_slice)
+            with FileLock(z_path.with_suffix(".lock")), open(z_path, "ab") as target:
+                write_z(target, z_slice)
 
-        with ThreadPool(12) as pool:
+        with ThreadPool(intermediate_threads) as pool:
             pool.starmap(make_z, enumerate(z_slices))
 
         durations["write_intermediate"] = [time.perf_counter() - start]
@@ -385,7 +411,7 @@ def process_chunk(
 
     durations["total_chunk_process"] = [time.perf_counter() - start_total]
 
-    return durations, index, z_stack + offset[0]
+    return durations, intermediate_bytes, index, z_stack + offset[0]
 
 
 def calculate_scaling_factors(

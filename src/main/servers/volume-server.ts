@@ -28,7 +28,7 @@ export async function startVolumeServer(): Promise<void> {
 }
 
 export async function stopVolumeServer(): Promise<void> {
-	// Remove all files from the volume
+	// Clear scratch files; the volume server preserves undelivered run reports.
 	await clearVolume({ volumeName: VOLUME })
 
 	volumeServer.kill()

@@ -1,0 +1,282 @@
+{
+  "schema_version": 1,
+  "scope": "External timer around Pipeline.process only: includes scientific preparation, data operations, worker measurement transport/aggregation and scientific output; excludes options loading, volume-statistics collection, report construction/printing/publication. Basic duration/progress timers remain enabled in both treatments. No pixel hashing.",
+  "elapsed_field": "pipeline_elapsed_seconds",
+  "cache_policy": "Warm filesystem and CloudVolume caches; one disabled warmup per operation.",
+  "hardware": {
+    "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "processor": "Intel(R) Xeon(R) W-10855M CPU @ 2.80GHz",
+    "logical_cpus": 12,
+    "python": "3.11.13",
+    "cpu_affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ]
+  },
+  "production_python_sha256": "0d7ab3cf54c52ad324d2807cb10216f908858de12a4a9a5a9f18c0e0847bdee5",
+  "benchmark_python_sha256": "a0c9d8ff54d594b0f2f20e526c979a610ca29df5b080df903b0274d5758ca3db",
+  "versions": {
+    "numpy": "1.26.4",
+    "scipy": "1.11.2",
+    "tifffile": "2024.12.12",
+    "cloud-volume": "12.7.0"
+  },
+  "fixture": {
+    "volume_shape_xyz": [
+      384,
+      384,
+      384
+    ],
+    "source_dtype": "uint16",
+    "source_voxel_bytes": 113246208,
+    "source_pixel_sha256": "67e3b5914f113de9e28f45e7c97e311ad2da0fe1d5c0fd4d0d21dbc5e69add8c",
+    "source_storage_bytes": 113246654,
+    "seed": 138,
+    "workers": 4,
+    "slice_options": {
+      "slice_width": 192,
+      "slice_height": 192,
+      "neuroglancer_json": "/tmp/ouroboros-statistics-final/annotations.json",
+      "neuroglancer_image_layer": "local",
+      "neuroglancer_annotation_layer": "path",
+      "slicing_params": {
+        "dist_between_slices": 0.5,
+        "use_adaptive_slicing": false
+      },
+      "bounding_box_params": {
+        "target_slices_per_box": 32,
+        "max_depth": 10
+      },
+      "normalize_output": false,
+      "zeroguard_output": false,
+      "make_single_file": true
+    },
+    "segmentation": {
+      "shape": [
+        576,
+        192,
+        192
+      ],
+      "dtype": "uint8",
+      "pages": 576,
+      "pixel_bytes": 21233664,
+      "storage_bytes": 21329386,
+      "pixel_sha256": "d9a1a90836c03858d6074d383be4d36a5137aab1931f73748bbfda339f08283b"
+    }
+  },
+  "pairs": 3,
+  "operations": {
+    "slice": {
+      "disabled": {
+        "median_seconds": 16.893485229986254,
+        "min_seconds": 15.769762404990615,
+        "max_seconds": 17.29464090100373,
+        "median_absolute_deviation_seconds": 0.4011556710174773,
+        "samples_seconds": [
+          15.769762404990615,
+          16.893485229986254,
+          17.29464090100373
+        ]
+      },
+      "enabled": {
+        "median_seconds": 16.726066998991882,
+        "min_seconds": 16.570086417981656,
+        "max_seconds": 17.59877594799036,
+        "median_absolute_deviation_seconds": 0.15598058101022616,
+        "samples_seconds": [
+          17.59877594799036,
+          16.570086417981656,
+          16.726066998991882
+        ]
+      },
+      "median_elapsed_overhead_percent": -0.991022448684542,
+      "paired_overhead_percent": [
+        11.598231450975582,
+        -1.9143403957317173,
+        -3.2875727531229137
+      ],
+      "measured_median_at_most_one_percent": true,
+      "pixel_equivalence": null,
+      "runs": [
+        {
+          "handler_elapsed_seconds": 15.772277898999164,
+          "pipeline_elapsed_seconds": 15.769762404990615,
+          "enabled": false,
+          "process_elapsed_seconds": 17.97756132701761,
+          "label": "slice-00-0",
+          "statistics_files": []
+        },
+        {
+          "handler_elapsed_seconds": 17.626355329994112,
+          "pipeline_elapsed_seconds": 17.59877594799036,
+          "enabled": true,
+          "process_elapsed_seconds": 20.313130786991678,
+          "label": "slice-00-1",
+          "statistics_files": [
+            "slice-00-1/output/slice-slice-abf139b9-81b6-46ae-b79f-cccad16ac5f3-statistics.json"
+          ]
+        },
+        {
+          "handler_elapsed_seconds": 16.594973317027325,
+          "pipeline_elapsed_seconds": 16.570086417981656,
+          "enabled": true,
+          "process_elapsed_seconds": 19.11979561598855,
+          "label": "slice-01-1",
+          "statistics_files": [
+            "slice-01-1/output/slice-slice-1b4e4fb2-0a37-4f3f-be9a-144bfc3503e2-statistics.json"
+          ]
+        },
+        {
+          "handler_elapsed_seconds": 16.89902322398848,
+          "pipeline_elapsed_seconds": 16.893485229986254,
+          "enabled": false,
+          "process_elapsed_seconds": 19.228145531989867,
+          "label": "slice-01-0",
+          "statistics_files": []
+        },
+        {
+          "handler_elapsed_seconds": 17.29731622201507,
+          "pipeline_elapsed_seconds": 17.29464090100373,
+          "enabled": false,
+          "process_elapsed_seconds": 19.64269123302074,
+          "label": "slice-02-0",
+          "statistics_files": []
+        },
+        {
+          "handler_elapsed_seconds": 16.754542719980236,
+          "pipeline_elapsed_seconds": 16.726066998991882,
+          "enabled": true,
+          "process_elapsed_seconds": 19.02460064299521,
+          "label": "slice-02-1",
+          "statistics_files": [
+            "slice-02-1/output/slice-slice-db1ca196-0456-4da2-ac86-1c1302797b74-statistics.json"
+          ]
+        }
+      ],
+      "warmups": [
+        {
+          "handler_elapsed_seconds": 16.781124158995226,
+          "pipeline_elapsed_seconds": 16.778584665997187,
+          "enabled": false,
+          "process_elapsed_seconds": 19.07151910001994,
+          "label": "slice-warmup-0",
+          "statistics_files": []
+        }
+      ]
+    },
+    "backproject": {
+      "disabled": {
+        "median_seconds": 9.516044017975219,
+        "min_seconds": 9.410631938982988,
+        "max_seconds": 9.914812329021515,
+        "median_absolute_deviation_seconds": 0.10541207899223082,
+        "samples_seconds": [
+          9.516044017975219,
+          9.914812329021515,
+          9.410631938982988
+        ]
+      },
+      "enabled": {
+        "median_seconds": 9.52198124001734,
+        "min_seconds": 9.425592704996234,
+        "max_seconds": 9.950663114024792,
+        "median_absolute_deviation_seconds": 0.09638853502110578,
+        "samples_seconds": [
+          9.950663114024792,
+          9.425592704996234,
+          9.52198124001734
+        ]
+      },
+      "median_elapsed_overhead_percent": 0.062391704272335424,
+      "paired_overhead_percent": [
+        4.567224523432256,
+        -4.934229794680967,
+        1.1832287327389057
+      ],
+      "measured_median_at_most_one_percent": true,
+      "pixel_equivalence": null,
+      "runs": [
+        {
+          "handler_elapsed_seconds": 9.519138873001793,
+          "pipeline_elapsed_seconds": 9.516044017975219,
+          "enabled": false,
+          "process_elapsed_seconds": 11.848595251009101,
+          "label": "backproject-00-0",
+          "statistics_files": []
+        },
+        {
+          "handler_elapsed_seconds": 9.972953693999443,
+          "pipeline_elapsed_seconds": 9.950663114024792,
+          "enabled": true,
+          "process_elapsed_seconds": 12.2802669070079,
+          "label": "backproject-00-1",
+          "statistics_files": [
+            "backproject-00-1/output/backproject-backproject-5897f9c9-3358-441b-98be-ca3ae68b6bdd-statistics.json"
+          ]
+        },
+        {
+          "handler_elapsed_seconds": 9.454647959006252,
+          "pipeline_elapsed_seconds": 9.425592704996234,
+          "enabled": true,
+          "process_elapsed_seconds": 11.720421837002505,
+          "label": "backproject-01-1",
+          "statistics_files": [
+            "backproject-01-1/output/backproject-backproject-c29b6b08-9dde-4ca3-84db-7bd64152f67f-statistics.json"
+          ]
+        },
+        {
+          "handler_elapsed_seconds": 9.918533933989238,
+          "pipeline_elapsed_seconds": 9.914812329021515,
+          "enabled": false,
+          "process_elapsed_seconds": 12.177346957003465,
+          "label": "backproject-01-0",
+          "statistics_files": []
+        },
+        {
+          "handler_elapsed_seconds": 9.413701900979504,
+          "pipeline_elapsed_seconds": 9.410631938982988,
+          "enabled": false,
+          "process_elapsed_seconds": 11.92600848400616,
+          "label": "backproject-02-0",
+          "statistics_files": []
+        },
+        {
+          "handler_elapsed_seconds": 9.54319331800798,
+          "pipeline_elapsed_seconds": 9.52198124001734,
+          "enabled": true,
+          "process_elapsed_seconds": 11.922428955003852,
+          "label": "backproject-02-1",
+          "statistics_files": [
+            "backproject-02-1/output/backproject-backproject-e179ed28-162a-4f5b-9207-a6ffc171466b-statistics.json"
+          ]
+        }
+      ],
+      "warmups": [
+        {
+          "handler_elapsed_seconds": 9.550155723001808,
+          "pipeline_elapsed_seconds": 9.54674454400083,
+          "enabled": false,
+          "process_elapsed_seconds": 11.882366691017523,
+          "label": "backproject-warmup-0",
+          "statistics_files": []
+        }
+      ]
+    }
+  },
+  "production_code_unchanged": true,
+  "notes": [
+    "Refreshed after removing per-clock reporting guards and collect_statistics worker parameters; existing PipelineStep aggregation methods remain the reporting gate.",
+    "The development Electron preview was active with SwiftShader during this run. A process CPU snapshot showed its GPU process at approximately 149% CPU. Background activity was not controlled; compare enabled/disabled treatments within this run, not absolute times against the previous session.",
+    "All three pairs per operation and disabled warmups are retained. The prepared source and segmentation were reused, and no pixel hashing or baseline-output comparison was performed."
+  ]
+}

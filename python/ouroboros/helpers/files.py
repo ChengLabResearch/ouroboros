@@ -192,6 +192,10 @@ def format_slice_output_config_file(output_name: str) -> str:
     return output_name + "-configuration.json"
 
 
+def format_statistics_file(output_file_name: str, operation: str, run_id: str) -> str:
+    return f"{output_file_name}-{operation}-{run_id}-statistics.json"
+
+
 def format_backproject_output_file(output_name: str, offset: tuple[int] | None = None) -> str:
     if offset is not None:
         offset_str = "-".join(map(str, offset))
@@ -331,10 +335,11 @@ def volume_from_intermediates(path: Path, shape: DataShape, discrete: bool = Fal
     return vol[0]
 
 
-def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_folder, index, interpolation, discrete):
+def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_folder, index, interpolation, discrete,
+                   merge_threads: int = 4):
     perf = {}
     vol_start = time.perf_counter()
-    vol = volume_from_intermediates(source_path, shape, discrete)
+    vol = volume_from_intermediates(source_path, shape, discrete, thread_count=merge_threads)
     perf["Merge Volume"] = time.perf_counter() - vol_start
     if scaling is not None:
         start = time.perf_counter()

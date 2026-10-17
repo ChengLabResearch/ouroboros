@@ -189,7 +189,7 @@ def test_writer_returns_nested_timings_and_uses_dispatched_merge_threads(tmp_pat
     assert writer.call_count == 1
 
 
-@pytest.mark.parametrize("failed_stage", ["download", "slice"])
+@pytest.mark.parametrize("failed_stage", ["startup", "download", "slice"])
 @pytest.mark.parametrize("enabled", [False, True])
 def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, monkeypatch, failed_stage, enabled):
     options = slice_options(tmp_path)
@@ -214,7 +214,12 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
             pass
         def submit(self, func, **kwargs):
             future = concurrent.futures.Future()
-            if func.func is slice_module.download_volume and failed_stage != "download":
+            if func is slice_module.os.getpid:
+                if failed_stage == "startup":
+                    future.set_exception(RuntimeError("startup failed"))
+                else:
+                    future.set_result(func())
+            elif func.func is slice_module.download_volume and failed_stage != "download":
                 future.set_result((np.ones((1, 1, 1)), cache.bounding_boxes[0], 0.25, 0))
             else:
                 future.set_exception(RuntimeError(f"{failed_stage} failed"))
@@ -247,7 +252,7 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
     data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
     output, error = Pipeline([step]).set_statistics_enabled(enabled).process(data)
     assert output is None and f"{failed_stage} failed" in error
-    assert wait_results == [True]
+    assert wait_results == ([] if failed_stage == "startup" else [True])
     assert step.timing["status"] == "failed"
     assert step.get_progress() < 1
     assert step.get_duration() > 0

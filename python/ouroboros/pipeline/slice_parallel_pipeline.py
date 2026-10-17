@@ -1,5 +1,6 @@
 from functools import partial
 from pathlib import Path
+import os
 import secrets
 import sys
 import threading
@@ -159,6 +160,11 @@ class SliceParallelPipelineStep(PipelineStep):
             ) as download_executor, concurrent.futures.ProcessPoolExecutor(
                 max_workers=self.execution_resources["slice_processes"]
             ) as process_executor, SharedNPManager(authkey=authkey) as (shm_host, ):
+                # The first submission starts every fork worker. Do this before
+                # downloading: otherwise workers inherit the parent's first
+                # shared volume as well as their serialized task attachment,
+                # keeping its backing alive after the manager releases it.
+                process_executor.submit(os.getpid).result()
                 download_futures = []
                 process_futures = []
                 volume_cache.connect_shm(shm_host.address, authkey)

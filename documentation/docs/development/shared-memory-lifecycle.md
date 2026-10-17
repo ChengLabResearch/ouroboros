@@ -29,6 +29,17 @@ where the allocation disappears when its last handle closes.
 
 ## Release and failure handling
 
+The slicing pipeline starts its processing pool before submitting downloads.
+On supported CPython versions, the first submission starts all workers when
+using `fork`. Starting them after receiving a downloaded volume would also
+inherit the parent's attachment, separately from the serialized task argument.
+That untouched inherited mapping can retain resident backing after the manager
+releases the volume, until pool shutdown. The startup submission prevents that
+extra lifetime without changing the process start method or adding an allocation
+registry. Startup completes before downloading begins, rather than overlapping
+with downloads. This ordering addresses volumes created by this slicing run;
+it does not isolate arbitrary pre-existing state in a process using `fork`.
+
 - Run-scoped arrays and standard manager allocations live until manager shutdown.
 - Termed arrays are released by `remove_termed()` at the existing per-volume
   completion point in `VolumeCache.remove_volume()`. They do not accumulate until
@@ -60,7 +71,7 @@ serialization authority, failed construction, normal/exception shutdown, and
 owner termination. Multiprocessing coverage includes the live server code.
 
 Before raising the Python upper bound in `python/pyproject.toml`, re-check these
-three CPython interfaces against every newly supported version:
+four CPython interfaces against every newly supported version:
 
 - `BaseManager._run_server` and startup/finalization: the mirrored signature,
   parent-process sentinel, and replacement of the client `shutdown()` method.
@@ -68,6 +79,10 @@ three CPython interfaces against every newly supported version:
   exception-to-`RemoteError` conversion used by the release-result adapter.
 - `SharedMemoryServer.shared_memory_context`: the tracker interface consumed by
   allocation registration, listing, release, and server shutdown.
+- `ProcessPoolExecutor.submit`: with `fork`, the first submission must start
+  all workers before returning, so no worker is first forked after downloaded
+  shared volumes arrive. The slicing lifecycle regression exercises this
+  ordering and inspects released attachments before pool shutdown.
 
 Extend the native lifecycle matrix to those versions and verify handoff, early
 release, and owner-death cleanup on all three operating systems before changing

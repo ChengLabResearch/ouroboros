@@ -112,10 +112,17 @@ In VSCode, use the testing tab. Otherwise, use `pytest`.
 
 To run code coverage, use the following command: 
 ```
-coverage run --source=ouroboros/helpers -m pytest && coverage report -m
+coverage erase && coverage run -m pytest && coverage combine && coverage report -m
 ```
 
 _Only `helpers` is unit tested right now, primarily because the rest of the package fundamentally depends on `helpers`._
+
+Coverage includes multiprocessing workers and combines their result files. The
+small shared-memory ownership regressions can also run independently with
+`pytest test/test_shared_memory_lifecycle.py -q`; CI runs these on Linux, Windows,
+and macOS with Python 3.11 and 3.12.
+See the [shared-memory lifecycle contract](../documentation/docs/development/shared-memory-lifecycle.md)
+for ownership, release semantics, and the RAM-reporting integration boundary.
 
 Commits to main and PR's should trigger coverage reports automatically on GitHub.
 

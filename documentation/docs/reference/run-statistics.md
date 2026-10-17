@@ -234,7 +234,8 @@ or host free-memory delta is attributed to a run.
 | Native Windows (64-bit) | `process_tree_private_plus_tracked_shared_resident_bytes` | One `QueryWorkingSet` snapshot per process; unique resident pages outside tracked mappings plus shared backing pages deduplicated by allocation and offset inside them; private copy-on-write pages remain private |
 | Native macOS | `process_tree_private_plus_tracked_backing_resident_bytes` | `libproc` private resident pages outside tracked mappings, plus `mincore` residency of tracked shared backing objects, counted once |
 
-Windows and macOS observe the existing `SharedNPArray` and TIFF mapping owners.
+Windows and macOS observe the existing `SharedNPArray`, manager-held shared-memory
+handles, and TIFF mapping owners.
 They exclude **untracked shared mappings**. Neither uses the capped Windows share
 count to apportion a known shared buffer. macOS measures backing-object residency:
 file-cache pages can be resident without currently appearing in a tracked
@@ -242,6 +243,15 @@ process's working set. Compressed/swapped pages are excluded. Unsupported mappin
 modes, access failures and unavailable APIs make coverage incomplete; they never
 silently substitute RSS, commit charge or zero. These three metrics have different
 semantics and must not be compared as interchangeable RAM measurements.
+
+**Open accounting limitation (#139):** Linux PSS and Windows working-set scans
+can omit resident shared backing after the producer closes if no remaining
+process has faulted those pages into its page tables. An untouched manager
+mapping preserves the allocation but does not fix this accounting gap. Queued
+downloaded chunks can occupy this state. The draft collector therefore has not
+yet met shared-memory coverage acceptance; a successful sample is not proof of
+complete backing residency. A revised metric needs explicit semantics and
+validation before adoption.
 
 The scope includes the backend parent, discovered workers and helpers, including
 the shared-memory manager. It excludes the sampler itself. Parent state can
@@ -267,7 +277,9 @@ removed. Disabled reporting creates no sampler or sampling workspace.
 
 `status` is `sampled` when all admitted sweeps succeeded, `partial` when some
 failed, `unavailable` when none completed, or `not_started` if the pipeline was
-never reached. A failed mapping-manifest publication invalidates the native
+never reached. Manifest reads and publication reuse the control-file retry for Windows sharing
+violations (up to 0.5 seconds, 10 ms spacing). Persistent failures remain explicit.
+A failed mapping-manifest publication invalidates the native
 metric because the sampler cannot reconstruct its missing coverage.
 
 The peak is the maximum **complete sampled tree total**, not an OS high-water

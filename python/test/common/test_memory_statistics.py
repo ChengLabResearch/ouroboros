@@ -586,3 +586,25 @@ os.waitpid(pid, 0)
         if child is not None and child.is_running():
             child.kill()
         assert process.returncode == 0
+
+
+def test_manifest_read_retries_transient_windows_denial(monkeypatch, tmp_path):
+    identity = (os.getpid(), psutil.Process().create_time())
+    path = tmp_path / f"{identity[0]}.json"
+    path.write_text(json.dumps({"pid": identity[0], "create_time": identity[1], "mappings": []}))
+    _, sleeps = retry_clock(monkeypatch)
+    read = Path.read_bytes
+    attempts = []
+
+    def briefly_locked(self):
+        attempts.append(self)
+        if len(attempts) == 1:
+            raise PermissionError("publisher still holds manifest")
+        return read(self)
+
+    monkeypatch.setattr(Path, "read_bytes", briefly_locked)
+    sampler = memory.TreeSampler(*identity, mappings_directory=tmp_path)
+    records, generation = sampler._mappings(identity)
+    assert records == []
+    assert generation == read(path)
+    assert sleeps == [0.01]

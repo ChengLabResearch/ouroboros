@@ -23,6 +23,8 @@ import weakref
 
 import psutil
 
+from ouroboros.common.memory_ipc import observation_file_io
+
 
 @dataclass(frozen=True)
 class MappingContext:
@@ -110,7 +112,7 @@ def _publish():
         ) as output:
             temporary = Path(output.name)
             json.dump(payload, output)
-        os.replace(temporary, Path(_context.directory, f"{_pid}.json"))
+        observation_file_io(lambda: os.replace(temporary, Path(_context.directory, f"{_pid}.json")))
         temporary = None
     except Exception as error:
         _note_error(error)

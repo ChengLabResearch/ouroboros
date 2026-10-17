@@ -15,7 +15,9 @@ import numpy as np
 
 from .shapes import DataShape
 from .log import log, LOG
-from ouroboros.common.memory_mappings import observe_shared_memory, refresh_mappings
+from ouroboros.common.memory_mappings import (
+    configure_mappings, executor_mapping_options, observe_shared_memory, refresh_mappings,
+)
 
 # Existing pre-exit grace period in ``exit_cleanly``.
 SHUTDOWN_GRACE_S = 1.0
@@ -175,6 +177,7 @@ class _OwnedSharedMemoryTracker:
                 raise RuntimeError("Shared memory manager is shutting down")
             memory = SharedMemory(create=True, size=size)
             self._segments[memory.name] = (memory, termed)
+            observe_shared_memory(memory)
             return memory.name
 
     def register_segment(self, name):
@@ -185,6 +188,7 @@ class _OwnedSharedMemoryTracker:
                 raise RuntimeError("Shared memory manager is shutting down")
             if name not in self._segments:
                 self._segments[name] = (SharedMemory(name), False)
+                observe_shared_memory(self._segments[name][0])
 
     def destroy_segment(self, name, termed_only=False):
         with self._lock:
@@ -203,6 +207,7 @@ class _OwnedSharedMemoryTracker:
             finally:
                 memory.close()
                 del self._segments[name]
+                refresh_mappings()
 
     def unlink(self):
         with self._lock:
@@ -231,6 +236,12 @@ class _OwnedSharedMemoryServer(SharedMemoryServer):
             # Return the atomic validation outcome to preserve the public API.
             return False
         return True
+
+
+def _initialize_manager_observation(context, initializer, initargs):
+    configure_mappings(context)
+    if initializer is not None:
+        initializer(*initargs)
 
 
 class SharedNPManager(SharedMemoryManager):
@@ -287,6 +298,18 @@ class SharedNPManager(SharedMemoryManager):
                 self.__mem_queue.append([mem[0][0], mem[0][1]] + list(mem[1:]))
             else:
                 self.__mem_queue.append([mem[0], mem[1]])
+
+    def start(self, initializer=None, initargs=()):
+        # Reuse the active process-observation channel and BaseManager's
+        # initializer seam; the allocation registry remains server-owned.
+        options = executor_mapping_options(None)
+        if options:
+            context, = options["initargs"]
+            if initializer is not None and not callable(initializer):
+                raise TypeError("initializer must be a callable")
+            super().start(_initialize_manager_observation, (context, initializer, initargs))
+        else:
+            super().start(initializer, initargs)
 
     def _request(self, method, *args):
         with self._Client(self._address, authkey=self._authkey) as connection:

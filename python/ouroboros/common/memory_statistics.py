@@ -16,6 +16,8 @@ import time
 
 import psutil
 
+from ouroboros.common.memory_ipc import observation_file_io
+
 
 DEFAULT_INTERVAL_SECONDS = 1.0
 _OBSERVER_MODULE = "ouroboros.common.memory_observer"
@@ -35,30 +37,10 @@ def unavailable(reason, *, status="unavailable"):
             "sampling": None, "errors": [{"kind": "collector", "count": 1, "example": reason}]}
 
 
-def _control_file_io(operation):
-    """Tolerate brief Windows sharing violations at the control-file boundary.
-
-    A newly replaced file can be visible before Windows releases the publishing
-    handle. Persistent denial still fails; sampling manifest reads do not retry.
-    """
-    deadline = None
-    while True:
-        try:
-            return operation()
-        except PermissionError:
-            if sys.platform != "win32":
-                raise
-            if deadline is None:
-                deadline = time.monotonic() + 0.5
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise
-            time.sleep(min(0.01, remaining))
-
 
 def _read_json(path):
     path = Path(path)
-    return _control_file_io(lambda: json.loads(path.read_text(encoding="utf-8")))
+    return observation_file_io(lambda: json.loads(path.read_text(encoding="utf-8")))
 
 
 def _write_json(path, value):
@@ -70,7 +52,7 @@ def _write_json(path, value):
         temporary.write_text(payload, encoding="utf-8")
         temporary.replace(path)
 
-    _control_file_io(publish)
+    observation_file_io(publish)
 
 
 def _identity(process):
@@ -122,7 +104,7 @@ class TreeSampler:
             return [], None
         path = self.mappings_directory / f"{identity[0]}.json"
         try:
-            raw = path.read_bytes()
+            raw = observation_file_io(path.read_bytes)
         except FileNotFoundError:
             return [], None  # Helpers without mapping owners need no manifest.
         record = json.loads(raw)

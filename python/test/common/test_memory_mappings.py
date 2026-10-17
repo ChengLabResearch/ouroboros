@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import pickle
 import shutil
+import sys
 import weakref
 
 import numpy as np
@@ -331,3 +332,71 @@ def test_inactive_file_identity_failure_is_reported_by_later_session(tmp_path, m
         assert observed["errors"] == ["OSError: test original backing identity unavailable"]
         assert session.context.failure_flag.value == 1
     array._mmap.close()
+
+
+def _check_manager_observation(context):
+    # The manager's observation initializer must run before a caller initializer.
+    assert mappings._context == context
+    assert snapshot(context)["mappings"] == []
+
+
+def test_manager_owner_is_observed_after_clients_close_and_removed_on_release():
+    from ouroboros.helpers.mem import SharedNPManager
+
+    # Linux production intentionally has no mapping channel. Fork retains this
+    # test's enabled adapter; Windows/macOS exercise their native spawn path.
+    method = "fork" if os.name != "nt" and sys.platform != "darwin" else "spawn"
+    with mappings.MappingSession() as session:
+        manager = SharedNPManager(ctx=multiprocessing.get_context(method))
+        manager.start(_check_manager_observation, (session.context,))
+        try:
+            pid = manager._process.pid
+            array = manager.TermedNPArray(ImgSlice(2, 4), np.uint8)
+            name = array.name
+            record, = snapshot(session.context, pid)["mappings"]
+            assert record["identity"] == ["shm", name]
+            assert record["size"] >= 8
+            assert snapshot(session.context)["mappings"][0]["identity"] == record["identity"]
+            array.shutdown()
+            assert snapshot(session.context)["mappings"] == []
+            assert snapshot(session.context, pid)["mappings"] == [record]
+            manager.remove_termed(name)
+            assert snapshot(session.context, pid)["mappings"] == []
+            shared_list = manager.ShareableList([1, 2])
+            retained_name = shared_list.shm.name
+            shared_list.shm.close()
+            assert snapshot(session.context, pid)["mappings"][0]["identity"] == ["shm", retained_name]
+        finally:
+            manager.shutdown()
+        assert snapshot(session.context, pid)["mappings"] == []
+        assert session.context.failure_flag.value == 0
+        with pytest.raises(FileNotFoundError):
+            SharedMemory(retained_name)
+
+
+def test_manifest_replace_retries_transient_windows_denial(monkeypatch):
+    from ouroboros.common import memory_ipc
+
+    shared = SharedMemory(create=True, size=4096)
+    try:
+        with mappings.MappingSession() as session:
+            replace = mappings.os.replace
+            attempts = []
+
+            def briefly_locked(*args):
+                attempts.append(args)
+                if len(attempts) == 1:
+                    raise PermissionError("reader still holds manifest")
+                return replace(*args)
+
+            monkeypatch.setattr(memory_ipc.sys, "platform", "win32")
+            monkeypatch.setattr(mappings.os, "replace", briefly_locked)
+            mappings.observe_shared_memory(shared)
+            assert len(attempts) == 2
+            assert snapshot(session.context)["errors"] == []
+            assert len(snapshot(session.context)["mappings"]) == 1
+            assert session.context.failure_flag.value == 0
+            assert list(Path(session.context.directory).glob("*.tmp")) == []
+    finally:
+        shared.close()
+        shared.unlink()

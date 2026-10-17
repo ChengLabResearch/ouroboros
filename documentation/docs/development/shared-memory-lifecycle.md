@@ -143,15 +143,19 @@ that cap still requires dependency and platform validation.
 
 ## RAM-reporting integration
 
-The deferred integration and real-data acceptance from #145 are tracked in
-[#139](https://github.com/ChengLabResearch/ouroboros/issues/139), to be completed
-after rebasing PR #144 onto this ownership change. Its existing mapping observer
-must observe server-owned handles at allocation/registration and refresh after
-release, as well as observing each
-process-local attachment. The owning registry must remain the sole allocation
-authority; observation must not become another owner or registry of lifetimes.
-The new serialization path runs the attachment constructor, so observation belongs
-there rather than in a redundant `__setstate__` path.
+PR #144 now builds on this ownership change. Its existing mapping observer
+observes server-owned handles at allocation/registration and refreshes after
+release and shutdown, alongside each process-local attachment. Manager startup
+passes the active observation context through the existing initializer seam,
+before any caller initializer. `_OwnedSharedMemoryTracker` remains the sole
+allocation authority; observations are weak, derived mapping descriptions and
+retain no allocation. Serialization runs the attachment constructor, so the
+redundant `__setstate__` observation path has been removed.
+
+Focused tests inspect the manager's manifest after client attachments close,
+then verify removal after explicit release and shutdown, including inherited
+`ShareableList` registration. Native CI runs the ownership and collector suites
+in the same Python 3.11/3.12 platform matrix.
 
 Keeping a server handle mapped does not by itself fix the Linux PSS coverage gap:
 resident segments queued after the producer closes can remain untouched by every
@@ -162,5 +166,6 @@ double-counting; allocated capacity must not silently be labeled residency.
 
 Real-data slicing/backprojection and RAM overhead validation follow that rebase.
 Focused lifecycle tests on this branch do not establish scientific-pipeline or
-RAM-collector acceptance. The separate manifest-publication defect remains in
-scope for the RAM-reporting branch.
+RAM-collector acceptance. Manifest publication and reads now use the same bounded Windows sharing-violation
+retry as collector control/result files. Persistent failures still invalidate
+coverage; this does not change the scientific allocation lifecycle.

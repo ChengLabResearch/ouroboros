@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="generator" content="mkdocs-1.6.1, mkdocs-terminal-4.8.0">
+    
+    <meta name="description" content="Quickly extract long ROIs (e.g. blood vessels, nerves) from cloud-hosted medical scans."> 
+    
+    <meta name="author" content="Weaver Goldman and David Northover"> 
+    
+    <link rel="canonical" href="https://wegold.me/ouroboros/reference/run-statistics/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="../../img/android-chrome-512x512.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="../../img/apple-touch-icon.png" />
+<link rel="shortcut icon" type="image/png" sizes="48x48" href="../../img/favicon.ico" />
+<link rel="icon" type="image/png" sizes="16x16" href="../../img/favicon-16x16.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="../../img/favicon-32x32.png" />
+
+
+    
+ 
+<title>Pipeline Run Statistics - Ouroboros Documentation</title>
+
+
+<link href="../../css/fontawesome/css/fontawesome.min.css" rel="stylesheet">
+<link href="../../css/fontawesome/css/solid.min.css" rel="stylesheet">
+<link href="../../css/normalize.css" rel="stylesheet">
+<link href="../../css/terminal.css" rel="stylesheet">
+<link href="../../css/theme.css" rel="stylesheet">
+<link href="../../css/theme.tile_grid.css" rel="stylesheet">
+<link href="../../css/theme.footer.css" rel="stylesheet">
+<!-- dark color palette -->
+<link href="../../css/palettes/dark.css" rel="stylesheet">
+
+<!-- page layout -->
+<style>
+/* initially set page layout to a one column grid */
+.terminal-mkdocs-main-grid {
+    display: grid;
+    grid-column-gap: 1.4em;
+    grid-template-columns: auto;
+    grid-template-rows: auto;
+}
+
+/*  
+*   when side navigation is not hidden, use a two column grid.  
+*   if the screen is too narrow, fall back to the initial one column grid layout.
+*   in this case the main content will be placed under the navigation panel. 
+*/
+@media only screen and (min-width: 70em) {
+    .terminal-mkdocs-main-grid {
+        grid-template-columns: 4fr 9fr;
+    }
+}</style>
+
+
+
+     
+    
+    
+
+    
+    <!-- search css support -->
+<link href="../../css/search/bootstrap-modal.css" rel="stylesheet">
+<!-- search scripts -->
+<script>
+    var base_url = "../..",
+    shortcuts = "{}";
+</script>
+<script src="../../js/jquery/jquery-1.10.1.min.js" defer></script>
+<script src="../../js/bootstrap/bootstrap.min.js" defer></script>
+<script src="../../js/mkdocs/base.js" defer></script>
+    
+    
+    
+    
+    <script src="../../search/main.js"></script>
+    
+
+    
+</head>
+
+<body class="terminal"><div class="container">
+    <div class="terminal-nav">
+        <header class="terminal-logo">
+            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://wegold.me/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
+        </header>
+        
+        <nav class="terminal-menu">
+            
+            <ul vocab="https://schema.org/" typeof="BreadcrumbList">
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="../.." class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Home</span>
+                    </a>
+                    <meta property="position" content="0">
+                </li>
+                
+                
+                
+                
+                
+                
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="https://github.com/ChengLabResearch/ouroboros/releases" class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Releases</span>
+                    </a>
+                    <meta property="position" content="1">
+                </li>
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="https://github.com/ChengLabResearch/ouroboros" class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Repository</span>
+                    </a>
+                    <meta property="position" content="2">
+                </li>
+                
+                    
+                    
+
+
+<li property="itemListElement" typeof="ListItem">
+    <a href="#" class="menu-item" data-toggle="modal" data-target="#mkdocs_search_modal" property="item" typeof="SearchAction">
+        <i aria-hidden="true" class="fa fa-search"></i> <span property="name">Search</span>
+    </a>
+    <meta property="position" content="3">
+</li>
+                    
+            </ul>
+            
+        </nav>
+    </div>
+</div>
+        
+    <div class="container">
+        <div class="terminal-mkdocs-main-grid"><aside id="terminal-mkdocs-side-panel"><nav>
+    <ul class="terminal-mkdocs-side-nav-items">
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../..">Home</a>
+        
+    
+    
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Usage Guide</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/downloading/">Download Ouroboros</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/slicing/">Slicing</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/backproject/">Backprojection</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/plugins/">Plugins</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        <span class="
+        
+    terminal-mkdocs-side-nav-item--active terminal-mkdocs-side-nav-section-no-index">Reference</span>
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../technical-constants/">Technical Constants</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        <span class="terminal-mkdocs-side-nav-item--active">Pipeline Run Statistics</span>
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Development</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/README.md">App</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/README.md">Python</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md">Plugins</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/docker-builds/">Docker Builds</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/registry-server-images/">Registry Server Images</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/production-package-flavors/">Production Package Flavors</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/releases">Releases</a>
+        
+    
+    
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros">Repository</a>
+        
+    
+    
+    
+       </li>
+        
+    </ul>
+</nav><hr>
+<nav>
+    <ul>
+        <li><a href="#pipeline-run-statistics">Pipeline run statistics</a></li>
+        <li><a href="#server-and-docker">Server and Docker</a></li><li><a href="#schema-version-1">Schema version 1</a></li><li><a href="#timing-definitions">Timing definitions</a></li><li><a href="#volume-and-storage-definitions">Volume and storage definitions</a></li><li><a href="#verification-and-ownership">Verification and ownership</a></li>
+    </ul>
+</nav>
+</aside>
+            <main id="terminal-mkdocs-main-content">
+<section id="mkdocs-terminal-content">
+    <h1 id="pipeline-run-statistics">Pipeline run statistics</h1>
+<p>Use <code>--verbose</code> with either Python CLI operation to print and save the same
+formatted statistics JSON:</p>
+<pre><code class="language-sh">ouroboros-cli slice slice-options.json --verbose
+ouroboros-cli backproject backproject-options.json --verbose
+</code></pre>
+<p>The report is written beside the configured outputs, using
+<code>&lt;output_file_name&gt;-&lt;operation&gt;-&lt;run_id&gt;-statistics.json</code>. Each invocation gets a
+new run identifier, so repeated runs retain their reports. This works with a
+single TIFF or a directory of TIFF planes. JSON numeric values retain their
+precision; byte counts are integers. Console headings and progress bars are
+outside the JSON payload.</p>
+<p>Without <code>--verbose</code>, the CLI skips detailed timing samples, volume statistics,
+report formatting and report writes. Basic step duration and progress remain
+available. The pipeline factory's <code>verbose</code> argument continues to control its
+progress bar; it is separate from run reporting.</p>
+<h2 id="server-and-docker">Server and Docker</h2>
+<p>Server tasks report statistics by default. Pass <code>reporting_enabled=false</code> to
+<code>POST /slice/</code> or <code>POST /backproject/</code> to disable detailed reporting for that
+task. Both CLI and server use the same operation lifecycle and reporting code.</p>
+<p>The existing status response and status events include <code>statistics</code>:</p>
+<pre><code class="language-json">{
+    &quot;status&quot;: &quot;published&quot;,
+    &quot;path&quot;: &quot;/configured/output/sample-slice-run-id-statistics.json&quot;,
+    &quot;recovery_path&quot;: null,
+    &quot;error&quot;: null
+}
+</code></pre>
+<p>Publication status is <code>pending</code>, <code>published</code>, <code>disabled</code>, <code>unavailable</code>,
+<code>failed</code>, or <code>interrupted</code>. The API keeps a task active through required cleanup
+and publication; duplicate submission and deletion remain blocked while it is
+active. Cleanup remains part of that lifecycle when reporting is disabled. A
+progress read failure is exposed as <code>progress_error</code> without changing the
+scientific outcome.</p>
+<p>Docker copies scientific outputs to the host and cleans its working folder
+before finalizing the operation timer. It then stages and transfers the report
+through the existing volume server into the configured host output directory.
+Undelivered reports are retained under <code>/volume/main-statistics/</code>, outside the
+scientific working folder. The status response gives the recovery path.
+Successful delivery removes the staging copy. Normal operation and desktop
+shutdown cleanup preserve undelivered statistics; explicitly deleting the Docker
+volume also deletes those recovery copies.</p>
+<p>Scientific outcome and report-publication outcome are distinct. A failed
+scientific-output transfer makes the operation fail. A failed statistics write
+or transfer leaves a successful scientific outcome intact but exposes the
+publication error through status, an error event, and server logging. A console
+or log presentation failure is exposed separately as <code>presentation_error</code>; an
+already-published file keeps its delivery status and path. The CLI exits with
+status 1 on failure and 130 on interruption, including interrupted report
+delivery or presentation. When
+options cannot be loaded and no output destination is known, the report is
+explicitly unavailable; no report is silently written to the current directory.</p>
+<h2 id="schema-version-1">Schema version 1</h2>
+<p>The record contains these groups:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>schema_version</code>, <code>run_id</code>, <code>operation</code></td>
+<td>Format version, invocation identity, and <code>slice</code> or <code>backproject</code></td>
+</tr>
+<tr>
+<td><code>started_at</code>, <code>finished_at</code></td>
+<td>ISO timestamps with timezone</td>
+</tr>
+<tr>
+<td><code>outcome</code>, <code>error</code></td>
+<td><code>succeeded</code>, <code>failed</code>, or <code>interrupted</code>, and the operation error</td>
+</tr>
+<tr>
+<td><code>operation_elapsed_seconds</code></td>
+<td>Whole operation wall time with the boundary below</td>
+</tr>
+<tr>
+<td><code>pipeline_elapsed_seconds</code>, <code>steps</code></td>
+<td>Measurements owned by the pipeline and its steps</td>
+</tr>
+<tr>
+<td><code>phase_wall_spans</code></td>
+<td><code>null</code>: worker start/end intervals are not collected</td>
+</tr>
+<tr>
+<td><code>volumes</code></td>
+<td>Native source, geometry, input/output headers, and storage comparisons</td>
+</tr>
+<tr>
+<td><code>inputs</code>, <code>effective_configuration</code></td>
+<td>Input identifiers and the effective options, including container path remapping</td>
+</tr>
+<tr>
+<td><code>software</code>, <code>environment</code>, <code>execution</code></td>
+<td>Package/build/revision, OS/Python, observed thread settings, and actual dispatched worker/thread counts</td>
+</tr>
+<tr>
+<td><code>cache</code></td>
+<td>Observed cache configuration; unknown cache warmth/network conditions remain explicit</td>
+</tr>
+<tr>
+<td><code>collection_errors</code></td>
+<td>Instrumentation failures that prevented part of the record from being collected</td>
+</tr>
+<tr>
+<td><code>memory</code></td>
+<td><code>null</code>: RAM accounting is deferred to issue #139</td>
+</tr>
+</tbody>
+</table>
+<p>Source checkouts record their Git revision and whether the working tree is dirty.
+Packaged deployments can provide <code>OUROBOROS_BUILD_REVISION</code> and
+<code>OUROBOROS_BUILD_ID</code>; missing revision/build metadata remains unknown. The
+execution OS describes the Python backend. A Docker host's OS is not inferred
+from the Linux container. Thread environment variables are included only when
+set; actual executor counts are recorded separately. Cache warmth covers local,
+OS, and remote caches and remains unknown without observation.</p>
+<p>The schema defines timing boundaries, units, axis conventions, and unavailable
+values here rather than repeating explanatory text in every record. The
+effective slicing configuration is included separately for backprojection; a
+slicing run already has it in <code>effective_configuration.operation</code>. Input paths
+retain their original host identifiers before Docker remapping. Annotation and
+layer names remain in the effective configuration, and the resolved dataset URL
+is <code>volumes.source.url</code>.</p>
+<h2 id="timing-definitions">Timing definitions</h2>
+<p>All elapsed measurements use <code>time.perf_counter()</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Measurement</th>
+<th>Start and end</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Operation</td>
+<td>Execution entry before options loading/input preparation through scientific-output finalization, host transfer where applicable, and required cleanup</td>
+</tr>
+<tr>
+<td>Pipeline</td>
+<td>Entry to <code>Pipeline.process()</code> through completion, returned failure, or exception</td>
+</tr>
+<tr>
+<td>Step</td>
+<td>Step processing and progress updates; finalized on failure and catchable interruption</td>
+</tr>
+<tr>
+<td>Worker phase</td>
+<td>The existing instrumented phase within one worker; accumulated across its invocations</td>
+</tr>
+</tbody>
+</table>
+<p>Operation time excludes queue wait, application/container startup, and statistics
+serialization/publication. The performance-overhead benchmark separately times
+<code>Pipeline.process()</code> with detailed instrumentation enabled and disabled; metadata
+collection, formatting, printing, and report delivery are outside that interval.
+Volume metadata is captured before cleanup while output headers are still
+available, so that work is included in operation time.</p>
+<p>Each step retains its own status. Steps that were never reached are <code>pending</code>,
+not successful zero-duration measurements. Successful and failed steps have
+final durations. Catchable interruptions, including <code>KeyboardInterrupt</code>, finalize
+records; hard process termination cannot guarantee final publication.</p>
+<p><code>steps[].custom_times</code> reports mean, standard deviation, minimum, maximum,
+sample count (<code>loops</code>), spread (<code>gap</code>), and <code>accumulated_elapsed_seconds</code>. Each
+entry identifies its unit, worker/coordinator scope, and included subphases for
+nested totals. Downloads overlap slice processing; backprojection overlaps
+writing. These sums are neither CPU time nor a partition that adds to operation
+wall time. They can exceed it. Phase wall spans are explicitly unavailable
+because the workers currently return durations, not start/end intervals.</p>
+<p>Backprojection intermediate payload bytes are in <code>steps[].byte_counts</code>, never
+in timing summaries. System-available-memory samples have been removed from
+timing statistics.</p>
+<h2 id="volume-and-storage-definitions">Volume and storage definitions</h2>
+<p><code>volumes.source</code> distinguishes full-resolution metadata (mip 0, when available)
+from the mip used by the operation. Source axes are XYZ; dimensions exclude the
+separate channel count. Logical bytes equal the product of dimensions, channels,
+and dtype item size.</p>
+<p><code>volumes.straightened</code> describes the actual slicing output or backprojection
+input stack. Its axes are DVU: depth/slice count, section height, section width.
+Backprojection input image/segmentation classification is unknown unless there
+is an explicit declaration; dtype alone is not used to guess it.</p>
+<p><code>volumes.bounding_box</code> uses the native enclosing-box facility and records the
+integer-rounded envelope in source voxel indices at the reported mip.
+<code>BoundingBox.approx_bounds</code> floors minima and ceils maxima;
+<code>BoundingBox.get_shape()</code> includes both rounded endpoints.</p>
+<p>Slicing additionally reports a compact <code>download_partitions</code> summary: count,
+total allocated logical bytes, total source-clipped logical bytes, and the mip
+whose source bounds were used for clipping. The native download API casts
+requested coordinates to integers and uses half-open maxima. Allocation matches
+that requested box size; clipping intersects the request with source bounds.
+Totals count every partition request, including overlapping voxels repeatedly.
+They are neither the enclosing volume size nor peak RAM. Backprojection does
+not download these boxes and omits this summary. Reporting does not alter
+scientific rounding, clipping, or geometry.</p>
+<p><code>volumes.backprojected_output</code> uses actual output TIFF headers, including
+channels, dtype, and emitted plane count. For a directory with numeric filenames,
+the report also records its minimum and maximum Z index. Dimensions count
+emitted planes, so gaps are visible by comparison with the index span. Logical
+bytes count emitted planes, not hypothetical filled gaps. Header spacing is in
+micrometres, with explicit axis order and <code>null</code> for missing axes. It is recorded
+separately from the requested mip, so metadata inconsistencies are visible.
+The backprojected output's final nonzero extent is <code>null</code>: the pipeline does not
+retain it, and reporting does not read pixels to calculate it.</p>
+<p>Header inspection reuses the existing native stack inspector: first-plane
+shape/dtype/channels and page/file count. Physical file byte counts are separate
+from logical uncompressed bytes. No extra source download or full-volume read
+is performed. For curved/adaptively sampled stacks, stored TIFF spacing is not
+presented as proof of a uniform Cartesian lattice.</p>
+<p>Storage reduction is <code>100 * (1 - straightened_bytes / reference_bytes)</code>.
+The record identifies numerator/denominator bytes and the reference field; the
+referenced volume owns its mip and spacing. Full-source,
+used-mip-source, and bounding-box-relative comparisons are separately named;
+they measure logical storage, not compression or equal information content.
+GB means decimal gigabytes and GiB means binary gibibytes; the structured
+measurements use bytes directly.</p>
+<h2 id="verification-and-ownership">Verification and ownership</h2>
+<p><code>Task</code> owns operation identity and outcome; <code>RunStatistics</code> owns operation timing
+and report publication. It references the existing options and pipeline owners.
+<code>Pipeline</code> and <code>PipelineStep</code> own all pipeline/worker timing samples and progress.
+Summary dictionaries are one-way output adapters: they never replace or mutate
+the owner's samples. Server progress is read from that owner without a second
+cached progress state. Actual executor counts also come from dispatch-owned
+resource fields rather than a separate calculation in the reporter.</p>
+<p><code>VolumeCache</code>, <code>CloudVolumeInterface</code>, <code>BoundingBox</code>, and the native TIFF inspector
+own geometry and effective volume metadata. Downloads and reporting share
+<code>download_volume_geometry</code>. The volume reporting snapshot is a one-way
+serialization boundary before cleanup, never an input to scientific execution.
+Output naming, atomic file publication, Docker export, and recovery extend the
+existing file/volume facilities. No memory sampler is added by this change.</p>
+<p>The fixed-local-source benchmark and reproducible commands are documented in
+<a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/benchmarks/README.md">the Python benchmark guide</a>.
+The target is at most 1% median pipeline elapsed-time overhead for instrumentation
+that runs during the data operation. Setup and final reporting costs are assessed
+separately. RAM collection must use that same in-operation budget when #139 is
+implemented. Report measured variability alongside overhead; a negative observed
+overhead reflects noise, not free instrumentation.</p>
+</section>
+
+            </main>
+        </div>
+        <hr><footer>
+    <div class="terminal-mkdocs-footer-grid">
+        <div id="terminal-mkdocs-footer-copyright-info">
+            
+            <p class="text-center text-muted">Copyright 2024=2025 Weaver Goldman and David Northover, All rights reserved</p>
+             Site built with <a href="http://www.mkdocs.org">MkDocs</a> and <a href="https://github.com/ntno/mkdocs-terminal">Terminal for MkDocs</a>.
+        </div>
+        <div id="terminal-mkdocs-footer-prev-next">
+            <nav class="btn-group">
+                <a href="../technical-constants/" title="Technical Constants">Previous</a>
+                |
+                <a href="../../development/docker-builds/" title="Docker Builds">Next</a>
+            </nav>
+        </div>
+    </div>
+</footer>
+    </div>
+
+    
+    <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="searchModalLabel">
+    <div class="modal-dialog modal-lg" role="search">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="searchModalLabel">Search</h5>
+                <button type="button" class="close btn btn-default btn-ghost" data-dismiss="modal" aria-label="Close">x</button>
+            </div>
+            <div class="modal-body">
+                <p id="searchInputLabel">Type to start searching</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" aria-labelledby="searchInputLabel" placeholder="" id="mkdocs-search-query" title="Please enter search terms here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No document matches found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+    
+    
+</body>
+
+</html>

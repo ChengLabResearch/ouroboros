@@ -59,15 +59,38 @@ exit before receiver attachment, per-buffer release, surviving mapped consumers,
 serialization authority, failed construction, normal/exception shutdown, and
 owner termination. Multiprocessing coverage includes the live server code.
 
+Before raising the Python upper bound in `python/pyproject.toml`, re-check these
+three CPython interfaces against every newly supported version:
+
+- `BaseManager._run_server` and startup/finalization: the mirrored signature,
+  parent-process sentinel, and replacement of the client `shutdown()` method.
+- `multiprocessing.managers.dispatch`: request signatures and the server's
+  exception-to-`RemoteError` conversion used by the release-result adapter.
+- `SharedMemoryServer.shared_memory_context`: the tracker interface consumed by
+  allocation registration, listing, release, and server shutdown.
+
+Extend the native lifecycle matrix to those versions and verify handoff, early
+release, and owner-death cleanup on all three operating systems before changing
+the supported-version contract.
+
 ## RAM-reporting integration
 
-Issue #145 is based on main independently of #139 / PR #144. After rebasing that
-branch, its existing mapping observer must observe server-owned handles at
-allocation/registration and refresh after release, as well as observing each
+The deferred integration and real-data acceptance from #145 are tracked in
+[#139](https://github.com/ChengLabResearch/ouroboros/issues/139), to be completed
+after rebasing PR #144 onto this ownership change. Its existing mapping observer
+must observe server-owned handles at allocation/registration and refresh after
+release, as well as observing each
 process-local attachment. The owning registry must remain the sole allocation
 authority; observation must not become another owner or registry of lifetimes.
 The new serialization path runs the attachment constructor, so observation belongs
 there rather than in a redundant `__setstate__` path.
+
+Keeping a server handle mapped does not by itself fix the Linux PSS coverage gap:
+resident segments queued after the producer closes can remain untouched by every
+currently mapped process. #139 must validate accounting for that state using the
+owning registry as the source of live segment identities and sizes. A proposed
+USS-plus-live-segment metric needs its own defined semantics and tests against
+double-counting; allocated capacity must not silently be labeled residency.
 
 Real-data slicing/backprojection and RAM overhead validation follow that rebase.
 Focused lifecycle tests on this branch do not establish scientific-pipeline or

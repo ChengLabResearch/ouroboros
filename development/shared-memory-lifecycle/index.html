@@ -585,31 +585,47 @@ the production dependency set, scientific pipelines, and RAM-reporting integrati
 were not validated by these probes. The project remains <code>&gt;=3.11,&lt;3.13</code>; raising
 that cap still requires dependency and platform validation.</p>
 <h2 id="ram-reporting-integration">RAM-reporting integration</h2>
-<p>PR #144 now builds on this ownership change. Its existing mapping observer
-observes server-owned handles at allocation/registration and refreshes after
-release and shutdown, alongside each process-local attachment. Manager startup
-passes the active observation context through the existing initializer seam,
-before any caller initializer. <code>_OwnedSharedMemoryTracker</code> remains the sole
-allocation authority; observations are weak, derived mapping descriptions and
-retain no allocation. Serialization runs the attachment constructor, so the
-redundant <code>__setstate__</code> observation path has been removed.</p>
-<p>Focused tests inspect the manager's manifest after client attachments close,
-then verify removal after explicit release and shutdown, including inherited
-<code>ShareableList</code> registration. Native CI runs the ownership and collector suites
-in the same Python 3.11/3.12 platform matrix.</p>
-<p>Keeping a server handle mapped does not by itself fix the Linux PSS coverage gap:
-resident segments queued after the producer closes can remain untouched by every
-currently mapped process. #139 must validate accounting for that state using the
-owning registry as the source of live segment identities and sizes. A proposed
-USS-plus-live-segment metric needs its own defined semantics and tests against
-double-counting; allocated capacity must not silently be labeled residency.</p>
-<p>The post-rebase native Windows real-data batch is recorded in
-<code>python/benchmarks/README.md</code>: all 12 workflows completed, with usable partial
-peaks in all enabled operations, but long-path overhead and shared-backing
-coverage remain unresolved. Focused lifecycle tests alone do not establish
-scientific-pipeline or RAM-collector acceptance. Manifest publication and reads now use the same bounded Windows sharing-violation
-retry as collector control/result files. Persistent failures still invalidate
-coverage; this does not change the scientific allocation lifecycle.</p>
+<p>PR #144 derives memory observations directly from <code>_OwnedSharedMemoryTracker</code>'s
+<code>_segments</code>, the sole registry of live handles and release policy. Allocation,
+registration and release publish a snapshot under the owner's lock: segment
+names and sizes, plus the manager's mapping addresses on macOS. These temporary
+manifests are one-way observations; no allocation state is read back from them.
+There is no parallel attachment registry or weak-reference mapping tracker.</p>
+<p>A reporting session starts before the scientific pipeline and is shared by
+overlapping operations in the same backend. Manager startup passes its context
+through the existing initializer seam, before any caller initializer. Worker
+pools, <code>SharedNPArray</code> attachments, serialization and TIFF mappings have no
+reporting hooks. Disabled reporting publishes no observations. Existing owner
+handles, handoff guarantees, per-volume release and owner-death cleanup are
+unchanged. The slicing pool still starts before downloads can create shared
+buffers, preventing fork workers from retaining released download allocations.</p>
+<p>Linux subtracts <code>Pss_Shmem</code> from process PSS, then queries each live managed
+segment's residency once with <code>mincore</code>. This includes resident queued buffers
+whose producer has closed even if no remaining process has accessed their pages.
+macOS adds the same managed residency to <code>libproc</code> private residency, excluding
+the owner's segment ranges to avoid counting a sole-mapper segment twice. Its
+revised reader still needs native validation. POSIX residency queries use a
+temporary read-only mapping without faulting in the data or taking unlink
+authority.</p>
+<p>Windows adds manager-owned allocation sizes to the native private working-set
+counter. This is explicitly an allocated managed-buffer term, not a claim that
+all those bytes are resident. The collector no longer enumerates every Windows
+working-set page. None of the platforms adds a separate resident TIFF-cache term;
+ordinary mapped-file pages can still contribute through their process counters.
+See <a href="../../reference/run-statistics/#memory-measurements">memory measurements</a> for
+metric names, platform requirements and remaining semantic differences.</p>
+<p>Process and allocation changes invalidate an in-progress sweep. Manifest
+publication and reads share the bounded Windows sharing-violation retry used by
+collector control/result files. Persistent publication failure invalidates the
+report's memory coverage without changing scientific allocation behavior.
+Focused tests cover observations after producer attachment closure, explicit
+release, shutdown and inherited <code>ShareableList</code> registration, along with missing
+or duplicated managed-buffer accounting. The native CI matrix runs ownership
+and collector tests on Python 3.11/3.12.</p>
+<p>The earlier real-data batches in <code>python/benchmarks/README.md</code> measured the prior
+collector. Their Windows working-set enumeration overhead is historical evidence
+for this simplification, not a result for the replacement. Focused tests do not
+establish a pipeline overhead bound or replace native macOS validation.</p>
 </section>
 
             </main>

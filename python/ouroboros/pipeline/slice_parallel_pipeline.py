@@ -160,10 +160,8 @@ class SliceParallelPipelineStep(PipelineStep):
             ) as download_executor, concurrent.futures.ProcessPoolExecutor(
                 max_workers=self.execution_resources["slice_processes"]
             ) as process_executor, SharedNPManager(authkey=authkey) as (shm_host, ):
-                # The first submission starts every fork worker. Do this before
-                # downloading: otherwise workers inherit the parent's first
-                # shared volume as well as their serialized task attachment,
-                # keeping its backing alive after the manager releases it.
+                # Start fork workers before they can inherit downloaded buffers
+                # that would otherwise survive the manager's release.
                 process_executor.submit(os.getpid).result()
                 download_futures = []
                 process_futures = []

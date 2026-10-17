@@ -1,11 +1,17 @@
 import concurrent.futures
 import json
+import multiprocessing
+import os
+from pathlib import Path
+import sys
+import time
 import threading
 from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import numpy as np
+import psutil
 import pytest
 import tifffile
 from cloudvolume import Bbox
@@ -329,3 +335,75 @@ def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
         assert step.get_time_statistics()["custom_times"]["total_chunk_process"]["includes"] == ["back_project"]
     else:
         assert step.timing["custom_times"] == {}
+
+
+class LocalVolume:
+    bounds = Bbox((0, 0, 0), (4, 4, 4))
+    num_channels, shape = 1, (4, 4, 4, 1)
+
+    def download(self, bbox, **kwargs):
+        return np.full((*bbox.size3(), 1), 37, dtype=np.uint16)
+
+    def mip_resolution(self, mip):
+        return np.full(3, 1000)
+
+
+@pytest.mark.skipif(sys.platform != 'linux', reason='Inspects Linux mappings and descriptors')
+def test_released_slice_volume_has_no_worker_attachments_before_pool_shutdown(tmp_path, monkeypatch):
+    source = object.__new__(cache_module.CloudVolumeInterface)
+    source.cv, source.available_mips, source.dtype = LocalVolume(), [0], np.dtype(np.uint16)
+    rects = make_rects()
+    box = BoundingBox(BoundingBox.bounds_to_rect(0, 3, 0, 3, 0, 3))
+    cache = cache_module.VolumeCache([box], [0], source, use_shared=True)
+    cache.cache_volume = [False]
+    options = slice_options(tmp_path).model_copy(update={'make_single_file': False, 'normalize_output': False})
+    real_executor = concurrent.futures.ProcessPoolExecutor
+    real_thread_pool = slice_module.multiprocessing.pool.ThreadPool
+    pools, released, inspected = [], [], []
+
+    def executor(*args, **kwargs):
+        pool = real_executor(*args, mp_context=multiprocessing.get_context('fork'), **kwargs)
+        pools.append(pool)
+        return pool
+
+    remove_volume = cache.remove_volume
+
+    def release(index, destroy_shared=False):
+        released.append('/dev/shm/' + cache.volumes[index].name)
+        remove_volume(index, destroy_shared=destroy_shared)
+
+    @contextmanager
+    def inspect_before_rewrite(*args, **kwargs):
+        # All slice callbacks have finished, but the manager and pools are live.
+        assert len(released) == 1 and cache.volumes == [None]
+        assert len(pools[1]._processes) == 3
+        deadline = time.monotonic() + 5
+        while True:
+            retained = []
+            for pool in pools:
+                for pid in pool._processes:
+                    paths = [r.path for r in psutil.Process(pid).memory_maps(grouped=False)]
+                    for fd in Path(f'/proc/{pid}/fd').iterdir():
+                        try:
+                            paths.append(os.readlink(fd))
+                        except FileNotFoundError:
+                            pass
+                    retained.extend((pid, p) for p in paths if p.removesuffix(' (deleted)') in released)
+            if not retained:
+                break
+            assert time.monotonic() < deadline, f'Workers retain released backing: {retained}'
+            time.sleep(0.01)  # Allow the worker to discard its completed task argument.
+        inspected.append(True)
+        with real_thread_pool(*args, **kwargs) as pool:
+            yield pool
+
+    monkeypatch.setattr(slice_module.concurrent.futures, 'ProcessPoolExecutor', executor)
+    monkeypatch.setattr(cache, 'remove_volume', release)
+    monkeypatch.setattr(slice_module.multiprocessing.pool, 'ThreadPool', inspect_before_rewrite)
+    # Existing TIFF metadata compatibility is unrelated to allocation lifetime.
+    monkeypatch.setattr(slice_module, 'build_straightened_tiff_metadata',
+                        lambda **kwargs: {'photometric': 'minisblack'})
+    data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
+    _, error = Pipeline([slice_module.SliceParallelPipelineStep(processes=4)]).process(data)
+    assert error is None, error
+    assert inspected == [True]

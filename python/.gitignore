@@ -12,4 +12,5 @@ data
 .pytest_cache
 .benchmarks
 .coverage
+.coverage.*
 temp

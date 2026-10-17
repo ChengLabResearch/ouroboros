@@ -1,20 +1,109 @@
-# Docker Build Readiness
+# Development Docker and WSL troubleshooting
 
-This note captures the current build hot spots and the next cleanup targets for keeping Docker startup fast.
+Start with the [README's Development Quick Start](https://github.com/ChengLabResearch/ouroboros/blob/main/README.md#development-quick-start). It owns the installation, launch, and interactive verification sequence. This page covers backend verification and conditional troubleshooting; run commands from the repository root unless stated otherwise.
 
-## Current behavior
+## Verify and rebuild the development backend
 
-- Development startup uses `python/compose.dev.yml`, bind-mounts the Python source tree, and runs the Docker server through Uvicorn reload. Ordinary Python source edits should not require a compose rebuild.
-- Production startup uses the server image pinned by digest in the [release lock](https://github.com/ChengLabResearch/ouroboros/blob/main/release/release-lock.json). Docker pulls a missing image; the installed app does not build a server wheel or image.
-- Local plugin installation still runs an explicit compose build after copying a plugin into the app data folder. That is the correct time to build a packaged plugin backend because the app has just installed new backend files.
-- The plugin template uses `backend/compose.dev.yml` during `npm run dev-backend`, bind-mounts `backend/app`, and runs the backend in FastAPI development mode.
+Close the installed Ouroboros app and other development instances before launching. Development and installed apps share the `ouroboros-server` container name, ports, and `ouroboros-volume` volume. Do not use a running released container as evidence that the current branch is being tested.
 
-## Development compose files
+`npm run dev` starts both the Docker backend (port 8000) and the host volume-transfer service (port 3001). Starting Compose alone does not start that host service, which is needed to transfer inputs and deliver results.
 
-- `python/compose.dev.yml` is for main-server development. It still uses the normal Python Dockerfile for dependencies, but mounts `python/ouroboros` into the container and reloads the server when that package changes.
-- `plugins/plugin-template/backend/compose.dev.yml` is for template plugin backend development. It keeps the packaged `backend/compose.yml` unchanged while mounting `backend/app` for reload-oriented local edits.
-- Run `docker compose -f <compose.dev.yml> build` after dependency or Dockerfile changes. Routine source edits can use plain compose startup.
+After launching, inspect the running container:
 
-## Remaining follow-ups
+```bash
+docker inspect ouroboros-server --format '{{json .Mounts}}'
+docker logs --tail 50 ouroboros-server
+```
 
-- Keep GPU-specific containers in plugins or optional compose overrides rather than making the core app image GPU-first. The core server image does not currently require CUDA, while segmentation plugins such as SAM-backed plugins are the better place for CUDA runtime bases.
+In the mounts, the source for destination `/app/ouroboros` must correspond to **this checkout's** `python/ouroboros` directory (Docker Desktop may translate the host path). The logs should show Uvicorn watching `/app/ouroboros` and completing application startup. If the mount is absent or points to another checkout, stop the app that owns that server and restart development from the intended checkout.
+
+`python/compose.dev.yml` uses the normal Python Dockerfile for dependencies, binds the checked-out package at `/app/ouroboros`, and enables Uvicorn reload. Source edits in that package do not require an image rebuild. After dependency or Dockerfile changes, close the development app, rebuild, then relaunch using the README sequence:
+
+```bash
+docker compose -f python/compose.dev.yml build ouroboros-server
+```
+
+## Docker Desktop is running but WSL cannot connect
+
+A missing socket error such as this means the development shell cannot reach Docker:
+
+```text
+failed to connect to the docker API at unix:///var/run/docker.sock
+connect: no such file or directory
+```
+
+In Docker Desktop, enable the WSL 2 engine and **Settings → Resources → WSL Integration** for the specific distribution running development, then apply the changes. If integration settings are absent, check that Docker Desktop is using Linux containers. Retry `docker info` in the same WSL shell you use for `npm run dev`; it must return server information. Docker Desktop being open, or a container running elsewhere, does not verify this connection. See [Docker's WSL integration instructions](https://docs.docker.com/desktop/features/wsl/#enable-docker-in-a-wsl-2-distribution).
+
+## Electron uninstall after npm ci
+
+With the Electron 43.7.8 / electron-vite 5 combination tested for #141, Electron's binary was downloaded on demand, while electron-vite read Electron's `path.txt` directly. Thus an otherwise successful dependency installation could still end with `Error: Electron uninstall` at launch.
+
+Run the explicit `install-electron` step in the README. It uses [Electron's bundled installer](https://www.electronjs.org/docs/latest/tutorial/installation#binary-download-step); no custom downloader is needed. Check the installed executable with:
+
+```bash
+npm exec --no -- electron --version
+```
+
+This verifies executable installation, not the GUI or Docker connection.
+
+## JSON paths and folder selection
+
+Paths must be valid for the operating system running Electron. **Linux Electron inside WSL** needs `/mnt/c/...` or `/mnt/wsl/...`, not `C:\...` or `\\wsl$\Ubuntu\...`. Native Windows Electron uses Windows paths.
+
+Use **File → Open Folder**, choose the containing folder, then drag the JSON from the app's file explorer into **Neuroglancer JSON**. The slicing page currently ignores JSON changes before a working folder has been selected, even when the typed absolute path is valid. In the GTK folder picker, **Ctrl+L** lets you enter an absolute folder path.
+
+### Conditional X11 file-picker workaround
+
+In the session recorded in [#141](https://github.com/ChengLabResearch/ouroboros/issues/141), the app used a forwarded X11 display (`DISPLAY=localhost:10.0`), but the desktop portal lacked a usable X11 display. Portal logs reported `Failed to open X11 display` and failure to associate the dialog with its parent. The user saw a nonfunctional window with `[WARN:COPY MODE]` in its title; that title alone is not a diagnosis.
+
+For this portal/X11 mismatch, close the development app and launch with:
+
+```bash
+GDK_BACKEND=x11 npm run dev -- -- --xdg-portal-required-version=999
+```
+
+Both `--` separators are intentional: npm consumes the first, and electron-vite forwards the arguments after the second to Electron. The [portal-version switch](https://www.electronjs.org/docs/latest/api/command-line-switches#--xdg-portal-required-versionversion) selects the native GTK dialog when the portal does not meet that version requirement; `GDK_BACKEND=x11` uses the app's X11 display. An actual Electron 43.7.8 folder dialog was verified with this launch. This is conditional troubleshooting, not a requirement for every WSL installation, and it does not establish that WebGL works.
+
+## WebGL preview failures
+
+The slicing page's React Three Fiber `Canvas` in `VisualizeSlicing.tsx` draws the 3D slice/bounding-box preview. These repeated messages indicate that its WebGL context could not be created:
+
+```text
+THREE.WebGLRenderer: A WebGL context could not be created.
+GL_VENDOR = Disabled, GL_RENDERER = Disabled, Sandboxed = yes
+ErrorMessage = BindToCurrentSequence failed
+```
+
+The app does not explicitly disable hardware acceleration and currently provides no preview fallback for context creation failure. A functioning file picker and successful backend processing are separate from a functioning preview.
+
+### Capture the failing launch
+
+- Record the launch command, Electron version, and `DISPLAY`, `WAYLAND_DISPLAY`, and `XDG_SESSION_TYPE` from its shell. Distinguish a WSLg session from forwarded X11; the observed `localhost:10.0` was forwarded X11. Check [Microsoft's WSL GUI/OpenGL prerequisites](https://learn.microsoft.com/en-us/windows/wsl/tutorials/gui-apps) for WSLg.
+- Capture the preview error from the renderer's DevTools console (**F12** in development) and GPU messages from the launch terminal. For Chromium logging and a main-process debugger, add `--inspect` before electron-vite's `--` and `--enable-logging` after it: `npm run dev -- --inspect -- --enable-logging`. Retain any display settings and other Electron switches from the failing launch. Attach a Node debugger to the inspector address printed in the terminal (electron-vite 5 defaults to port 5858).
+- In that **main-process** debugger, collect Electron's [`app.getGPUFeatureStatus()`](https://www.electronjs.org/docs/latest/api/app#appgetgpufeaturestatus) after GPU initialization (`gpu-info-update`), and [`app.getGPUInfo('complete')`](https://www.electronjs.org/docs/latest/api/app#appgetgpuinfoinfotype), including any rejection. These APIs belong to `app` from `electron`, not the renderer's console. Use diagnostics from the actual failing app; an isolated probe alone does not establish its GPU state.
+
+An isolated Electron 43.7.8 check on the same forwarded display reproduced `WebGL2 blocklisted` / `unavailable_off`. The exact blocklist cause and trigger for repeated preview renders remain unconfirmed; forwarded X11 is diagnostic context, not a proven cause.
+
+### Verified software-rendering launch
+
+For the affected environment, close the development app and retain the working file-picker configuration while selecting the bundled SwiftShader driver:
+
+```bash
+GDK_BACKEND=x11 npm run dev -- -- \
+  --xdg-portal-required-version=999 \
+  --use-gl=angle \
+  --use-angle=swiftshader
+```
+
+These [Chromium driver switches](https://chromium.googlesource.com/chromium/src/+/main/docs/gpu/swiftshader.md) render on the CPU and may be slower than hardware acceleration. They apply to this launch and require no source changes. Do not use `--disable-gpu` or `--no-sandbox` as the standard fix.
+
+The isolated Electron 43.7.8 check created WebGL2 with an ANGLE/SwiftShader renderer and returned the expected pixel `[255,128,0,255]`. The owner subsequently confirmed that the same command worked in the actual development app. This was **not warning-free**: the app still printed an automatic SwiftShader fallback deprecation warning despite the explicit driver switches. The probe also logged a GPU stall from its synchronous `readPixels` check. The tested launch needed neither `--enable-unsafe-swiftshader` nor `--no-sandbox`; do not add the unsafe opt-in merely to suppress the warning.
+
+The earlier eight successful Docker operations and delivered statistics verified backend/output delivery; the later owner confirmation verified the preview separately. These observations are recorded in [#141](https://github.com/ChengLabResearch/ouroboros/issues/141), not a claim of new GUI testing for this documentation change. A graceful preview fallback or logging change is a separate application task.
+
+## Other build paths
+
+- Installed apps use the server image pinned by digest in the [release lock](https://github.com/ChengLabResearch/ouroboros/blob/main/release/release-lock.json). Docker pulls a missing image; the installed app does not build a server wheel or image.
+- Local plugin installation explicitly builds Compose after copying the plugin into the app data folder, when its new backend files become available.
+- The plugin template uses `plugins/plugin-template/backend/compose.dev.yml` during `npm run dev-backend`, mounts `backend/app`, and runs FastAPI development mode. Rebuild that Compose service after dependency or Dockerfile changes; ordinary source edits use reload. The packaged `backend/compose.yml` stays unchanged.
+- Keep GPU-specific containers in plugins or optional Compose overrides. The core server does not require CUDA; segmentation plugins such as SAM-backed plugins are the appropriate place for CUDA runtime bases.

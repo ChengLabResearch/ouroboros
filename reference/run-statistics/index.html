@@ -773,16 +773,23 @@ three annotation paths, slicing and backprojecting each sliced intensity volume.
 The data-step differences varied in sign between pairs; positive median
 differences were smaller than at least one treatment's MAD. All enabled runs
 returned usable RAM samples. These small samples do not establish a 1% bound.</p>
-<p>Native Windows real-data tests required an isolated CloudFiles timing workaround
-and a production shared-memory cleanup fix. Five slicing/backprojection workflows
-then completed; seven slicing trials failed during shared-memory result transfer,
-so their dependent backprojections were skipped. Two of the four completed enabled
-operations reported unavailable RAM after mapping-manifest publication failures.
-These findings block native Windows acceptance. The separate +4.10% Windows
-component stress diagnostic is not a real pipeline acceptance measurement. Native macOS pipeline overhead
-has not been measured. See the benchmark guide for all times, variability,
-sampling cost, execution blockers and coverage limitations. No cross-platform
-1% guarantee is claimed.</p>
+<p>The fresh native Windows rerun after PR #146 and manager-observer integration
+completed all 12 slicing/backprojection workflows (24 operations). All 12 enabled
+operations returned usable partial peaks; the previous transfer and manifest
+publication failures did not recur. The isolated CloudFiles workaround remained
+identical in both treatments and is still not a shipped dependency fix.</p>
+<p>Long-path median in-operation overhead was +6.498% for slicing and +3.851% for
+backprojection. Both operations were slower in both pairs and their median
+differences exceeded either treatment's MAD. This is an unresolved performance
+finding, not negligible overhead or completion of the 1% engineering target.
+The short-path positive median differences were below at least one treatment's
+MAD. Two pairs on a shared host do not establish a strict bound. The queued,
+untouched shared-backing gap described above also remains open.</p>
+<p>The earlier failed Windows batch is retained, as is the separate component stress
+diagnostic; neither substitutes for the fresh real-data evidence. Native macOS
+pipeline overhead has not been measured. See the benchmark guide for every
+attempt, timing, variability, sampling cost and remaining deployment limitation.
+No cross-platform 1% guarantee is claimed.</p>
 </section>
 
             </main>

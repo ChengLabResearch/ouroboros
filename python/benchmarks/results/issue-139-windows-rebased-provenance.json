@@ -1,0 +1,41 @@
+{
+  "production_commit": "be879511df8ae51790d12dfbc9bfcee0e1565831",
+  "base_commit": "f566276596f47a5cbbe4f55073a66aa7eb2906b2",
+  "production_python_sha256": "71bbd5379330d33d1f679f030f4f37a269b8f00595682dcad04e706dabce2af9",
+  "benchmark_python_sha256": "e0dbe2830828c194ca635a181daeef9d11b825936b11ffe358f9ad785f5f2d2d",
+  "result_file": "issue-139-real-windows-rebased.json",
+  "result_sha256": "95dfe9a23ce94919519cae5366e6243fde7811b6745323db7dbe11e281bea3a8",
+  "runtime": "ouroboros-139-69c872b6760846a9adcfb89861d6f544",
+  "source_directory": "issue144-rebased-source",
+  "results_directory": "real-data-rebased-results",
+  "prior_results_preserved": "issue-139-real-windows.json and its original runtime output directory were not modified.",
+  "method": "All three real annotation paths; one disabled slicing warmup per path; two off/on pairs in off/on then on/off order; each treatment backprojects its own sliced intensity output. No retries, resumption, or pixel hashing.",
+  "timing": "Existing SliceParallelPipelineStep / BackprojectPipelineStep durations. Setup before data operations and final reporting/delivery are excluded. The external Pipeline.process timer is retained separately.",
+  "source_invariance": "The isolated Windows production digest matches the repository before and after the batch. Subsequent changes during the batch affected only tests, documentation, and the CI coverage badge.",
+  "dependency_workaround": {
+    "package": "cloud-files",
+    "version": "5.8.2",
+    "before_sha256": "3795ead0f6192b53b1a18b70045b279df6aaedd1254e063c467d84cff2376a8a",
+    "after_sha256": "5af0e7827d6ec01c4f3155d52f7a94c15bd079934aa872ea3ea9bfefe3c91242",
+    "scope": "Isolated Windows test dependency only, identical for reporting off/on; repository dependency unchanged. Zero-duration transfer-monitor intervals represented as one microsecond.",
+    "reason": "Windows Python 3.11 time.monotonic uses GetTickCount64 at 15.625 ms resolution; CloudFiles rejects zero-width transfer intervals.",
+    "failed_warmup_stderr": "Pipeline Error: IntervalTree: Null Interval objects not allowed in IntervalTree: Interval(290793468000, 290793468000, [UUID('d4adaaf5-c9f3-11f1-b87e-6c94661922eb'), 2069])\n",
+    "windows_clock": {
+      "implementation": "GetTickCount64()",
+      "resolution_seconds": 0.015625
+    },
+    "patch_file": "issue-139-cloudfiles-zero-interval.patch"
+  },
+  "runtime_verification": "SOURCE: C:\\Users\\dnorthover\\AppData\\Local\\Temp\\ouroboros-139-69c872b6760846a9adcfb89861d6f544\\issue144-rebased-source\\ouroboros\\helpers\\mem.py\nCLOUDFILES_MONITOR_SHA256: 5af0e7827d6ec01c4f3155d52f7a94c15bd079934aa872ea3ea9bfefe3c91242\n",
+  "focused_windows_tests": "SOURCE: C:\\Users\\dnorthover\\AppData\\Local\\Temp\\ouroboros-139-69c872b6760846a9adcfb89861d6f544\\issue144-rebased-source\\ouroboros\\helpers\\mem.py\n.................s........s....................................s........ [ 64%]\n.......................................s                                 [100%]\n108 passed, 4 skipped in 31.97s\n",
+  "local_linux_full_suite": "363 passed, 3 skipped in 26.36s; no warnings.",
+  "ci": {
+    "revision": "c70f715",
+    "native_and_coverage": "https://github.com/ChengLabResearch/ouroboros/actions/runs/39048089093",
+    "server_image": "https://github.com/ChengLabResearch/ouroboros/actions/runs/39048089032",
+    "result": "All six native jobs, coverage, and server-image passed. The Windows 3.12 short smoke test was corrected to allow zero OS CPU ticks after otherwise successful collection; no production change."
+  },
+  "progress_log": "Posterior Salivary Duct 2: slicing cache warmup\nPosterior Salivary Duct 2: pair 1/2, enabled=False, slicing\nPosterior Salivary Duct 2: pair 1/2, enabled=False, backprojection\nPosterior Salivary Duct 2: pair 1/2, enabled=True, slicing\nPosterior Salivary Duct 2: pair 1/2, enabled=True, backprojection\nPosterior Salivary Duct 2: pair 2/2, enabled=True, slicing\nPosterior Salivary Duct 2: pair 2/2, enabled=True, backprojection\nPosterior Salivary Duct 2: pair 2/2, enabled=False, slicing\nPosterior Salivary Duct 2: pair 2/2, enabled=False, backprojection\nPosterior Salivary Duct 2: slice: 2.1788645765290493\nPosterior Salivary Duct 2: backproject: 0.43956950027110864\nPosterior Salivary Duct 3: slicing cache warmup\nPosterior Salivary Duct 3: pair 1/2, enabled=False, slicing\nPosterior Salivary Duct 3: pair 1/2, enabled=False, backprojection\nPosterior Salivary Duct 3: pair 1/2, enabled=True, slicing\nPosterior Salivary Duct 3: pair 1/2, enabled=True, backprojection\nPosterior Salivary Duct 3: pair 2/2, enabled=True, slicing\nPosterior Salivary Duct 3: pair 2/2, enabled=True, backprojection\nPosterior Salivary Duct 3: pair 2/2, enabled=False, slicing\nPosterior Salivary Duct 3: pair 2/2, enabled=False, backprojection\nPosterior Salivary Duct 3: slice: 4.876648044318843\nPosterior Salivary Duct 3: backproject: -1.0255871640735381\nPosterior Salivary Duct: slicing cache warmup\nPosterior Salivary Duct: pair 1/2, enabled=False, slicing\nPosterior Salivary Duct: pair 1/2, enabled=False, backprojection\nPosterior Salivary Duct: pair 1/2, enabled=True, slicing\nPosterior Salivary Duct: pair 1/2, enabled=True, backprojection\nPosterior Salivary Duct: pair 2/2, enabled=True, slicing\nPosterior Salivary Duct: pair 2/2, enabled=True, backprojection\nPosterior Salivary Duct: pair 2/2, enabled=False, slicing\nPosterior Salivary Duct: pair 2/2, enabled=False, backprojection\nPosterior Salivary Duct: slice: 6.4975240898367925\nPosterior Salivary Duct: backproject: 3.850611863554021\nFull results and per-run logs: C:\\Users\\dnorthover\\AppData\\Local\\Temp\\ouroboros-139-69c872b6760846a9adcfb89861d6f544\\real-data-rebased-results\\results.json\n",
+  "assessment": "All 24 data operations and 3 slicing warmups succeeded. All 12 enabled operations returned usable partial peaks; incomplete sweeps report mapping/process churn. No manifest-publication failure recurred. Long-path slicing and backprojection were slower in both pairs; median differences exceeded either treatment MAD and remain performance findings. Two pairs on a shared host do not establish a causal estimate or strict statistical bound.",
+  "limitations": "The pre-existing queued/untouched shared-backing accounting gap remains on Linux/PSS and Windows working-set metrics. Successful partial sampling does not close that coverage requirement. Native macOS pipeline and remaining Docker delivery acceptance are not established by this batch."
+}

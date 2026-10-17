@@ -178,7 +178,7 @@ repeated the two pairs for every path with both timing boundaries captured and
 reused the downloaded chunks. Windows dependency installation overlapped only
 that preliminary attempt, not the corrected measured run.
 
-### Native Windows real-data results and failures
+### Historical native Windows results before #145
 
 [Windows results](results/issue-139-real-windows.json) use the same dataset,
 settings and two off/on pairs per path, with native Python 3.11.9 and
@@ -244,9 +244,72 @@ in both reporting modes. A further long-path diagnostic with full chained
 tracebacks confirmed `FileNotFoundError` while deserializing `SharedMemory` from
 the result pipe: the allocation no longer exists when the receiver reopens its
 name. This is a separate transfer-lifetime problem from the fixed final cleanup.
-It remains unresolved, as do the mapping-manifest publication failures.
+At that revision it remained unresolved, as did mapping-manifest publication
+failures. PR #146 subsequently fixed the handoff lifecycle; the rebased results
+are recorded separately below.
 [All failure and regression provenance](results/issue-139-windows-run-provenance.json)
-is retained. Native Windows acceptance remains blocked; the PR stays draft.
+is retained. These historical failures are not replaced or removed by the new
+batch. Overall #139 acceptance still requires the remaining accounting and
+deployment work.
+
+### Native Windows rerun after rebasing onto #145
+
+[Fresh results](results/issue-139-real-windows-rebased.json) and
+[provenance](results/issue-139-windows-rebased-provenance.json) record production
+`be87951`, rebased onto merged PR #146 (`f566276`). The manager retains allocation
+handles; the observer derives mappings from those handles, and manifest reads
+and replacement reuse the bounded Windows IPC retry. The original failed batch
+above is retained unchanged.
+
+All three cache warmups and **all 12 slicing → backprojection workflows
+(24 data operations) succeeded**. All 12 enabled operations returned usable
+`partial` peaks. No by-name transfer failure or manifest-publication failure
+recurred. Incomplete sweeps were caused by process exits or changing mappings /
+process trees and excluded from peaks. These are sampled, partial measurements,
+not proof of complete resident backing coverage.
+
+The settings and alternating pair order are unchanged. Native Python 3.11.9 uses
+12 workers and one BLAS/OpenMP thread, a shared existing chunk cache, and fresh
+Windows-local outputs. Each backprojection consumes its own sliced intensity
+volume. The isolated CloudFiles workaround above is unchanged (verified by
+hash), identical for both treatments, and remains outside the repository.
+Production and benchmark digests match the repository; production stayed fixed
+throughout. No failed trials were retried or selected out. Linux benchmarks did
+not run concurrently; the shared development host was not otherwise isolated.
+
+| Path | Operation | Off median (s) | On median (s) | Difference (s) | Observed difference | MAD off / on (s) |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Posterior Salivary Duct 2 | slice | 23.073508 | 23.576249 | +0.502741 | +2.179% | 0.684345 / 0.099444 |
+| Posterior Salivary Duct 2 | backproject | 18.122470 | 18.202131 | +0.079661 | +0.440% | 0.086043 / 0.261774 |
+| Posterior Salivary Duct 3 | slice | 22.707309 | 23.814665 | +1.107356 | +4.877% | 0.270171 / 1.342440 |
+| Posterior Salivary Duct 3 | backproject | 18.782255 | 18.589627 | -0.192628 | -1.026% | 0.216100 / 0.406218 |
+| Posterior Salivary Duct | slice | 35.535106 | 37.844008 | +2.308902 | +6.498% | 1.305884 / 1.203964 |
+| Posterior Salivary Duct | backproject | 72.287309 | 75.070813 | +2.783504 | +3.851% | 0.455517 / 0.957966 |
+
+The long path is an **unresolved performance finding** under the existing
+in-operation target. Slicing was slower by 5.991% and 7.043% in the two pairs;
+backprojection by 5.843% and 1.883%. Their median increases (2.309 s and 2.784 s)
+exceed either treatment's MAD. These results do not support a negligible-overhead
+claim or completion of the 1% engineering target. Two pairs on a shared host do
+not establish a strict bound or isolate the cause; no extra trials were run to
+seek a better result. On the short paths, positive median differences are smaller
+than at least one treatment's MAD. Duct 3 slicing was slower in both pairs, but
+one difference was only 0.156%; its median difference is below the enabled MAD.
+
+Slicing had 16–21 complete and 6–21 incomplete sweeps per enabled operation;
+backprojection had 16–68 complete and 3–10 incomplete sweeps. The requested
+interval was one second. Long-path maximum sweep times reached 1.337 s for
+slicing and 2.144 s for backprojection; observer CPU was 4.17–4.23 s and
+6.58–7.16 s respectively. These are diagnostic costs, not additive wall-time
+overhead. Every peak, interval, count, error and timing is retained in the raw
+artifact.
+
+The draft still has the Linux/default-Docker accounting blocker: resident shared
+backing can be absent from PSS when no current mapping has touched it. The native
+Windows working-set metric has the corresponding exclusion. Keeping an untouched
+manager mapping alive fixes lifetime, not residency attribution. A revised metric
+needs defined semantics and validation, and remaining native macOS / Docker
+host-delivery requirements are still open.
 
 ## Recorded pipeline-only measurement
 
@@ -329,6 +392,6 @@ correctly reported unavailable memory.
 The idle native reader cost was 50.66 ms for a 256 MiB allocation across three
 processes and 511.09 ms for 1 GiB across nine. It counted the shared allocation
 once in every sweep, beyond Windows' share-count cap. The diagnostic preserves
-all paired times, sample/CPU details and idle measurements. This component test does not determine real pipeline acceptance. The requested
-real-data Windows trials exposed transfer-lifetime and mapping-publication failures
-as described above; native Windows pipeline acceptance remains unvalidated. The default Docker backend uses the Linux collector.
+all paired times, sample/CPU details and idle measurements. This component test does not determine real pipeline acceptance. The original real-data Windows trials exposed transfer-lifetime and mapping-publication
+failures. The post-rebase rerun above completed but retains performance and
+accounting findings; native Windows acceptance remains open. The default Docker backend uses the Linux collector.

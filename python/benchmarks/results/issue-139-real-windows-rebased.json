@@ -1,0 +1,3774 @@
+{
+  "schema_version": 1,
+  "scope": "Existing data-processing step duration; excludes preceding parsing, geometry and source/cache setup. External Pipeline.process timer retained separately. Both exclude sampler startup/shutdown and final reporting.",
+  "cache_policy": "One disabled slicing warmup per path; shared CloudVolume cache across all trials. Remote metadata requests may remain.",
+  "cloudvolume_cache_directory": "C:\\Users\\dnorthover\\AppData\\Local\\Temp\\ouroboros-139-69c872b6760846a9adcfb89861d6f544\\real-data-patched-results\\cloudvolume-cache",
+  "hardware": {
+    "platform": "Windows-10-10.0.22631-SP0",
+    "processor": "Intel64 Family 6 Model 165 Stepping 2, GenuineIntel",
+    "logical_cpus": 12,
+    "python": "3.11.9"
+  },
+  "versions": {
+    "numpy": "1.26.4",
+    "scipy": "1.11.2",
+    "tifffile": "2024.12.12",
+    "cloud-volume": "12.7.0",
+    "psutil": "7.1.3"
+  },
+  "production_python_sha256": "71bbd5379330d33d1f679f030f4f37a269b8f00595682dcad04e706dabce2af9",
+  "benchmark_python_sha256": "e0dbe2830828c194ca635a181daeef9d11b825936b11ffe358f9ad785f5f2d2d",
+  "annotation_sha256": "415049492ae667e2467ac575cc28d51a6254e699c4631e233971e46d4b7a001e",
+  "slice_options_template": {
+    "neuroglancer_json": "C:\\Users\\dnorthover\\AppData\\Local\\Temp\\ouroboros-139-69c872b6760846a9adcfb89861d6f544\\real-data-rebased-results\\annotations.json",
+    "neuroglancer_image_layer": "PSU Octo9 16bit S1p4s2p2 sharded",
+    "neuroglancer_annotation_layer": "Posterior Salivary Duct 2",
+    "slice_width": 120,
+    "slice_height": 120,
+    "output_file_folder": "/mnt/wsl/PHYSICALDRIVE2p1/ouroboros_demo/legacy/original_layout/Octopus_Posterior_Salivary_Duct/perfdatatest/",
+    "output_file_name": "TestOne",
+    "annotation_mip_level": 0,
+    "output_mip_level": 0,
+    "slicing_params": {
+      "dist_between_slices": 1,
+      "use_adaptive_slicing": true,
+      "adaptive_slicing_ratio": 0.5
+    },
+    "make_single_file": true,
+    "connect_start_and_end": false,
+    "normalize_output": true,
+    "zeroguard_output": true,
+    "flush_cache": false,
+    "bounding_box_params": {
+      "max_depth": 12,
+      "target_slices_per_box": 128
+    }
+  },
+  "backproject_options_template": {
+    "straightened_volume_path": "/mnt/wsl/PHYSICALDRIVE2p1/ouroboros_demo/legacy/original_layout/Octopus_Posterior_Salivary_Duct/perfdatatest/TestOne.tif",
+    "slice_options_path": "/mnt/wsl/PHYSICALDRIVE2p1/ouroboros_demo/legacy/original_layout/Octopus_Posterior_Salivary_Duct/perfdatatest/TestOne-slice-options.json",
+    "output_file_folder": "/mnt/wsl/PHYSICALDRIVE2p1/ouroboros_demo/legacy/original_layout/Octopus_Posterior_Salivary_Duct/perfdatatest/",
+    "output_file_name": "BPTestOne",
+    "output_mip_level": 0,
+    "upsample_order": 2,
+    "backprojection_compression": "zlib",
+    "make_single_file": false,
+    "backproject_min_bounding_box": true,
+    "make_backprojection_binary": false,
+    "make_backprojection_discrete": false,
+    "offset_in_name": true,
+    "flush_cache": false,
+    "process_count": 12,
+    "chunk_size": 160
+  },
+  "workers": 12,
+  "pairs": 2,
+  "paths": {
+    "Posterior Salivary Duct 2": {
+      "annotation_points": 10,
+      "runs": [
+        {
+          "handler_elapsed_seconds": 23.366101999999955,
+          "pipeline_elapsed_seconds": 23.350639000011142,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0019625999848358333,
+            "SlicesGeometryPipelineStep": 0.1529171000001952,
+            "VolumeCachePipelineStep": 0.8063854000065476,
+            "SliceParallelPipelineStep": 22.389162899984512
+          },
+          "data_operation_elapsed_seconds": 22.389162899984512,
+          "enabled": false,
+          "process_elapsed_seconds": 30.2277339999564,
+          "label": "path-0-pair-1-0-slice",
+          "statistics_files": [],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 875,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 25410620
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 19.16908320004586,
+          "pipeline_elapsed_seconds": 19.14775320002809,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.001898899965453893,
+            "SlicesGeometryPipelineStep": 0.10717850003857166,
+            "VolumeCachePipelineStep": 0.8298263999749906,
+            "BackprojectPipelineStep": 18.208512700046413
+          },
+          "data_operation_elapsed_seconds": 18.208512700046413,
+          "enabled": false,
+          "process_elapsed_seconds": 25.890469799982384,
+          "label": "path-0-pair-1-0-backproject",
+          "statistics_files": [],
+          "output_header": {
+            "files": 571,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              384,
+              495
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 26553866
+          },
+          "operation": "backproject"
+        },
+        {
+          "handler_elapsed_seconds": 25.758988500048872,
+          "pipeline_elapsed_seconds": 24.695376400020905,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0019253999926149845,
+            "SlicesGeometryPipelineStep": 0.10223630000837147,
+            "VolumeCachePipelineStep": 0.9151242999942042,
+            "SliceParallelPipelineStep": 23.675692399963737
+          },
+          "data_operation_elapsed_seconds": 23.675692399963737,
+          "enabled": true,
+          "process_elapsed_seconds": 33.29345589998411,
+          "label": "path-0-pair-1-1-slice",
+          "statistics_files": [
+            "path-0-pair-1-1-slice\\output\\slice-slice-e39c002a-d9ab-43a8-b665-e8834d5fb9c4-statistics.json"
+          ],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 875,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 25410620
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+            "unit": "bytes",
+            "method": "QueryWorkingSet and tracked allocation/page union",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 1186975744,
+            "last_complete_sample_bytes": 1186975744,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.00043099996401,
+                "max": 1.031383600027766
+              },
+              "complete_samples": 17,
+              "incomplete_samples": 8,
+              "discarded_samples": 0,
+              "max_process_count": 14,
+              "max_sweep_seconds": 0.6158682000241242,
+              "collector_cpu_seconds": 2.796875,
+              "window_seconds": 24.697831200028304,
+              "first_sample_start_seconds": 0.023192499997094274,
+              "last_sample_end_seconds": 24.34071140002925
+            },
+            "errors": [
+              {
+                "kind": "NoSuchProcess",
+                "count": 1,
+                "example": "process no longer exists (pid=41136)"
+              },
+              {
+                "kind": "OSError",
+                "count": 7,
+                "example": "Mapping observations changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 19.961727200017776,
+          "pipeline_elapsed_seconds": 18.937046899984125,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0018429000047035515,
+            "SlicesGeometryPipelineStep": 0.15828809997765347,
+            "VolumeCachePipelineStep": 0.8362208000035025,
+            "BackprojectPipelineStep": 17.94035689998418
+          },
+          "data_operation_elapsed_seconds": 17.94035689998418,
+          "enabled": true,
+          "process_elapsed_seconds": 26.802980199980084,
+          "label": "path-0-pair-1-1-backproject",
+          "statistics_files": [
+            "path-0-pair-1-1-backproject\\output\\backproject-backproject-3b64abd6-8bb9-40a3-ae42-bd30e6209f95-statistics.json"
+          ],
+          "output_header": {
+            "files": 571,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              384,
+              495
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 26553866
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+            "unit": "bytes",
+            "method": "QueryWorkingSet and tracked allocation/page union",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 1514643456,
+            "last_complete_sample_bytes": 875532288,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.0006230000290088,
+                "max": 1.0436651000054553
+              },
+              "complete_samples": 16,
+              "incomplete_samples": 3,
+              "discarded_samples": 0,
+              "max_process_count": 10,
+              "max_sweep_seconds": 0.4560052000451833,
+              "collector_cpu_seconds": 1.34375,
+              "window_seconds": 18.94467309996253,
+              "first_sample_start_seconds": 0.031418200000189245,
+              "last_sample_end_seconds": 18.27897420001682
+            },
+            "errors": [
+              {
+                "kind": "OSError",
+                "count": 3,
+                "example": "Process tree changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "backproject"
+        },
+        {
+          "handler_elapsed_seconds": 25.592017200018745,
+          "pipeline_elapsed_seconds": 24.461450800008606,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0015758000081405044,
+            "SlicesGeometryPipelineStep": 0.10428600001614541,
+            "VolumeCachePipelineStep": 0.8786148999934085,
+            "SliceParallelPipelineStep": 23.476805299986154
+          },
+          "data_operation_elapsed_seconds": 23.476805299986154,
+          "enabled": true,
+          "process_elapsed_seconds": 32.3345158000011,
+          "label": "path-0-pair-2-1-slice",
+          "statistics_files": [
+            "path-0-pair-2-1-slice\\output\\slice-slice-e88d1b1f-0b5b-4811-962c-d1c1e371fdee-statistics.json"
+          ],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 875,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 25410620
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+            "unit": "bytes",
+            "method": "QueryWorkingSet and tracked allocation/page union",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 1155846144,
+            "last_complete_sample_bytes": 396140544,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.0006399999838322,
+                "max": 1.0135030999663286
+              },
+              "complete_samples": 16,
+              "incomplete_samples": 9,
+              "discarded_samples": 0,
+              "max_process_count": 14,
+              "max_sweep_seconds": 0.6830825000070035,
+              "collector_cpu_seconds": 2.328125,
+              "window_seconds": 24.468559100001585,
+              "first_sample_start_seconds": 0.024001399986445904,
+              "last_sample_end_seconds": 24.28176679997705
+            },
+            "errors": [
+              {
+                "kind": "NoSuchProcess",
+                "count": 1,
+                "example": "process no longer exists (pid=17120)"
+              },
+              {
+                "kind": "OSError",
+                "count": 8,
+                "example": "Mapping observations changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 20.555466999998316,
+          "pipeline_elapsed_seconds": 19.476416799996514,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0013487999676726758,
+            "SlicesGeometryPipelineStep": 0.11500240000896156,
+            "VolumeCachePipelineStep": 0.8958894000388682,
+            "BackprojectPipelineStep": 18.46390439994866
+          },
+          "data_operation_elapsed_seconds": 18.46390439994866,
+          "enabled": true,
+          "process_elapsed_seconds": 27.311312399979215,
+          "label": "path-0-pair-2-1-backproject",
+          "statistics_files": [
+            "path-0-pair-2-1-backproject\\output\\backproject-backproject-197d7104-ce1f-4b22-994c-7c4064dcb432-statistics.json"
+          ],
+          "output_header": {
+            "files": 571,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              384,
+              495
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 26553866
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+            "unit": "bytes",
+            "method": "QueryWorkingSet and tracked allocation/page union",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 1702633472,
+            "last_complete_sample_bytes": 760307712,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.000586700043641,
+                "max": 1.0110982999904081
+              },
+              "complete_samples": 17,
+              "incomplete_samples": 3,
+              "discarded_samples": 0,
+              "max_process_count": 10,
+              "max_sweep_seconds": 0.5322616000194103,
+              "collector_cpu_seconds": 1.109375,
+              "window_seconds": 19.483514499966986,
+              "first_sample_start_seconds": 0.03617739997571334,
+              "last_sample_end_seconds": 19.314207699964754
+            },
+            "errors": [
+              {
+                "kind": "NoSuchProcess",
+                "count": 1,
+                "example": "process no longer exists (pid=10588)"
+              },
+              {
+                "kind": "OSError",
+                "count": 2,
+                "example": "Process tree changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "backproject"
+        },
+        {
+          "handler_elapsed_seconds": 25.066226100025233,
+          "pipeline_elapsed_seconds": 25.043386100034695,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.001407100004144013,
+            "SlicesGeometryPipelineStep": 0.16299139999318868,
+            "VolumeCachePipelineStep": 1.120750300004147,
+            "SliceParallelPipelineStep": 23.757853799965233
+          },
+          "data_operation_elapsed_seconds": 23.757853799965233,
+          "enabled": false,
+          "process_elapsed_seconds": 32.68893030000618,
+          "label": "path-0-pair-2-0-slice",
+          "statistics_files": [],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 875,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 25410620
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 19.089250099961646,
+          "pipeline_elapsed_seconds": 19.043723200040404,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.002086399996187538,
+            "SlicesGeometryPipelineStep": 0.1358028000104241,
+            "VolumeCachePipelineStep": 0.8690502000390552,
+            "BackprojectPipelineStep": 18.036426900012884
+          },
+          "data_operation_elapsed_seconds": 18.036426900012884,
+          "enabled": false,
+          "process_elapsed_seconds": 26.053482400020584,
+          "label": "path-0-pair-2-0-backproject",
+          "statistics_files": [],
+          "output_header": {
+            "files": 571,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              384,
+              495
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 26553866
+          },
+          "operation": "backproject"
+        }
+      ],
+      "slicing_warmup": {
+        "handler_elapsed_seconds": 25.457369500014465,
+        "pipeline_elapsed_seconds": 25.43873569997959,
+        "step_elapsed_seconds": {
+          "ParseJSONPipelineStep": 0.0014383000088855624,
+          "SlicesGeometryPipelineStep": 0.10465260001365095,
+          "VolumeCachePipelineStep": 1.0043842000304721,
+          "SliceParallelPipelineStep": 24.32800399995176
+        },
+        "data_operation_elapsed_seconds": 24.32800399995176,
+        "enabled": false,
+        "process_elapsed_seconds": 34.623359699966386,
+        "label": "path-0-warmup",
+        "statistics_files": [],
+        "output_header": {
+          "files": 1,
+          "pages_in_first_file": 875,
+          "page_shape": [
+            120,
+            120
+          ],
+          "dtype": "uint16",
+          "storage_bytes": 25410620
+        }
+      },
+      "operations": {
+        "slice": {
+          "disabled": {
+            "median_seconds": 23.073508349974873,
+            "min_seconds": 22.389162899984512,
+            "max_seconds": 23.757853799965233,
+            "median_absolute_deviation_seconds": 0.6843454499903601,
+            "samples_seconds": [
+              22.389162899984512,
+              23.757853799965233
+            ]
+          },
+          "enabled": {
+            "median_seconds": 23.576248849974945,
+            "min_seconds": 23.476805299986154,
+            "max_seconds": 23.675692399963737,
+            "median_absolute_deviation_seconds": 0.09944354998879135,
+            "samples_seconds": [
+              23.675692399963737,
+              23.476805299986154
+            ]
+          },
+          "median_elapsed_overhead_percent": 2.1788645765290493,
+          "paired_overhead_percent": [
+            5.746215281591049,
+            -1.1829709128839294
+          ],
+          "measured_median_at_most_one_percent": false,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 23.366101999999955,
+              "pipeline_elapsed_seconds": 23.350639000011142,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0019625999848358333,
+                "SlicesGeometryPipelineStep": 0.1529171000001952,
+                "VolumeCachePipelineStep": 0.8063854000065476,
+                "SliceParallelPipelineStep": 22.389162899984512
+              },
+              "data_operation_elapsed_seconds": 22.389162899984512,
+              "enabled": false,
+              "process_elapsed_seconds": 30.2277339999564,
+              "label": "path-0-pair-1-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 875,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25410620
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 25.758988500048872,
+              "pipeline_elapsed_seconds": 24.695376400020905,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0019253999926149845,
+                "SlicesGeometryPipelineStep": 0.10223630000837147,
+                "VolumeCachePipelineStep": 0.9151242999942042,
+                "SliceParallelPipelineStep": 23.675692399963737
+              },
+              "data_operation_elapsed_seconds": 23.675692399963737,
+              "enabled": true,
+              "process_elapsed_seconds": 33.29345589998411,
+              "label": "path-0-pair-1-1-slice",
+              "statistics_files": [
+                "path-0-pair-1-1-slice\\output\\slice-slice-e39c002a-d9ab-43a8-b665-e8834d5fb9c4-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 875,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25410620
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1186975744,
+                "last_complete_sample_bytes": 1186975744,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.00043099996401,
+                    "max": 1.031383600027766
+                  },
+                  "complete_samples": 17,
+                  "incomplete_samples": 8,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 0.6158682000241242,
+                  "collector_cpu_seconds": 2.796875,
+                  "window_seconds": 24.697831200028304,
+                  "first_sample_start_seconds": 0.023192499997094274,
+                  "last_sample_end_seconds": 24.34071140002925
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=41136)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 7,
+                    "example": "Mapping observations changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 25.592017200018745,
+              "pipeline_elapsed_seconds": 24.461450800008606,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0015758000081405044,
+                "SlicesGeometryPipelineStep": 0.10428600001614541,
+                "VolumeCachePipelineStep": 0.8786148999934085,
+                "SliceParallelPipelineStep": 23.476805299986154
+              },
+              "data_operation_elapsed_seconds": 23.476805299986154,
+              "enabled": true,
+              "process_elapsed_seconds": 32.3345158000011,
+              "label": "path-0-pair-2-1-slice",
+              "statistics_files": [
+                "path-0-pair-2-1-slice\\output\\slice-slice-e88d1b1f-0b5b-4811-962c-d1c1e371fdee-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 875,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25410620
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1155846144,
+                "last_complete_sample_bytes": 396140544,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0006399999838322,
+                    "max": 1.0135030999663286
+                  },
+                  "complete_samples": 16,
+                  "incomplete_samples": 9,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 0.6830825000070035,
+                  "collector_cpu_seconds": 2.328125,
+                  "window_seconds": 24.468559100001585,
+                  "first_sample_start_seconds": 0.024001399986445904,
+                  "last_sample_end_seconds": 24.28176679997705
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=17120)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 8,
+                    "example": "Mapping observations changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 25.066226100025233,
+              "pipeline_elapsed_seconds": 25.043386100034695,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.001407100004144013,
+                "SlicesGeometryPipelineStep": 0.16299139999318868,
+                "VolumeCachePipelineStep": 1.120750300004147,
+                "SliceParallelPipelineStep": 23.757853799965233
+              },
+              "data_operation_elapsed_seconds": 23.757853799965233,
+              "enabled": false,
+              "process_elapsed_seconds": 32.68893030000618,
+              "label": "path-0-pair-2-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 875,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25410620
+              },
+              "operation": "slice"
+            }
+          ]
+        },
+        "backproject": {
+          "disabled": {
+            "median_seconds": 18.12246980002965,
+            "min_seconds": 18.036426900012884,
+            "max_seconds": 18.208512700046413,
+            "median_absolute_deviation_seconds": 0.08604290001676418,
+            "samples_seconds": [
+              18.208512700046413,
+              18.036426900012884
+            ]
+          },
+          "enabled": {
+            "median_seconds": 18.20213064996642,
+            "min_seconds": 17.94035689998418,
+            "max_seconds": 18.46390439994866,
+            "median_absolute_deviation_seconds": 0.2617737499822397,
+            "samples_seconds": [
+              17.94035689998418,
+              18.46390439994866
+            ]
+          },
+          "median_elapsed_overhead_percent": 0.43956950027110864,
+          "paired_overhead_percent": [
+            -1.4726946922004713,
+            2.3700786320125955
+          ],
+          "measured_median_at_most_one_percent": true,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 19.16908320004586,
+              "pipeline_elapsed_seconds": 19.14775320002809,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.001898899965453893,
+                "SlicesGeometryPipelineStep": 0.10717850003857166,
+                "VolumeCachePipelineStep": 0.8298263999749906,
+                "BackprojectPipelineStep": 18.208512700046413
+              },
+              "data_operation_elapsed_seconds": 18.208512700046413,
+              "enabled": false,
+              "process_elapsed_seconds": 25.890469799982384,
+              "label": "path-0-pair-1-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 571,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  384,
+                  495
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 26553866
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 19.961727200017776,
+              "pipeline_elapsed_seconds": 18.937046899984125,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0018429000047035515,
+                "SlicesGeometryPipelineStep": 0.15828809997765347,
+                "VolumeCachePipelineStep": 0.8362208000035025,
+                "BackprojectPipelineStep": 17.94035689998418
+              },
+              "data_operation_elapsed_seconds": 17.94035689998418,
+              "enabled": true,
+              "process_elapsed_seconds": 26.802980199980084,
+              "label": "path-0-pair-1-1-backproject",
+              "statistics_files": [
+                "path-0-pair-1-1-backproject\\output\\backproject-backproject-3b64abd6-8bb9-40a3-ae42-bd30e6209f95-statistics.json"
+              ],
+              "output_header": {
+                "files": 571,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  384,
+                  495
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 26553866
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1514643456,
+                "last_complete_sample_bytes": 875532288,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0006230000290088,
+                    "max": 1.0436651000054553
+                  },
+                  "complete_samples": 16,
+                  "incomplete_samples": 3,
+                  "discarded_samples": 0,
+                  "max_process_count": 10,
+                  "max_sweep_seconds": 0.4560052000451833,
+                  "collector_cpu_seconds": 1.34375,
+                  "window_seconds": 18.94467309996253,
+                  "first_sample_start_seconds": 0.031418200000189245,
+                  "last_sample_end_seconds": 18.27897420001682
+                },
+                "errors": [
+                  {
+                    "kind": "OSError",
+                    "count": 3,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 20.555466999998316,
+              "pipeline_elapsed_seconds": 19.476416799996514,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0013487999676726758,
+                "SlicesGeometryPipelineStep": 0.11500240000896156,
+                "VolumeCachePipelineStep": 0.8958894000388682,
+                "BackprojectPipelineStep": 18.46390439994866
+              },
+              "data_operation_elapsed_seconds": 18.46390439994866,
+              "enabled": true,
+              "process_elapsed_seconds": 27.311312399979215,
+              "label": "path-0-pair-2-1-backproject",
+              "statistics_files": [
+                "path-0-pair-2-1-backproject\\output\\backproject-backproject-197d7104-ce1f-4b22-994c-7c4064dcb432-statistics.json"
+              ],
+              "output_header": {
+                "files": 571,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  384,
+                  495
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 26553866
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1702633472,
+                "last_complete_sample_bytes": 760307712,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.000586700043641,
+                    "max": 1.0110982999904081
+                  },
+                  "complete_samples": 17,
+                  "incomplete_samples": 3,
+                  "discarded_samples": 0,
+                  "max_process_count": 10,
+                  "max_sweep_seconds": 0.5322616000194103,
+                  "collector_cpu_seconds": 1.109375,
+                  "window_seconds": 19.483514499966986,
+                  "first_sample_start_seconds": 0.03617739997571334,
+                  "last_sample_end_seconds": 19.314207699964754
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=10588)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 2,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 19.089250099961646,
+              "pipeline_elapsed_seconds": 19.043723200040404,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.002086399996187538,
+                "SlicesGeometryPipelineStep": 0.1358028000104241,
+                "VolumeCachePipelineStep": 0.8690502000390552,
+                "BackprojectPipelineStep": 18.036426900012884
+              },
+              "data_operation_elapsed_seconds": 18.036426900012884,
+              "enabled": false,
+              "process_elapsed_seconds": 26.053482400020584,
+              "label": "path-0-pair-2-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 571,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  384,
+                  495
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 26553866
+              },
+              "operation": "backproject"
+            }
+          ]
+        }
+      },
+      "pipeline_operations": {
+        "slice": {
+          "disabled": {
+            "median_seconds": 24.19701255002292,
+            "min_seconds": 23.350639000011142,
+            "max_seconds": 25.043386100034695,
+            "median_absolute_deviation_seconds": 0.8463735500117764,
+            "samples_seconds": [
+              23.350639000011142,
+              25.043386100034695
+            ]
+          },
+          "enabled": {
+            "median_seconds": 24.578413600014756,
+            "min_seconds": 24.461450800008606,
+            "max_seconds": 24.695376400020905,
+            "median_absolute_deviation_seconds": 0.11696280000614934,
+            "samples_seconds": [
+              24.695376400020905,
+              24.461450800008606
+            ]
+          },
+          "median_elapsed_overhead_percent": 1.5762319798915625,
+          "paired_overhead_percent": [
+            5.758889082260743,
+            -2.3237085340679364
+          ],
+          "measured_median_at_most_one_percent": false,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 23.366101999999955,
+              "pipeline_elapsed_seconds": 23.350639000011142,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0019625999848358333,
+                "SlicesGeometryPipelineStep": 0.1529171000001952,
+                "VolumeCachePipelineStep": 0.8063854000065476,
+                "SliceParallelPipelineStep": 22.389162899984512
+              },
+              "data_operation_elapsed_seconds": 22.389162899984512,
+              "enabled": false,
+              "process_elapsed_seconds": 30.2277339999564,
+              "label": "path-0-pair-1-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 875,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25410620
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 25.758988500048872,
+              "pipeline_elapsed_seconds": 24.695376400020905,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0019253999926149845,
+                "SlicesGeometryPipelineStep": 0.10223630000837147,
+                "VolumeCachePipelineStep": 0.9151242999942042,
+                "SliceParallelPipelineStep": 23.675692399963737
+              },
+              "data_operation_elapsed_seconds": 23.675692399963737,
+              "enabled": true,
+              "process_elapsed_seconds": 33.29345589998411,
+              "label": "path-0-pair-1-1-slice",
+              "statistics_files": [
+                "path-0-pair-1-1-slice\\output\\slice-slice-e39c002a-d9ab-43a8-b665-e8834d5fb9c4-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 875,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25410620
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1186975744,
+                "last_complete_sample_bytes": 1186975744,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.00043099996401,
+                    "max": 1.031383600027766
+                  },
+                  "complete_samples": 17,
+                  "incomplete_samples": 8,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 0.6158682000241242,
+                  "collector_cpu_seconds": 2.796875,
+                  "window_seconds": 24.697831200028304,
+                  "first_sample_start_seconds": 0.023192499997094274,
+                  "last_sample_end_seconds": 24.34071140002925
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=41136)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 7,
+                    "example": "Mapping observations changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 25.592017200018745,
+              "pipeline_elapsed_seconds": 24.461450800008606,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0015758000081405044,
+                "SlicesGeometryPipelineStep": 0.10428600001614541,
+                "VolumeCachePipelineStep": 0.8786148999934085,
+                "SliceParallelPipelineStep": 23.476805299986154
+              },
+              "data_operation_elapsed_seconds": 23.476805299986154,
+              "enabled": true,
+              "process_elapsed_seconds": 32.3345158000011,
+              "label": "path-0-pair-2-1-slice",
+              "statistics_files": [
+                "path-0-pair-2-1-slice\\output\\slice-slice-e88d1b1f-0b5b-4811-962c-d1c1e371fdee-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 875,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25410620
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1155846144,
+                "last_complete_sample_bytes": 396140544,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0006399999838322,
+                    "max": 1.0135030999663286
+                  },
+                  "complete_samples": 16,
+                  "incomplete_samples": 9,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 0.6830825000070035,
+                  "collector_cpu_seconds": 2.328125,
+                  "window_seconds": 24.468559100001585,
+                  "first_sample_start_seconds": 0.024001399986445904,
+                  "last_sample_end_seconds": 24.28176679997705
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=17120)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 8,
+                    "example": "Mapping observations changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 25.066226100025233,
+              "pipeline_elapsed_seconds": 25.043386100034695,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.001407100004144013,
+                "SlicesGeometryPipelineStep": 0.16299139999318868,
+                "VolumeCachePipelineStep": 1.120750300004147,
+                "SliceParallelPipelineStep": 23.757853799965233
+              },
+              "data_operation_elapsed_seconds": 23.757853799965233,
+              "enabled": false,
+              "process_elapsed_seconds": 32.68893030000618,
+              "label": "path-0-pair-2-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 875,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25410620
+              },
+              "operation": "slice"
+            }
+          ]
+        },
+        "backproject": {
+          "disabled": {
+            "median_seconds": 19.095738200034248,
+            "min_seconds": 19.043723200040404,
+            "max_seconds": 19.14775320002809,
+            "median_absolute_deviation_seconds": 0.05201499999384396,
+            "samples_seconds": [
+              19.14775320002809,
+              19.043723200040404
+            ]
+          },
+          "enabled": {
+            "median_seconds": 19.20673184999032,
+            "min_seconds": 18.937046899984125,
+            "max_seconds": 19.476416799996514,
+            "median_absolute_deviation_seconds": 0.2696849500061944,
+            "samples_seconds": [
+              18.937046899984125,
+              19.476416799996514
+            ]
+          },
+          "median_elapsed_overhead_percent": 0.5812482806025976,
+          "paired_overhead_percent": [
+            -1.1004231036550904,
+            2.2721061181733226
+          ],
+          "measured_median_at_most_one_percent": true,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 19.16908320004586,
+              "pipeline_elapsed_seconds": 19.14775320002809,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.001898899965453893,
+                "SlicesGeometryPipelineStep": 0.10717850003857166,
+                "VolumeCachePipelineStep": 0.8298263999749906,
+                "BackprojectPipelineStep": 18.208512700046413
+              },
+              "data_operation_elapsed_seconds": 18.208512700046413,
+              "enabled": false,
+              "process_elapsed_seconds": 25.890469799982384,
+              "label": "path-0-pair-1-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 571,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  384,
+                  495
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 26553866
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 19.961727200017776,
+              "pipeline_elapsed_seconds": 18.937046899984125,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0018429000047035515,
+                "SlicesGeometryPipelineStep": 0.15828809997765347,
+                "VolumeCachePipelineStep": 0.8362208000035025,
+                "BackprojectPipelineStep": 17.94035689998418
+              },
+              "data_operation_elapsed_seconds": 17.94035689998418,
+              "enabled": true,
+              "process_elapsed_seconds": 26.802980199980084,
+              "label": "path-0-pair-1-1-backproject",
+              "statistics_files": [
+                "path-0-pair-1-1-backproject\\output\\backproject-backproject-3b64abd6-8bb9-40a3-ae42-bd30e6209f95-statistics.json"
+              ],
+              "output_header": {
+                "files": 571,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  384,
+                  495
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 26553866
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1514643456,
+                "last_complete_sample_bytes": 875532288,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0006230000290088,
+                    "max": 1.0436651000054553
+                  },
+                  "complete_samples": 16,
+                  "incomplete_samples": 3,
+                  "discarded_samples": 0,
+                  "max_process_count": 10,
+                  "max_sweep_seconds": 0.4560052000451833,
+                  "collector_cpu_seconds": 1.34375,
+                  "window_seconds": 18.94467309996253,
+                  "first_sample_start_seconds": 0.031418200000189245,
+                  "last_sample_end_seconds": 18.27897420001682
+                },
+                "errors": [
+                  {
+                    "kind": "OSError",
+                    "count": 3,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 20.555466999998316,
+              "pipeline_elapsed_seconds": 19.476416799996514,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0013487999676726758,
+                "SlicesGeometryPipelineStep": 0.11500240000896156,
+                "VolumeCachePipelineStep": 0.8958894000388682,
+                "BackprojectPipelineStep": 18.46390439994866
+              },
+              "data_operation_elapsed_seconds": 18.46390439994866,
+              "enabled": true,
+              "process_elapsed_seconds": 27.311312399979215,
+              "label": "path-0-pair-2-1-backproject",
+              "statistics_files": [
+                "path-0-pair-2-1-backproject\\output\\backproject-backproject-197d7104-ce1f-4b22-994c-7c4064dcb432-statistics.json"
+              ],
+              "output_header": {
+                "files": 571,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  384,
+                  495
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 26553866
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1702633472,
+                "last_complete_sample_bytes": 760307712,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.000586700043641,
+                    "max": 1.0110982999904081
+                  },
+                  "complete_samples": 17,
+                  "incomplete_samples": 3,
+                  "discarded_samples": 0,
+                  "max_process_count": 10,
+                  "max_sweep_seconds": 0.5322616000194103,
+                  "collector_cpu_seconds": 1.109375,
+                  "window_seconds": 19.483514499966986,
+                  "first_sample_start_seconds": 0.03617739997571334,
+                  "last_sample_end_seconds": 19.314207699964754
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=10588)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 2,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 19.089250099961646,
+              "pipeline_elapsed_seconds": 19.043723200040404,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.002086399996187538,
+                "SlicesGeometryPipelineStep": 0.1358028000104241,
+                "VolumeCachePipelineStep": 0.8690502000390552,
+                "BackprojectPipelineStep": 18.036426900012884
+              },
+              "data_operation_elapsed_seconds": 18.036426900012884,
+              "enabled": false,
+              "process_elapsed_seconds": 26.053482400020584,
+              "label": "path-0-pair-2-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 571,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  384,
+                  495
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 26553866
+              },
+              "operation": "backproject"
+            }
+          ]
+        }
+      }
+    },
+    "Posterior Salivary Duct 3": {
+      "annotation_points": 16,
+      "runs": [
+        {
+          "handler_elapsed_seconds": 24.328327399969567,
+          "pipeline_elapsed_seconds": 24.309507099969778,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0064418999827466905,
+            "SlicesGeometryPipelineStep": 0.2738504000008106,
+            "VolumeCachePipelineStep": 1.05142989999149,
+            "SliceParallelPipelineStep": 22.977480600005947
+          },
+          "data_operation_elapsed_seconds": 22.977480600005947,
+          "enabled": false,
+          "process_elapsed_seconds": 31.136787499999627,
+          "label": "path-1-pair-1-0-slice",
+          "statistics_files": [],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 887,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 25758212
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 19.54183220001869,
+          "pipeline_elapsed_seconds": 19.52240720001282,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0014096000231802464,
+            "SlicesGeometryPipelineStep": 0.12239869998302311,
+            "VolumeCachePipelineStep": 0.832093300006818,
+            "BackprojectPipelineStep": 18.56615539995255
+          },
+          "data_operation_elapsed_seconds": 18.56615539995255,
+          "enabled": false,
+          "process_elapsed_seconds": 26.68567749997601,
+          "label": "path-1-pair-1-0-backproject",
+          "statistics_files": [],
+          "output_header": {
+            "files": 565,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              286,
+              445
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 25822775
+          },
+          "operation": "backproject"
+        },
+        {
+          "handler_elapsed_seconds": 27.31053299998166,
+          "pipeline_elapsed_seconds": 26.14594399998896,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0023108000168576837,
+            "SlicesGeometryPipelineStep": 0.1247824999736622,
+            "VolumeCachePipelineStep": 0.8613623999990523,
+            "SliceParallelPipelineStep": 25.15710430004401
+          },
+          "data_operation_elapsed_seconds": 25.15710430004401,
+          "enabled": true,
+          "process_elapsed_seconds": 34.3236880999757,
+          "label": "path-1-pair-1-1-slice",
+          "statistics_files": [
+            "path-1-pair-1-1-slice\\output\\slice-slice-c442a3f3-8620-4a5b-9d8a-c9e79bab4e53-statistics.json"
+          ],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 887,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 25758212
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+            "unit": "bytes",
+            "method": "QueryWorkingSet and tracked allocation/page union",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 1798139904,
+            "last_complete_sample_bytes": 1798139904,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.0005827999557368,
+                "max": 1.0240961999516003
+              },
+              "complete_samples": 19,
+              "incomplete_samples": 7,
+              "discarded_samples": 1,
+              "max_process_count": 14,
+              "max_sweep_seconds": 0.6420031000161543,
+              "collector_cpu_seconds": 2.515625,
+              "window_seconds": 26.15077880001627,
+              "first_sample_start_seconds": 0.03145770000992343,
+              "last_sample_end_seconds": 25.763369300053455
+            },
+            "errors": [
+              {
+                "kind": "NoSuchProcess",
+                "count": 1,
+                "example": "process no longer exists (pid=45480)"
+              },
+              {
+                "kind": "OSError",
+                "count": 6,
+                "example": "Process tree changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 20.34626889997162,
+          "pipeline_elapsed_seconds": 19.15040119999321,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0020061999675817788,
+            "SlicesGeometryPipelineStep": 0.1631059999926947,
+            "VolumeCachePipelineStep": 0.8014817000366747,
+            "BackprojectPipelineStep": 18.1834084999864
+          },
+          "data_operation_elapsed_seconds": 18.1834084999864,
+          "enabled": true,
+          "process_elapsed_seconds": 27.794324399961624,
+          "label": "path-1-pair-1-1-backproject",
+          "statistics_files": [
+            "path-1-pair-1-1-backproject\\output\\backproject-backproject-73214d98-28cc-4469-85e0-a0dc9cd08a71-statistics.json"
+          ],
+          "output_header": {
+            "files": 565,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              286,
+              445
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 25822775
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+            "unit": "bytes",
+            "method": "QueryWorkingSet and tracked allocation/page union",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 1643286528,
+            "last_complete_sample_bytes": 874237952,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.000545399961993,
+                "max": 1.0079608000232838
+              },
+              "complete_samples": 16,
+              "incomplete_samples": 3,
+              "discarded_samples": 1,
+              "max_process_count": 10,
+              "max_sweep_seconds": 0.5618398999795318,
+              "collector_cpu_seconds": 1.3125,
+              "window_seconds": 19.157618800003547,
+              "first_sample_start_seconds": 0.0494069000124,
+              "last_sample_end_seconds": 18.24484709999524
+            },
+            "errors": [
+              {
+                "kind": "OSError",
+                "count": 3,
+                "example": "Process tree changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "backproject"
+        },
+        {
+          "handler_elapsed_seconds": 24.42243779997807,
+          "pipeline_elapsed_seconds": 23.421730200003367,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0019517000182531774,
+            "SlicesGeometryPipelineStep": 0.1059133000089787,
+            "VolumeCachePipelineStep": 0.8413527000229806,
+            "SliceParallelPipelineStep": 22.4722251999774
+          },
+          "data_operation_elapsed_seconds": 22.4722251999774,
+          "enabled": true,
+          "process_elapsed_seconds": 32.64198240003316,
+          "label": "path-1-pair-2-1-slice",
+          "statistics_files": [
+            "path-1-pair-2-1-slice\\output\\slice-slice-b10295a3-647b-429d-8f64-e46c483fd9cc-statistics.json"
+          ],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 887,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 25758212
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+            "unit": "bytes",
+            "method": "QueryWorkingSet and tracked allocation/page union",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 1237409792,
+            "last_complete_sample_bytes": 396181504,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.0002472000196576,
+                "max": 1.0144647999550216
+              },
+              "complete_samples": 18,
+              "incomplete_samples": 6,
+              "discarded_samples": 0,
+              "max_process_count": 14,
+              "max_sweep_seconds": 0.5731324000516906,
+              "collector_cpu_seconds": 2.21875,
+              "window_seconds": 23.424027499975637,
+              "first_sample_start_seconds": 0.02174699999159202,
+              "last_sample_end_seconds": 23.22584759996971
+            },
+            "errors": [
+              {
+                "kind": "NoSuchProcess",
+                "count": 1,
+                "example": "process no longer exists (pid=31780)"
+              },
+              {
+                "kind": "OSError",
+                "count": 5,
+                "example": "Mapping observations changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 20.973316200019326,
+          "pipeline_elapsed_seconds": 19.932703100028448,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0016132000018842518,
+            "SlicesGeometryPipelineStep": 0.10860979999415576,
+            "VolumeCachePipelineStep": 0.8263361999997869,
+            "BackprojectPipelineStep": 18.995845399971586
+          },
+          "data_operation_elapsed_seconds": 18.995845399971586,
+          "enabled": true,
+          "process_elapsed_seconds": 27.725943199999165,
+          "label": "path-1-pair-2-1-backproject",
+          "statistics_files": [
+            "path-1-pair-2-1-backproject\\output\\backproject-backproject-091922ba-a37f-4b28-b122-146a6ed03d96-statistics.json"
+          ],
+          "output_header": {
+            "files": 565,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              286,
+              445
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 25822775
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+            "unit": "bytes",
+            "method": "QueryWorkingSet and tracked allocation/page union",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 878329856,
+            "last_complete_sample_bytes": 877690880,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.0006994000286795,
+                "max": 1.0220205000368878
+              },
+              "complete_samples": 17,
+              "incomplete_samples": 3,
+              "discarded_samples": 0,
+              "max_process_count": 10,
+              "max_sweep_seconds": 0.639273000007961,
+              "collector_cpu_seconds": 1.515625,
+              "window_seconds": 19.935432700032834,
+              "first_sample_start_seconds": 0.0258954000310041,
+              "last_sample_end_seconds": 19.31928890000563
+            },
+            "errors": [
+              {
+                "kind": "OSError",
+                "count": 3,
+                "example": "Process tree changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "backproject"
+        },
+        {
+          "handler_elapsed_seconds": 23.377975899958983,
+          "pipeline_elapsed_seconds": 23.358206500008237,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0013841000036336482,
+            "SlicesGeometryPipelineStep": 0.10170689999358729,
+            "VolumeCachePipelineStep": 0.8176333000301383,
+            "SliceParallelPipelineStep": 22.43713779997779
+          },
+          "data_operation_elapsed_seconds": 22.43713779997779,
+          "enabled": false,
+          "process_elapsed_seconds": 30.410169699986,
+          "label": "path-1-pair-2-0-slice",
+          "statistics_files": [],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 887,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 25758212
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 20.077673399995547,
+          "pipeline_elapsed_seconds": 20.057386700005736,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0019010999822057784,
+            "SlicesGeometryPipelineStep": 0.11528910003835335,
+            "VolumeCachePipelineStep": 0.9415262999827974,
+            "BackprojectPipelineStep": 18.99835529999109
+          },
+          "data_operation_elapsed_seconds": 18.99835529999109,
+          "enabled": false,
+          "process_elapsed_seconds": 26.72519160003867,
+          "label": "path-1-pair-2-0-backproject",
+          "statistics_files": [],
+          "output_header": {
+            "files": 565,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              286,
+              445
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 25822775
+          },
+          "operation": "backproject"
+        }
+      ],
+      "slicing_warmup": {
+        "handler_elapsed_seconds": 25.00610830000369,
+        "pipeline_elapsed_seconds": 24.98512359999586,
+        "step_elapsed_seconds": {
+          "ParseJSONPipelineStep": 0.0020892000175081193,
+          "SlicesGeometryPipelineStep": 0.11633019999135286,
+          "VolumeCachePipelineStep": 1.8585794999962673,
+          "SliceParallelPipelineStep": 23.007804699998815
+        },
+        "data_operation_elapsed_seconds": 23.007804699998815,
+        "enabled": false,
+        "process_elapsed_seconds": 31.902449499990325,
+        "label": "path-1-warmup",
+        "statistics_files": [],
+        "output_header": {
+          "files": 1,
+          "pages_in_first_file": 887,
+          "page_shape": [
+            120,
+            120
+          ],
+          "dtype": "uint16",
+          "storage_bytes": 25758212
+        }
+      },
+      "operations": {
+        "slice": {
+          "disabled": {
+            "median_seconds": 22.70730919999187,
+            "min_seconds": 22.43713779997779,
+            "max_seconds": 22.977480600005947,
+            "median_absolute_deviation_seconds": 0.27017140001407824,
+            "samples_seconds": [
+              22.977480600005947,
+              22.43713779997779
+            ]
+          },
+          "enabled": {
+            "median_seconds": 23.814664750010706,
+            "min_seconds": 22.4722251999774,
+            "max_seconds": 25.15710430004401,
+            "median_absolute_deviation_seconds": 1.3424395500333048,
+            "samples_seconds": [
+              25.15710430004401,
+              22.4722251999774
+            ]
+          },
+          "median_elapsed_overhead_percent": 4.876648044318843,
+          "paired_overhead_percent": [
+            9.485912480924918,
+            0.1563809087968604
+          ],
+          "measured_median_at_most_one_percent": false,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 24.328327399969567,
+              "pipeline_elapsed_seconds": 24.309507099969778,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0064418999827466905,
+                "SlicesGeometryPipelineStep": 0.2738504000008106,
+                "VolumeCachePipelineStep": 1.05142989999149,
+                "SliceParallelPipelineStep": 22.977480600005947
+              },
+              "data_operation_elapsed_seconds": 22.977480600005947,
+              "enabled": false,
+              "process_elapsed_seconds": 31.136787499999627,
+              "label": "path-1-pair-1-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 887,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25758212
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 27.31053299998166,
+              "pipeline_elapsed_seconds": 26.14594399998896,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0023108000168576837,
+                "SlicesGeometryPipelineStep": 0.1247824999736622,
+                "VolumeCachePipelineStep": 0.8613623999990523,
+                "SliceParallelPipelineStep": 25.15710430004401
+              },
+              "data_operation_elapsed_seconds": 25.15710430004401,
+              "enabled": true,
+              "process_elapsed_seconds": 34.3236880999757,
+              "label": "path-1-pair-1-1-slice",
+              "statistics_files": [
+                "path-1-pair-1-1-slice\\output\\slice-slice-c442a3f3-8620-4a5b-9d8a-c9e79bab4e53-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 887,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25758212
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1798139904,
+                "last_complete_sample_bytes": 1798139904,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0005827999557368,
+                    "max": 1.0240961999516003
+                  },
+                  "complete_samples": 19,
+                  "incomplete_samples": 7,
+                  "discarded_samples": 1,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 0.6420031000161543,
+                  "collector_cpu_seconds": 2.515625,
+                  "window_seconds": 26.15077880001627,
+                  "first_sample_start_seconds": 0.03145770000992343,
+                  "last_sample_end_seconds": 25.763369300053455
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=45480)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 6,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 24.42243779997807,
+              "pipeline_elapsed_seconds": 23.421730200003367,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0019517000182531774,
+                "SlicesGeometryPipelineStep": 0.1059133000089787,
+                "VolumeCachePipelineStep": 0.8413527000229806,
+                "SliceParallelPipelineStep": 22.4722251999774
+              },
+              "data_operation_elapsed_seconds": 22.4722251999774,
+              "enabled": true,
+              "process_elapsed_seconds": 32.64198240003316,
+              "label": "path-1-pair-2-1-slice",
+              "statistics_files": [
+                "path-1-pair-2-1-slice\\output\\slice-slice-b10295a3-647b-429d-8f64-e46c483fd9cc-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 887,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25758212
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1237409792,
+                "last_complete_sample_bytes": 396181504,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0002472000196576,
+                    "max": 1.0144647999550216
+                  },
+                  "complete_samples": 18,
+                  "incomplete_samples": 6,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 0.5731324000516906,
+                  "collector_cpu_seconds": 2.21875,
+                  "window_seconds": 23.424027499975637,
+                  "first_sample_start_seconds": 0.02174699999159202,
+                  "last_sample_end_seconds": 23.22584759996971
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=31780)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 5,
+                    "example": "Mapping observations changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 23.377975899958983,
+              "pipeline_elapsed_seconds": 23.358206500008237,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0013841000036336482,
+                "SlicesGeometryPipelineStep": 0.10170689999358729,
+                "VolumeCachePipelineStep": 0.8176333000301383,
+                "SliceParallelPipelineStep": 22.43713779997779
+              },
+              "data_operation_elapsed_seconds": 22.43713779997779,
+              "enabled": false,
+              "process_elapsed_seconds": 30.410169699986,
+              "label": "path-1-pair-2-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 887,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25758212
+              },
+              "operation": "slice"
+            }
+          ]
+        },
+        "backproject": {
+          "disabled": {
+            "median_seconds": 18.78225534997182,
+            "min_seconds": 18.56615539995255,
+            "max_seconds": 18.99835529999109,
+            "median_absolute_deviation_seconds": 0.21609995001927018,
+            "samples_seconds": [
+              18.56615539995255,
+              18.99835529999109
+            ]
+          },
+          "enabled": {
+            "median_seconds": 18.589626949978992,
+            "min_seconds": 18.1834084999864,
+            "max_seconds": 18.995845399971586,
+            "median_absolute_deviation_seconds": 0.4062184499925934,
+            "samples_seconds": [
+              18.1834084999864,
+              18.995845399971586
+            ]
+          },
+          "median_elapsed_overhead_percent": -1.0255871640735381,
+          "paired_overhead_percent": [
+            -2.061530196860939,
+            -0.013211143700975203
+          ],
+          "measured_median_at_most_one_percent": true,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 19.54183220001869,
+              "pipeline_elapsed_seconds": 19.52240720001282,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0014096000231802464,
+                "SlicesGeometryPipelineStep": 0.12239869998302311,
+                "VolumeCachePipelineStep": 0.832093300006818,
+                "BackprojectPipelineStep": 18.56615539995255
+              },
+              "data_operation_elapsed_seconds": 18.56615539995255,
+              "enabled": false,
+              "process_elapsed_seconds": 26.68567749997601,
+              "label": "path-1-pair-1-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 565,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  286,
+                  445
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25822775
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 20.34626889997162,
+              "pipeline_elapsed_seconds": 19.15040119999321,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0020061999675817788,
+                "SlicesGeometryPipelineStep": 0.1631059999926947,
+                "VolumeCachePipelineStep": 0.8014817000366747,
+                "BackprojectPipelineStep": 18.1834084999864
+              },
+              "data_operation_elapsed_seconds": 18.1834084999864,
+              "enabled": true,
+              "process_elapsed_seconds": 27.794324399961624,
+              "label": "path-1-pair-1-1-backproject",
+              "statistics_files": [
+                "path-1-pair-1-1-backproject\\output\\backproject-backproject-73214d98-28cc-4469-85e0-a0dc9cd08a71-statistics.json"
+              ],
+              "output_header": {
+                "files": 565,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  286,
+                  445
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25822775
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1643286528,
+                "last_complete_sample_bytes": 874237952,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.000545399961993,
+                    "max": 1.0079608000232838
+                  },
+                  "complete_samples": 16,
+                  "incomplete_samples": 3,
+                  "discarded_samples": 1,
+                  "max_process_count": 10,
+                  "max_sweep_seconds": 0.5618398999795318,
+                  "collector_cpu_seconds": 1.3125,
+                  "window_seconds": 19.157618800003547,
+                  "first_sample_start_seconds": 0.0494069000124,
+                  "last_sample_end_seconds": 18.24484709999524
+                },
+                "errors": [
+                  {
+                    "kind": "OSError",
+                    "count": 3,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 20.973316200019326,
+              "pipeline_elapsed_seconds": 19.932703100028448,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0016132000018842518,
+                "SlicesGeometryPipelineStep": 0.10860979999415576,
+                "VolumeCachePipelineStep": 0.8263361999997869,
+                "BackprojectPipelineStep": 18.995845399971586
+              },
+              "data_operation_elapsed_seconds": 18.995845399971586,
+              "enabled": true,
+              "process_elapsed_seconds": 27.725943199999165,
+              "label": "path-1-pair-2-1-backproject",
+              "statistics_files": [
+                "path-1-pair-2-1-backproject\\output\\backproject-backproject-091922ba-a37f-4b28-b122-146a6ed03d96-statistics.json"
+              ],
+              "output_header": {
+                "files": 565,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  286,
+                  445
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25822775
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 878329856,
+                "last_complete_sample_bytes": 877690880,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0006994000286795,
+                    "max": 1.0220205000368878
+                  },
+                  "complete_samples": 17,
+                  "incomplete_samples": 3,
+                  "discarded_samples": 0,
+                  "max_process_count": 10,
+                  "max_sweep_seconds": 0.639273000007961,
+                  "collector_cpu_seconds": 1.515625,
+                  "window_seconds": 19.935432700032834,
+                  "first_sample_start_seconds": 0.0258954000310041,
+                  "last_sample_end_seconds": 19.31928890000563
+                },
+                "errors": [
+                  {
+                    "kind": "OSError",
+                    "count": 3,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 20.077673399995547,
+              "pipeline_elapsed_seconds": 20.057386700005736,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0019010999822057784,
+                "SlicesGeometryPipelineStep": 0.11528910003835335,
+                "VolumeCachePipelineStep": 0.9415262999827974,
+                "BackprojectPipelineStep": 18.99835529999109
+              },
+              "data_operation_elapsed_seconds": 18.99835529999109,
+              "enabled": false,
+              "process_elapsed_seconds": 26.72519160003867,
+              "label": "path-1-pair-2-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 565,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  286,
+                  445
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25822775
+              },
+              "operation": "backproject"
+            }
+          ]
+        }
+      },
+      "pipeline_operations": {
+        "slice": {
+          "disabled": {
+            "median_seconds": 23.833856799989007,
+            "min_seconds": 23.358206500008237,
+            "max_seconds": 24.309507099969778,
+            "median_absolute_deviation_seconds": 0.4756502999807708,
+            "samples_seconds": [
+              24.309507099969778,
+              23.358206500008237
+            ]
+          },
+          "enabled": {
+            "median_seconds": 24.783837099996163,
+            "min_seconds": 23.421730200003367,
+            "max_seconds": 26.14594399998896,
+            "median_absolute_deviation_seconds": 1.3621068999927957,
+            "samples_seconds": [
+              26.14594399998896,
+              23.421730200003367
+            ]
+          },
+          "median_elapsed_overhead_percent": 3.98584378507969,
+          "paired_overhead_percent": [
+            7.554397925334588,
+            0.2719545269672441
+          ],
+          "measured_median_at_most_one_percent": false,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 24.328327399969567,
+              "pipeline_elapsed_seconds": 24.309507099969778,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0064418999827466905,
+                "SlicesGeometryPipelineStep": 0.2738504000008106,
+                "VolumeCachePipelineStep": 1.05142989999149,
+                "SliceParallelPipelineStep": 22.977480600005947
+              },
+              "data_operation_elapsed_seconds": 22.977480600005947,
+              "enabled": false,
+              "process_elapsed_seconds": 31.136787499999627,
+              "label": "path-1-pair-1-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 887,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25758212
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 27.31053299998166,
+              "pipeline_elapsed_seconds": 26.14594399998896,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0023108000168576837,
+                "SlicesGeometryPipelineStep": 0.1247824999736622,
+                "VolumeCachePipelineStep": 0.8613623999990523,
+                "SliceParallelPipelineStep": 25.15710430004401
+              },
+              "data_operation_elapsed_seconds": 25.15710430004401,
+              "enabled": true,
+              "process_elapsed_seconds": 34.3236880999757,
+              "label": "path-1-pair-1-1-slice",
+              "statistics_files": [
+                "path-1-pair-1-1-slice\\output\\slice-slice-c442a3f3-8620-4a5b-9d8a-c9e79bab4e53-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 887,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25758212
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1798139904,
+                "last_complete_sample_bytes": 1798139904,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0005827999557368,
+                    "max": 1.0240961999516003
+                  },
+                  "complete_samples": 19,
+                  "incomplete_samples": 7,
+                  "discarded_samples": 1,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 0.6420031000161543,
+                  "collector_cpu_seconds": 2.515625,
+                  "window_seconds": 26.15077880001627,
+                  "first_sample_start_seconds": 0.03145770000992343,
+                  "last_sample_end_seconds": 25.763369300053455
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=45480)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 6,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 24.42243779997807,
+              "pipeline_elapsed_seconds": 23.421730200003367,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0019517000182531774,
+                "SlicesGeometryPipelineStep": 0.1059133000089787,
+                "VolumeCachePipelineStep": 0.8413527000229806,
+                "SliceParallelPipelineStep": 22.4722251999774
+              },
+              "data_operation_elapsed_seconds": 22.4722251999774,
+              "enabled": true,
+              "process_elapsed_seconds": 32.64198240003316,
+              "label": "path-1-pair-2-1-slice",
+              "statistics_files": [
+                "path-1-pair-2-1-slice\\output\\slice-slice-b10295a3-647b-429d-8f64-e46c483fd9cc-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 887,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25758212
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1237409792,
+                "last_complete_sample_bytes": 396181504,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0002472000196576,
+                    "max": 1.0144647999550216
+                  },
+                  "complete_samples": 18,
+                  "incomplete_samples": 6,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 0.5731324000516906,
+                  "collector_cpu_seconds": 2.21875,
+                  "window_seconds": 23.424027499975637,
+                  "first_sample_start_seconds": 0.02174699999159202,
+                  "last_sample_end_seconds": 23.22584759996971
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=31780)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 5,
+                    "example": "Mapping observations changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 23.377975899958983,
+              "pipeline_elapsed_seconds": 23.358206500008237,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0013841000036336482,
+                "SlicesGeometryPipelineStep": 0.10170689999358729,
+                "VolumeCachePipelineStep": 0.8176333000301383,
+                "SliceParallelPipelineStep": 22.43713779997779
+              },
+              "data_operation_elapsed_seconds": 22.43713779997779,
+              "enabled": false,
+              "process_elapsed_seconds": 30.410169699986,
+              "label": "path-1-pair-2-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 887,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25758212
+              },
+              "operation": "slice"
+            }
+          ]
+        },
+        "backproject": {
+          "disabled": {
+            "median_seconds": 19.78989695000928,
+            "min_seconds": 19.52240720001282,
+            "max_seconds": 20.057386700005736,
+            "median_absolute_deviation_seconds": 0.26748974999645725,
+            "samples_seconds": [
+              19.52240720001282,
+              20.057386700005736
+            ]
+          },
+          "enabled": {
+            "median_seconds": 19.54155215001083,
+            "min_seconds": 19.15040119999321,
+            "max_seconds": 19.932703100028448,
+            "median_absolute_deviation_seconds": 0.391150950017618,
+            "samples_seconds": [
+              19.15040119999321,
+              19.932703100028448
+            ]
+          },
+          "median_elapsed_overhead_percent": -1.254906989287441,
+          "paired_overhead_percent": [
+            -1.9055334529615053,
+            -0.6216343227667509
+          ],
+          "measured_median_at_most_one_percent": true,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 19.54183220001869,
+              "pipeline_elapsed_seconds": 19.52240720001282,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0014096000231802464,
+                "SlicesGeometryPipelineStep": 0.12239869998302311,
+                "VolumeCachePipelineStep": 0.832093300006818,
+                "BackprojectPipelineStep": 18.56615539995255
+              },
+              "data_operation_elapsed_seconds": 18.56615539995255,
+              "enabled": false,
+              "process_elapsed_seconds": 26.68567749997601,
+              "label": "path-1-pair-1-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 565,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  286,
+                  445
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25822775
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 20.34626889997162,
+              "pipeline_elapsed_seconds": 19.15040119999321,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0020061999675817788,
+                "SlicesGeometryPipelineStep": 0.1631059999926947,
+                "VolumeCachePipelineStep": 0.8014817000366747,
+                "BackprojectPipelineStep": 18.1834084999864
+              },
+              "data_operation_elapsed_seconds": 18.1834084999864,
+              "enabled": true,
+              "process_elapsed_seconds": 27.794324399961624,
+              "label": "path-1-pair-1-1-backproject",
+              "statistics_files": [
+                "path-1-pair-1-1-backproject\\output\\backproject-backproject-73214d98-28cc-4469-85e0-a0dc9cd08a71-statistics.json"
+              ],
+              "output_header": {
+                "files": 565,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  286,
+                  445
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25822775
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1643286528,
+                "last_complete_sample_bytes": 874237952,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.000545399961993,
+                    "max": 1.0079608000232838
+                  },
+                  "complete_samples": 16,
+                  "incomplete_samples": 3,
+                  "discarded_samples": 1,
+                  "max_process_count": 10,
+                  "max_sweep_seconds": 0.5618398999795318,
+                  "collector_cpu_seconds": 1.3125,
+                  "window_seconds": 19.157618800003547,
+                  "first_sample_start_seconds": 0.0494069000124,
+                  "last_sample_end_seconds": 18.24484709999524
+                },
+                "errors": [
+                  {
+                    "kind": "OSError",
+                    "count": 3,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 20.973316200019326,
+              "pipeline_elapsed_seconds": 19.932703100028448,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0016132000018842518,
+                "SlicesGeometryPipelineStep": 0.10860979999415576,
+                "VolumeCachePipelineStep": 0.8263361999997869,
+                "BackprojectPipelineStep": 18.995845399971586
+              },
+              "data_operation_elapsed_seconds": 18.995845399971586,
+              "enabled": true,
+              "process_elapsed_seconds": 27.725943199999165,
+              "label": "path-1-pair-2-1-backproject",
+              "statistics_files": [
+                "path-1-pair-2-1-backproject\\output\\backproject-backproject-091922ba-a37f-4b28-b122-146a6ed03d96-statistics.json"
+              ],
+              "output_header": {
+                "files": 565,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  286,
+                  445
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25822775
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 878329856,
+                "last_complete_sample_bytes": 877690880,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0006994000286795,
+                    "max": 1.0220205000368878
+                  },
+                  "complete_samples": 17,
+                  "incomplete_samples": 3,
+                  "discarded_samples": 0,
+                  "max_process_count": 10,
+                  "max_sweep_seconds": 0.639273000007961,
+                  "collector_cpu_seconds": 1.515625,
+                  "window_seconds": 19.935432700032834,
+                  "first_sample_start_seconds": 0.0258954000310041,
+                  "last_sample_end_seconds": 19.31928890000563
+                },
+                "errors": [
+                  {
+                    "kind": "OSError",
+                    "count": 3,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 20.077673399995547,
+              "pipeline_elapsed_seconds": 20.057386700005736,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0019010999822057784,
+                "SlicesGeometryPipelineStep": 0.11528910003835335,
+                "VolumeCachePipelineStep": 0.9415262999827974,
+                "BackprojectPipelineStep": 18.99835529999109
+              },
+              "data_operation_elapsed_seconds": 18.99835529999109,
+              "enabled": false,
+              "process_elapsed_seconds": 26.72519160003867,
+              "label": "path-1-pair-2-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 565,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  286,
+                  445
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 25822775
+              },
+              "operation": "backproject"
+            }
+          ]
+        }
+      }
+    },
+    "Posterior Salivary Duct": {
+      "annotation_points": 50,
+      "runs": [
+        {
+          "handler_elapsed_seconds": 38.550012700026855,
+          "pipeline_elapsed_seconds": 38.528146800003015,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0015275999903678894,
+            "SlicesGeometryPipelineStep": 0.749775700038299,
+            "VolumeCachePipelineStep": 0.9355186000466347,
+            "SliceParallelPipelineStep": 36.84098920004908
+          },
+          "data_operation_elapsed_seconds": 36.84098920004908,
+          "enabled": false,
+          "process_elapsed_seconds": 45.53226149996044,
+          "label": "path-2-pair-1-0-slice",
+          "statistics_files": [],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 4901,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 142027736
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 73.28330090001691,
+          "pipeline_elapsed_seconds": 73.26800879999064,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0011647000210359693,
+            "SlicesGeometryPipelineStep": 0.6438345999922603,
+            "VolumeCachePipelineStep": 0.7908821000019088,
+            "BackprojectPipelineStep": 71.83179209998343
+          },
+          "data_operation_elapsed_seconds": 71.83179209998343,
+          "enabled": false,
+          "process_elapsed_seconds": 79.72428460000083,
+          "label": "path-2-pair-1-0-backproject",
+          "statistics_files": [],
+          "output_header": {
+            "files": 4006,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              1200,
+              385
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 148908094
+          },
+          "operation": "backproject"
+        },
+        {
+          "handler_elapsed_seconds": 41.88997760001803,
+          "pipeline_elapsed_seconds": 40.84536040003877,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0017903000116348267,
+            "SlicesGeometryPipelineStep": 0.7189942999975756,
+            "VolumeCachePipelineStep": 1.0762471999623813,
+            "SliceParallelPipelineStep": 39.04797170002712
+          },
+          "data_operation_elapsed_seconds": 39.04797170002712,
+          "enabled": true,
+          "process_elapsed_seconds": 49.731837899948005,
+          "label": "path-2-pair-1-1-slice",
+          "statistics_files": [
+            "path-2-pair-1-1-slice\\output\\slice-slice-0b1b8562-a979-48e3-9fb6-4ceb4958a635-statistics.json"
+          ],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 4901,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 142027736
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+            "unit": "bytes",
+            "method": "QueryWorkingSet and tracked allocation/page union",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 1613201408,
+            "last_complete_sample_bytes": 1613201408,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.0000639999634586,
+                "max": 1.3372757000033744
+              },
+              "complete_samples": 21,
+              "incomplete_samples": 19,
+              "discarded_samples": 0,
+              "max_process_count": 14,
+              "max_sweep_seconds": 1.3368979999795556,
+              "collector_cpu_seconds": 4.234375,
+              "window_seconds": 40.85205190000124,
+              "first_sample_start_seconds": 0.023718299984466285,
+              "last_sample_end_seconds": 40.58434890001081
+            },
+            "errors": [
+              {
+                "kind": "NoSuchProcess",
+                "count": 1,
+                "example": "process no longer exists (pid=44196)"
+              },
+              {
+                "kind": "OSError",
+                "count": 18,
+                "example": "Mapping observations changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 78.93692840001313,
+          "pipeline_elapsed_seconds": 77.49278839997714,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0023311999975703657,
+            "SlicesGeometryPipelineStep": 0.6358436000300571,
+            "VolumeCachePipelineStep": 0.8254827999626286,
+            "BackprojectPipelineStep": 76.02877920004539
+          },
+          "data_operation_elapsed_seconds": 76.02877920004539,
+          "enabled": true,
+          "process_elapsed_seconds": 86.23498010000912,
+          "label": "path-2-pair-1-1-backproject",
+          "statistics_files": [
+            "path-2-pair-1-1-backproject\\output\\backproject-backproject-a81bcf4a-2c90-400d-97a8-d8a5be085ac2-statistics.json"
+          ],
+          "output_header": {
+            "files": 4006,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              1200,
+              385
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 148908094
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+            "unit": "bytes",
+            "method": "QueryWorkingSet and tracked allocation/page union",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 2250768384,
+            "last_complete_sample_bytes": 1242726400,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.0000762999989092,
+                "max": 2.1466187000041828
+              },
+              "complete_samples": 68,
+              "incomplete_samples": 6,
+              "discarded_samples": 0,
+              "max_process_count": 13,
+              "max_sweep_seconds": 2.1443803000147454,
+              "collector_cpu_seconds": 7.15625,
+              "window_seconds": 77.5004692999646,
+              "first_sample_start_seconds": 0.03238609997788444,
+              "last_sample_end_seconds": 77.32778779999353
+            },
+            "errors": [
+              {
+                "kind": "NoSuchProcess",
+                "count": 2,
+                "example": "process no longer exists (pid=29980)"
+              },
+              {
+                "kind": "OSError",
+                "count": 4,
+                "example": "Process tree changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "backproject"
+        },
+        {
+          "handler_elapsed_seconds": 39.26536189997569,
+          "pipeline_elapsed_seconds": 38.278074700036086,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0016749000060372055,
+            "SlicesGeometryPipelineStep": 0.639678500010632,
+            "VolumeCachePipelineStep": 0.9962671999819577,
+            "SliceParallelPipelineStep": 36.64004369999748
+          },
+          "data_operation_elapsed_seconds": 36.64004369999748,
+          "enabled": true,
+          "process_elapsed_seconds": 46.45388939999975,
+          "label": "path-2-pair-2-1-slice",
+          "statistics_files": [
+            "path-2-pair-2-1-slice\\output\\slice-slice-91c40e71-e286-49f0-ac23-592342b4aa60-statistics.json"
+          ],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 4901,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 142027736
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+            "unit": "bytes",
+            "method": "QueryWorkingSet and tracked allocation/page union",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 1412042752,
+            "last_complete_sample_bytes": 1412042752,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.0004656999954022,
+                "max": 1.0860309000127017
+              },
+              "complete_samples": 17,
+              "incomplete_samples": 21,
+              "discarded_samples": 0,
+              "max_process_count": 14,
+              "max_sweep_seconds": 1.085229399963282,
+              "collector_cpu_seconds": 4.171875,
+              "window_seconds": 38.28576150001027,
+              "first_sample_start_seconds": 0.02874019998125732,
+              "last_sample_end_seconds": 37.7076094999793
+            },
+            "errors": [
+              {
+                "kind": "NoSuchProcess",
+                "count": 1,
+                "example": "process no longer exists (pid=47900)"
+              },
+              {
+                "kind": "OSError",
+                "count": 20,
+                "example": "Process tree changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 77.02587560005486,
+          "pipeline_elapsed_seconds": 75.60819560004165,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0017303000204265118,
+            "SlicesGeometryPipelineStep": 0.6466862999950536,
+            "VolumeCachePipelineStep": 0.8465894000255503,
+            "BackprojectPipelineStep": 74.11284640000667
+          },
+          "data_operation_elapsed_seconds": 74.11284640000667,
+          "enabled": true,
+          "process_elapsed_seconds": 83.68345339997904,
+          "label": "path-2-pair-2-1-backproject",
+          "statistics_files": [
+            "path-2-pair-2-1-backproject\\output\\backproject-backproject-df35e36e-c4b5-4f4f-9b68-2a401d0af178-statistics.json"
+          ],
+          "output_header": {
+            "files": 4006,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              1200,
+              385
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 148908094
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+            "unit": "bytes",
+            "method": "QueryWorkingSet and tracked allocation/page union",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 2300710912,
+            "last_complete_sample_bytes": 1237639168,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.000409199972637,
+                "max": 1.9402725999825634
+              },
+              "complete_samples": 63,
+              "incomplete_samples": 10,
+              "discarded_samples": 0,
+              "max_process_count": 13,
+              "max_sweep_seconds": 1.9401073000044562,
+              "collector_cpu_seconds": 6.578125,
+              "window_seconds": 75.61536559998058,
+              "first_sample_start_seconds": 0.020557499956339598,
+              "last_sample_end_seconds": 75.16040749999229
+            },
+            "errors": [
+              {
+                "kind": "NoSuchProcess",
+                "count": 2,
+                "example": "process no longer exists (pid=6816)"
+              },
+              {
+                "kind": "OSError",
+                "count": 8,
+                "example": "Process tree changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "backproject"
+        },
+        {
+          "handler_elapsed_seconds": 35.927442999964114,
+          "pipeline_elapsed_seconds": 35.9018351000268,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.00332169997273013,
+            "SlicesGeometryPipelineStep": 0.7934418999939226,
+            "VolumeCachePipelineStep": 0.8755016000359319,
+            "SliceParallelPipelineStep": 34.22922210005345
+          },
+          "data_operation_elapsed_seconds": 34.22922210005345,
+          "enabled": false,
+          "process_elapsed_seconds": 43.44464430003427,
+          "label": "path-2-pair-2-0-slice",
+          "statistics_files": [],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 4901,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 142027736
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 74.28683469997486,
+          "pipeline_elapsed_seconds": 74.26710529997945,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.001348600024357438,
+            "SlicesGeometryPipelineStep": 0.6960798000218347,
+            "VolumeCachePipelineStep": 0.8265101999859326,
+            "BackprojectPipelineStep": 72.74282609997317
+          },
+          "data_operation_elapsed_seconds": 72.74282609997317,
+          "enabled": false,
+          "process_elapsed_seconds": 80.96316799998749,
+          "label": "path-2-pair-2-0-backproject",
+          "statistics_files": [],
+          "output_header": {
+            "files": 4006,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              1200,
+              385
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 148908094
+          },
+          "operation": "backproject"
+        }
+      ],
+      "slicing_warmup": {
+        "handler_elapsed_seconds": 66.78435210004682,
+        "pipeline_elapsed_seconds": 66.76754879998043,
+        "step_elapsed_seconds": {
+          "ParseJSONPipelineStep": 0.0014358999906107783,
+          "SlicesGeometryPipelineStep": 0.7857130000484176,
+          "VolumeCachePipelineStep": 0.9209610000252724,
+          "SliceParallelPipelineStep": 65.0591301000095
+        },
+        "data_operation_elapsed_seconds": 65.0591301000095,
+        "enabled": false,
+        "process_elapsed_seconds": 75.01492819999112,
+        "label": "path-2-warmup",
+        "statistics_files": [],
+        "output_header": {
+          "files": 1,
+          "pages_in_first_file": 4901,
+          "page_shape": [
+            120,
+            120
+          ],
+          "dtype": "uint16",
+          "storage_bytes": 142027736
+        }
+      },
+      "operations": {
+        "slice": {
+          "disabled": {
+            "median_seconds": 35.535105650051264,
+            "min_seconds": 34.22922210005345,
+            "max_seconds": 36.84098920004908,
+            "median_absolute_deviation_seconds": 1.3058835499978159,
+            "samples_seconds": [
+              36.84098920004908,
+              34.22922210005345
+            ]
+          },
+          "enabled": {
+            "median_seconds": 37.8440077000123,
+            "min_seconds": 36.64004369999748,
+            "max_seconds": 39.04797170002712,
+            "median_absolute_deviation_seconds": 1.203964000014821,
+            "samples_seconds": [
+              39.04797170002712,
+              36.64004369999748
+            ]
+          },
+          "median_elapsed_overhead_percent": 6.4975240898367925,
+          "paired_overhead_percent": [
+            5.9905625443279265,
+            7.043167948418749
+          ],
+          "measured_median_at_most_one_percent": false,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 38.550012700026855,
+              "pipeline_elapsed_seconds": 38.528146800003015,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0015275999903678894,
+                "SlicesGeometryPipelineStep": 0.749775700038299,
+                "VolumeCachePipelineStep": 0.9355186000466347,
+                "SliceParallelPipelineStep": 36.84098920004908
+              },
+              "data_operation_elapsed_seconds": 36.84098920004908,
+              "enabled": false,
+              "process_elapsed_seconds": 45.53226149996044,
+              "label": "path-2-pair-1-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 4901,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 142027736
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 41.88997760001803,
+              "pipeline_elapsed_seconds": 40.84536040003877,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0017903000116348267,
+                "SlicesGeometryPipelineStep": 0.7189942999975756,
+                "VolumeCachePipelineStep": 1.0762471999623813,
+                "SliceParallelPipelineStep": 39.04797170002712
+              },
+              "data_operation_elapsed_seconds": 39.04797170002712,
+              "enabled": true,
+              "process_elapsed_seconds": 49.731837899948005,
+              "label": "path-2-pair-1-1-slice",
+              "statistics_files": [
+                "path-2-pair-1-1-slice\\output\\slice-slice-0b1b8562-a979-48e3-9fb6-4ceb4958a635-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 4901,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 142027736
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1613201408,
+                "last_complete_sample_bytes": 1613201408,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0000639999634586,
+                    "max": 1.3372757000033744
+                  },
+                  "complete_samples": 21,
+                  "incomplete_samples": 19,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 1.3368979999795556,
+                  "collector_cpu_seconds": 4.234375,
+                  "window_seconds": 40.85205190000124,
+                  "first_sample_start_seconds": 0.023718299984466285,
+                  "last_sample_end_seconds": 40.58434890001081
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=44196)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 18,
+                    "example": "Mapping observations changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 39.26536189997569,
+              "pipeline_elapsed_seconds": 38.278074700036086,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0016749000060372055,
+                "SlicesGeometryPipelineStep": 0.639678500010632,
+                "VolumeCachePipelineStep": 0.9962671999819577,
+                "SliceParallelPipelineStep": 36.64004369999748
+              },
+              "data_operation_elapsed_seconds": 36.64004369999748,
+              "enabled": true,
+              "process_elapsed_seconds": 46.45388939999975,
+              "label": "path-2-pair-2-1-slice",
+              "statistics_files": [
+                "path-2-pair-2-1-slice\\output\\slice-slice-91c40e71-e286-49f0-ac23-592342b4aa60-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 4901,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 142027736
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1412042752,
+                "last_complete_sample_bytes": 1412042752,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0004656999954022,
+                    "max": 1.0860309000127017
+                  },
+                  "complete_samples": 17,
+                  "incomplete_samples": 21,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 1.085229399963282,
+                  "collector_cpu_seconds": 4.171875,
+                  "window_seconds": 38.28576150001027,
+                  "first_sample_start_seconds": 0.02874019998125732,
+                  "last_sample_end_seconds": 37.7076094999793
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=47900)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 20,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 35.927442999964114,
+              "pipeline_elapsed_seconds": 35.9018351000268,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.00332169997273013,
+                "SlicesGeometryPipelineStep": 0.7934418999939226,
+                "VolumeCachePipelineStep": 0.8755016000359319,
+                "SliceParallelPipelineStep": 34.22922210005345
+              },
+              "data_operation_elapsed_seconds": 34.22922210005345,
+              "enabled": false,
+              "process_elapsed_seconds": 43.44464430003427,
+              "label": "path-2-pair-2-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 4901,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 142027736
+              },
+              "operation": "slice"
+            }
+          ]
+        },
+        "backproject": {
+          "disabled": {
+            "median_seconds": 72.2873090999783,
+            "min_seconds": 71.83179209998343,
+            "max_seconds": 72.74282609997317,
+            "median_absolute_deviation_seconds": 0.4555169999948703,
+            "samples_seconds": [
+              71.83179209998343,
+              72.74282609997317
+            ]
+          },
+          "enabled": {
+            "median_seconds": 75.07081280002603,
+            "min_seconds": 74.11284640000667,
+            "max_seconds": 76.02877920004539,
+            "median_absolute_deviation_seconds": 0.9579664000193588,
+            "samples_seconds": [
+              76.02877920004539,
+              74.11284640000667
+            ]
+          },
+          "median_elapsed_overhead_percent": 3.850611863554021,
+          "paired_overhead_percent": [
+            5.842798818411943,
+            1.8833751360589623
+          ],
+          "measured_median_at_most_one_percent": false,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 73.28330090001691,
+              "pipeline_elapsed_seconds": 73.26800879999064,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0011647000210359693,
+                "SlicesGeometryPipelineStep": 0.6438345999922603,
+                "VolumeCachePipelineStep": 0.7908821000019088,
+                "BackprojectPipelineStep": 71.83179209998343
+              },
+              "data_operation_elapsed_seconds": 71.83179209998343,
+              "enabled": false,
+              "process_elapsed_seconds": 79.72428460000083,
+              "label": "path-2-pair-1-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 4006,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  1200,
+                  385
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 148908094
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 78.93692840001313,
+              "pipeline_elapsed_seconds": 77.49278839997714,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0023311999975703657,
+                "SlicesGeometryPipelineStep": 0.6358436000300571,
+                "VolumeCachePipelineStep": 0.8254827999626286,
+                "BackprojectPipelineStep": 76.02877920004539
+              },
+              "data_operation_elapsed_seconds": 76.02877920004539,
+              "enabled": true,
+              "process_elapsed_seconds": 86.23498010000912,
+              "label": "path-2-pair-1-1-backproject",
+              "statistics_files": [
+                "path-2-pair-1-1-backproject\\output\\backproject-backproject-a81bcf4a-2c90-400d-97a8-d8a5be085ac2-statistics.json"
+              ],
+              "output_header": {
+                "files": 4006,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  1200,
+                  385
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 148908094
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 2250768384,
+                "last_complete_sample_bytes": 1242726400,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0000762999989092,
+                    "max": 2.1466187000041828
+                  },
+                  "complete_samples": 68,
+                  "incomplete_samples": 6,
+                  "discarded_samples": 0,
+                  "max_process_count": 13,
+                  "max_sweep_seconds": 2.1443803000147454,
+                  "collector_cpu_seconds": 7.15625,
+                  "window_seconds": 77.5004692999646,
+                  "first_sample_start_seconds": 0.03238609997788444,
+                  "last_sample_end_seconds": 77.32778779999353
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 2,
+                    "example": "process no longer exists (pid=29980)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 4,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 77.02587560005486,
+              "pipeline_elapsed_seconds": 75.60819560004165,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0017303000204265118,
+                "SlicesGeometryPipelineStep": 0.6466862999950536,
+                "VolumeCachePipelineStep": 0.8465894000255503,
+                "BackprojectPipelineStep": 74.11284640000667
+              },
+              "data_operation_elapsed_seconds": 74.11284640000667,
+              "enabled": true,
+              "process_elapsed_seconds": 83.68345339997904,
+              "label": "path-2-pair-2-1-backproject",
+              "statistics_files": [
+                "path-2-pair-2-1-backproject\\output\\backproject-backproject-df35e36e-c4b5-4f4f-9b68-2a401d0af178-statistics.json"
+              ],
+              "output_header": {
+                "files": 4006,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  1200,
+                  385
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 148908094
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 2300710912,
+                "last_complete_sample_bytes": 1237639168,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.000409199972637,
+                    "max": 1.9402725999825634
+                  },
+                  "complete_samples": 63,
+                  "incomplete_samples": 10,
+                  "discarded_samples": 0,
+                  "max_process_count": 13,
+                  "max_sweep_seconds": 1.9401073000044562,
+                  "collector_cpu_seconds": 6.578125,
+                  "window_seconds": 75.61536559998058,
+                  "first_sample_start_seconds": 0.020557499956339598,
+                  "last_sample_end_seconds": 75.16040749999229
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 2,
+                    "example": "process no longer exists (pid=6816)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 8,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 74.28683469997486,
+              "pipeline_elapsed_seconds": 74.26710529997945,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.001348600024357438,
+                "SlicesGeometryPipelineStep": 0.6960798000218347,
+                "VolumeCachePipelineStep": 0.8265101999859326,
+                "BackprojectPipelineStep": 72.74282609997317
+              },
+              "data_operation_elapsed_seconds": 72.74282609997317,
+              "enabled": false,
+              "process_elapsed_seconds": 80.96316799998749,
+              "label": "path-2-pair-2-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 4006,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  1200,
+                  385
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 148908094
+              },
+              "operation": "backproject"
+            }
+          ]
+        }
+      },
+      "pipeline_operations": {
+        "slice": {
+          "disabled": {
+            "median_seconds": 37.21499095001491,
+            "min_seconds": 35.9018351000268,
+            "max_seconds": 38.528146800003015,
+            "median_absolute_deviation_seconds": 1.3131558499881066,
+            "samples_seconds": [
+              38.528146800003015,
+              35.9018351000268
+            ]
+          },
+          "enabled": {
+            "median_seconds": 39.56171755003743,
+            "min_seconds": 38.278074700036086,
+            "max_seconds": 40.84536040003877,
+            "median_absolute_deviation_seconds": 1.2836428500013426,
+            "samples_seconds": [
+              40.84536040003877,
+              38.278074700036086
+            ]
+          },
+          "median_elapsed_overhead_percent": 6.305863685885371,
+          "paired_overhead_percent": [
+            6.014339625687826,
+            6.618713481884142
+          ],
+          "measured_median_at_most_one_percent": false,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 38.550012700026855,
+              "pipeline_elapsed_seconds": 38.528146800003015,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0015275999903678894,
+                "SlicesGeometryPipelineStep": 0.749775700038299,
+                "VolumeCachePipelineStep": 0.9355186000466347,
+                "SliceParallelPipelineStep": 36.84098920004908
+              },
+              "data_operation_elapsed_seconds": 36.84098920004908,
+              "enabled": false,
+              "process_elapsed_seconds": 45.53226149996044,
+              "label": "path-2-pair-1-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 4901,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 142027736
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 41.88997760001803,
+              "pipeline_elapsed_seconds": 40.84536040003877,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0017903000116348267,
+                "SlicesGeometryPipelineStep": 0.7189942999975756,
+                "VolumeCachePipelineStep": 1.0762471999623813,
+                "SliceParallelPipelineStep": 39.04797170002712
+              },
+              "data_operation_elapsed_seconds": 39.04797170002712,
+              "enabled": true,
+              "process_elapsed_seconds": 49.731837899948005,
+              "label": "path-2-pair-1-1-slice",
+              "statistics_files": [
+                "path-2-pair-1-1-slice\\output\\slice-slice-0b1b8562-a979-48e3-9fb6-4ceb4958a635-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 4901,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 142027736
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1613201408,
+                "last_complete_sample_bytes": 1613201408,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0000639999634586,
+                    "max": 1.3372757000033744
+                  },
+                  "complete_samples": 21,
+                  "incomplete_samples": 19,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 1.3368979999795556,
+                  "collector_cpu_seconds": 4.234375,
+                  "window_seconds": 40.85205190000124,
+                  "first_sample_start_seconds": 0.023718299984466285,
+                  "last_sample_end_seconds": 40.58434890001081
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=44196)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 18,
+                    "example": "Mapping observations changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 39.26536189997569,
+              "pipeline_elapsed_seconds": 38.278074700036086,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0016749000060372055,
+                "SlicesGeometryPipelineStep": 0.639678500010632,
+                "VolumeCachePipelineStep": 0.9962671999819577,
+                "SliceParallelPipelineStep": 36.64004369999748
+              },
+              "data_operation_elapsed_seconds": 36.64004369999748,
+              "enabled": true,
+              "process_elapsed_seconds": 46.45388939999975,
+              "label": "path-2-pair-2-1-slice",
+              "statistics_files": [
+                "path-2-pair-2-1-slice\\output\\slice-slice-91c40e71-e286-49f0-ac23-592342b4aa60-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 4901,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 142027736
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1412042752,
+                "last_complete_sample_bytes": 1412042752,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0004656999954022,
+                    "max": 1.0860309000127017
+                  },
+                  "complete_samples": 17,
+                  "incomplete_samples": 21,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 1.085229399963282,
+                  "collector_cpu_seconds": 4.171875,
+                  "window_seconds": 38.28576150001027,
+                  "first_sample_start_seconds": 0.02874019998125732,
+                  "last_sample_end_seconds": 37.7076094999793
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=47900)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 20,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 35.927442999964114,
+              "pipeline_elapsed_seconds": 35.9018351000268,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.00332169997273013,
+                "SlicesGeometryPipelineStep": 0.7934418999939226,
+                "VolumeCachePipelineStep": 0.8755016000359319,
+                "SliceParallelPipelineStep": 34.22922210005345
+              },
+              "data_operation_elapsed_seconds": 34.22922210005345,
+              "enabled": false,
+              "process_elapsed_seconds": 43.44464430003427,
+              "label": "path-2-pair-2-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 4901,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 142027736
+              },
+              "operation": "slice"
+            }
+          ]
+        },
+        "backproject": {
+          "disabled": {
+            "median_seconds": 73.76755704998504,
+            "min_seconds": 73.26800879999064,
+            "max_seconds": 74.26710529997945,
+            "median_absolute_deviation_seconds": 0.4995482499944046,
+            "samples_seconds": [
+              73.26800879999064,
+              74.26710529997945
+            ]
+          },
+          "enabled": {
+            "median_seconds": 76.5504920000094,
+            "min_seconds": 75.60819560004165,
+            "max_seconds": 77.49278839997714,
+            "median_absolute_deviation_seconds": 0.942296399967745,
+            "samples_seconds": [
+              77.49278839997714,
+              75.60819560004165
+            ]
+          },
+          "median_elapsed_overhead_percent": 3.7725730135520497,
+          "paired_overhead_percent": [
+            5.766199558554197,
+            1.805766219977567
+          ],
+          "measured_median_at_most_one_percent": false,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 73.28330090001691,
+              "pipeline_elapsed_seconds": 73.26800879999064,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0011647000210359693,
+                "SlicesGeometryPipelineStep": 0.6438345999922603,
+                "VolumeCachePipelineStep": 0.7908821000019088,
+                "BackprojectPipelineStep": 71.83179209998343
+              },
+              "data_operation_elapsed_seconds": 71.83179209998343,
+              "enabled": false,
+              "process_elapsed_seconds": 79.72428460000083,
+              "label": "path-2-pair-1-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 4006,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  1200,
+                  385
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 148908094
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 78.93692840001313,
+              "pipeline_elapsed_seconds": 77.49278839997714,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0023311999975703657,
+                "SlicesGeometryPipelineStep": 0.6358436000300571,
+                "VolumeCachePipelineStep": 0.8254827999626286,
+                "BackprojectPipelineStep": 76.02877920004539
+              },
+              "data_operation_elapsed_seconds": 76.02877920004539,
+              "enabled": true,
+              "process_elapsed_seconds": 86.23498010000912,
+              "label": "path-2-pair-1-1-backproject",
+              "statistics_files": [
+                "path-2-pair-1-1-backproject\\output\\backproject-backproject-a81bcf4a-2c90-400d-97a8-d8a5be085ac2-statistics.json"
+              ],
+              "output_header": {
+                "files": 4006,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  1200,
+                  385
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 148908094
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 2250768384,
+                "last_complete_sample_bytes": 1242726400,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0000762999989092,
+                    "max": 2.1466187000041828
+                  },
+                  "complete_samples": 68,
+                  "incomplete_samples": 6,
+                  "discarded_samples": 0,
+                  "max_process_count": 13,
+                  "max_sweep_seconds": 2.1443803000147454,
+                  "collector_cpu_seconds": 7.15625,
+                  "window_seconds": 77.5004692999646,
+                  "first_sample_start_seconds": 0.03238609997788444,
+                  "last_sample_end_seconds": 77.32778779999353
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 2,
+                    "example": "process no longer exists (pid=29980)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 4,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 77.02587560005486,
+              "pipeline_elapsed_seconds": 75.60819560004165,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0017303000204265118,
+                "SlicesGeometryPipelineStep": 0.6466862999950536,
+                "VolumeCachePipelineStep": 0.8465894000255503,
+                "BackprojectPipelineStep": 74.11284640000667
+              },
+              "data_operation_elapsed_seconds": 74.11284640000667,
+              "enabled": true,
+              "process_elapsed_seconds": 83.68345339997904,
+              "label": "path-2-pair-2-1-backproject",
+              "statistics_files": [
+                "path-2-pair-2-1-backproject\\output\\backproject-backproject-df35e36e-c4b5-4f4f-9b68-2a401d0af178-statistics.json"
+              ],
+              "output_header": {
+                "files": 4006,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  1200,
+                  385
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 148908094
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_private_plus_tracked_shared_resident_bytes",
+                "unit": "bytes",
+                "method": "QueryWorkingSet and tracked allocation/page union",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 2300710912,
+                "last_complete_sample_bytes": 1237639168,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.000409199972637,
+                    "max": 1.9402725999825634
+                  },
+                  "complete_samples": 63,
+                  "incomplete_samples": 10,
+                  "discarded_samples": 0,
+                  "max_process_count": 13,
+                  "max_sweep_seconds": 1.9401073000044562,
+                  "collector_cpu_seconds": 6.578125,
+                  "window_seconds": 75.61536559998058,
+                  "first_sample_start_seconds": 0.020557499956339598,
+                  "last_sample_end_seconds": 75.16040749999229
+                },
+                "errors": [
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 2,
+                    "example": "process no longer exists (pid=6816)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 8,
+                    "example": "Process tree changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 74.28683469997486,
+              "pipeline_elapsed_seconds": 74.26710529997945,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.001348600024357438,
+                "SlicesGeometryPipelineStep": 0.6960798000218347,
+                "VolumeCachePipelineStep": 0.8265101999859326,
+                "BackprojectPipelineStep": 72.74282609997317
+              },
+              "data_operation_elapsed_seconds": 72.74282609997317,
+              "enabled": false,
+              "process_elapsed_seconds": 80.96316799998749,
+              "label": "path-2-pair-2-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 4006,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  1200,
+                  385
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 148908094
+              },
+              "operation": "backproject"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "production_code_unchanged": true
+}

@@ -164,8 +164,10 @@ owning registry as the source of live segment identities and sizes. A proposed
 USS-plus-live-segment metric needs its own defined semantics and tests against
 double-counting; allocated capacity must not silently be labeled residency.
 
-Real-data slicing/backprojection and RAM overhead validation follow that rebase.
-Focused lifecycle tests on this branch do not establish scientific-pipeline or
-RAM-collector acceptance. Manifest publication and reads now use the same bounded Windows sharing-violation
+The post-rebase native Windows real-data batch is recorded in
+`python/benchmarks/README.md`: all 12 workflows completed, with usable partial
+peaks in all enabled operations, but long-path overhead and shared-backing
+coverage remain unresolved. Focused lifecycle tests alone do not establish
+scientific-pipeline or RAM-collector acceptance. Manifest publication and reads now use the same bounded Windows sharing-violation
 retry as collector control/result files. Persistent failures still invalidate
 coverage; this does not change the scientific allocation lifecycle.

@@ -451,6 +451,16 @@ transfer unlink authority or cached NumPy data. The server keeps the buffer aliv
 even if the producer exits before the consumer opens it. This matters on Windows,
 where the allocation disappears when its last handle closes.</p>
 <h2 id="release-and-failure-handling">Release and failure handling</h2>
+<p>The slicing pipeline starts its processing pool before submitting downloads.
+On supported CPython versions, the first submission starts all workers when
+using <code>fork</code>. Starting them after receiving a downloaded volume would also
+inherit the parent's attachment, separately from the serialized task argument.
+That untouched inherited mapping can retain resident backing after the manager
+releases the volume, until pool shutdown. The startup submission prevents that
+extra lifetime without changing the process start method or adding an allocation
+registry. Startup completes before downloading begins, rather than overlapping
+with downloads. This ordering addresses volumes created by this slicing run;
+it does not isolate arbitrary pre-existing state in a process using <code>fork</code>.</p>
 <ul>
 <li>Run-scoped arrays and standard manager allocations live until manager shutdown.</li>
 <li>Termed arrays are released by <code>remove_termed()</code> at the existing per-volume
@@ -480,7 +490,7 @@ exit before receiver attachment, per-buffer release, surviving mapped consumers,
 serialization authority, failed construction, normal/exception shutdown, and
 owner termination. Multiprocessing coverage includes the live server code.</p>
 <p>Before raising the Python upper bound in <code>python/pyproject.toml</code>, re-check these
-three CPython interfaces against every newly supported version:</p>
+four CPython interfaces against every newly supported version:</p>
 <ul>
 <li><code>BaseManager._run_server</code> and startup/finalization: the mirrored signature,
   parent-process sentinel, and replacement of the client <code>shutdown()</code> method.</li>
@@ -488,6 +498,10 @@ three CPython interfaces against every newly supported version:</p>
   exception-to-<code>RemoteError</code> conversion used by the release-result adapter.</li>
 <li><code>SharedMemoryServer.shared_memory_context</code>: the tracker interface consumed by
   allocation registration, listing, release, and server shutdown.</li>
+<li><code>ProcessPoolExecutor.submit</code>: with <code>fork</code>, the first submission must start
+  all workers before returning, so no worker is first forked after downloaded
+  shared volumes arrive. The slicing lifecycle regression exercises this
+  ordering and inspects released attachments before pool shutdown.</li>
 </ul>
 <p>Extend the native lifecycle matrix to those versions and verify handoff, early
 release, and owner-death cleanup on all three operating systems before changing
@@ -585,31 +599,25 @@ the production dependency set, scientific pipelines, and RAM-reporting integrati
 were not validated by these probes. The project remains <code>&gt;=3.11,&lt;3.13</code>; raising
 that cap still requires dependency and platform validation.</p>
 <h2 id="ram-reporting-integration">RAM-reporting integration</h2>
-<p>PR #144 now builds on this ownership change. Its existing mapping observer
-observes server-owned handles at allocation/registration and refreshes after
-release and shutdown, alongside each process-local attachment. Manager startup
-passes the active observation context through the existing initializer seam,
-before any caller initializer. <code>_OwnedSharedMemoryTracker</code> remains the sole
-allocation authority; observations are weak, derived mapping descriptions and
-retain no allocation. Serialization runs the attachment constructor, so the
-redundant <code>__setstate__</code> observation path has been removed.</p>
-<p>Focused tests inspect the manager's manifest after client attachments close,
-then verify removal after explicit release and shutdown, including inherited
-<code>ShareableList</code> registration. Native CI runs the ownership and collector suites
-in the same Python 3.11/3.12 platform matrix.</p>
+<p>The deferred integration and real-data acceptance from #145 are tracked in
+<a href="https://github.com/ChengLabResearch/ouroboros/issues/139">#139</a>, to be completed
+after rebasing PR #144 onto this ownership change. Its existing mapping observer
+must observe server-owned handles at allocation/registration and refresh after
+release, as well as observing each
+process-local attachment. The owning registry must remain the sole allocation
+authority; observation must not become another owner or registry of lifetimes.
+The new serialization path runs the attachment constructor, so observation belongs
+there rather than in a redundant <code>__setstate__</code> path.</p>
 <p>Keeping a server handle mapped does not by itself fix the Linux PSS coverage gap:
 resident segments queued after the producer closes can remain untouched by every
 currently mapped process. #139 must validate accounting for that state using the
 owning registry as the source of live segment identities and sizes. A proposed
 USS-plus-live-segment metric needs its own defined semantics and tests against
 double-counting; allocated capacity must not silently be labeled residency.</p>
-<p>The post-rebase native Windows real-data batch is recorded in
-<code>python/benchmarks/README.md</code>: all 12 workflows completed, with usable partial
-peaks in all enabled operations, but long-path overhead and shared-backing
-coverage remain unresolved. Focused lifecycle tests alone do not establish
-scientific-pipeline or RAM-collector acceptance. Manifest publication and reads now use the same bounded Windows sharing-violation
-retry as collector control/result files. Persistent failures still invalidate
-coverage; this does not change the scientific allocation lifecycle.</p>
+<p>Real-data slicing/backprojection and RAM overhead validation follow that rebase.
+Focused lifecycle tests on this branch do not establish scientific-pipeline or
+RAM-collector acceptance. The separate manifest-publication defect remains in
+scope for the RAM-reporting branch.</p>
 </section>
 
             </main>

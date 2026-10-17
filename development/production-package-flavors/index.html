@@ -435,10 +435,11 @@ for each supported desktop runner. The available flavors are:</p>
   Segmentation plugin artifacts. The automatic segmentation plugin uses its
   CUDA backend image and Docker Compose GPU reservation.</li>
 </ul>
-<p>Plugin flavors stage release artifacts into
-<code>extra-resources/preinstalled-plugins</code> inside the external packaging workspace
-before Electron Builder runs. The app installs those bundled plugin folders into
-the user plugin directory on startup.</p>
+<p>Plugin flavors stage bundled assets in separate resource directories inside the
+external packaging workspace. Electron Builder maps each flavor's resources into
+the installed <code>extra-resources</code> directory, including
+<code>extra-resources/preinstalled-plugins</code>. The app installs those bundled plugin
+folders into the user plugin directory on startup.</p>
 <h2 id="release-inputs">Release inputs</h2>
 <p>The release lock is the only source of production pins and selected flavors.
 Update it to change the server image or bundled plugins; there are no separate
@@ -450,7 +451,7 @@ SHA-256, and source commit, with separate CPU and CUDA backend identities.
 Packaging verifies downloaded archive hashes and requires <code>plugin-release.json</code>
 to match the locked release identity. Backend image verification follows the
 corresponding lock entry. See the lock for current versions and digests.</p>
-<p>The staged <code>extra-resources/package-flavor.json</code> records the selected flavor,
+<p>The packaged <code>extra-resources/package-flavor.json</code> records the selected flavor,
 release-lock hash, server image metadata, and exact plugin identities, including
 the verified plugin release metadata. This file describes the package; the
 release lock remains authoritative.</p>
@@ -465,6 +466,12 @@ dependency trees, plugin downloads, and final artifacts live under <code>RUNNER_
 outside <code>GITHUB_WORKSPACE</code>; the source checkout is read-only input. Electron
 Builder uses an explicit application-file allowlist rather than packaging the
 checkout.</p>
+<p>Source files and installed dependencies are copied once into an external tree
+where Electron is compiled. Every flavor packages that same compiled application
+and dependency tree, with <code>npmRebuild: false</code> enforced. Flavor preparation and
+cleanup affect only that flavor's resources and output directory. The shared
+compiled tree remains available across flavors and is removed at the end of the
+run; there are no links back to checkout dependencies.</p>
 <p>A successful <code>main</code> build records the exact source commit, input lock, artifact
 sizes, and SHA-256 hashes. The tag-triggered publication workflow verifies those
 prebuilt artifacts and creates a draft release without rebuilding Electron or the
@@ -487,9 +494,8 @@ to <code>RUNNER_TEMP</code>, or the operating system's temporary directory when 
 locally without that variable. The command prints the final output location.
 Set <code>OUROBOROS_RELEASE_ARTIFACT_DIR</code> to choose another destination beneath that
 temporary root. It must be an absolute path outside the checkout and must be new
-or empty; existing artifacts are not cleared. Native builds copy installed
-dependencies into scratch space. Scratch files are removed after the run, while
-final artifacts are retained.</p>
+or empty; existing artifacts are not cleared. Scratch files are removed after
+the run, while final artifacts are retained.</p>
 <p>The existing <code>build:linux</code>, <code>build:mac</code>, and <code>build:win</code> commands use the same
 staging and packaging entrypoint. For a local single-flavor build, select a flavor
 already present in the lock, for example:</p>

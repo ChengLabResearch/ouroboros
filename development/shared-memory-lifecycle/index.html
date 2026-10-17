@@ -421,7 +421,7 @@
 <nav>
     <ul>
         <li><a href="#shared-memory-ownership">Shared-memory ownership</a></li>
-        <li><a href="#allocation-and-handoff">Allocation and handoff</a></li><li><a href="#release-and-failure-handling">Release and failure handling</a></li><li><a href="#ram-reporting-integration">RAM-reporting integration</a></li>
+        <li><a href="#allocation-and-handoff">Allocation and handoff</a></li><li><a href="#release-and-failure-handling">Release and failure handling</a></li><li><a href="#compatibility-audit-2026-10-17">Compatibility audit (2026-10-17)</a></li><li><a href="#ram-reporting-integration">RAM-reporting integration</a></li>
     </ul>
 </nav>
 </aside>
@@ -492,6 +492,93 @@ three CPython interfaces against every newly supported version:</p>
 <p>Extend the native lifecycle matrix to those versions and verify handoff, early
 release, and owner-death cleanup on all three operating systems before changing
 the supported-version contract.</p>
+<h2 id="compatibility-audit-2026-10-17">Compatibility audit (2026-10-17)</h2>
+<p>The three manager interfaces remain compatible in the inspected CPython releases
+below. No production-code change was needed. The audit compared the official
+release sources and ran the expanded lifecycle suite on Linux x86-64 using
+isolated, standard GIL-enabled CPython builds.</p>
+<table>
+<thead>
+<tr>
+<th>CPython source and runtime</th>
+<th>NumPy in isolated probe</th>
+<th>Linux lifecycle result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/python/cpython/blob/v3.11.17/Lib/multiprocessing/managers.py">3.11.17</a></td>
+<td>1.26.4</td>
+<td>34 passed</td>
+</tr>
+<tr>
+<td><a href="https://github.com/python/cpython/blob/v3.12.15/Lib/multiprocessing/managers.py">3.12.15</a></td>
+<td>1.26.4</td>
+<td>34 passed</td>
+</tr>
+<tr>
+<td><a href="https://github.com/python/cpython/blob/v3.13.16/Lib/multiprocessing/managers.py">3.13.16</a></td>
+<td>2.5.4</td>
+<td>34 passed</td>
+</tr>
+<tr>
+<td><a href="https://github.com/python/cpython/blob/v3.14.8/Lib/multiprocessing/managers.py">3.14.8</a></td>
+<td>2.5.4</td>
+<td>34 passed</td>
+</tr>
+<tr>
+<td><a href="https://github.com/python/cpython/blob/v3.15.0/Lib/multiprocessing/managers.py">3.15.0</a></td>
+<td>2.5.4</td>
+<td>34 passed</td>
+</tr>
+</tbody>
+</table>
+<p>Findings at each audited interface:</p>
+<ul>
+<li><strong>Startup/finalization:</strong> <code>BaseManager.start</code>, <code>_run_server</code>, and
+  <code>_finalize_manager</code> have unchanged parsed implementations across these releases.
+  The initializer signature, address-pipe handshake, and installed shutdown
+  finalizer still match the override. The parent-process sentinel remains usable
+  with <code>fork</code>, <code>spawn</code>, and <code>forkserver</code>; the tests now cover initializer forwarding,
+  producer exit before attachment, and owner-death cleanup under every available
+  start method. CPython 3.13 moves child finalization out of <code>_bootstrap</code> into the
+  launcher/exit paths; the manager finalizer and server shutdown contract remain
+  intact.</li>
+<li><strong>RPC dispatch:</strong> the request tuple, return protocol, and conversion of a
+  server-raised exception to <code>RemoteError</code> are unchanged. From 3.13, <code>dispatch</code>
+  deletes its result reference in a <code>finally</code> block to break a reference cycle.
+  This does not change the release-result adapter. Live probes verify both an
+  allocation error arriving as <code>RemoteError</code> and rejected removal preserving the
+  public <code>FileNotFoundError</code> behavior.</li>
+<li><strong>Server tracker:</strong> <code>SharedMemoryServer</code> still consumes <code>register_segment</code>,
+  <code>destroy_segment</code>, <code>unlink</code>, and <code>segment_names</code> from <code>shared_memory_context</code>.
+  Registration, listing, explicit release, and shutdown therefore still use the
+  replacement owning registry. CPython's original tracker changes its mutable
+  default list to <code>None</code> in 3.13; this does not affect our replacement.</li>
+</ul>
+<p>Two adjacent changes matter for future upgrades:</p>
+<ul>
+<li><a href="https://docs.python.org/3.13/library/multiprocessing.shared_memory.html">Python 3.13 adds <code>SharedMemory(track=...)</code></a>.
+  Its default remains <code>True</code>, preserving the current resource-tracker behavior
+  for this multiprocessing family. Windows ignores this option. The audit does
+  not change that policy or claim support for unrelated standalone attachers.</li>
+<li><a href="https://docs.python.org/3.14/library/multiprocessing.html#contexts-and-start-methods">Python 3.14 changes the Linux default to <code>forkserver</code></a>.
+  The former spawn-only lifecycle tests would not have covered that default.
+  Handoff, initializer/RPC behavior, and owner-death tests now exercise all
+  available start methods explicitly. Linux probes confirmed <code>fork</code> as the
+  default through 3.13 and <code>forkserver</code> in 3.14/3.15.</li>
+</ul>
+<p>Each isolated probe used psutil 7.1.3, pytest 9.1.1, click 8.5.0, and
+typing-extensions 4.16.0. The command, from <code>python/</code>, was
+<code>python -m pytest test/test_shared_memory_lifecycle.py -q -W error::ResourceWarning</code>,
+with BLAS/OpenMP thread counts set to one. All five runs had empty stderr and no
+pytest warning summary. The native CI matrix retains Python 3.11/3.12 on Linux,
+Windows, and macOS and runs the same expanded tests.</p>
+<p>These results audit the shared-memory component, not the full application on
+new Python releases. Python 3.13–3.15 Windows/macOS runs, free-threaded builds,
+the production dependency set, scientific pipelines, and RAM-reporting integration
+were not validated by these probes. The project remains <code>&gt;=3.11,&lt;3.13</code>; raising
+that cap still requires dependency and platform validation.</p>
 <h2 id="ram-reporting-integration">RAM-reporting integration</h2>
 <p>The deferred integration and real-data acceptance from #145 are tracked in
 <a href="https://github.com/ChengLabResearch/ouroboros/issues/139">#139</a>, to be completed

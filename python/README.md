@@ -66,44 +66,56 @@ The usage is very similar to the cli, so to try it out, I recommend going to the
 
 ### Development
 
-Poetry must be run from the python/ directory, rather than repository root, or it will not be able to identify the pyproject.toml.  You may open the python folder separately or just make sure you always switch directories in the CLI.
+This setup is for native Python development and tests. The [Electron development workflow](../README.md#development-quick-start) runs the backend in Docker and does not require a host Python environment.
 
-[Poetry](https://python-poetry.org/) is the virtual environment and dependency manager for this project.
+Run Poetry commands from the repository's `python/` directory, which contains `pyproject.toml`. If you use VS Code, opening that folder in a separate window keeps the Python environment separate from the Electron workspace; its integrated terminal is a convenient place to run these commands.
 
-- `poetry install` - install all dependencies of this project into a local virtual environment
-- `poetry add [package]` - add a new dependency to the project
-- `poetry run [file.py]` - run a python file locally without activating the virtual environment
-- `poetry shell` - active the virtual environment in this shell
+#### 1. Install and select Python
 
-**To make sure that you can run PyInstaller locally (requires Python with shared libraries):**
-
-Run the line from the link below before creating a pyenv Python version. Then, use that version for the poetry environment. 
-
-Use --enabled-shared if on Linux.
-
-https://stackoverflow.com/questions/60917013/how-to-build-python-with-enable-framework-enable-shared-on-macos
-
-**To have VSCode recognize the poetry venv, follow these instructions:**
-
-You just need to type in your shell:
+Use Python **3.11** to match the Docker backend and coverage CI. The package supports Python 3.11 and 3.12 (`>=3.11,<3.13` in [pyproject.toml](pyproject.toml)). Download Python from [python.org](https://www.python.org/downloads/), or use [pyenv](https://github.com/pyenv/pyenv#installation) on Linux/macOS after installing its build prerequisites:
 
 ```bash
+pyenv install 3.11
+```
+
+If you want it as your user-wide pyenv default, run `pyenv global 3.11`. Otherwise, select the interpreter explicitly with `poetry env use 3.11` in the setup below. If it is not discoverable, pass the full path to the installed Python executable to `poetry env use`.
+
+For local PyInstaller builds, a source-built Python must provide its shared library. Current pyenv builds enable `--enable-shared` by default. If customizing an older build, pass `--enable-shared` on Linux or `--enable-framework` for a macOS framework build through `PYTHON_CONFIGURE_OPTS` **when running `pyenv install`**, then select that interpreter for Poetry. See [Python's shared-library option](https://docs.python.org/3.11/using/configure.html#cmdoption-enable-shared), [macOS framework option](https://docs.python.org/3.11/using/configure.html#cmdoption-enable-framework), and [pyenv build configuration](https://github.com/pyenv/pyenv/tree/master/plugins/python-build#special-environment-variables). This is a prerequisite for local executable builds, not an extra step for Docker development.
+
+#### 2. Install Poetry and dependencies
+
+[Poetry](https://python-poetry.org/) manages this package's dependencies and virtual environment. Follow its [official installer instructions](https://python-poetry.org/docs/#installing-with-the-official-installer), including adding the executable to `PATH`, and confirm `poetry --version` works. CI uses Poetry 2.1.3.
+
+From the repository root, enter the Python directory and create the environment:
+
+```bash
+cd python
 poetry config virtualenvs.in-project true
+poetry env use 3.11
+poetry install
+poetry env info --path
 ```
 
-The virtualenv will be created inside the project path and vscode will recognize. Consider adding this to your .bashrc or .zshrc.
+The environment should be `python/.venv`, making it easy for VS Code to discover. Select its interpreter with **Python: Select Interpreter**, then open a new terminal. If it is not activated automatically, use the commands below.
 
-Note: If you install poetry via conda, this will likely not have any effect and poetry will ouroboros into the conda environment. 
+#### 3. Run commands in the environment
 
-If you already have created your project, you need to re-create the virtualenv to make it appear in the correct place:
+Use `poetry run` without activating a shell:
 
 ```bash
-poetry env list  # shows the name of the current environment
-poetry env remove <current environment>
-poetry install  # will create a new environment using your updated configuration
+poetry run ouroboros-cli --help
+poetry run ouroboros-server
 ```
 
-Instructions From: https://stackoverflow.com/questions/59882884/vscode-doesnt-show-poetry-virtualenvs-in-select-interpreter-option
+The first command describes the slicing/backprojection CLI; the second starts the native API server. Do not run it alongside the Docker backend on the same port. To run a script, use `poetry run python your_script.py`; to add a dependency, use `poetry add package-name`.
+
+For an interactive environment, run `poetry env activate` and execute the activation command it prints for your shell. Once activated, `ouroboros-cli` and `ouroboros-server` can be run directly. In Poetry 2, `poetry shell` requires the optional shell plugin; it is no longer built in. See [Poetry's environment activation instructions](https://python-poetry.org/docs/managing-environments/#activating-the-environment).
+
+#### Existing environments and VS Code discovery
+
+Setting `virtualenvs.in-project` does not move an existing Poetry environment into `.venv`. If you want to recreate this project's cached environment there, run `poetry env list` to identify it, remove **that environment** with `poetry env remove "environment-name-from-the-list"`, and repeat the interpreter selection and installation commands above. Removal deletes that environment's installed packages. See [Poetry's in-project environment behavior](https://python-poetry.org/docs/configuration/#virtualenvsin-project).
+
+Poetry can reuse an already active virtual environment, including Conda. Deactivate it first if you want Poetry to create this project's `.venv`. Use `poetry env info --path` to check which environment is actually selected rather than relying only on the terminal prompt.
 
 
 ### Testing

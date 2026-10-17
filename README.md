@@ -56,7 +56,9 @@ See the [template README](https://github.com/ChengLabResearch/ouroboros/blob/mai
 
 # Development Quick Start
 
-Clone this repository and run the following commands from its root. Use Node.js 24 (the version used by CI), npm, and Docker with Compose. In WSL, run Node/npm and Docker commands in the same Linux shell; Docker Desktop must have integration enabled for that distribution.
+Clone this repository and run the following commands from its root. Install [Node.js 24 and npm](https://nodejs.org/en/download/) (the Node version used by CI), and Docker with Compose. In WSL, run Node/npm and Docker commands in the same Linux shell; Docker Desktop must have integration enabled for that distribution.
+
+For VS Code, the recommended extensions are [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) and [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode).
 
 ## 1. Check Docker and close other instances
 
@@ -99,4 +101,4 @@ These are interactive development checks. Unit tests and headless backend tests 
 
 ## Optional: native Python development
 
-To work on the Python package outside Docker or run its tests, follow the [Python development instructions](python/README.md#development) and [testing instructions](python/README.md#testing). The Python README owns that separate environment setup.
+To work on the Python package outside Docker or run its tests, follow the [Python development instructions](python/README.md#development) and [testing instructions](python/README.md#testing). That guide covers Python 3.11 installation and pyenv selection, Poetry installation, VS Code environment setup, CLI/server commands, and shared-library prerequisites for local PyInstaller builds.

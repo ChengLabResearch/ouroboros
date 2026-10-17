@@ -10,7 +10,6 @@ export async function preparePackageFlavor({
 	releaseLock,
 	environment = process.env
 }) {
-	const root = project.root
 	const { lock, sha256: releaseLockSha256 } = releaseLock
 	const flavor = environment.OUROBOROS_PACKAGE_FLAVOR
 
@@ -28,7 +27,7 @@ export async function preparePackageFlavor({
 		)
 	}
 
-	const extraResourcesDir = join(root, 'extra-resources')
+	const extraResourcesDir = project.resourcesDir
 	const preinstalledPluginDir = join(extraResourcesDir, 'preinstalled-plugins')
 	const artifactDir = project.cacheDir
 	const plugins = []
@@ -286,7 +285,11 @@ export async function preparePackageFlavor({
 
 	async function run(command, args) {
 		await new Promise((resolve, reject) => {
-			const child = spawn(command, args, { stdio: 'inherit', cwd: root, env: environment })
+			const child = spawn(command, args, {
+				stdio: 'inherit',
+				cwd: project.resourcesDir,
+				env: environment
+			})
 			child.on('error', reject)
 			child.on('close', (code) => {
 				if (code === 0) {

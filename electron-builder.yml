@@ -9,10 +9,13 @@ files:
 asarUnpack:
     - resources/**
 extraResources:
-    - extra-resources/server/compose.yml
-    - extra-resources/server/server-image.json
-    - extra-resources/package-flavor.json
-    - extra-resources/preinstalled-plugins/**
+    - from: ${env.OUROBOROS_PACKAGE_RESOURCES_DIR}
+      to: extra-resources
+      filter:
+          - server/compose.yml
+          - server/server-image.json
+          - package-flavor.json
+          - preinstalled-plugins/**
 win:
     executableName: Ouroboros
 nsis:

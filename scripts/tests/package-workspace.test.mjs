@@ -7,16 +7,21 @@ import {
 	readFile,
 	readdir,
 	readlink,
+	realpath,
 	rm,
 	symlink,
 	writeFile
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, isAbsolute, join, relative } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import test from 'node:test'
 import { createPackageWorkspace } from '../lib/package-workspace.mjs'
 import { buildReleaseArtifacts } from '../build-release-artifacts.mjs'
+import { validatePackageConfiguration } from '../preflight-release.mjs'
+import { prepareProductionServer } from '../prepare-production-server.mjs'
+import { preparePackageFlavor } from '../prepare-package-flavor.mjs'
+import { loadReleaseLock } from '../lib/release-lock.mjs'
 
 const run = promisify(execFile)
 const repository = process.cwd()
@@ -131,8 +136,8 @@ async function fixture(t, { git = false } = {}) {
 	return { directory, root, tempRoot, lock, packageJson }
 }
 
-test('source staging copies only build inputs and never shares mutable dependencies', async (t) => {
-	const { root, tempRoot } = await fixture(t)
+test('source staging and core preparation leave the original checkout unchanged', async (t) => {
+	const { root, tempRoot, packageJson } = await fixture(t)
 	const before = await snapshot(root)
 	const workspace = await createPackageWorkspace({ root, tempRoot })
 	t.after(() => workspace.cleanup())
@@ -155,8 +160,36 @@ test('source staging copies only build inputs and never shares mutable dependenc
 	]) {
 		await assert.rejects(lstat(join(workspace.compiledDir, name)), { code: 'ENOENT' })
 	}
-	await put(workspace.compiledDir, 'node_modules/runtime/index.js', 'changed staged dependency\n')
-	await put(workspace.compiledDir, 'src/main/index.ts', 'changed staged source\n')
+	for (const name of [
+		'src',
+		'node_modules',
+		'src/main/index.ts',
+		'node_modules/runtime/index.js'
+	]) {
+		const staged = await lstat(join(workspace.compiledDir, name))
+		const original = await lstat(join(root, name))
+		assert.equal(staged.isSymbolicLink(), false)
+		assert.notDeepEqual([staged.dev, staged.ino], [original.dev, original.ino])
+	}
+	const project = await workspace.stageFlavor('core')
+	const preparation = {
+		project,
+		packageJson,
+		releaseLock: await loadReleaseLock(root),
+		environment: { OUROBOROS_PACKAGE_FLAVOR: 'core' }
+	}
+	await prepareProductionServer(preparation)
+	await preparePackageFlavor(preparation)
+	const metadata = JSON.parse(
+		await readFile(join(project.resourcesDir, 'package-flavor.json'), 'utf8')
+	)
+	assert.equal(metadata.flavor, 'core')
+	assert.deepEqual(metadata.plugins, [])
+	assert.equal(metadata.serverImage.digest, preparation.releaseLock.lock.serverImage.digest)
+	await assert.rejects(lstat(join(project.resourcesDir, 'preinstalled-plugins')), {
+		code: 'ENOENT'
+	})
+	await assert.rejects(lstat(join(workspace.compiledDir, 'extra-resources')), { code: 'ENOENT' })
 	assert.deepEqual(await snapshot(root), before)
 })
 
@@ -174,7 +207,7 @@ test('preflight staging needs no installed dependency tree', async (t) => {
 	)
 })
 
-test('relative dependency symlinks remain inside independent snapshots', async (t) => {
+test('relative dependency symlinks stay inside the single copied dependency tree', async (t) => {
 	const { root, tempRoot } = await fixture(t)
 	await mkdir(join(root, 'node_modules/.bin'))
 	await symlink('../runtime/index.js', join(root, 'node_modules/.bin/runtime'))
@@ -186,9 +219,10 @@ test('relative dependency symlinks remain inside independent snapshots', async (
 		await readlink(join(project.root, 'node_modules/.bin/runtime')),
 		'../runtime/index.js'
 	)
-	await writeFile(
-		join(project.root, 'node_modules/.bin/runtime'),
-		'modified through staged symlink\n'
+	assert.equal(project.root, workspace.compiledDir)
+	assert.equal(
+		await realpath(join(project.root, 'node_modules/.bin/runtime')),
+		join(workspace.compiledDir, 'node_modules/runtime/index.js')
 	)
 	assert.equal(
 		await readFile(join(root, 'node_modules/runtime/index.js'), 'utf8'),
@@ -218,44 +252,78 @@ test('source snapshots reject symlinks to inputs outside the copied tree', async
 	}
 })
 
-test('each package flavor starts from the same clean compiled basis', async (t) => {
+test('all flavors reuse one compiled dependency tree with separate fresh resources', async (t) => {
 	const { root, tempRoot } = await fixture(t)
 	const workspace = await createPackageWorkspace({ root, tempRoot })
 	t.after(() => workspace.cleanup())
 	await workspace.stageSource()
 	await put(workspace.compiledDir, 'out/main/index.js', 'fresh compilation\n')
-	const roots = new Set()
+	const identities = new Map()
+	for (const name of [
+		'src/main/index.ts',
+		'out/main/index.js',
+		'node_modules/runtime/index.js'
+	]) {
+		const file = await lstat(join(workspace.compiledDir, name))
+		identities.set(name, [file.dev, file.ino])
+	}
+	const compiledBasis = await snapshot(workspace.compiledDir)
+	const resources = new Set()
+	const projects = []
 	for (const flavor of ['with-plugins-cpu', 'core', 'with-plugins-cuda']) {
 		const project = await workspace.stageFlavor(flavor)
-		assert.equal(roots.has(project.root), false)
-		roots.add(project.root)
+		projects.push(project)
+		assert.equal(project.root, workspace.compiledDir)
+		assert.equal(resources.has(project.resourcesDir), false)
+		resources.add(project.resourcesDir)
 		assert.equal(inside(workspace.directory, project.root), true)
+		assert.equal(inside(workspace.directory, project.resourcesDir), true)
+		assert.equal(inside(project.root, project.resourcesDir), false)
 		assert.equal(inside(project.root, project.distDir), false)
-		assert.equal(
-			await readFile(join(project.root, 'out/main/index.js'), 'utf8'),
-			'fresh compilation\n'
-		)
-		assert.equal(
-			await readFile(join(project.root, 'node_modules/runtime/index.js'), 'utf8'),
-			'original dependency\n'
-		)
-		await assert.rejects(
-			lstat(join(project.root, 'extra-resources/preinstalled-plugins/previous-flavor')),
-			{ code: 'ENOENT' }
-		)
-		await put(project.root, 'out/main/index.js', `modified by ${flavor}\n`)
-		await put(project.root, 'node_modules/runtime/index.js', `rebuilt by ${flavor}\n`)
-		await put(
-			project.root,
-			'extra-resources/preinstalled-plugins/previous-flavor/index.html',
-			flavor
-		)
+		assert.deepEqual(await readdir(project.resourcesDir), [])
+		assert.equal((await lstat(project.resourcesDir)).isSymbolicLink(), false)
+		for (const [name, identity] of identities) {
+			const file = await lstat(join(project.root, name))
+			assert.equal(file.isSymbolicLink(), false)
+			assert.deepEqual([file.dev, file.ino], identity)
+		}
+		await put(project.resourcesDir, 'preinstalled-plugins/previous-flavor/index.html', flavor)
+		await put(project.distDir, 'unpacked.txt', flavor)
 	}
-	assert.equal(
-		await readFile(join(workspace.compiledDir, 'out/main/index.js'), 'utf8'),
-		'fresh compilation\n'
-	)
+	const dependencyTrees = Object.entries(await snapshot(workspace.directory))
+		.filter(([name, entry]) => entry.directory && name.split(/[\\/]/).at(-1) === 'node_modules')
+		.map(([name]) => name)
+	assert.deepEqual(dependencyTrees, [
+		relative(workspace.directory, join(workspace.compiledDir, 'node_modules'))
+	])
+	assert.deepEqual(await snapshot(workspace.compiledDir), compiledBasis)
+	for (const [index, project] of projects.entries()) {
+		const keepOutput = index === 0
+		await project.cleanup({ keepOutput })
+		await assert.rejects(lstat(project.resourcesDir), { code: 'ENOENT' })
+		if (keepOutput)
+			assert.equal(
+				await readFile(join(project.distDir, 'unpacked.txt'), 'utf8'),
+				'with-plugins-cpu'
+			)
+		else await assert.rejects(lstat(project.distDir), { code: 'ENOENT' })
+		assert.deepEqual(await snapshot(workspace.compiledDir), compiledBasis)
+	}
 })
+
+for (const setting of ['npmRebuild', 'nodeGypRebuild']) {
+	test(`configuration rejects ${setting} on the shared compiled basis`, async (t) => {
+		const { root } = await fixture(t)
+		const configurationPath = join(root, 'electron-builder.yml')
+		const configuration = await readFile(configurationPath, 'utf8')
+		const key = new RegExp(`^${setting}:.*$`, 'm')
+		const changed = key.test(configuration)
+			? configuration.replace(key, `${setting}: true`)
+			: `${configuration}\n${setting}: true\n`
+		await writeFile(configurationPath, changed)
+		await assert.rejects(validatePackageConfiguration(root), /rebuild|dependency snapshot/i)
+	})
+}
 
 test('plugin input cache is copied to an owned cache without modifying the seed', async (t) => {
 	const { directory, root, tempRoot } = await fixture(t)
@@ -321,7 +389,11 @@ for (const failPackaging of [false, true]) {
 		const before = await snapshot(root)
 		const artifactDir = join(tempRoot, 'release-results')
 		let compilations = 0
+		let compiledRoot
+		let compiledBasis
 		const packaged = []
+		const packageRoots = []
+		const resourceRoots = []
 		const runCommand = async (_command, args, { cwd, env }) => {
 			assert.equal(inside(root, cwd), false)
 			assert.equal(inside(tempRoot, cwd), true)
@@ -329,9 +401,14 @@ for (const failPackaging of [false, true]) {
 				compilations++
 				await assert.rejects(lstat(join(cwd, 'out')), { code: 'ENOENT' })
 				await put(cwd, 'out/main/index.js', 'fresh compilation\n')
+				compiledRoot = cwd
+				compiledBasis = await snapshot(cwd)
 				return
 			}
 			assert.equal(args.includes('electron-builder'), true, args.join(' '))
+			assert.equal(cwd, compiledRoot)
+			packageRoots.push(cwd)
+			assert.deepEqual(await snapshot(cwd), compiledBasis)
 			assert.equal(
 				await readFile(join(cwd, 'out/main/index.js'), 'utf8'),
 				'fresh compilation\n'
@@ -344,13 +421,21 @@ for (const failPackaging of [false, true]) {
 			assert.ok(outputArg)
 			const output = outputArg.slice('-c.directories.output='.length)
 			assert.equal(inside(cwd, output), false)
+			assert.equal(isAbsolute(env.OUROBOROS_PACKAGE_RESOURCES_DIR), false)
+			const resourcesDir = resolve(cwd, env.OUROBOROS_PACKAGE_RESOURCES_DIR)
+			assert.equal(inside(tempRoot, resourcesDir), true)
+			assert.equal(inside(cwd, resourcesDir), false)
+			assert.equal(resourceRoots.includes(resourcesDir), false)
+			for (const previous of resourceRoots) {
+				await assert.rejects(lstat(previous), { code: 'ENOENT' })
+			}
+			resourceRoots.push(resourcesDir)
 			const metadata = JSON.parse(
-				await readFile(join(cwd, 'extra-resources/package-flavor.json'), 'utf8')
+				await readFile(join(resourcesDir, 'package-flavor.json'), 'utf8')
 			)
 			assert.equal(metadata.flavor, env.OUROBOROS_PACKAGE_FLAVOR)
 			packaged.push(metadata.flavor)
-			await put(cwd, 'out/main/index.js', 'changed by packager\n')
-			await put(cwd, 'node_modules/runtime/index.js', 'changed by packager\n')
+			await put(resourcesDir, 'packager-note.txt', `processed ${metadata.flavor}\n`)
 			if (failPackaging) throw new Error('fixture packaging failure')
 			await put(
 				output,
@@ -360,18 +445,19 @@ for (const failPackaging of [false, true]) {
 		}
 		const prepareFlavor = async ({ project, releaseLock, environment }) => {
 			assert.deepEqual(releaseLock.lock, lock)
+			assert.equal(project.root, compiledRoot)
+			assert.equal(
+				resolve(project.root, environment.OUROBOROS_PACKAGE_RESOURCES_DIR),
+				project.resourcesDir
+			)
 			const server = JSON.parse(
-				await readFile(
-					join(project.root, 'extra-resources/server/server-image.json'),
-					'utf8'
-				)
+				await readFile(join(project.resourcesDir, 'server/server-image.json'), 'utf8')
 			)
 			assert.equal(server.digest, lock.serverImage.digest)
-			await assert.rejects(
-				lstat(join(project.root, 'extra-resources/preinstalled-plugins/stale')),
-				{ code: 'ENOENT' }
-			)
-			await put(project.root, 'extra-resources/package-flavor.json', {
+			await assert.rejects(lstat(join(project.resourcesDir, 'preinstalled-plugins/stale')), {
+				code: 'ENOENT'
+			})
+			await put(project.resourcesDir, 'package-flavor.json', {
 				flavor: environment.OUROBOROS_PACKAGE_FLAVOR
 			})
 		}
@@ -414,6 +500,10 @@ for (const failPackaging of [false, true]) {
 			)
 		}
 		assert.equal(compilations, 1)
+		assert.deepEqual([...new Set(packageRoots)], [compiledRoot])
+		for (const path of [compiledRoot, ...resourceRoots]) {
+			await assert.rejects(lstat(path), { code: 'ENOENT' })
+		}
 		assert.deepEqual(await snapshot(root), before)
 	})
 }

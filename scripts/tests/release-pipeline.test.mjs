@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
-import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import test from 'node:test'
 import { load as loadYaml } from 'js-yaml'
-import { getFileMatchers, getMainFileMatchers } from 'app-builder-lib/out/fileMatcher.js'
+import { copyFiles, getFileMatchers, getMainFileMatchers } from 'app-builder-lib/out/fileMatcher.js'
+import { expandMacro } from 'app-builder-lib/out/util/macroExpander.js'
 import { Platform } from 'app-builder-lib'
 import { getRepositoryInfo } from 'app-builder-lib/out/util/repositoryInfo.js'
 import { getAppUpdatePublishConfiguration } from 'app-builder-lib/out/publish/PublishManager.js'
@@ -139,21 +140,30 @@ test('staged package metadata preserves GitHub update configuration without a gi
 	assert.equal(updateConfiguration.repo, 'ouroboros')
 })
 
-test('electron-builder selects only runtime files and approved extra resources', async (t) => {
+test('electron-builder selects runtime files and copies only external flavor resources to existing package paths', async (t) => {
 	const directory = await mkdtemp(join(tmpdir(), 'ouroboros-package-allowlist-test-'))
 	t.after(() => rm(directory, { recursive: true, force: true }))
 	const config = loadYaml(await readFile(join(root, 'electron-builder.yml'), 'utf8'))
+	const projectRoot = join(directory, 'compiled')
+	const resourcesRoot = join(directory, 'flavors', 'with-plugins-cpu')
 	const output = join(directory, 'dist')
 	const destination = join(output, 'resources', 'app')
-	const macroExpander = (value) => value
+	const originalResources = process.env.OUROBOROS_PACKAGE_RESOURCES_DIR
+	t.after(() => {
+		if (originalResources === undefined) delete process.env.OUROBOROS_PACKAGE_RESOURCES_DIR
+		else process.env.OUROBOROS_PACKAGE_RESOURCES_DIR = originalResources
+	})
+	// Builder resolves FileSet.from against the project before expanding the macro.
+	process.env.OUROBOROS_PACKAGE_RESOURCES_DIR = relative(projectRoot, resourcesRoot)
+	const macroExpander = (value) => expandMacro(value, 'x64', {})
 	const info = {
 		config,
-		projectDir: directory,
+		projectDir: projectRoot,
 		buildResourcesDir: 'build',
 		debugLogger: { isEnabled: false }
 	}
 	const mainMatchers = getMainFileMatchers(
-		directory,
+		projectRoot,
 		destination,
 		macroExpander,
 		{},
@@ -165,8 +175,11 @@ test('electron-builder selects only runtime files and approved extra resources',
 		macroExpander,
 		customBuildOptions: {},
 		globalOutDir: output,
-		defaultSrc: directory
+		defaultSrc: projectRoot
 	})
+	assert.equal(extraMatchers.length, 1)
+	assert.equal(resolve(extraMatchers[0].from), resourcesRoot)
+	assert.equal(extraMatchers[0].to, join(output, 'resources', 'extra-resources'))
 	const expectedRuntime = [
 		'package.json',
 		'out/main/index.js',
@@ -176,11 +189,11 @@ test('electron-builder selects only runtime files and approved extra resources',
 		'resources/processes/volume-server-script.mjs'
 	]
 	const expectedExtra = [
-		'extra-resources/server/compose.yml',
-		'extra-resources/server/server-image.json',
-		'extra-resources/package-flavor.json',
-		'extra-resources/preinstalled-plugins/example/package.json',
-		'extra-resources/preinstalled-plugins/example/assets/index.js'
+		'server/compose.yml',
+		'server/server-image.json',
+		'package-flavor.json',
+		'preinstalled-plugins/example/package.json',
+		'preinstalled-plugins/example/assets/index.js'
 	]
 	const unwanted = [
 		'src/main/index.ts',
@@ -190,8 +203,7 @@ test('electron-builder selects only runtime files and approved extra resources',
 		'.package-plugin-artifacts/plugin.zip',
 		'release/release-lock.json',
 		'scripts/build-release-artifacts.mjs',
-		'extra-resources/unapproved.json',
-		'extra-resources/server/unapproved.json',
+		...expectedExtra.map((name) => `extra-resources/${name}`),
 		'notes.json',
 		'package-lock.json',
 		'.env',
@@ -199,19 +211,44 @@ test('electron-builder selects only runtime files and approved extra resources',
 		'build/icon.png'
 	]
 	const selectedRuntime = []
-	const selectedExtra = []
 	const runtimeFilters = mainMatchers.map((matcher) => matcher.createFilter())
-	const extraFilters = extraMatchers.map((matcher) => matcher.createFilter())
-	for (const name of [...expectedRuntime, ...expectedExtra, ...unwanted]) {
-		const path = join(directory, name)
+	for (const name of [...expectedRuntime, ...unwanted]) {
+		const path = join(projectRoot, name)
 		await mkdir(dirname(path), { recursive: true })
 		await writeFile(path, name)
 		const details = await stat(path)
 		if (runtimeFilters.some((filter) => filter(path, details))) selectedRuntime.push(name)
-		if (extraFilters.some((filter) => filter(path, details))) selectedExtra.push(name)
 	}
 	assert.deepEqual(selectedRuntime.sort(), expectedRuntime.sort())
-	assert.deepEqual(selectedExtra.sort(), expectedExtra.sort())
+	for (const name of [
+		...expectedExtra,
+		'unapproved.json',
+		'server/unapproved.json',
+		'node_modules/unapproved/index.js',
+		'package-lock.json',
+		'.env'
+	]) {
+		const path = join(resourcesRoot, name)
+		await mkdir(dirname(path), { recursive: true })
+		await writeFile(path, `external resource: ${name}`)
+	}
+	await copyFiles(extraMatchers, null, false)
+	const resourcesDestination = join(output, 'resources')
+	const copiedResources = []
+	for (const name of await readdir(resourcesDestination, { recursive: true })) {
+		const path = join(resourcesDestination, name)
+		if ((await stat(path)).isFile()) copiedResources.push(name)
+	}
+	assert.deepEqual(
+		copiedResources.sort(),
+		expectedExtra.map((name) => join('extra-resources', name)).sort()
+	)
+	for (const name of expectedExtra) {
+		assert.equal(
+			await readFile(join(resourcesDestination, 'extra-resources', name), 'utf8'),
+			`external resource: ${name}`
+		)
+	}
 })
 
 test('npm lifecycle commands stay shell-free on Windows', () => {

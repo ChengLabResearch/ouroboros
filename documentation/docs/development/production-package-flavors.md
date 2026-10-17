@@ -13,10 +13,11 @@ for each supported desktop runner. The available flavors are:
   Segmentation plugin artifacts. The automatic segmentation plugin uses its
   CUDA backend image and Docker Compose GPU reservation.
 
-Plugin flavors stage release artifacts into
-`extra-resources/preinstalled-plugins` inside the external packaging workspace
-before Electron Builder runs. The app installs those bundled plugin folders into
-the user plugin directory on startup.
+Plugin flavors stage bundled assets in separate resource directories inside the
+external packaging workspace. Electron Builder maps each flavor's resources into
+the installed `extra-resources` directory, including
+`extra-resources/preinstalled-plugins`. The app installs those bundled plugin
+folders into the user plugin directory on startup.
 
 ## Release inputs
 
@@ -32,7 +33,7 @@ Packaging verifies downloaded archive hashes and requires `plugin-release.json`
 to match the locked release identity. Backend image verification follows the
 corresponding lock entry. See the lock for current versions and digests.
 
-The staged `extra-resources/package-flavor.json` records the selected flavor,
+The packaged `extra-resources/package-flavor.json` records the selected flavor,
 release-lock hash, server image metadata, and exact plugin identities, including
 the verified plugin release metadata. This file describes the package; the
 release lock remains authoritative.
@@ -50,6 +51,13 @@ dependency trees, plugin downloads, and final artifacts live under `RUNNER_TEMP`
 outside `GITHUB_WORKSPACE`; the source checkout is read-only input. Electron
 Builder uses an explicit application-file allowlist rather than packaging the
 checkout.
+
+Source files and installed dependencies are copied once into an external tree
+where Electron is compiled. Every flavor packages that same compiled application
+and dependency tree, with `npmRebuild: false` enforced. Flavor preparation and
+cleanup affect only that flavor's resources and output directory. The shared
+compiled tree remains available across flavors and is removed at the end of the
+run; there are no links back to checkout dependencies.
 
 A successful `main` build records the exact source commit, input lock, artifact
 sizes, and SHA-256 hashes. The tag-triggered publication workflow verifies those
@@ -83,9 +91,8 @@ to `RUNNER_TEMP`, or the operating system's temporary directory when running
 locally without that variable. The command prints the final output location.
 Set `OUROBOROS_RELEASE_ARTIFACT_DIR` to choose another destination beneath that
 temporary root. It must be an absolute path outside the checkout and must be new
-or empty; existing artifacts are not cleared. Native builds copy installed
-dependencies into scratch space. Scratch files are removed after the run, while
-final artifacts are retained.
+or empty; existing artifacts are not cleared. Scratch files are removed after
+the run, while final artifacts are retained.
 
 The existing `build:linux`, `build:mac`, and `build:win` commands use the same
 staging and packaging entrypoint. For a local single-flavor build, select a flavor

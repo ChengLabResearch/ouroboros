@@ -132,18 +132,18 @@ export async function createPackageWorkspace({
 		async stageFlavor(flavor) {
 			if (!SUPPORTED_FLAVORS.includes(flavor))
 				throw new Error(`Unknown package flavor: ${flavor}`)
-			const projectRoot = join(directory, 'inputs', flavor)
+			const resourcesDir = join(directory, 'flavors', flavor)
 			const distDir = join(directory, 'outputs', flavor)
-			await mkdir(dirname(projectRoot), { recursive: true })
-			await mkdir(projectRoot)
-			await copyInput(compiledDir, projectRoot)
+			await mkdir(dirname(resourcesDir), { recursive: true })
+			await mkdir(resourcesDir)
 			await mkdir(distDir, { recursive: true })
 			return Object.freeze({
-				root: projectRoot,
+				root: compiledDir,
+				resourcesDir,
 				distDir,
 				cacheDir,
 				async cleanup({ keepOutput = false } = {}) {
-					await rm(projectRoot, { recursive: true, force: true })
+					await rm(resourcesDir, { recursive: true, force: true })
 					if (!keepOutput) await rm(distDir, { recursive: true, force: true })
 				}
 			})

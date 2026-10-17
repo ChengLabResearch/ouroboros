@@ -7,8 +7,7 @@ export async function prepareProductionServer({
 	releaseLock,
 	environment = process.env
 }) {
-	const root = project.root
-	const outputDir = join(root, 'extra-resources', 'server')
+	const outputDir = join(project.resourcesDir, 'server')
 	const { lock, sha256: releaseLockSha256 } = releaseLock
 
 	if (packageJson.version !== lock.releaseVersion) {

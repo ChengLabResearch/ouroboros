@@ -1,7 +1,7 @@
 import { constants, existsSync } from 'node:fs'
 import { copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { gitOutput } from './lib/git.mjs'
 import { npmInvocation } from './lib/npm.mjs'
@@ -105,7 +105,12 @@ export async function buildReleaseArtifacts({
 			const packageStartedMs = performance.now()
 			const project = await workspace.stageFlavor(flavor)
 			try {
-				const flavorEnvironment = { ...buildEnvironment, OUROBOROS_PACKAGE_FLAVOR: flavor }
+				const flavorEnvironment = {
+					...buildEnvironment,
+					OUROBOROS_PACKAGE_FLAVOR: flavor,
+					// Builder resolves FileSet.from against cwd before expanding env macros.
+					OUROBOROS_PACKAGE_RESOURCES_DIR: relative(project.root, project.resourcesDir)
+				}
 				const preparation = {
 					project,
 					packageJson,
@@ -137,8 +142,7 @@ export async function buildReleaseArtifacts({
 				await renameReleaseArtifacts({ project, packageJson, flavor })
 
 				const flavorArtifacts = await collectFlavorArtifacts({
-					root: project.root,
-					distDir: project.distDir,
+					project,
 					outputDir,
 					platform,
 					flavor
@@ -211,9 +215,9 @@ export async function buildReleaseArtifacts({
 	}
 }
 
-async function collectFlavorArtifacts({ root, distDir, outputDir, platform, flavor }) {
+async function collectFlavorArtifacts({ project, outputDir, platform, flavor }) {
 	const collected = []
-	const entries = await readdir(distDir, { withFileTypes: true })
+	const entries = await readdir(project.distDir, { withFileTypes: true })
 	const releaseEntries = entries.filter(
 		(entry) => entry.isFile() && isReleaseAssetName(entry.name)
 	)
@@ -224,7 +228,7 @@ async function collectFlavorArtifacts({ root, distDir, outputDir, platform, flav
 	for (const entry of releaseEntries) {
 		collected.push(
 			await copyAndDescribe({
-				source: join(distDir, entry.name),
+				source: join(project.distDir, entry.name),
 				destination: join(outputDir, entry.name),
 				name: entry.name,
 				flavor,
@@ -236,7 +240,7 @@ async function collectFlavorArtifacts({ root, distDir, outputDir, platform, flav
 	const metadataName = `package-metadata-${platform}-${flavor}.json`
 	collected.push(
 		await copyAndDescribe({
-			source: join(root, 'extra-resources', 'package-flavor.json'),
+			source: join(project.resourcesDir, 'package-flavor.json'),
 			destination: join(outputDir, metadataName),
 			name: metadataName,
 			flavor,

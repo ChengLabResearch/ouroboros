@@ -479,14 +479,35 @@ CI exercises Python 3.11 and 3.12 on Linux, Windows, and macOS. Tests prove prod
 exit before receiver attachment, per-buffer release, surviving mapped consumers,
 serialization authority, failed construction, normal/exception shutdown, and
 owner termination. Multiprocessing coverage includes the live server code.</p>
+<p>Before raising the Python upper bound in <code>python/pyproject.toml</code>, re-check these
+three CPython interfaces against every newly supported version:</p>
+<ul>
+<li><code>BaseManager._run_server</code> and startup/finalization: the mirrored signature,
+  parent-process sentinel, and replacement of the client <code>shutdown()</code> method.</li>
+<li><code>multiprocessing.managers.dispatch</code>: request signatures and the server's
+  exception-to-<code>RemoteError</code> conversion used by the release-result adapter.</li>
+<li><code>SharedMemoryServer.shared_memory_context</code>: the tracker interface consumed by
+  allocation registration, listing, release, and server shutdown.</li>
+</ul>
+<p>Extend the native lifecycle matrix to those versions and verify handoff, early
+release, and owner-death cleanup on all three operating systems before changing
+the supported-version contract.</p>
 <h2 id="ram-reporting-integration">RAM-reporting integration</h2>
-<p>Issue #145 is based on main independently of #139 / PR #144. After rebasing that
-branch, its existing mapping observer must observe server-owned handles at
-allocation/registration and refresh after release, as well as observing each
+<p>The deferred integration and real-data acceptance from #145 are tracked in
+<a href="https://github.com/ChengLabResearch/ouroboros/issues/139">#139</a>, to be completed
+after rebasing PR #144 onto this ownership change. Its existing mapping observer
+must observe server-owned handles at allocation/registration and refresh after
+release, as well as observing each
 process-local attachment. The owning registry must remain the sole allocation
 authority; observation must not become another owner or registry of lifetimes.
 The new serialization path runs the attachment constructor, so observation belongs
 there rather than in a redundant <code>__setstate__</code> path.</p>
+<p>Keeping a server handle mapped does not by itself fix the Linux PSS coverage gap:
+resident segments queued after the producer closes can remain untouched by every
+currently mapped process. #139 must validate accounting for that state using the
+owning registry as the source of live segment identities and sizes. A proposed
+USS-plus-live-segment metric needs its own defined semantics and tests against
+double-counting; allocated capacity must not silently be labeled residency.</p>
 <p>Real-data slicing/backprojection and RAM overhead validation follow that rebase.
 Focused lifecycle tests on this branch do not establish scientific-pipeline or
 RAM-collector acceptance. The separate manifest-publication defect remains in

@@ -1,112 +1,219 @@
 # Run-statistics overhead benchmark
 
-**Collector revision (2026-10-17):** PR #144 now uses manager-only shared-buffer
-observations, Linux non-shmem PSS plus managed residency, Windows private
-working-set bytes plus managed allocation size, and macOS private residency plus
-managed residency. Worker/TIFF tracking and Windows working-set enumeration have
-been removed. The recorded pipeline benchmarks below describe earlier
-collectors; their overhead is not a measurement of this replacement. The Linux
-candidate probes informed the new accounting, but isolated query costs likewise
-are not pipeline overhead. This revision uses focused native accounting,
-ownership and reporting tests, without another long real-data benchmark campaign.
-Native macOS pipeline overhead and a cross-platform 1% overhead bound are not established.
+## Current memory collectors and evidence (#139)
 
-The current real-data comparison applies the overhead budget to instrumentation
-**during the actual slicing or backprojection step**, excluding preceding source
-and cache setup. It reuses the existing step timers in both treatments and retains
-whole-pipeline times separately. See the real-data section below.
+The current real-data evidence measures revision
+[`10145cd`](https://github.com/ChengLabResearch/ouroboros/commit/10145cd34ecaff138fedd21336046cf989ca6ff4),
+using manager-owned shared-buffer observations. It does not measure the removed
+worker/TIFF registry or Windows working-set enumeration. Later review cleanup
+removes formatting-only pipeline changes; these recorded runs are still explicitly
+at `10145cd`, not a new benchmark of the later revision.
 
-The older local-fixture mode times `Pipeline.process()`, including its preparation
-steps. To reproduce that earlier measurement:
+| Backend | Reported metric | Composition |
+| --- | --- | --- |
+| Linux / Docker | `process_tree_nonshmem_pss_plus_managed_resident_bytes` | Sum of process-tree `Pss - Pss_Shmem`, plus residency of live managed shared segments once |
+| Native Windows | `process_tree_private_resident_plus_managed_allocated_bytes` | Sum of process-tree `PrivateWorkingSetSize`, plus live managed allocation sizes once |
+| Native macOS | `process_tree_private_plus_managed_resident_bytes` | Process-tree private residency, excluding managed mappings, plus managed shared-segment residency once |
 
-```sh
-.venv/bin/python benchmarks/benchmark_run_statistics.py \
-  --scope pipeline --reuse-fixture /tmp/ouroboros-statistics-final \
-  --work-dir /tmp/ouroboros-pipeline-overhead --pairs 3
-```
+The [Linux raw results](results/issue-139-simple-10145cd-linux.json) and
+[Windows raw results](results/issue-139-simple-10145cd-windows.json) retain every
+paired time, all memory reports (including per-run process counts), coverage,
+errors, options, dependency versions and output headers. The
+[run provenance](results/issue-139-simple-10145cd-provenance.json) and native Windows
+[preflight](results/issue-139-simple-10145cd-windows-before.json) /
+[postflight](results/issue-139-simple-10145cd-windows-after.json) record revision,
+source/harness/annotation digests, imported source location and validation checks.
+Both result files have `production_code_unchanged: true` and production digest
+`66ec3675faf7554d423c6b8a6b3b0da98dc43fa1f119e90a0a6611b0520df634`.
 
-This mode uses an external timer around the same pipeline call for enabled and
-disabled reporting. It includes scientific preparation, worker instrumentation,
-transport/aggregation of worker measurements, concurrent RAM collection, output writing, and pool shutdown.
-Options loading, volume-statistics collection, JSON construction, printing, and
-report-file delivery and sampler startup/shutdown are outside that timer. Both treatments retain the basic
-duration/progress measurements needed by the application. It performs one
-disabled warmup per operation, alternates treatment order across pairs, and
-skips output pixel hashing. A reused fixture is neither regenerated nor hashed.
-`pixel_equivalence: null` means this run did not perform that check.
+The Windows test runtime uses the disclosed
+[CloudFiles zero-width-interval patch](results/issue-139-cloudfiles-zero-interval.patch)
+with [dependency provenance](results/issue-139-simple-10145cd-windows-workaround.json).
+CloudFiles 5.8.2 rejects transfers whose start/end timestamps coincide at the
+Windows Python 3.11 clock resolution; the isolated workaround represents such
+intervals as one microsecond. It is identical for off/on treatments and changes
+only the temporary test dependency, not a shipped dependency.
 
-The full-handler mode below also measures setup and final reporting. Its numbers
-describe total user-visible latency, not the in-operation overhead budget.
+### Method and timing boundary
 
-From `python/`, with the project's virtual environment installed:
+The original `PosteriorSalivaryDuct_cut_ng.json` supplies the PSU Octo9 16-bit
+image layer at mip 0. Each run uses 120 × 120 uint16 slices, adaptive spacing 1 /
+ratio 0.5, 128 target slices per box, 12 workers, and one BLAS/OpenMP thread.
+Short 2 (`Posterior Salivary Duct 2`) has 10 annotation points / 875 slices;
+Short 3 (`Posterior Salivary Duct 3`) has 16 points / 887 slices; Long
+(`Posterior Salivary Duct`) has 50 points / 4,901 slices. Each treatment
+backprojects its own sliced intensity TIFF, with 160³ chunks, zlib, minimum
+bounding box and separate output planes; the data is not binarized.
 
-```sh
-.venv/bin/python benchmarks/benchmark_run_statistics.py \
-  --work-dir /tmp/ouroboros-statistics-benchmark --pairs 7
-```
+Linux/WSL2 (Python 3.11.13) and native Windows (Python 3.11.9, build 22631) ran
+sequentially on the same shared development host. Each path received one disabled
+slicing warmup, then two pairs: off → on, then on → off. Caches were shared;
+remote metadata requests can remain. On enables reporting and RAM collection
+together through `--verbose`; off omits both. No pixels were hashed. All 48
+measured operations succeeded, all 24 enabled operations returned non-null memory
+peaks, and all six excluded warmups succeeded. No attempts were selected out.
 
-Use a new work directory for each invocation. The directory retains the local
-source, fixed segmentation, every options file, stdout/stderr, delivered report,
-and `results.json`. Per-run image outputs are hashed and removed after inspection
-to limit disk usage. Source creation, segmentation preparation, output inspection,
-and removal are outside the measured interval. No remote source is accessed.
+Overhead uses the existing `SliceParallelPipelineStep` or
+`BackprojectPipelineStep` duration. It includes data downloads, computation,
+output writes, intermediate cleanup, and worker/manager startup and shutdown
+inside that step. Earlier parsing, geometry and source/cache setup, sampler
+startup/shutdown, and final report formatting/writing/delivery are excluded.
+The separate `Pipeline.process()` timer is retained in the raw files. RAM
+collection covers that broader pipeline window, so collector CPU/sweep costs
+must not be divided by the shorter data-step duration and called overhead.
 
-The default fixture is a deterministic, seed-138, 384³ `uint16` precomputed
-CloudVolume with 64³ raw chunks and 1 µm isotropic voxels. A curved 32-point path
-produces 192 × 192 slices at 0.5-voxel spacing, with 32 target slices per download
-box. A thresholded segmentation is generated once from the warmup slice output
-and reused for all binary backprojections. Backprojection uses 64³ chunks and zlib
-output compression. The benchmark controls the existing slicing process-count
-seam and backprojection `process_count` to use four processes; BLAS/OpenMP use one
-thread. Production geometry, download, multiprocessing, interpolation,
-backprojection, and TIFF writing all execute normally.
+### Owner-approved acceptance scope
 
-Each operation gets a disabled and enabled warmup, then seven pairs with
-alternating order. Both treatments share warm filesystem and CloudVolume caches.
-The enabled treatment invokes the real CLI with `--verbose`; the disabled
-treatment omits it. A timer outside `cli.main()` includes option loading, pipeline
-setup/execution/cleanup, report collection, formatting, printing and flushing
-stdout, and statistics-file delivery. Imports and process startup are excluded
-from that timer; full subprocess elapsed time is recorded separately. Output is
-redirected to local files consistently for both treatments. Docker transfer is
-**not measured** by this native benchmark.
+The owner limited the combined **1% in-operation engineering target to longer
+runs**, assessed alongside inter-run variability and fixed startup/shutdown costs.
+For this evidence, acceptance is scoped to the measured **Long** path; no general
+minimum-duration threshold or blanket short-operation guarantee is established.
+Startup/shutdown outside the data step remains excluded. Fixed lifecycle work
+inside the step can be significant for short runs, but these measurements do not
+isolate it or establish that it explains every positive difference.
 
-`results.json` records the source and output pixel digests, actual TIFF page
-dimensions and pixel/storage bytes, delivered statistics paths, hardware,
-dependency versions, production Python source digest, every individual time,
-medians, median absolute deviations, ranges, and per-pair overhead. Identical
-output pixels are required across all repetitions of each operation. Enabled
-runs must deliver successful statistics matching stdout without collection
-errors; disabled runs must not deliver a sidecar. The production source digest
-must remain unchanged throughout the run.
+Long-path median changes were **−1.764% slicing / −6.737% backprojection on
+Linux**, and **−7.260% / +0.288% on Windows**. Windows long backprojection's
++0.208 s difference is below both MADs (1.806 s off / 0.769 s on) and changes sign
+between pairs. These results satisfy the owner-approved engineering assessment
+for the measured long workloads; two pairs on a shared host do not prove a
+statistical 1% upper bound. Negative changes indicate measurement variation,
+not an instrumentation-induced speedup.
 
-The in-operation target is at most **1% median pipeline elapsed-time overhead**, calculated
-as `(median(enabled) / median(disabled) - 1) × 100` separately for slicing and
-backprojection. The result records whether the observed median meets the target;
-it deliberately does not turn a noisy performance measurement into a CI test.
-Always report the variability alongside the median. A negative observed overhead
-means run-to-run variation exceeded the measured reporting cost, not that
-reporting makes processing faster. If variation is comparable to the target,
-repeat on an idle machine and retain all results; do not select only favorable
-runs or increase the workload merely to hide overhead.
+Short-run costs remain findings: Linux Short 2 slicing/backprojection and Short 3
+slicing were slower in both pairs, with differences exceeding both treatment
+MADs; Windows Short 3 slicing has the same pattern. These observations are
+accepted outside the scoped target, not recast as negligible overhead. Native
+macOS pipeline performance and macOS-host Docker delivery are explicitly deferred;
+native unit-test CI is not a substitute for those workflow runs.
 
-For a quick scientific-path smoke check, use `--size 128 --pairs 3`. This reduced
-fixture is useful for correctness checks, not the default acceptance measurement.
-`--workers` must be a multiple of four. `--timeout` limits each child operation
-(default 600 seconds). Linux sandbox environments must permit local
-multiprocessing manager sockets for the existing shared-memory pipeline.
+### All timing summaries
 
-Enabled runs include RAM sampling and retain the full memory summary in each
-measurement: metric, interval, process counts, complete/incomplete samples and
-collector cost. Missing usable memory samples fail the benchmark rather than
-silently benchmarking a disabled collector. The combined instrumentation uses
-the same 1% target. Manager snapshot publication is included in
-the measured pipeline interval on every backend; the separate sampler excludes its own memory.
+Change = `100 × (median(on) / median(off) - 1)`; Δ = median(on) − median(off).
+MAD is each treatment's median absolute deviation. The tables derive from the
+canonical harness summaries in the linked raw files.
 
-## Existing real-data paths
+**Linux / WSL2**
 
-To measure every annotation path in an existing Neuroglancer file, reuse saved
-slice and backprojection options:
+| Path | Operation | Off median s | On median s | Δ s | Change | MAD off / on s |
+| --- | --- | --- | --- | --- | --- | --- |
+| Short 2 | Slicing | 4.598 | 4.976 | +0.379 | +8.237% | 0.235 / 0.339 |
+| Short 2 | Backprojection | 4.011 | 4.318 | +0.306 | +7.634% | 0.250 / 0.297 |
+| Short 3 | Slicing | 4.261 | 4.759 | +0.498 | +11.686% | 0.019 / 0.176 |
+| Short 3 | Backprojection | 4.286 | 4.230 | -0.056 | -1.299% | 0.543 / 0.065 |
+| Long | Slicing | 19.528 | 19.183 | -0.344 | -1.764% | 0.398 / 0.732 |
+| Long | Backprojection | 26.198 | 24.433 | -1.765 | -6.737% | 1.123 / 0.617 |
+
+**Native Windows**
+
+| Path | Operation | Off median s | On median s | Δ s | Change | MAD off / on s |
+| --- | --- | --- | --- | --- | --- | --- |
+| Short 2 | Slicing | 21.450 | 21.597 | +0.147 | +0.684% | 0.433 / 0.625 |
+| Short 2 | Backprojection | 18.895 | 18.547 | -0.348 | -1.844% | 0.347 / 0.017 |
+| Short 3 | Slicing | 21.461 | 22.781 | +1.320 | +6.151% | 1.010 / 0.092 |
+| Short 3 | Backprojection | 18.447 | 19.135 | +0.688 | +3.729% | 0.901 / 1.052 |
+| Long | Slicing | 38.122 | 35.355 | -2.768 | -7.260% | 4.843 / 2.052 |
+| Long | Backprojection | 72.310 | 72.518 | +0.208 | +0.288% | 1.806 / 0.769 |
+
+### Every enabled report: memory and process counts
+
+C/I/D = complete/incomplete/discarded sweeps; only complete in-window samples
+contribute to peaks. `Max processes` is the maximum observed process-tree count,
+not the configured worker count; the sampler itself is excluded. Every interval
+was requested at one second. Partial reports retain process exits or changing
+manager observations/tree errors. Complete samples include preparation and do
+not guarantee coverage of a short data operation's peak.
+
+| Platform | Path | Operation | Pair | Status | Peak MiB | Max processes | C/I/D | Window s | Max sweep ms | CPU s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Linux / WSL2 | Short 2 | Slicing | 1 | partial | 1203.50 | 15 | 19/2/0 | 20.564 | 193.137 | 1.237 |
+| Linux / WSL2 | Short 2 | Backprojection | 1 | sampled | 1174.27 | 14 | 20/0/0 | 19.806 | 249.948 | 1.219 |
+| Linux / WSL2 | Short 2 | Slicing | 2 | partial | 1140.77 | 15 | 18/2/0 | 19.830 | 312.985 | 1.318 |
+| Linux / WSL2 | Short 2 | Backprojection | 2 | sampled | 1155.16 | 14 | 20/0/0 | 19.207 | 181.110 | 1.148 |
+| Linux / WSL2 | Short 3 | Slicing | 1 | partial | 655.05 | 15 | 17/4/0 | 20.158 | 233.689 | 1.375 |
+| Linux / WSL2 | Short 3 | Backprojection | 1 | sampled | 1233.23 | 14 | 20/0/0 | 19.500 | 189.160 | 1.089 |
+| Linux / WSL2 | Short 3 | Slicing | 2 | partial | 610.39 | 15 | 17/3/0 | 19.801 | 338.074 | 1.235 |
+| Linux / WSL2 | Short 3 | Backprojection | 2 | sampled | 1230.33 | 14 | 20/0/0 | 19.366 | 237.971 | 1.209 |
+| Linux / WSL2 | Long | Slicing | 1 | partial | 1173.04 | 15 | 22/13/0 | 34.433 | 271.326 | 3.466 |
+| Linux / WSL2 | Long | Backprojection | 1 | sampled | 2141.53 | 14 | 41/0/0 | 40.794 | 517.144 | 5.270 |
+| Linux / WSL2 | Long | Slicing | 2 | partial | 1124.07 | 15 | 20/16/0 | 35.651 | 400.087 | 4.297 |
+| Linux / WSL2 | Long | Backprojection | 2 | sampled | 2093.96 | 14 | 40/0/0 | 39.569 | 512.914 | 4.687 |
+| Native Windows | Short 2 | Slicing | 1 | partial | 1667.56 | 14 | 21/3/0 | 23.223 | 190.308 | 1.359 |
+| Native Windows | Short 2 | Backprojection | 1 | partial | 1189.23 | 10 | 17/3/0 | 19.458 | 163.151 | 0.906 |
+| Native Windows | Short 2 | Slicing | 2 | partial | 1793.07 | 14 | 20/2/0 | 21.930 | 149.340 | 0.953 |
+| Native Windows | Short 2 | Backprojection | 2 | partial | 1641.47 | 10 | 19/1/0 | 19.589 | 205.263 | 0.953 |
+| Native Windows | Short 3 | Slicing | 1 | partial | 1739.83 | 14 | 22/2/0 | 23.792 | 172.136 | 1.359 |
+| Native Windows | Short 3 | Backprojection | 1 | partial | 1635.38 | 10 | 18/1/0 | 19.035 | 119.063 | 0.734 |
+| Native Windows | Short 3 | Slicing | 2 | partial | 1689.23 | 14 | 21/3/0 | 23.655 | 215.457 | 1.453 |
+| Native Windows | Short 3 | Backprojection | 2 | partial | 1591.86 | 10 | 20/1/1 | 21.182 | 192.728 | 1.359 |
+| Native Windows | Long | Slicing | 1 | partial | 1926.03 | 14 | 31/8/0 | 39.093 | 256.975 | 2.906 |
+| Native Windows | Long | Backprojection | 1 | partial | 2527.54 | 13 | 73/2/0 | 74.775 | 472.958 | 3.625 |
+| Native Windows | Long | Slicing | 2 | partial | 1823.94 | 15 | 31/4/0 | 35.016 | 192.024 | 2.141 |
+| Native Windows | Long | Backprojection | 2 | partial | 2581.66 | 13 | 72/1/0 | 73.336 | 646.981 | 4.562 |
+
+Collector CPU includes polling and completion of discarded in-flight work; it is
+not additive elapsed-time overhead. The raw reports also retain observed interval
+ranges and exact error kinds/counts.
+
+### Memory coverage limits
+
+One-second sampling can miss brief peaks or short-lived children. Segments
+released by, or allocated outside, `SharedNPManager` can be missed while still
+attached elsewhere. A deliberately retained-buffer fixture demonstrated a 32 MiB
+omission, but real-data probes after #147's worker-startup fix attributed the large
+observed gaps to TIFF backing, not persistent retained shared buffers. Normal
+pipeline allocations use the manager; this does not prove retention impossible.
+
+The collector does not separately count resident TIFF/file cache after its
+process mappings disappear. Earlier sparse Linux diagnostics observed additional
+TIFF residency of 262–263 MiB slicing / 95.05 MiB backprojection for long Salivary,
+and 240–256 MiB / 35.12 MiB for corrected Daphnia. These are diagnostic observations,
+not peak-error bounds or Windows accuracy measurements. Ouroboros controls file
+writes/closure, but cache retention and eviction are OS-controlled.
+
+Linux PSS includes other mapped/shared pages proportionally. Windows excludes
+other shared pages and counts managed **allocated**, rather than resident, bytes;
+untouched or paged-out managed memory can therefore be overcounted. Do not interpret
+the difference between Windows and Linux peaks as an actual physical-RAM difference.
+
+### Short Docker delivery check after review
+
+[Raw Docker results and provenance](results/issue-139-docker-review.json) record one
+Short 2 slice → backprojection pair through the existing FastAPI server and the
+Electron-hosted volume server. Both operations returned `done`, both reports were
+`published` to the configured host folders with owner UID 1000 / mode 0600, and
+both reported `process_tree_nonshmem_pss_plus_managed_resident_bytes`.
+
+| Operation | Data step s | Memory status | Peak MiB | Max processes | C/I/D | Collector CPU s |
+| --- | --- | --- | --- | --- | --- | --- |
+| Slicing | 29.409 | partial | 1448.38 | 8 | 29/1/0 | 2.741 |
+| Backprojection | 8.873 | sampled | 1751.84 | 10 | 10/0/0 | 0.829 |
+
+The run produced one 875-plane slice TIFF and 571 backprojection TIFF planes.
+Slicing's incomplete sweep is retained in the raw report. `/proc` exposes
+`Pss_Shmem`; successful managed-residency samples exercise the Linux collector
+inside the container. Host and container production digests match. All production
+Python ASTs match `10145cd`; the changed byte digest reflects only the three
+formatting-cleanup files. Scientific scratch and report staging were empty after
+delivery, with no managed `psm_` segments left in `/dev/shm` (two loky semaphore
+files remained in the persistent server container).
+
+Deployment: Docker Desktop on Windows through WSL2 Ubuntu, Linux/Python 3.11.12
+container, `python/compose.dev.yml`, current source bind mount, default
+`ouroboros-volume`, and 64 GiB shared-memory limit. The API was called directly;
+this was not an Electron GUI-driven test or a newly built release-image test.
+The copy-to-volume/copy-to-host HTTP endpoints and Docker copy commands were
+unmodified. This short delivery check is not an overhead benchmark.
+
+Native macOS slice/backprojection and macOS-host Docker delivery are deferred on
+#139. A separate native-Linux-host Docker run was not performed; the Windows/WSL2
+check must not be labeled a complete three-host deployment matrix. #139 remains
+open for those outstanding workflow checks.
+
+## Reproducing the benchmark
+
+From `python/`, with the project's virtual environment installed, reuse saved
+slice/backprojection options and choose a new work directory:
 
 ```sh
 .venv/bin/python benchmarks/benchmark_run_statistics.py \
@@ -115,223 +222,83 @@ slice and backprojection options:
   --work-dir /tmp/ouroboros-real-data --workers 12 --pairs 2 --timeout 3600
 ```
 
-This mode retains the external `Pipeline.process()` timer and reads the existing
-`PipelineStep` duration for the actual slicing/backprojection step in both
-treatments. Its overhead summary uses the latter: parsing, geometry, and
-source/cache initialization precede data processing and are excluded. No new
-production timers are added. It copies the original annotations,
-preserves the selected image source and scientific settings, and runs the paths
-from shortest annotation list to longest. One disabled slicing warmup per path
-populates the shared CloudVolume cache; remote metadata requests can remain.
-Each pair runs slicing followed by backprojection of that exact sliced intensity
-volume. It does not threshold the data into a synthetic segmentation. The first
-pair runs disabled/enabled and the second enabled/disabled. Both operations use
-the requested worker count; BLAS/OpenMP use one thread in both treatments.
+This copies original annotations, preserves the image source/scientific settings,
+and visits every annotation path from shortest list to longest. Both timing
+boundaries above are recorded without adding production timers. Each pair runs
+slicing then backprojection of that exact output. Output headers, times, logs,
+options and reports remain; scientific TIFFs are removed after matching
+backprojection succeeds. No pixel hashing is performed.
 
-Output headers, all timings, logs, options, and reports are retained. Scientific
-TIFFs are removed after their matching backprojection completes. No pixels are
-hashed. Unlike the synthetic acceptance mode, a missing usable RAM sample is
-retained in the real-data results instead of aborting the remaining trials; it
-must be reported as a coverage failure. Scientific execution and report delivery are checked. Failed trials are retained,
-and their dependent backprojections are marked skipped. Remaining independent
-trials still run. `--resume-real-data` finishes an interrupted batch without
-repeating completed or failed attempts; it verifies unchanged production code,
-annotations, settings and dependency versions. An operation with incomplete
-pairs receives no aggregate overhead estimate. Two pairs describe the observed variation;
-they cannot establish a statistical upper bound on overhead.
+Failed trials remain recorded and dependent backprojections are marked skipped;
+remaining independent trials still run. A missing usable RAM sample is retained
+as a coverage failure, not silently treated as a disabled collector. An incomplete
+pair receives no aggregate overhead estimate. `--resume-real-data` completes an
+interrupted batch without repeating completed/failed attempts, after checking
+production code, annotations, settings and dependency versions. Retain all results;
+do not retry/select favorable trials or enlarge a workload merely to conceal costs.
+`--workers` must be a multiple of four. Sandbox execution must permit the existing
+multiprocessing manager sockets.
 
-## Real-data measurements (#139)
+### Other harness modes
 
-[Linux results](results/issue-139-real-linux.json) use the user's original
-`PosteriorSalivaryDuct_cut_ng.json`, the PSU Octo9 16-bit image layer, mip 0,
-120 × 120 slices, adaptive spacing 1 / ratio 0.5, 128 target slices per box,
-12 processes, and one BLAS/OpenMP thread. Backprojection uses each run's own
-sliced uint16 intensity TIFF, 160³ chunks, zlib compression, minimum bounding box,
-and separate output planes. It does not binarize the data. The original
-`perfdatatest` options supplied these scientific settings.
+These modes remain useful diagnostics; their timing boundary differs from the
+real-data acceptance comparison. Neither substitutes for Docker report delivery.
 
-Two pairs per path ran off/on, then on/off, after one disabled slicing cache
-warmup. Only the existing `SliceParallelPipelineStep` or
-`BackprojectPipelineStep` duration is compared below. Source/cache setup took
-about 15 seconds per invocation and is excluded, along with parsing, geometry,
-sampler startup/shutdown, final report collection and delivery. No pixel hashing
-was performed. Production source remained unchanged. All measurements are
-retained; no trials were selected or repeated to improve the result.
+```sh
+# Existing local fixture; time Pipeline.process(), including preparation.
+.venv/bin/python benchmarks/benchmark_run_statistics.py \
+  --scope pipeline --reuse-fixture /tmp/ouroboros-statistics-final \
+  --work-dir /tmp/ouroboros-pipeline-overhead --pairs 3
 
-| Path | Operation | Off median (s) | On median (s) | Difference (s) | Observed difference | MAD off / on (s) |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Posterior Salivary Duct 2 | slice | 4.776743 | 4.937809 | +0.161066 | +3.372% | 0.360739 / 0.146882 |
-| Posterior Salivary Duct 2 | backproject | 4.317144 | 3.875092 | -0.442052 | -10.239% | 0.756395 / 0.020286 |
-| Posterior Salivary Duct 3 | slice | 4.425853 | 4.471380 | +0.045526 | +1.029% | 0.071063 / 0.130346 |
-| Posterior Salivary Duct 3 | backproject | 3.889799 | 3.841992 | -0.047807 | -1.229% | 0.412733 / 0.177347 |
-| Posterior Salivary Duct | slice | 19.442347 | 20.999911 | +1.557565 | +8.011% | 0.117172 / 1.606434 |
-| Posterior Salivary Duct | backproject | 23.300999 | 23.828389 | +0.527390 | +2.263% | 0.361705 / 0.567634 |
+# Generate a local fixture and time the full CLI handler.
+.venv/bin/python benchmarks/benchmark_run_statistics.py \
+  --work-dir /tmp/ouroboros-statistics-benchmark --pairs 7
+```
 
-The short paths contain 10 and 16 annotation points and produce 875 and 887
-slices respectively; the long path contains 50 points and produces 4,901 slices.
-No operation was slower with reporting in both pairs. Every positive median
-difference is smaller than at least one treatment's MAD. This is consistent with
-variation dominating the measured cost, but two pairs cannot establish a 1%
-upper bound. The shared development host was not isolated; a process snapshot
-included active Electron CPU rendering. Linux and Windows workloads did not run
-concurrently.
+The default deterministic seed-138 fixture is a 384³ uint16 precomputed volume
+with 64³ raw chunks / 1 µm isotropic voxels. A curved 32-point path yields 192²
+slices at 0.5-voxel spacing, with 32 target slices per box. A thresholded warmup
+segmentation is reused for binary backprojection using 64³ chunks/zlib. Both
+modes use four workers and one BLAS/OpenMP thread. `--size 128 --pairs 3` gives a
+short smoke check; `--timeout` bounds each child operation (default 600 seconds).
 
-All 12 enabled Linux operations returned usable PSS peaks. Some sweeps were
-incomplete because workers exited or the process tree changed; those reports
-retain `partial` status and use only complete sweeps for the peak. Exact peaks,
-coverage and collector costs are in the result artifact.
+Pipeline mode externally times the same `Pipeline.process()` call in both
+treatments, with one disabled warmup per operation and alternating pair order.
+It excludes options loading, report collection/delivery and sampler startup/
+shutdown; it includes scientific preparation, worker timing aggregation, RAM
+collection, output writing and pool shutdown. Reused fixtures are not regenerated
+or pixel-hashed (`pixel_equivalence: null`).
 
-The [preliminary Linux attempt](results/issue-139-real-linux-preliminary.json)
-was deliberately stopped when its whole-pipeline timer was found to include
-about 15 seconds of source/cache setup and it had not retained the actual data
-step times. It is preserved but excluded from this table. The corrected run
-repeated the two pairs for every path with both timing boundaries captured and
-reused the downloaded chunks. Windows dependency installation overlapped only
-that preliminary attempt, not the corrected measured run.
+Full-handler mode includes option loading, pipeline setup/execution/cleanup,
+report formatting, stdout flush and statistics delivery. Imports/process startup
+are excluded from that timer and recorded separately. Each operation receives
+both disabled/enabled warmups and alternating measured pairs. Source creation,
+segmentation preparation, inspection and removal are outside the measured interval;
+no remote source is accessed. It hashes output pixels and requires equivalence,
+checks successful enabled statistics against stdout and absence of disabled
+sidecars, and fails on missing usable memory samples. Per-run images are removed
+after inspection. Source/harness digests, hardware, versions, TIFF dimensions,
+pixel/storage sizes, every individual time and statistical summaries are retained.
 
-### Historical native Windows results before #145
+## Historical evidence
 
-[Windows results](results/issue-139-real-windows.json) use the same dataset,
-settings and two off/on pairs per path, with native Python 3.11.9 and
-Windows-local source, cache and output directories. Linux was measured before
-the cleanup prerequisite; Windows was measured after `cb3bb3e`. Production
-sources remained unchanged within each platform's measurements. The source
-digests are retained; absolute Linux and Windows runtimes are not compared.
+Superseded #139 artifacts were removed from the current tree. The
+[previous artifact directory at 10145cd](https://github.com/ChengLabResearch/ouroboros/tree/10145cd34ecaff138fedd21336046cf989ca6ff4/python/benchmarks/results)
+and [previous benchmark README](https://github.com/ChengLabResearch/ouroboros/blob/10145cd34ecaff138fedd21336046cf989ca6ff4/python/benchmarks/README.md)
+retain the earlier Linux pipeline/preliminary/real-data measurements, Windows
+stress diagnostic, failed transfer-lifetime batches, post-#145 Windows rerun, and
+their provenance. They describe former collectors and are not current performance
+evidence. Their failures and unfavorable results remain in history.
 
-| Path | Successful slice → backprojection workflows | Failed slices | Dependent backprojections skipped |
-| --- | ---: | ---: | ---: |
-| Posterior Salivary Duct 2 | 4 | 0 | 0 |
-| Posterior Salivary Duct 3 | 1 | 3 | 3 |
-| Posterior Salivary Duct | 0 | 4 | 4 |
-
-All 12 scheduled slicing trials were attempted: five succeeded and their five
-backprojections succeeded; seven failed and their backprojections were skipped.
-The long-path cache warmup also failed. Failed trials were not replaced by
-successful retries. After the original fail-fast harness stopped, the batch was
-resumed with failure recording; all prior successful records were verified
-unchanged. Both benchmark script digests are retained. Timing boundaries and
-production code were unchanged; only orchestration gained resumption and
-explicit failure/skip outcomes.
-
-Only `Posterior Salivary Duct 2` has complete timing pairs:
-
-| Operation | Off median (s) | On median (s) | Difference (s) | Observed difference | MAD off / on (s) |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Slicing | 21.901489 | 22.240072 | +0.338584 | +1.546% | 0.132245 / 0.380839 |
-| Backprojection | 18.436838 | 18.656084 | +0.219246 | +1.189% | 0.194656 / 0.186755 |
-
-Neither operation was slower with reporting in both pairs. However, two of the
-four completed enabled operations returned **unavailable RAM** because mapping
-manifest publication failed: the first slicing trial and second backprojection
-trial. The other two returned partial coverage with usable peaks. These timings
-are descriptive, not acceptance evidence for a working collector or a 1% bound.
-No overhead estimate is calculated from incomplete pairs on the other paths.
-
-The original Windows warmup failed before slicing in CloudFiles 5.8.2: its
-[transfer monitor](https://github.com/seung-lab/cloud-files/blob/master/cloudfiles/monitoring.py)
-rejects zero-width intervals. Native Python 3.11.9 uses a 15.625 ms monotonic
-clock tick, so a short transfer can receive identical start/end times. The
-[isolated dependency workaround](results/issue-139-cloudfiles-zero-interval.patch)
-represents such an interval as one microsecond. It only changes the dependency
-in the temporary Windows test runtime, not the repository lock or production
-code. Both reporting treatments use it. [Provenance and the original failure](results/issue-139-windows-workaround.json)
-are retained.
-
-The next warmup exposed the pre-existing `SharedNPManager.remove_termed`
-cleanup ordering failure. The owner approved fixing it: acquire the cleanup
-handle before closing the supplied view, unlink while that handle is open,
-close it in `finally`, and retire the existing registry entry after cleanup.
-An unregistered array is now rejected before its view is closed. The existing
-manager/list remain authoritative; no second allocation registry was added.
-Both new regressions failed on old native Windows code and passed after the
-fix; all seven Linux memory-helper tests passed. The focused native CI matrix
-now includes those regressions. [The original failure](results/issue-139-real-windows-blocked.json)
-is retained as history, not an outstanding cleanup blocker.
-
-A subsequent attempt stopped on an intermittent download-result worker-pool
-failure before any measured operation completed. A diagnostic rerun succeeded;
-both are retained separately. The final scheduled batch encountered this failure
-in both reporting modes. A further long-path diagnostic with full chained
-tracebacks confirmed `FileNotFoundError` while deserializing `SharedMemory` from
-the result pipe: the allocation no longer exists when the receiver reopens its
-name. This is a separate transfer-lifetime problem from the fixed final cleanup.
-At that revision it remained unresolved, as did mapping-manifest publication
-failures. PR #146 subsequently fixed the handoff lifecycle; the rebased results
-are recorded separately below.
-[All failure and regression provenance](results/issue-139-windows-run-provenance.json)
-is retained. These historical failures are not replaced or removed by the new
-batch. Overall #139 acceptance still requires the remaining accounting and
-deployment work.
-
-### Native Windows rerun after rebasing onto #145
-
-[Fresh results](results/issue-139-real-windows-rebased.json) and
-[provenance](results/issue-139-windows-rebased-provenance.json) record production
-`be87951`, rebased onto merged PR #146 (`f566276`). The manager retains allocation
-handles; the observer derives mappings from those handles, and manifest reads
-and replacement reuse the bounded Windows IPC retry. The original failed batch
-above is retained unchanged.
-
-All three cache warmups and **all 12 slicing → backprojection workflows
-(24 data operations) succeeded**. All 12 enabled operations returned usable
-`partial` peaks. No by-name transfer failure or manifest-publication failure
-recurred. Incomplete sweeps were caused by process exits or changing mappings /
-process trees and excluded from peaks. These are sampled, partial measurements,
-not proof of complete resident backing coverage.
-
-The settings and alternating pair order are unchanged. Native Python 3.11.9 uses
-12 workers and one BLAS/OpenMP thread, a shared existing chunk cache, and fresh
-Windows-local outputs. Each backprojection consumes its own sliced intensity
-volume. The isolated CloudFiles workaround above is unchanged (verified by
-hash), identical for both treatments, and remains outside the repository.
-Production and benchmark digests match the repository; production stayed fixed
-throughout. No failed trials were retried or selected out. Linux benchmarks did
-not run concurrently; the shared development host was not otherwise isolated.
-
-| Path | Operation | Off median (s) | On median (s) | Difference (s) | Observed difference | MAD off / on (s) |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Posterior Salivary Duct 2 | slice | 23.073508 | 23.576249 | +0.502741 | +2.179% | 0.684345 / 0.099444 |
-| Posterior Salivary Duct 2 | backproject | 18.122470 | 18.202131 | +0.079661 | +0.440% | 0.086043 / 0.261774 |
-| Posterior Salivary Duct 3 | slice | 22.707309 | 23.814665 | +1.107356 | +4.877% | 0.270171 / 1.342440 |
-| Posterior Salivary Duct 3 | backproject | 18.782255 | 18.589627 | -0.192628 | -1.026% | 0.216100 / 0.406218 |
-| Posterior Salivary Duct | slice | 35.535106 | 37.844008 | +2.308902 | +6.498% | 1.305884 / 1.203964 |
-| Posterior Salivary Duct | backproject | 72.287309 | 75.070813 | +2.783504 | +3.851% | 0.455517 / 0.957966 |
-
-The long path is an **unresolved performance finding** under the existing
-in-operation target. Slicing was slower by 5.991% and 7.043% in the two pairs;
-backprojection by 5.843% and 1.883%. Their median increases (2.309 s and 2.784 s)
-exceed either treatment's MAD. These results do not support a negligible-overhead
-claim or completion of the 1% engineering target. Two pairs on a shared host do
-not establish a strict bound or isolate the cause; no extra trials were run to
-seek a better result. On the short paths, positive median differences are smaller
-than at least one treatment's MAD. Duct 3 slicing was slower in both pairs, but
-one difference was only 0.156%; its median difference is below the enabled MAD.
-
-Slicing had 16–21 complete and 6–21 incomplete sweeps per enabled operation;
-backprojection had 16–68 complete and 3–10 incomplete sweeps. The requested
-interval was one second. Long-path maximum sweep times reached 1.337 s for
-slicing and 2.144 s for backprojection; observer CPU was 4.17–4.23 s and
-6.58–7.16 s respectively. These are diagnostic costs, not additive wall-time
-overhead. Every peak, interval, count, error and timing is retained in the raw
-artifact.
-
-The draft still has the Linux/default-Docker accounting blocker: resident shared
-backing can be absent from PSS when no current mapping has touched it. The native
-Windows working-set metric has the corresponding exclusion. Keeping an untouched
-manager mapping alive fixes lifetime, not residency attribution. A revised metric
-needs defined semantics and validation, and remaining native macOS / Docker
-host-delivery requirements are still open.
-
-## Recorded pipeline-only measurement
-
+### Accepted #138 pipeline-only measurement
 The [pipeline-only result](results/issue-138-pipeline-only.json) was refreshed after
 removing the per-clock switches and worker reporting arguments. Both treatments
 retain the pre-existing worker clocks; the existing `PipelineStep` methods
 control accumulation. The run reused the same 384³ local source and segmentation
 with four workers and one BLAS/OpenMP thread, using three alternating pairs per
 operation after one disabled warmup. No data was regenerated or pixel-hashed.
-Production code remained unchanged throughout the test, and the recorded source
-digest matches the simplified implementation.
+Production code remained unchanged throughout that test. Its source digest
+identifies the #138 timing-only implementation, not the current RAM collector.
 
 | Operation | Disabled median | Enabled median | Difference | Observed overhead | MAD, disabled / enabled |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -346,63 +313,3 @@ Earlier full-handler artifacts and summaries were removed because they measured
 superseded implementations. The original accepted pipeline measurement and those
 older artifacts remain in Git history; #138 links its original acceptance numbers
 directly to that revision rather than to this refreshed file.
-
-## RAM collector measurement (#139)
-
-[All Linux pipeline samples and memory summaries](results/issue-139-pipeline-only.json)
-use the same prepared 384³ source, four workers and one BLAS/OpenMP thread,
-three alternating pairs per operation, and one disabled warmup. No pixels were
-hashed. Production Python sources remained unchanged throughout the measurement.
-The sampler requested a one-second interval.
-
-| Operation | Disabled median | Enabled median | Difference | Observed overhead | MAD, disabled / enabled |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Slicing | 20.279846 s | 17.251620 s | -3028.226 ms | -14.932% | 415.349 / 594.883 ms |
-| Backprojection | 9.115685 s | 8.975244 s | -140.441 ms | -1.541% | 45.338 / 108.476 ms |
-
-Neither operation showed positive median overhead in this run. The large negative
-slicing difference must not be interpreted as a speedup; this shared development
-machine was not otherwise controlled, and three pairs do not establish a strict
-upper bound. All samples are retained, without rerunning to select favorable
-results. These observations meet the numerical engineering target on this Linux
-workload; they do not validate native Windows/macOS overhead.
-
-Slicing observed up to seven processes, 17–19 complete sweeps per run, 113–152 ms
-maximum sweep durations and 1.493–1.900 s of observer CPU. Backprojection observed
-up to five processes, 8–10 complete sweeps, 75–85 ms maximum sweep durations and
-0.551–0.629 s of observer CPU. One backprojection sweep was incomplete because a
-worker vanished during the read; the peak uses only complete sweeps. Observed
-start-to-start intervals were approximately 1.000–1.010 s. Observer CPU is not
-wall-time overhead: it can run concurrently on another core and includes polling
-and completion of discarded end-of-window work.
-
-### Native Windows diagnostic and unresolved performance limit
-
-The [native Windows diagnostic](results/issue-139-windows-diagnostic.json) is a
-separate component stress test, **not the full pipeline acceptance benchmark**.
-Eight spawned workers each perform 81 in-place float32 additions on a disjoint
-128 MiB slice of one 1 GiB `SharedNPArray`; the parent and workers map the full
-allocation. It measures dispatch through worker completion, excluding collector
-startup/shutdown, with a one-second requested sampling interval.
-
-| Pair | Disabled | Enabled | Change |
-| --- | ---: | ---: | ---: |
-| 1 | 7.130173 s | 7.506819 s | +5.282% |
-| 2 | 7.301253 s | 7.422279 s | +1.658% |
-| 3 | 6.978654 s | 7.272467 s | +4.210% |
-
-The ratio of medians is **+4.097%**: 7.130173 s versus 7.422279 s, a 292.105 ms
-increase. MADs are 151.519 ms disabled and 84.540 ms enabled. The third pair used
-a fresh identical fixture after the diagnostic's evidence write to a WSL UNC
-path failed; the artifact records this interruption. All three enabled trials
-produced complete samples, without collection errors. Actual sweeps reached
-4.38–4.82 s during active writes, despite the requested one-second interval.
-Shorter (~2 s) stress operations could end without any complete sample and
-correctly reported unavailable memory.
-
-The idle native reader cost was 50.66 ms for a 256 MiB allocation across three
-processes and 511.09 ms for 1 GiB across nine. It counted the shared allocation
-once in every sweep, beyond Windows' share-count cap. The diagnostic preserves
-all paired times, sample/CPU details and idle measurements. This component test does not determine real pipeline acceptance. The original real-data Windows trials exposed transfer-lifetime and mapping-publication
-failures. The post-rebase rerun above completed but retains performance and
-accounting findings; native Windows acceptance remains open. The default Docker backend uses the Linux collector.

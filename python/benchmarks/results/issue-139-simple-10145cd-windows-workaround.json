@@ -1,0 +1,8 @@
+{
+  "package": "cloud-files",
+  "version": "5.8.2",
+  "before_sha256": "3795ead0f6192b53b1a18b70045b279df6aaedd1254e063c467d84cff2376a8a",
+  "after_sha256": "5af0e7827d6ec01c4f3155d52f7a94c15bd079934aa872ea3ea9bfefe3c91242",
+  "scope": "Isolated Windows test dependency only, identical for reporting off/on; repository dependency unchanged. Zero-duration transfer-monitor intervals represented as one microsecond.",
+  "reason": "Windows Python 3.11 time.monotonic uses GetTickCount64 at 15.625 ms resolution; CloudFiles rejects zero-width transfer intervals."
+}

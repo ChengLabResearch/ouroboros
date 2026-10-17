@@ -1,0 +1,488 @@
+{
+  "stage": "after",
+  "utc": "2026-10-17T22:45:00.168743+00:00",
+  "expected_git_head": "10145cd34ecaff138fedd21336046cf989ca6ff4",
+  "production_python_sha256": "66ec3675faf7554d423c6b8a6b3b0da98dc43fa1f119e90a0a6611b0520df634",
+  "benchmark_python_sha256": "e0dbe2830828c194ca635a181daeef9d11b825936b11ffe358f9ad785f5f2d2d",
+  "cloudfiles_monitor_sha256": "5af0e7827d6ec01c4f3155d52f7a94c15bd079934aa872ea3ea9bfefe3c91242",
+  "annotation_sha256": "415049492ae667e2467ac575cc28d51a6254e699c4631e233971e46d4b7a001e",
+  "source": "C:\\Users\\dnorthover\\AppData\\Local\\Temp\\ouroboros-139-69c872b6760846a9adcfb89861d6f544\\issue144-simple-benchmark-source",
+  "imported_mem": "C:\\Users\\dnorthover\\AppData\\Local\\Temp\\ouroboros-139-69c872b6760846a9adcfb89861d6f544\\issue144-simple-benchmark-source\\ouroboros\\helpers\\mem.py",
+  "python": "C:\\Users\\dnorthover\\AppData\\Local\\Temp\\ouroboros-139-69c872b6760846a9adcfb89861d6f544\\python.exe",
+  "python_version": "3.11.9",
+  "platform": "Windows-10-10.0.22631-SP0",
+  "sys_path": [
+    "C:\\Users\\dnorthover\\AppData\\Local\\Temp\\ouroboros-139-69c872b6760846a9adcfb89861d6f544\\issue144-simple-benchmark-source",
+    "C:\\Users\\dnorthover\\AppData\\Local\\Temp\\ouroboros-139-69c872b6760846a9adcfb89861d6f544\\python311.zip",
+    "C:\\Users\\dnorthover\\AppData\\Local\\Temp\\ouroboros-139-69c872b6760846a9adcfb89861d6f544",
+    "C:\\Users\\dnorthover\\AppData\\Local\\Temp\\ouroboros-139-69c872b6760846a9adcfb89861d6f544\\Lib\\site-packages",
+    "C:\\Users\\dnorthover\\AppData\\Local\\Temp\\ouroboros-139-69c872b6760846a9adcfb89861d6f544\\issue144-simple-benchmark-source"
+  ],
+  "versions": {
+    "numpy": "1.26.4",
+    "scipy": "1.11.2",
+    "tifffile": "2024.12.12",
+    "cloud-volume": "12.7.0",
+    "cloud-files": "5.8.2",
+    "psutil": "7.1.3"
+  },
+  "disk_free_bytes": 294697250816,
+  "checks": {
+    "production_python_sha256": true,
+    "benchmark_python_sha256": true,
+    "cloudfiles_monitor_sha256": true,
+    "annotation_sha256": true,
+    "imports_use_snapshot": true,
+    "cache_directory_exists": true,
+    "results_exist": true,
+    "result_production_digest": true,
+    "result_benchmark_digest": true,
+    "production_unchanged": true,
+    "all_three_paths": true,
+    "two_pairs_twelve_workers": true,
+    "all_24_operations_completed": true,
+    "all_12_verbose_reports_have_current_metric_and_peak": true
+  },
+  "memory_statuses": [
+    {
+      "label": "path-0-pair-1-1-slice",
+      "memory": {
+        "status": "partial",
+        "metric": "process_tree_private_resident_plus_managed_allocated_bytes",
+        "unit": "bytes",
+        "method": "PrivateWorkingSetSize + manager-owned allocation sizes",
+        "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+        "sampled_peak_bytes": 1748567332,
+        "last_complete_sample_bytes": 349945856,
+        "sampling": {
+          "requested_interval_seconds": 1.0,
+          "observed_interval_seconds": {
+            "min": 1.0000709000159986,
+            "max": 1.008466099970974
+          },
+          "complete_samples": 21,
+          "incomplete_samples": 3,
+          "discarded_samples": 0,
+          "max_process_count": 14,
+          "max_sweep_seconds": 0.19030830002157018,
+          "collector_cpu_seconds": 1.359375,
+          "window_seconds": 23.22290300001623,
+          "first_sample_start_seconds": 0.0321747999987565,
+          "last_sample_end_seconds": 23.15952450002078
+        },
+        "errors": [
+          {
+            "kind": "OSError",
+            "count": 3,
+            "example": "Process tree changed during memory sweep"
+          }
+        ]
+      }
+    },
+    {
+      "label": "path-0-pair-1-1-backproject",
+      "memory": {
+        "status": "partial",
+        "metric": "process_tree_private_resident_plus_managed_allocated_bytes",
+        "unit": "bytes",
+        "method": "PrivateWorkingSetSize + manager-owned allocation sizes",
+        "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+        "sampled_peak_bytes": 1246998528,
+        "last_complete_sample_bytes": 781955072,
+        "sampling": {
+          "requested_interval_seconds": 1.0,
+          "observed_interval_seconds": {
+            "min": 1.0001051999861374,
+            "max": 1.0038075000047684
+          },
+          "complete_samples": 17,
+          "incomplete_samples": 3,
+          "discarded_samples": 0,
+          "max_process_count": 10,
+          "max_sweep_seconds": 0.1631512999883853,
+          "collector_cpu_seconds": 0.90625,
+          "window_seconds": 19.45779419998871,
+          "first_sample_start_seconds": 0.02791940001770854,
+          "last_sample_end_seconds": 19.143809099972714
+        },
+        "errors": [
+          {
+            "kind": "OSError",
+            "count": 3,
+            "example": "Process tree changed during memory sweep"
+          }
+        ]
+      }
+    },
+    {
+      "label": "path-0-pair-2-1-slice",
+      "memory": {
+        "status": "partial",
+        "metric": "process_tree_private_resident_plus_managed_allocated_bytes",
+        "unit": "bytes",
+        "method": "PrivateWorkingSetSize + manager-owned allocation sizes",
+        "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+        "sampled_peak_bytes": 1880175332,
+        "last_complete_sample_bytes": 1638804260,
+        "sampling": {
+          "requested_interval_seconds": 1.0,
+          "observed_interval_seconds": {
+            "min": 1.0004799999878742,
+            "max": 1.029645000002347
+          },
+          "complete_samples": 20,
+          "incomplete_samples": 2,
+          "discarded_samples": 0,
+          "max_process_count": 14,
+          "max_sweep_seconds": 0.14934039994841442,
+          "collector_cpu_seconds": 0.953125,
+          "window_seconds": 21.929791699978523,
+          "first_sample_start_seconds": 0.0213825999526307,
+          "last_sample_end_seconds": 21.226437899982557
+        },
+        "errors": [
+          {
+            "kind": "OSError",
+            "count": 2,
+            "example": "Process tree changed during memory sweep"
+          }
+        ]
+      }
+    },
+    {
+      "label": "path-0-pair-2-1-backproject",
+      "memory": {
+        "status": "partial",
+        "metric": "process_tree_private_resident_plus_managed_allocated_bytes",
+        "unit": "bytes",
+        "method": "PrivateWorkingSetSize + manager-owned allocation sizes",
+        "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+        "sampled_peak_bytes": 1721208832,
+        "last_complete_sample_bytes": 781152256,
+        "sampling": {
+          "requested_interval_seconds": 1.0,
+          "observed_interval_seconds": {
+            "min": 1.0000874999677762,
+            "max": 1.0267999999923632
+          },
+          "complete_samples": 19,
+          "incomplete_samples": 1,
+          "discarded_samples": 0,
+          "max_process_count": 10,
+          "max_sweep_seconds": 0.20526309998240322,
+          "collector_cpu_seconds": 0.953125,
+          "window_seconds": 19.58884240000043,
+          "first_sample_start_seconds": 0.02573380002286285,
+          "last_sample_end_seconds": 19.24146569997538
+        },
+        "errors": [
+          {
+            "kind": "OSError",
+            "count": 1,
+            "example": "Process tree changed during memory sweep"
+          }
+        ]
+      }
+    },
+    {
+      "label": "path-1-pair-1-1-slice",
+      "memory": {
+        "status": "partial",
+        "metric": "process_tree_private_resident_plus_managed_allocated_bytes",
+        "unit": "bytes",
+        "method": "PrivateWorkingSetSize + manager-owned allocation sizes",
+        "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+        "sampled_peak_bytes": 1824343336,
+        "last_complete_sample_bytes": 1323429888,
+        "sampling": {
+          "requested_interval_seconds": 1.0,
+          "observed_interval_seconds": {
+            "min": 1.0005183999892324,
+            "max": 1.020197100006044
+          },
+          "complete_samples": 22,
+          "incomplete_samples": 2,
+          "discarded_samples": 0,
+          "max_process_count": 14,
+          "max_sweep_seconds": 0.17213639995316043,
+          "collector_cpu_seconds": 1.359375,
+          "window_seconds": 23.792148199980147,
+          "first_sample_start_seconds": 0.032252300006803125,
+          "last_sample_end_seconds": 23.26693709997926
+        },
+        "errors": [
+          {
+            "kind": "NoSuchProcess",
+            "count": 1,
+            "example": "process no longer exists (pid=39212)"
+          },
+          {
+            "kind": "OSError",
+            "count": 1,
+            "example": "Process tree changed during memory sweep"
+          }
+        ]
+      }
+    },
+    {
+      "label": "path-1-pair-1-1-backproject",
+      "memory": {
+        "status": "partial",
+        "metric": "process_tree_private_resident_plus_managed_allocated_bytes",
+        "unit": "bytes",
+        "method": "PrivateWorkingSetSize + manager-owned allocation sizes",
+        "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+        "sampled_peak_bytes": 1714823168,
+        "last_complete_sample_bytes": 875474944,
+        "sampling": {
+          "requested_interval_seconds": 1.0,
+          "observed_interval_seconds": {
+            "min": 1.0005961999995634,
+            "max": 1.004549200006295
+          },
+          "complete_samples": 18,
+          "incomplete_samples": 1,
+          "discarded_samples": 0,
+          "max_process_count": 10,
+          "max_sweep_seconds": 0.1190628000185825,
+          "collector_cpu_seconds": 0.734375,
+          "window_seconds": 19.035459400038235,
+          "first_sample_start_seconds": 0.03607149998424575,
+          "last_sample_end_seconds": 18.127496000030078
+        },
+        "errors": [
+          {
+            "kind": "OSError",
+            "count": 1,
+            "example": "Process tree changed during memory sweep"
+          }
+        ]
+      }
+    },
+    {
+      "label": "path-1-pair-2-1-slice",
+      "memory": {
+        "status": "partial",
+        "metric": "process_tree_private_resident_plus_managed_allocated_bytes",
+        "unit": "bytes",
+        "method": "PrivateWorkingSetSize + manager-owned allocation sizes",
+        "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+        "sampled_peak_bytes": 1771281680,
+        "last_complete_sample_bytes": 1384148992,
+        "sampling": {
+          "requested_interval_seconds": 1.0,
+          "observed_interval_seconds": {
+            "min": 1.000059499987401,
+            "max": 1.020943499985151
+          },
+          "complete_samples": 21,
+          "incomplete_samples": 3,
+          "discarded_samples": 0,
+          "max_process_count": 14,
+          "max_sweep_seconds": 0.21545690001221374,
+          "collector_cpu_seconds": 1.453125,
+          "window_seconds": 23.655070299981162,
+          "first_sample_start_seconds": 0.02111999999033287,
+          "last_sample_end_seconds": 23.282326099986676
+        },
+        "errors": [
+          {
+            "kind": "NoSuchProcess",
+            "count": 1,
+            "example": "process no longer exists (pid=15196)"
+          },
+          {
+            "kind": "OSError",
+            "count": 2,
+            "example": "Process tree changed during memory sweep"
+          }
+        ]
+      }
+    },
+    {
+      "label": "path-1-pair-2-1-backproject",
+      "memory": {
+        "status": "partial",
+        "metric": "process_tree_private_resident_plus_managed_allocated_bytes",
+        "unit": "bytes",
+        "method": "PrivateWorkingSetSize + manager-owned allocation sizes",
+        "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+        "sampled_peak_bytes": 1669185536,
+        "last_complete_sample_bytes": 873558016,
+        "sampling": {
+          "requested_interval_seconds": 1.0,
+          "observed_interval_seconds": {
+            "min": 1.0007274000090547,
+            "max": 1.014065199997276
+          },
+          "complete_samples": 20,
+          "incomplete_samples": 1,
+          "discarded_samples": 1,
+          "max_process_count": 10,
+          "max_sweep_seconds": 0.19272849999833852,
+          "collector_cpu_seconds": 1.359375,
+          "window_seconds": 21.182213500025682,
+          "first_sample_start_seconds": 0.02676809998229146,
+          "last_sample_end_seconds": 20.175939499982633
+        },
+        "errors": [
+          {
+            "kind": "OSError",
+            "count": 1,
+            "example": "Process tree changed during memory sweep"
+          }
+        ]
+      }
+    },
+    {
+      "label": "path-2-pair-1-1-slice",
+      "memory": {
+        "status": "partial",
+        "metric": "process_tree_private_resident_plus_managed_allocated_bytes",
+        "unit": "bytes",
+        "method": "PrivateWorkingSetSize + manager-owned allocation sizes",
+        "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+        "sampled_peak_bytes": 2019587788,
+        "last_complete_sample_bytes": 1416552448,
+        "sampling": {
+          "requested_interval_seconds": 1.0,
+          "observed_interval_seconds": {
+            "min": 1.0006242000381462,
+            "max": 1.0271931000170298
+          },
+          "complete_samples": 31,
+          "incomplete_samples": 8,
+          "discarded_samples": 0,
+          "max_process_count": 14,
+          "max_sweep_seconds": 0.25697470002342016,
+          "collector_cpu_seconds": 2.90625,
+          "window_seconds": 39.092795600008685,
+          "first_sample_start_seconds": 0.03498379996744916,
+          "last_sample_end_seconds": 38.25529000000097
+        },
+        "errors": [
+          {
+            "kind": "NoSuchProcess",
+            "count": 1,
+            "example": "process no longer exists (pid=45268)"
+          },
+          {
+            "kind": "OSError",
+            "count": 7,
+            "example": "Process tree changed during memory sweep"
+          }
+        ]
+      }
+    },
+    {
+      "label": "path-2-pair-1-1-backproject",
+      "memory": {
+        "status": "partial",
+        "metric": "process_tree_private_resident_plus_managed_allocated_bytes",
+        "unit": "bytes",
+        "method": "PrivateWorkingSetSize + manager-owned allocation sizes",
+        "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+        "sampled_peak_bytes": 2650312704,
+        "last_complete_sample_bytes": 1238474752,
+        "sampling": {
+          "requested_interval_seconds": 1.0,
+          "observed_interval_seconds": {
+            "min": 1.0003232999588363,
+            "max": 1.0465217999881133
+          },
+          "complete_samples": 73,
+          "incomplete_samples": 2,
+          "discarded_samples": 0,
+          "max_process_count": 13,
+          "max_sweep_seconds": 0.47295770002529025,
+          "collector_cpu_seconds": 3.625,
+          "window_seconds": 74.77534180000657,
+          "first_sample_start_seconds": 0.03038360003847629,
+          "last_sample_end_seconds": 74.58265130000655
+        },
+        "errors": [
+          {
+            "kind": "NoSuchProcess",
+            "count": 1,
+            "example": "process no longer exists (pid=20072)"
+          },
+          {
+            "kind": "OSError",
+            "count": 1,
+            "example": "Process tree changed during memory sweep"
+          }
+        ]
+      }
+    },
+    {
+      "label": "path-2-pair-2-1-slice",
+      "memory": {
+        "status": "partial",
+        "metric": "process_tree_private_resident_plus_managed_allocated_bytes",
+        "unit": "bytes",
+        "method": "PrivateWorkingSetSize + manager-owned allocation sizes",
+        "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+        "sampled_peak_bytes": 1912540520,
+        "last_complete_sample_bytes": 1412288512,
+        "sampling": {
+          "requested_interval_seconds": 1.0,
+          "observed_interval_seconds": {
+            "min": 1.000198800000362,
+            "max": 1.0105707999900915
+          },
+          "complete_samples": 31,
+          "incomplete_samples": 4,
+          "discarded_samples": 0,
+          "max_process_count": 15,
+          "max_sweep_seconds": 0.1920242999913171,
+          "collector_cpu_seconds": 2.140625,
+          "window_seconds": 35.01622290001251,
+          "first_sample_start_seconds": 0.028072400018572807,
+          "last_sample_end_seconds": 34.17625090002548
+        },
+        "errors": [
+          {
+            "kind": "OSError",
+            "count": 4,
+            "example": "Process tree changed during memory sweep"
+          }
+        ]
+      }
+    },
+    {
+      "label": "path-2-pair-2-1-backproject",
+      "memory": {
+        "status": "partial",
+        "metric": "process_tree_private_resident_plus_managed_allocated_bytes",
+        "unit": "bytes",
+        "method": "PrivateWorkingSetSize + manager-owned allocation sizes",
+        "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+        "sampled_peak_bytes": 2707062784,
+        "last_complete_sample_bytes": 1233936384,
+        "sampling": {
+          "requested_interval_seconds": 1.0,
+          "observed_interval_seconds": {
+            "min": 1.0005157999694347,
+            "max": 1.108258599997498
+          },
+          "complete_samples": 72,
+          "incomplete_samples": 1,
+          "discarded_samples": 0,
+          "max_process_count": 13,
+          "max_sweep_seconds": 0.6469811000279151,
+          "collector_cpu_seconds": 4.5625,
+          "window_seconds": 73.33610250003403,
+          "first_sample_start_seconds": 0.03243550000479445,
+          "last_sample_end_seconds": 72.55869730003178
+        },
+        "errors": [
+          {
+            "kind": "NoSuchProcess",
+            "count": 1,
+            "example": "process no longer exists (pid=16096)"
+          }
+        ]
+      }
+    }
+  ]
+}

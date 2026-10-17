@@ -186,12 +186,8 @@ class BackprojectPipelineStep(PipelineStep):
 
         # Process each bounding box in parallel, writing the results to the backprojected volume
         try:
-            with (concurrent.futures.ProcessPoolExecutor(
-                      self.execution_resources["backproject_processes"],
-                  ) as executor,
-                  concurrent.futures.ProcessPoolExecutor(
-                      self.execution_resources["writer_processes"],
-                  ) as write_executor):
+            with (concurrent.futures.ProcessPoolExecutor(self.execution_resources["backproject_processes"]) as executor,
+                 concurrent.futures.ProcessPoolExecutor(self.execution_resources["writer_processes"]) as write_executor):
                 bp_futures = []
                 write_futures = []
 

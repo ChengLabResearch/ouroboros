@@ -122,8 +122,11 @@ All elapsed measurements use `time.perf_counter()`.
 
 Operation time excludes queue wait, application/container startup, and statistics
 serialization/publication. The performance-overhead benchmark separately times
-`Pipeline.process()` with detailed instrumentation enabled and disabled; metadata
-collection, formatting, printing, and report delivery are outside that interval.
+`Pipeline.process()` with detailed instrumentation enabled and disabled. The
+real-data comparison uses the existing data-step duration to exclude earlier
+preparation; both boundaries remain in the raw benchmark record. Metadata
+collection, formatting, printing, and report delivery are outside the pipeline
+interval.
 Volume metadata is captured before cleanup while output headers are still
 available, so that work is included in operation time.
 
@@ -214,11 +217,16 @@ existing file/volume facilities. The memory collector extends this same lifecycl
 
 The fixed-local-source benchmark and reproducible commands are documented in
 [the Python benchmark guide](https://github.com/ChengLabResearch/ouroboros/blob/main/python/benchmarks/README.md).
-The target is at most 1% median pipeline elapsed-time overhead for instrumentation
-that runs during the data operation. Setup and final reporting costs are assessed
-separately. RAM collection shares that same in-operation budget with timing and
-volume reporting. Report measured variability alongside overhead; a negative observed
-overhead reflects noise, not free instrumentation.
+The owner-approved 1% combined in-operation engineering target applies to longer
+runs, assessed alongside inter-run variability and fixed startup/shutdown costs.
+For the recorded #139 real-data evidence, acceptance is scoped to the long
+Salivary Duct path; short-path costs remain reported and are not a general 1%
+guarantee. RAM collection shares the budget with timing and volume reporting.
+The real-data comparison uses the canonical data-step duration, retaining worker/
+manager startup and shutdown inside that step. Earlier preparation, sampler
+startup/shutdown and final reporting are excluded. These measurements do not
+isolate every cause of a timing difference; negative changes reflect variation,
+not free instrumentation. Two pairs do not establish a statistical upper bound.
 
 ## Memory measurements
 
@@ -254,7 +262,8 @@ macOS retains a `libproc` region walk for private residency. A segment can appea
 private when the manager is its only mapper, so the manager's ranges are excluded
 before managed residency is added. Compressed/swapped pages are not included.
 Native CI exercises the macOS reader and short collector lifecycle. Native
-macOS pipeline collection cost remains unmeasured.
+macOS slice/backprojection performance and macOS-host Docker delivery are deferred
+on #139; focused CI does not replace those workflow checks.
 
 There is no separate TIFF or resident file-cache accounting. Ordinary mapped-file
 pages may still contribute to the native process counter; cached pages absent

@@ -156,9 +156,9 @@ class SliceParallelPipelineStep(PipelineStep):
         # Start the download volumes process and process downloaded volumes as they become available in the queue
         try:
             with concurrent.futures.ProcessPoolExecutor(
-                max_workers=self.execution_resources["download_processes"],
+                max_workers=self.execution_resources["download_processes"]
             ) as download_executor, concurrent.futures.ProcessPoolExecutor(
-                max_workers=self.execution_resources["slice_processes"],
+                max_workers=self.execution_resources["slice_processes"]
             ) as process_executor, SharedNPManager(authkey=authkey) as (shm_host, ):
                 # Start fork workers before they can inherit downloaded buffers
                 # that would otherwise survive the manager's release.

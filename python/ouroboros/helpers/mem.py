@@ -46,7 +46,6 @@ class SharedNPArray:
         else:
             self.__sm = SharedMemory(name=name)
 
-
     def size(self, swap=None):
         """ Size of array in memory.
 
@@ -97,7 +96,6 @@ class SharedNPArray:
             self.__shutdown = True
 
     close = shutdown
-
 
     def __del__(self):
         if not getattr(self, "_SharedNPArray__shutdown", True):

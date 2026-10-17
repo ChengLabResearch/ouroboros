@@ -1,0 +1,994 @@
+{
+  "parent_revision": "10145cd34ecaff138fedd21336046cf989ca6ff4",
+  "working_tree_change": "formatting-only cleanup in helpers/mem.py and the two data pipelines; all production Python ASTs unchanged",
+  "production_python_sha256": "503ae64e0d61b07c9b9a89620f5b9360a55f6a23ff2099a3d77422a9d43d37d1",
+  "host": "Windows / WSL2 Ubuntu; Docker Desktop Linux engine",
+  "deployment": "existing python/compose.dev.yml; real FastAPI and Electron-hosted volume server; default ouroboros-volume and 64 GiB /dev/shm",
+  "annotation_sha256": "415049492ae667e2467ac575cc28d51a6254e699c4631e233971e46d4b7a001e",
+  "purpose": "short delivery and memory-capability smoke test, not an overhead benchmark",
+  "runs": [
+    {
+      "operation": "slice",
+      "task_id": "5bc4052d-03f5-4dee-8f58-d33e94ff7f94",
+      "submitted_at_unix": 1792279050.6508548,
+      "status_response": {
+        "status": "done",
+        "progress": [
+          [
+            "ParseJSONPipelineStep",
+            1,
+            0.0028443029732443392
+          ],
+          [
+            "SlicesGeometryPipelineStep",
+            1,
+            0.25213975104270503
+          ],
+          [
+            "VolumeCachePipelineStep",
+            1,
+            0.25208718702197075
+          ],
+          [
+            "SliceParallelPipelineStep",
+            1,
+            29.409243437985424
+          ]
+        ],
+        "error": null,
+        "progress_error": null,
+        "statistics": {
+          "status": "published",
+          "path": "/home/dnorthover/ChengCode/ouroboros-144-docker-review/slice/docker-review-slice-slice-5bc4052d-03f5-4dee-8f58-d33e94ff7f94-statistics.json",
+          "recovery_path": null,
+          "error": null,
+          "presentation_error": null,
+          "presentation_interrupted": false
+        }
+      },
+      "http_status": 200,
+      "submission_to_done_seconds": 36.28552532196045,
+      "report_filename": "docker-review-slice-slice-5bc4052d-03f5-4dee-8f58-d33e94ff7f94-statistics.json",
+      "report_sha256": "fb16f1412728e02efac43b6492305146516964965addb904b3d472f9c7b5ae52",
+      "report_host_uid": 1000,
+      "report_host_mode": "0o600",
+      "scientific_output_files": 1,
+      "scientific_output_storage_bytes": 25349180,
+      "report": {
+        "schema_version": 1,
+        "run_id": "5bc4052d-03f5-4dee-8f58-d33e94ff7f94",
+        "operation": "slice",
+        "started_at": "2026-10-17T23:17:30.658153+00:00",
+        "finished_at": "2026-10-17T23:18:04.995780+00:00",
+        "outcome": "succeeded",
+        "error": null,
+        "operation_elapsed_seconds": 34.34008904302027,
+        "pipeline_elapsed_seconds": 29.916368083038833,
+        "phase_wall_spans": null,
+        "steps": [
+          {
+            "pipeline": "ParseJSONPipelineStep",
+            "duration_seconds": 0.0028443029732443392,
+            "status": "succeeded",
+            "custom_times": {},
+            "byte_counts": {}
+          },
+          {
+            "pipeline": "SlicesGeometryPipelineStep",
+            "duration_seconds": 0.25213975104270503,
+            "status": "succeeded",
+            "custom_times": {},
+            "byte_counts": {}
+          },
+          {
+            "pipeline": "VolumeCachePipelineStep",
+            "duration_seconds": 0.25208718702197075,
+            "status": "succeeded",
+            "custom_times": {},
+            "byte_counts": {}
+          },
+          {
+            "pipeline": "SliceParallelPipelineStep",
+            "duration_seconds": 29.409243437985424,
+            "status": "succeeded",
+            "custom_times": {
+              "Download Time": {
+                "mean": 7.785503274890491,
+                "std": 3.356339516710319,
+                "min": 3.1966771470033564,
+                "max": 12.462769664998632,
+                "accumulated_elapsed_seconds": 70.06952947401442,
+                "gap": 9.266092517995276,
+                "loops": 9,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": []
+              },
+              "initial_load": {
+                "mean": 0.00012679867601643005,
+                "std": 9.850117506952955e-05,
+                "min": 6.5805041231215e-05,
+                "max": 0.000401830009650439,
+                "accumulated_elapsed_seconds": 0.0011411880841478705,
+                "gap": 0.000336024968419224,
+                "loops": 9,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": []
+              },
+              "generate_grid": {
+                "mean": 0.12322860154866551,
+                "std": 0.05318641731248682,
+                "min": 0.04690137499710545,
+                "max": 0.2185083439690061,
+                "accumulated_elapsed_seconds": 1.1090574139379896,
+                "gap": 0.17160696897190064,
+                "loops": 9,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": []
+              },
+              "slice_volume": {
+                "mean": 1.8753296561189927,
+                "std": 0.6641475034889284,
+                "min": 0.8848356840317138,
+                "max": 2.7319585739751346,
+                "accumulated_elapsed_seconds": 16.877966905070934,
+                "gap": 1.8471228899434209,
+                "loops": 9,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": []
+              },
+              "memmap_write": {
+                "mean": 0.0767893602217858,
+                "std": 0.031235374503471785,
+                "min": 0.03837903501698747,
+                "max": 0.1441728519857861,
+                "accumulated_elapsed_seconds": 0.6911042419960722,
+                "gap": 0.10579381696879864,
+                "loops": 9,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": []
+              },
+              "total_process": {
+                "mean": 2.075507397446523,
+                "std": 0.7333931003537459,
+                "min": 0.9731015529832803,
+                "max": 2.9413366279914044,
+                "accumulated_elapsed_seconds": 18.679566577018704,
+                "gap": 1.9682350750081241,
+                "loops": 9,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": [
+                  "initial_load",
+                  "generate_grid",
+                  "slice_volume",
+                  "memmap_write"
+                ]
+              },
+              "Rewrite Temp": {
+                "mean": 0.38655308802844957,
+                "std": 0.0,
+                "min": 0.38655308802844957,
+                "max": 0.38655308802844957,
+                "accumulated_elapsed_seconds": 0.38655308802844957,
+                "gap": 0.0,
+                "loops": 1,
+                "unit": "seconds",
+                "scope": "coordinator",
+                "includes": []
+              }
+            },
+            "byte_counts": {}
+          }
+        ],
+        "volumes": {
+          "source": {
+            "url": "precomputed://https://neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2",
+            "data_kind": "image",
+            "full_resolution": {
+              "dimensions": [
+                12200,
+                12200,
+                9349
+              ],
+              "axis_order": "XYZ",
+              "channels": 1,
+              "dtype": "uint16",
+              "logical_uncompressed_bytes": 2783010320000,
+              "mip": 0,
+              "voxel_spacing_um": [
+                0.7,
+                0.7,
+                0.7
+              ]
+            },
+            "used_resolution": {
+              "dimensions": [
+                12200,
+                12200,
+                9349
+              ],
+              "axis_order": "XYZ",
+              "channels": 1,
+              "dtype": "uint16",
+              "logical_uncompressed_bytes": 2783010320000,
+              "mip": 0,
+              "voxel_spacing_um": [
+                0.7,
+                0.7,
+                0.7
+              ]
+            }
+          },
+          "straightened": {
+            "dimensions": [
+              875,
+              120,
+              120
+            ],
+            "axis_order": "DVU",
+            "channels": 1,
+            "dtype": "uint16",
+            "logical_uncompressed_bytes": 25200000,
+            "path": "/volume/main/docker-review-slice.tif",
+            "layout": "tiff_stack",
+            "data_kind": "image",
+            "physical_file_bytes": 25349180,
+            "header_spacing": {
+              "values": [
+                0.7000006736954676,
+                0.7000006736954676,
+                0.7
+              ],
+              "axis_order": "UVD"
+            }
+          },
+          "bounding_box": {
+            "dimensions": [
+              495,
+              384,
+              571
+            ],
+            "axis_order": "XYZ",
+            "channels": 1,
+            "dtype": "uint16",
+            "logical_uncompressed_bytes": 217071360,
+            "bounds": {
+              "minimum": [
+                5870,
+                6255,
+                2770
+              ],
+              "maximum": [
+                6364,
+                6638,
+                3340
+              ]
+            },
+            "mip": 0,
+            "voxel_spacing_um": [
+              0.7,
+              0.7,
+              0.7
+            ],
+            "download_partitions": {
+              "count": 9,
+              "allocated_logical_bytes": 106683422,
+              "source_clipped_logical_bytes": 106683422,
+              "clipping_bounds_mip": 0
+            }
+          },
+          "storage_reduction": {
+            "source_full_resolution": {
+              "percentage": 99.99909450569339,
+              "numerator_bytes": 25200000,
+              "denominator_bytes": 2783010320000,
+              "reference": "source.full_resolution.logical_uncompressed_bytes"
+            },
+            "source_used_resolution": {
+              "percentage": 99.99909450569339,
+              "numerator_bytes": 25200000,
+              "denominator_bytes": 2783010320000,
+              "reference": "source.used_resolution.logical_uncompressed_bytes"
+            },
+            "bounding_box_relative": {
+              "percentage": 88.39091439791964,
+              "numerator_bytes": 25200000,
+              "denominator_bytes": 217071360,
+              "reference": "bounding_box.logical_uncompressed_bytes"
+            }
+          }
+        },
+        "memory": {
+          "status": "partial",
+          "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+          "unit": "bytes",
+          "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+          "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+          "sampled_peak_bytes": 1518739456,
+          "last_complete_sample_bytes": 1320992768,
+          "sampling": {
+            "requested_interval_seconds": 1.0,
+            "observed_interval_seconds": {
+              "min": 1.000314550998155,
+              "max": 1.014836312038824
+            },
+            "complete_samples": 29,
+            "incomplete_samples": 1,
+            "discarded_samples": 0,
+            "max_process_count": 8,
+            "max_sweep_seconds": 0.3143686859984882,
+            "collector_cpu_seconds": 2.7405779,
+            "window_seconds": 29.917247947014403,
+            "first_sample_start_seconds": 0.011078990995883942,
+            "last_sample_end_seconds": 29.152913634025026
+          },
+          "errors": [
+            {
+              "kind": "ProcessLookupError",
+              "count": 1,
+              "example": "[Errno 3] No such process: '/proc/1220/smaps_rollup'"
+            }
+          ]
+        },
+        "inputs": {
+          "options_path": "/home/dnorthover/ChengCode/ouroboros-144-docker-review/slice-options.json",
+          "annotation_path": "/home/dnorthover/ChengCode/ouroboros-144-docker-review/annotations.json"
+        },
+        "effective_configuration": {
+          "operation": {
+            "output_file_folder": "/volume/main/",
+            "output_file_name": "docker-review-slice",
+            "flush_cache": false,
+            "make_single_file": true,
+            "output_mip_level": 0,
+            "slice_width": 120,
+            "slice_height": 120,
+            "neuroglancer_json": "/volume/main/annotations.json",
+            "neuroglancer_image_layer": "PSU Octo9 16bit S1p4s2p2 sharded",
+            "neuroglancer_annotation_layer": "Posterior Salivary Duct 2",
+            "slicing_params": {
+              "dist_between_slices": 1,
+              "use_adaptive_slicing": true,
+              "adaptive_slicing_ratio": 0.5
+            },
+            "bounding_box_params": {
+              "max_depth": 12,
+              "target_slices_per_box": 128
+            },
+            "connect_start_and_end": false,
+            "annotation_mip_level": 0,
+            "normalize_output": true,
+            "zeroguard_output": true
+          }
+        },
+        "software": {
+          "version": null,
+          "revision": null,
+          "working_tree_dirty": null,
+          "build": null
+        },
+        "environment": {
+          "python": "3.11.12",
+          "os": "Linux",
+          "os_release": "6.18.54.1-microsoft-standard-WSL2",
+          "architecture": "x86_64",
+          "logical_cpu_count": 12,
+          "thread_environment": {}
+        },
+        "execution": {
+          "deployment": "docker",
+          "workers": [
+            {
+              "step": "SliceParallelPipelineStep",
+              "download_processes": 3,
+              "slice_processes": 9,
+              "rewrite_threads": 12,
+              "download_threads_per_process": 1
+            }
+          ]
+        },
+        "cache": {
+          "flush_requested": false,
+          "cloudvolume_cache_enabled": true,
+          "warmth": "unknown",
+          "network_conditions": "unknown"
+        },
+        "collection_errors": []
+      }
+    },
+    {
+      "operation": "backproject",
+      "task_id": "2f8d9c95-094d-415b-aba3-60aca97adf81",
+      "submitted_at_unix": 1792279086.9439032,
+      "status_response": {
+        "status": "done",
+        "progress": [
+          [
+            "ParseJSONPipelineStep",
+            1,
+            0.0008658770238980651
+          ],
+          [
+            "SlicesGeometryPipelineStep",
+            1,
+            0.20872887701261789
+          ],
+          [
+            "VolumeCachePipelineStep",
+            1,
+            0.1956422119983472
+          ],
+          [
+            "BackprojectPipelineStep",
+            1,
+            8.873486856056843
+          ]
+        ],
+        "error": null,
+        "progress_error": null,
+        "statistics": {
+          "status": "published",
+          "path": "/home/dnorthover/ChengCode/ouroboros-144-docker-review/backproject/docker-review-bp-backproject-2f8d9c95-094d-415b-aba3-60aca97adf81-statistics.json",
+          "recovery_path": null,
+          "error": null,
+          "presentation_error": null,
+          "presentation_interrupted": false
+        }
+      },
+      "http_status": 200,
+      "submission_to_done_seconds": 16.117958784103394,
+      "report_filename": "docker-review-bp-backproject-2f8d9c95-094d-415b-aba3-60aca97adf81-statistics.json",
+      "report_sha256": "e6f164de91f959a2008d08d10ef23e64d52d8019d4cef7bc437508a56cd90434",
+      "report_host_uid": 1000,
+      "report_host_mode": "0o600",
+      "scientific_output_files": 571,
+      "scientific_output_storage_bytes": 26553866,
+      "report": {
+        "schema_version": 1,
+        "run_id": "2f8d9c95-094d-415b-aba3-60aca97adf81",
+        "operation": "backproject",
+        "started_at": "2026-10-17T23:18:06.948691+00:00",
+        "finished_at": "2026-10-17T23:18:21.237559+00:00",
+        "outcome": "succeeded",
+        "error": null,
+        "operation_elapsed_seconds": 14.288866573013365,
+        "pipeline_elapsed_seconds": 9.278770325006917,
+        "phase_wall_spans": null,
+        "steps": [
+          {
+            "pipeline": "ParseJSONPipelineStep",
+            "duration_seconds": 0.0008658770238980651,
+            "status": "succeeded",
+            "custom_times": {},
+            "byte_counts": {}
+          },
+          {
+            "pipeline": "SlicesGeometryPipelineStep",
+            "duration_seconds": 0.20872887701261789,
+            "status": "succeeded",
+            "custom_times": {},
+            "byte_counts": {}
+          },
+          {
+            "pipeline": "VolumeCachePipelineStep",
+            "duration_seconds": 0.1956422119983472,
+            "status": "succeeded",
+            "custom_times": {},
+            "byte_counts": {}
+          },
+          {
+            "pipeline": "BackprojectPipelineStep",
+            "duration_seconds": 8.873486856056843,
+            "status": "succeeded",
+            "custom_times": {
+              "memmap": {
+                "mean": 0.005495956497422109,
+                "std": 0.002614473464006511,
+                "min": 0.003559317032340914,
+                "max": 0.010344721958972514,
+                "accumulated_elapsed_seconds": 0.032975738984532654,
+                "gap": 0.0067854049266316,
+                "loops": 6,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": []
+              },
+              "get_slices": {
+                "mean": 0.00027444134078299004,
+                "std": 8.46199151977951e-05,
+                "min": 0.00019921798957511783,
+                "max": 0.00042943900916725397,
+                "accumulated_elapsed_seconds": 0.0016466480446979403,
+                "gap": 0.00023022101959213614,
+                "loops": 6,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": []
+              },
+              "back_project": {
+                "mean": 1.7375267378229182,
+                "std": 0.41481188823043663,
+                "min": 0.881246447970625,
+                "max": 2.2074828599579632,
+                "accumulated_elapsed_seconds": 10.42516042693751,
+                "gap": 1.3262364119873382,
+                "loops": 6,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": []
+              },
+              "split": {
+                "mean": 0.014345345504504317,
+                "std": 0.004541818905711578,
+                "min": 0.007071930973324925,
+                "max": 0.02113558305427432,
+                "accumulated_elapsed_seconds": 0.08607207302702591,
+                "gap": 0.014063652080949396,
+                "loops": 6,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": []
+              },
+              "stack": {
+                "mean": 0.0030145854980219156,
+                "std": 0.0008594745880944341,
+                "min": 0.0017512560007162392,
+                "max": 0.003997457039076835,
+                "accumulated_elapsed_seconds": 0.018087512988131493,
+                "gap": 0.0022462010383605957,
+                "loops": 6,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": []
+              },
+              "write_intermediate": {
+                "mean": 0.5862709563128495,
+                "std": 0.09195441544611033,
+                "min": 0.428878128004726,
+                "max": 0.7214661059551872,
+                "accumulated_elapsed_seconds": 3.517625737877097,
+                "gap": 0.2925879779504612,
+                "loops": 6,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": []
+              },
+              "total_chunk_process": {
+                "mean": 2.3469721431611106,
+                "std": 0.43366980485172096,
+                "min": 1.4602082530036569,
+                "max": 2.7711172979907133,
+                "accumulated_elapsed_seconds": 14.081832858966663,
+                "gap": 1.3109090449870564,
+                "loops": 6,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": [
+                  "memmap",
+                  "get_slices",
+                  "back_project",
+                  "split",
+                  "stack",
+                  "write_intermediate"
+                ]
+              },
+              "Process Backproject Future": {
+                "mean": 0.016815348664143432,
+                "std": 0.014094383623461774,
+                "min": 0.0008757780306041241,
+                "max": 0.03564457700122148,
+                "accumulated_elapsed_seconds": 0.1008920919848606,
+                "gap": 0.034768798970617354,
+                "loops": 6,
+                "unit": "seconds",
+                "scope": "coordinator",
+                "includes": []
+              },
+              "Merge Volume": {
+                "mean": 0.004087467132105236,
+                "std": 0.0024885602258094774,
+                "min": 0.0010295920073986053,
+                "max": 0.025465668994002044,
+                "accumulated_elapsed_seconds": 2.3339437324320897,
+                "gap": 0.02443607698660344,
+                "loops": 571,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": []
+              },
+              "Write Merged": {
+                "mean": 0.005887360486361784,
+                "std": 0.004342812027573474,
+                "min": 0.002775746979750693,
+                "max": 0.0377831679652445,
+                "accumulated_elapsed_seconds": 3.3616828377125785,
+                "gap": 0.03500742098549381,
+                "loops": 571,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": []
+              },
+              "Total Chunk Merge": {
+                "mean": 0.009981572166641427,
+                "std": 0.00545202637311081,
+                "min": 0.004797328030690551,
+                "max": 0.04248608701163903,
+                "accumulated_elapsed_seconds": 5.699477707152255,
+                "gap": 0.03768875898094848,
+                "loops": 571,
+                "unit": "seconds",
+                "scope": "worker",
+                "includes": [
+                  "Merge Volume",
+                  "Write Merged"
+                ]
+              },
+              "export": {
+                "mean": 4.730402724817395e-05,
+                "std": 0.0,
+                "min": 4.730402724817395e-05,
+                "max": 4.730402724817395e-05,
+                "accumulated_elapsed_seconds": 4.730402724817395e-05,
+                "gap": 0.0,
+                "loops": 1,
+                "unit": "seconds",
+                "scope": "coordinator",
+                "includes": []
+              }
+            },
+            "byte_counts": {
+              "intermediate_payload_bytes": 161263404
+            }
+          }
+        ],
+        "volumes": {
+          "source": {
+            "url": "precomputed://https://neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2",
+            "data_kind": "image",
+            "full_resolution": {
+              "dimensions": [
+                12200,
+                12200,
+                9349
+              ],
+              "axis_order": "XYZ",
+              "channels": 1,
+              "dtype": "uint16",
+              "logical_uncompressed_bytes": 2783010320000,
+              "mip": 0,
+              "voxel_spacing_um": [
+                0.7,
+                0.7,
+                0.7
+              ]
+            },
+            "used_resolution": {
+              "dimensions": [
+                12200,
+                12200,
+                9349
+              ],
+              "axis_order": "XYZ",
+              "channels": 1,
+              "dtype": "uint16",
+              "logical_uncompressed_bytes": 2783010320000,
+              "mip": 0,
+              "voxel_spacing_um": [
+                0.7,
+                0.7,
+                0.7
+              ]
+            }
+          },
+          "straightened": {
+            "dimensions": [
+              875,
+              120,
+              120
+            ],
+            "axis_order": "DVU",
+            "channels": 1,
+            "dtype": "uint16",
+            "logical_uncompressed_bytes": 25200000,
+            "path": "/volume/main/docker-review-slice.tif",
+            "layout": "tiff_stack",
+            "data_kind": "unknown",
+            "physical_file_bytes": 25349180,
+            "header_spacing": {
+              "values": [
+                0.7000006736954676,
+                0.7000006736954676,
+                0.7
+              ],
+              "axis_order": "UVD"
+            }
+          },
+          "bounding_box": {
+            "dimensions": [
+              495,
+              384,
+              571
+            ],
+            "axis_order": "XYZ",
+            "channels": 1,
+            "dtype": "uint16",
+            "logical_uncompressed_bytes": 217071360,
+            "bounds": {
+              "minimum": [
+                5870,
+                6255,
+                2770
+              ],
+              "maximum": [
+                6364,
+                6638,
+                3340
+              ]
+            },
+            "mip": 0,
+            "voxel_spacing_um": [
+              0.7,
+              0.7,
+              0.7
+            ]
+          },
+          "backprojected_output": {
+            "dimensions": [
+              571,
+              384,
+              495
+            ],
+            "axis_order": "ZYX",
+            "channels": 1,
+            "dtype": "uint16",
+            "logical_uncompressed_bytes": 217071360,
+            "path": "/volume/main/docker-review-bp_5870_6255_2770",
+            "layout": "directory_of_planes",
+            "data_kind": "unknown",
+            "physical_file_bytes": 26553866,
+            "header_spacing": {
+              "values": [
+                0.7000006736954676,
+                0.7000006736954676,
+                0.7
+              ],
+              "axis_order": "XYZ"
+            },
+            "plane_index_extent": {
+              "minimum": 0,
+              "maximum": 570
+            },
+            "final_nonzero_extent": null,
+            "requested_mip": 0
+          },
+          "storage_reduction": {
+            "source_full_resolution": {
+              "percentage": 99.99909450569339,
+              "numerator_bytes": 25200000,
+              "denominator_bytes": 2783010320000,
+              "reference": "source.full_resolution.logical_uncompressed_bytes"
+            },
+            "source_used_resolution": {
+              "percentage": 99.99909450569339,
+              "numerator_bytes": 25200000,
+              "denominator_bytes": 2783010320000,
+              "reference": "source.used_resolution.logical_uncompressed_bytes"
+            },
+            "bounding_box_relative": {
+              "percentage": 88.39091439791964,
+              "numerator_bytes": 25200000,
+              "denominator_bytes": 217071360,
+              "reference": "bounding_box.logical_uncompressed_bytes"
+            }
+          }
+        },
+        "memory": {
+          "status": "sampled",
+          "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+          "unit": "bytes",
+          "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+          "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+          "sampled_peak_bytes": 1836936192,
+          "last_complete_sample_bytes": 1241022464,
+          "sampling": {
+            "requested_interval_seconds": 1.0,
+            "observed_interval_seconds": {
+              "min": 1.00034773000516,
+              "max": 1.0115904659614898
+            },
+            "complete_samples": 10,
+            "incomplete_samples": 0,
+            "discarded_samples": 0,
+            "max_process_count": 10,
+            "max_sweep_seconds": 0.14594090799801052,
+            "collector_cpu_seconds": 0.8286795,
+            "window_seconds": 9.279403281980194,
+            "first_sample_start_seconds": 0.010335419967304915,
+            "last_sample_end_seconds": 9.09241771500092
+          },
+          "errors": []
+        },
+        "inputs": {
+          "options_path": "/home/dnorthover/ChengCode/ouroboros-144-docker-review/backproject-options.json",
+          "straightened_volume_path": "/home/dnorthover/ChengCode/ouroboros-144-docker-review/slice/docker-review-slice.tif",
+          "slice_options_path": "/home/dnorthover/ChengCode/ouroboros-144-docker-review/slice-options.json",
+          "annotation_path": "/home/dnorthover/ChengCode/ouroboros-144-docker-review/annotations.json"
+        },
+        "effective_configuration": {
+          "operation": {
+            "output_file_folder": "/volume/main/",
+            "output_file_name": "docker-review-bp",
+            "flush_cache": false,
+            "make_single_file": false,
+            "output_mip_level": 0,
+            "straightened_volume_path": "/volume/main/docker-review-slice.tif",
+            "slice_options_path": "/home/dnorthover/ChengCode/ouroboros-144-docker-review/slice-options.json",
+            "backproject_min_bounding_box": true,
+            "make_backprojection_binary": false,
+            "make_backprojection_discrete": false,
+            "backprojection_compression": "zlib",
+            "upsample_order": 2,
+            "offset_in_name": true,
+            "process_count": 12,
+            "chunk_size": 160
+          },
+          "slicing": {
+            "output_file_folder": "/volume/main/",
+            "output_file_name": "docker-review-slice",
+            "flush_cache": false,
+            "make_single_file": true,
+            "output_mip_level": 0,
+            "slice_width": 120,
+            "slice_height": 120,
+            "neuroglancer_json": "/volume/main/annotations.json",
+            "neuroglancer_image_layer": "PSU Octo9 16bit S1p4s2p2 sharded",
+            "neuroglancer_annotation_layer": "Posterior Salivary Duct 2",
+            "slicing_params": {
+              "dist_between_slices": 1,
+              "use_adaptive_slicing": true,
+              "adaptive_slicing_ratio": 0.5
+            },
+            "bounding_box_params": {
+              "max_depth": 12,
+              "target_slices_per_box": 128
+            },
+            "connect_start_and_end": false,
+            "annotation_mip_level": 0,
+            "normalize_output": true,
+            "zeroguard_output": true
+          }
+        },
+        "software": {
+          "version": null,
+          "revision": null,
+          "working_tree_dirty": null,
+          "build": null
+        },
+        "environment": {
+          "python": "3.11.12",
+          "os": "Linux",
+          "os_release": "6.18.54.1-microsoft-standard-WSL2",
+          "architecture": "x86_64",
+          "logical_cpu_count": 12,
+          "thread_environment": {}
+        },
+        "execution": {
+          "deployment": "docker",
+          "workers": [
+            {
+              "step": "BackprojectPipelineStep",
+              "backproject_processes": 9,
+              "writer_processes": 3,
+              "intermediate_threads_per_process": 12,
+              "merge_threads_per_writer": 4
+            }
+          ]
+        },
+        "cache": {
+          "flush_requested": false,
+          "cloudvolume_cache_enabled": true,
+          "warmth": "unknown",
+          "network_conditions": "unknown"
+        },
+        "collection_errors": []
+      }
+    }
+  ],
+  "production_code_unchanged": true,
+  "production_ast_equivalent_to_parent": true,
+  "production_ast_sha256": "06d04267510bc54fa402584a32e90b3e2c34f241f1c76d5544d7a9fa8bd02bc7",
+  "formatting_only_files": [
+    "python/ouroboros/helpers/mem.py",
+    "python/ouroboros/pipeline/backproject_pipeline.py",
+    "python/ouroboros/pipeline/slice_parallel_pipeline.py"
+  ],
+  "container_after": {
+    "production_python_sha256": "503ae64e0d61b07c9b9a89620f5b9360a55f6a23ff2099a3d77422a9d43d37d1",
+    "python": "3.11.12",
+    "execution_os": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.36",
+    "Pss_Shmem_available": true,
+    "dev_shm_remaining": [
+      "sem.loky-921-a46oztir",
+      "sem.loky-8-jhwk3qn4"
+    ],
+    "scientific_scratch_remaining": [],
+    "statistics_staging_remaining": [],
+    "versions": {
+      "numpy": "1.26.4",
+      "scipy": "1.11.2",
+      "tifffile": "2024.12.12",
+      "cloud-volume": "12.7.0",
+      "cloud-files": "5.8.2",
+      "psutil": "7.1.3"
+    }
+  },
+  "docker_engine": {
+    "operating_system": "Docker Desktop (containerized)",
+    "kernel_version": "6.18.54.1-microsoft-standard-WSL2",
+    "architecture": "x86_64",
+    "server_version": "29.8.1"
+  },
+  "deployment_configuration": {
+    "container_id": "a8ca4c5be9be5a9f4c9d56a9d813c9f5bf52fdf921794910807a25b50c781cc3",
+    "image_id": "sha256:44f155af7e0ff1971ccce2a70760da78472238984643a8cc442ba561bce8d37d",
+    "image_name": "python-ouroboros-server",
+    "entrypoint": [
+      "python",
+      "-m",
+      "uvicorn"
+    ],
+    "command": [
+      "ouroboros.docker_server:app",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--reload",
+      "--reload-dir",
+      "/app/ouroboros"
+    ],
+    "compose_file": "/home/dnorthover/ChengCode/ouroboros/python/compose.dev.yml",
+    "mounts": [
+      {
+        "Destination": "/volume",
+        "Driver": "local",
+        "Mode": "rw",
+        "Name": "ouroboros-volume",
+        "Propagation": "",
+        "RW": true,
+        "Source": "/var/lib/docker/volumes/ouroboros-volume/_data",
+        "Type": "volume"
+      },
+      {
+        "Destination": "/app/ouroboros",
+        "Mode": "rw",
+        "Propagation": "rprivate",
+        "RW": true,
+        "Source": "/home/dnorthover/ChengCode/ouroboros/python/ouroboros",
+        "Type": "bind"
+      }
+    ],
+    "shm_size": 68719476736
+  },
+  "volume_server": {
+    "process": "Electron child running resources/processes/volume-server-script.mjs on port 3001",
+    "transport": "unmodified HTTP copy-to-volume/copy-to-host and real Docker copy commands",
+    "files_sha256": {
+      "resources/processes/volume-server-script.mjs": "077b67ec8de4d53d9f9197d88bbec7cb1a12009af2342e84ee849dc308d34dc0",
+      "resources/processes/volume-copy.mjs": "6db14b426e23a6ffb6f5b99069b917c21a37611465ac8764ba6b9cde3ccad31d",
+      "resources/processes/volume-cleanup.mjs": "da8c1e1230d662fff3a30a44c227faad89b4ab7209f891561445dde6db1f3cf3"
+    }
+  },
+  "limitations": [
+    "Single slice/backprojection delivery smoke test; no overhead comparison.",
+    "Development compose with current package bind mount; does not validate a newly built release image.",
+    "Windows/WSL2 host with Linux container; no separate native-Linux-host or macOS-host Docker run.",
+    "Native macOS pipeline validation deferred; native reader/lifecycle CI is separate evidence.",
+    "No managed psm segments remain; two loky semaphore files remain in the persistent server container."
+  ]
+}

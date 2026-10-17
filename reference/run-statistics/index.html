@@ -433,10 +433,11 @@ new run identifier, so repeated runs retain their reports. This works with a
 single TIFF or a directory of TIFF planes. JSON numeric values retain their
 precision; byte counts are integers. Console headings and progress bars are
 outside the JSON payload.</p>
-<p>Without <code>--verbose</code>, the CLI skips detailed timing samples, volume statistics,
-report formatting and report writes. Basic step duration and progress remain
-available. The pipeline factory's <code>verbose</code> argument continues to control its
-progress bar; it is separate from run reporting.</p>
+<p>Without <code>--verbose</code>, the CLI skips the pipeline's accumulation of detailed timing
+samples, volume statistics, report formatting and report writes. Existing worker
+phase clocks still run; basic step duration and progress remain available. The
+pipeline factory's <code>verbose</code> argument continues to control its progress bar; it
+is separate from run reporting.</p>
 <h2 id="server-and-docker">Server and Docker</h2>
 <p>Server tasks report statistics by default. Pass <code>reporting_enabled=false</code> to
 <code>POST /slice/</code> or <code>POST /backproject/</code> to disable detailed reporting for that
@@ -471,10 +472,13 @@ scientific-output transfer makes the operation fail. A failed statistics write
 or transfer leaves a successful scientific outcome intact but exposes the
 publication error through status, an error event, and server logging. A console
 or log presentation failure is exposed separately as <code>presentation_error</code>; an
-already-published file keeps its delivery status and path. The CLI exits with
+example is <code>BrokenPipeError</code> when a consumer such as <code>head</code> closes stdout while
+<code>--verbose</code> prints the saved report. <code>presentation_interrupted</code> distinguishes an
+interruption during this final output. Neither changes the scientific outcome
+or an already-published file's delivery status and path. The CLI exits with
 status 1 on failure and 130 on interruption, including interrupted report
-delivery or presentation. When
-options cannot be loaded and no output destination is known, the report is
+delivery or presentation. When options cannot be loaded and no output
+destination is known, the report is
 explicitly unavailable; no report is silently written to the current directory.</p>
 <h2 id="schema-version-1">Schema version 1</h2>
 <p>The record contains these groups:</p>
@@ -546,10 +550,13 @@ OS, and remote caches and remains unknown without observation.</p>
 <p>The schema defines timing boundaries, units, axis conventions, and unavailable
 values here rather than repeating explanatory text in every record. The
 effective slicing configuration is included separately for backprojection; a
-slicing run already has it in <code>effective_configuration.operation</code>. Input paths
-retain their original host identifiers before Docker remapping. Annotation and
-layer names remain in the effective configuration, and the resolved dataset URL
-is <code>volumes.source.url</code>.</p>
+slicing run already has it in <code>effective_configuration.operation</code>. Under Docker,
+<code>volumes.*.path</code> and paths in <code>effective_configuration</code> describe effective
+container paths; scratch files may already have been removed by cleanup.
+<code>inputs</code> retains original host identifiers before Docker remapping, while
+<code>statistics.path</code> in the status response identifies the published host report.
+Annotation and layer names remain in the effective configuration, and the
+resolved dataset URL is <code>volumes.source.url</code>.</p>
 <h2 id="timing-definitions">Timing definitions</h2>
 <p>All elapsed measurements use <code>time.perf_counter()</code>.</p>
 <table>

@@ -451,16 +451,6 @@ transfer unlink authority or cached NumPy data. The server keeps the buffer aliv
 even if the producer exits before the consumer opens it. This matters on Windows,
 where the allocation disappears when its last handle closes.</p>
 <h2 id="release-and-failure-handling">Release and failure handling</h2>
-<p>The slicing pipeline starts its processing pool before submitting downloads.
-On supported CPython versions, the first submission starts all workers when
-using <code>fork</code>. Starting them after receiving a downloaded volume would also
-inherit the parent's attachment, separately from the serialized task argument.
-That untouched inherited mapping can retain resident backing after the manager
-releases the volume, until pool shutdown. The startup submission prevents that
-extra lifetime without changing the process start method or adding an allocation
-registry. Startup completes before downloading begins, rather than overlapping
-with downloads. This ordering addresses volumes created by this slicing run;
-it does not isolate arbitrary pre-existing state in a process using <code>fork</code>.</p>
 <ul>
 <li>Run-scoped arrays and standard manager allocations live until manager shutdown.</li>
 <li>Termed arrays are released by <code>remove_termed()</code> at the existing per-volume
@@ -490,7 +480,7 @@ exit before receiver attachment, per-buffer release, surviving mapped consumers,
 serialization authority, failed construction, normal/exception shutdown, and
 owner termination. Multiprocessing coverage includes the live server code.</p>
 <p>Before raising the Python upper bound in <code>python/pyproject.toml</code>, re-check these
-four CPython interfaces against every newly supported version:</p>
+three CPython interfaces against every newly supported version:</p>
 <ul>
 <li><code>BaseManager._run_server</code> and startup/finalization: the mirrored signature,
   parent-process sentinel, and replacement of the client <code>shutdown()</code> method.</li>
@@ -498,10 +488,6 @@ four CPython interfaces against every newly supported version:</p>
   exception-to-<code>RemoteError</code> conversion used by the release-result adapter.</li>
 <li><code>SharedMemoryServer.shared_memory_context</code>: the tracker interface consumed by
   allocation registration, listing, release, and server shutdown.</li>
-<li><code>ProcessPoolExecutor.submit</code>: with <code>fork</code>, the first submission must start
-  all workers before returning, so no worker is first forked after downloaded
-  shared volumes arrive. The slicing lifecycle regression exercises this
-  ordering and inspects released attachments before pool shutdown.</li>
 </ul>
 <p>Extend the native lifecycle matrix to those versions and verify handoff, early
 release, and owner-death cleanup on all three operating systems before changing

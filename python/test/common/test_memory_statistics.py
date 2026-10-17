@@ -523,7 +523,9 @@ print(json.dumps(collector.summary))
     assert result["status"] == "sampled", result
     assert result["sampled_peak_bytes"] > 0
     assert result["sampling"]["complete_samples"] > 0
-    assert result["sampling"]["collector_cpu_seconds"] > 0
+    # A short Windows run can finish below the OS CPU counter resolution.
+    # Completed samples above establish that collection actually ran.
+    assert result["sampling"]["collector_cpu_seconds"] >= 0
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux PSS and fork semantics")

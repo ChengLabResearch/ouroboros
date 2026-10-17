@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Measure real local CLI runs with and without run-statistics reporting.
 
-Run from an environment with the project's dependencies installed. No source
-downloads are used; every CloudVolume chunk is generated in the work directory.
+Run from an environment with the project's dependencies installed. By default,
+generate local CloudVolume chunks; --real-slice-options uses an existing dataset.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import shutil
 import statistics
 import subprocess
 import sys
@@ -42,6 +43,7 @@ def child_run(args: argparse.Namespace) -> None:
     from ouroboros.pipeline.pipeline import Pipeline
 
     pipeline_times = []
+    step_times = []
     if args.scope == "pipeline":
         process = Pipeline.process
 
@@ -51,6 +53,10 @@ def child_run(args: argparse.Namespace) -> None:
                 return process(pipeline, input_data)
             finally:
                 pipeline_times.append(time.perf_counter() - started)
+                # Basic step timers run in both treatments. Read their canonical
+                # durations after the external timer, without another clock.
+                step_times.append({step.step_name: step.get_duration()
+                                   for step in pipeline.steps})
 
         Pipeline.process = timed_process
 
@@ -82,6 +88,10 @@ def child_run(args: argparse.Namespace) -> None:
         if len(pipeline_times) != 1:
             raise RuntimeError(f"Expected one pipeline call, measured {len(pipeline_times)}")
         measurement["pipeline_elapsed_seconds"] = pipeline_times[0]
+        measurement["step_elapsed_seconds"] = step_times[0]
+        data_step = ("SliceParallelPipelineStep" if args.operation == "slice"
+                     else "BackprojectPipelineStep")
+        measurement["data_operation_elapsed_seconds"] = step_times[0][data_step]
     write_json(args.measurement, measurement)
 
 
@@ -171,7 +181,8 @@ def tiff_evidence(path: Path) -> dict:
 
 
 def run_once(folder: Path, operation: str, options: dict, enabled: bool,
-             workers: int, label: str, timeout: int, scope: str = "handler") -> tuple[dict, Path]:
+             workers: int, label: str, timeout: int, scope: str = "handler",
+             require_memory: bool = True) -> tuple[dict, Path]:
     run_folder = folder / label
     run_folder.mkdir()
     output_folder = run_folder / "output"
@@ -191,6 +202,9 @@ def run_once(folder: Path, operation: str, options: dict, enabled: bool,
                        check=True, timeout=timeout)
     process_elapsed = time.perf_counter() - started
     outputs = list(output_folder.glob("*.tif"))
+    if not options.get("make_single_file", True):
+        outputs = [path for path in output_folder.iterdir()
+                   if path.is_dir() and any(path.glob("*.tif"))]
     if len(outputs) != 1:
         raise RuntimeError(f"Expected one finished TIFF in {output_folder}; found {outputs}. See run logs.")
     output = outputs[0]
@@ -200,6 +214,16 @@ def run_once(folder: Path, operation: str, options: dict, enabled: bool,
                                     for path in output_folder.glob("*-statistics.json")])
     if scope == "handler":
         result["output"] = tiff_evidence(output)
+    else:
+        # Inspect headers only, outside the operation timer; do not read pixels.
+        import tifffile
+        files = sorted(output.glob("*.tif")) if output.is_dir() else [output]
+        with tifffile.TiffFile(files[0]) as tif:
+            result["output_header"] = {
+                "files": len(files), "pages_in_first_file": len(tif.pages),
+                "page_shape": list(tif.pages[0].shape), "dtype": str(tif.pages[0].dtype),
+                "storage_bytes": sum(path.stat().st_size for path in files),
+            }
     if enabled and not result["statistics_files"]:
         raise RuntimeError(f"Verbose run did not deliver a statistics file: {run_folder}")
     if not enabled and result["statistics_files"]:
@@ -212,7 +236,7 @@ def run_once(folder: Path, operation: str, options: dict, enabled: bool,
         if formatted.strip() not in (run_folder / "stdout.txt").read_text():
             raise RuntimeError(f"Saved statistics differ from stdout in {run_folder}")
         memory = record.get("memory")
-        if not memory or memory["sampled_peak_bytes"] is None:
+        if require_memory and (not memory or memory["sampled_peak_bytes"] is None):
             raise RuntimeError(f"Memory sampling unavailable in {report_path}: {memory}")
         result["memory"] = memory
     write_json(timing_path, result)
@@ -249,7 +273,7 @@ def summary(runs: list[dict], elapsed_field: str = "handler_elapsed_seconds") ->
 def production_digest() -> str:
     digest = hashlib.sha256()
     for path in sorted((PYTHON_ROOT / "ouroboros").rglob("*.py")):
-        digest.update(str(path.relative_to(PYTHON_ROOT)).encode())
+        digest.update(path.relative_to(PYTHON_ROOT).as_posix().encode())
         digest.update(path.read_bytes())
     return digest.hexdigest()
 
@@ -351,10 +375,159 @@ def benchmark(args: argparse.Namespace) -> None:
     print(f"Full results and per-run logs: {folder / 'results.json'}")
 
 
+def benchmark_real_data(args: argparse.Namespace) -> None:
+    """Pair real slicing with backprojection of that exact run's intensity TIFF."""
+    folder = args.work_dir.resolve()
+    folder.mkdir(parents=True, exist_ok=args.resume_real_data)
+    slice_options = json.loads(args.real_slice_options.read_text())
+    backproject_options = json.loads(args.real_backproject_options.read_text())
+    annotation_source = Path(slice_options["neuroglancer_json"])
+    annotations = json.loads(annotation_source.read_text())
+    annotation_copy = folder / "annotations.json"
+    if args.resume_real_data:
+        if annotation_source.read_bytes() != annotation_copy.read_bytes():
+            raise ValueError("Cannot resume with changed annotations")
+    else:
+        shutil.copyfile(annotation_source, annotation_copy)
+    slice_options["neuroglancer_json"] = str(annotation_copy)
+    layers = [layer for layer in annotations["layers"]
+              if layer.get("type") == "annotation" and layer.get("annotations")]
+    for variable, name in (("CLOUD_VOLUME_DIR", "cloudvolume"),
+                           ("CLOUD_VOLUME_CACHE_DIR", "cloudvolume-cache"),
+                           ("CLOUD_FILES_DIR", "cloudfiles")):
+        os.environ[variable] = str(folder / name)
+    if args.cache_dir:
+        os.environ["CLOUD_VOLUME_CACHE_DIR"] = str(args.cache_dir.resolve())
+    result = {
+        "schema_version": 1,
+        "scope": "Existing data-processing step duration; excludes preceding parsing, geometry and source/cache setup. External Pipeline.process timer retained separately. Both exclude sampler startup/shutdown and final reporting.",
+        "cache_policy": "One disabled slicing warmup per path; shared CloudVolume cache across all trials. Remote metadata requests may remain.",
+        "cloudvolume_cache_directory": os.environ["CLOUD_VOLUME_CACHE_DIR"],
+        "hardware": {"platform": platform.platform(), "processor": platform.processor(),
+                     "logical_cpus": os.cpu_count(), "python": platform.python_version()},
+        "versions": {name: importlib.metadata.version(name)
+                     for name in ("numpy", "scipy", "tifffile", "cloud-volume", "psutil")},
+        "production_python_sha256": production_digest(),
+        "benchmark_python_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "annotation_sha256": hashlib.sha256(annotation_copy.read_bytes()).hexdigest(),
+        "slice_options_template": slice_options,
+        "backproject_options_template": backproject_options,
+        "workers": args.workers, "pairs": args.pairs, "paths": {},
+    }
+    if args.resume_real_data:
+        previous = json.loads((folder / "results.json").read_text())
+        for key in ("production_python_sha256", "annotation_sha256", "workers", "pairs",
+                    "slice_options_template", "backproject_options_template", "versions"):
+            if previous[key] != result[key]:
+                raise ValueError(f"Cannot resume with changed {key}")
+        previous["resumed_benchmark_python_sha256"] = result["benchmark_python_sha256"]
+        previous["resume_note"] = "Retain completed trials, record failed existing trials without retry, and finish remaining scheduled trials using the same run_once timing boundary."
+        result = previous
+
+    def remove_output(path):
+        shutil.rmtree(path) if path.is_dir() else path.unlink()
+
+    def failed_trial(label, operation, enabled, error):
+        run_folder = folder / label
+        stderr = run_folder / "stderr.txt"
+        record = {"label": label, "operation": operation, "enabled": enabled,
+                  "status": "failed_trial", "error": str(error),
+                  "stderr": stderr.read_text(errors="replace")[-12000:] if stderr.exists() else None}
+        reports = list((run_folder / "output").glob("*-statistics.json"))
+        if reports:
+            report = json.loads(reports[0].read_text())
+            record["reported_outcome"] = report["outcome"]
+            record["reported_error"] = report["error"]
+            record["memory"] = report.get("memory")
+        return record, None
+
+    def attempt(operation, options, enabled, label):
+        if (folder / label).exists():
+            return failed_trial(label, operation, enabled, "Prior attempt did not complete; retained without retry")
+        try:
+            return run_once(folder, operation, options, enabled, args.workers,
+                            label, args.timeout, "pipeline", require_memory=False)
+        except Exception as error:
+            print(f"{label}: failed: {error}", flush=True)
+            return failed_trial(label, operation, enabled, error)
+
+    # Short paths first; preserve the original annotation names and coordinates.
+    for index, layer in enumerate(sorted(layers, key=lambda item: len(item["annotations"]))):
+        name = layer["name"]
+        options = dict(slice_options, neuroglancer_annotation_layer=name)
+        path_result = result["paths"].setdefault(name, {"annotation_points": len(layer["annotations"]), "runs": []})
+        if "slicing_warmup" not in path_result:
+            print(f"{name}: slicing cache warmup", flush=True)
+            warmup, output = attempt("slice", options, False, f"path-{index}-warmup")
+            path_result["slicing_warmup"] = warmup
+            if output is not None:
+                remove_output(output)
+        write_json(folder / "results.json", result)
+        for pair in range(args.pairs):
+            for enabled in ((False, True) if pair % 2 == 0 else (True, False)):
+                label = f"path-{index}-pair-{pair + 1}-{int(enabled)}"
+                if any(run["label"] == label + "-backproject" for run in path_result["runs"]):
+                    continue
+                print(f"{name}: pair {pair + 1}/{args.pairs}, enabled={enabled}, slicing", flush=True)
+                sliced = next((run for run in path_result["runs"] if run["label"] == label + "-slice"), None)
+                if sliced is None:
+                    sliced, sliced_output = attempt("slice", options, enabled, label + "-slice")
+                    path_result["runs"].append(dict(sliced, operation="slice"))
+                else:
+                    outputs = list((folder / (label + "-slice") / "output").glob("*.tif"))
+                    sliced_output = outputs[0] if len(outputs) == 1 and "status" not in sliced else None
+                write_json(folder / "results.json", result)
+                if sliced_output is None:
+                    path_result["runs"].append({"operation": "backproject", "label": label + "-backproject",
+                        "enabled": enabled, "status": "skipped", "error": "Matching slicing trial did not complete"})
+                    write_json(folder / "results.json", result)
+                    continue
+                bp_options = dict(backproject_options,
+                    straightened_volume_path=str(sliced_output),
+                    slice_options_path=str(folder / (label + "-slice") / "options.json"),
+                    process_count=args.workers,
+                    make_backprojection_binary=False, make_backprojection_discrete=False)
+                print(f"{name}: pair {pair + 1}/{args.pairs}, enabled={enabled}, backprojection", flush=True)
+                projected, projected_output = attempt("backproject", bp_options, enabled, label + "-backproject")
+                path_result["runs"].append(dict(projected, operation="backproject"))
+                write_json(folder / "results.json", result)
+                # Keep logs, reports and headers; release large scientific outputs
+                # only after the matching backprojection has finished.
+                if projected_output is not None:
+                    remove_output(projected_output)
+                    remove_output(sliced_output)
+        operations = {operation: [run for run in path_result["runs"] if run["operation"] == operation]
+                      for operation in ("slice", "backproject")}
+        def measured_or_incomplete(runs, field):
+            if any(field not in run for run in runs):
+                return {"status": "incomplete_pairs", "runs": runs}
+            return summary(runs, field)
+        path_result["operations"] = {operation: measured_or_incomplete(runs, "data_operation_elapsed_seconds")
+                                     for operation, runs in operations.items()}
+        path_result["pipeline_operations"] = {operation: measured_or_incomplete(runs, "pipeline_elapsed_seconds")
+                                              for operation, runs in operations.items()}
+        for operation, measured in path_result["operations"].items():
+            print(f"{name}: {operation}: {measured.get('median_elapsed_overhead_percent', 'incomplete pairs')}", flush=True)
+        write_json(folder / "results.json", result)
+    result["production_code_unchanged"] = production_digest() == result["production_python_sha256"]
+    write_json(folder / "results.json", result)
+    if not result["production_code_unchanged"]:
+        raise RuntimeError("Production source changed during the benchmark.")
+    print(f"Full results and per-run logs: {folder / 'results.json'}", flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--work-dir", type=Path, default=Path("/tmp/ouroboros-statistics-benchmark"))
     parser.add_argument("--reuse-fixture", type=Path, help="Reuse a previous benchmark's prepared local data.")
+    parser.add_argument("--real-slice-options", type=Path,
+                        help="Existing real-data slice options; run every annotation path, paired with backprojection.")
+    parser.add_argument("--real-backproject-options", type=Path,
+                        help="Existing backprojection settings for real-data mode.")
+    parser.add_argument("--cache-dir", type=Path,
+                        help="Reuse this CloudVolume chunk cache in real-data mode.")
+    parser.add_argument("--resume-real-data", action="store_true",
+                        help="Finish remaining real-data trials, preserving completed and failed attempts without retry.")
     parser.add_argument("--scope", choices=("handler", "pipeline"), default="handler",
                         help="Timing boundary; pipeline excludes all final reporting and skips pixel hashing.")
     parser.add_argument("--size", type=int, default=384, help="Cubic source edge in voxels (default: 384).")
@@ -369,12 +542,18 @@ def main() -> None:
     args = parser.parse_args()
     if args.workers < 4 or args.workers % 4:
         parser.error("--workers must be a positive multiple of four")
-    if args.pairs < 3:
-        parser.error("--pairs must be at least three")
+    if args.pairs < 2:
+        parser.error("--pairs must be at least two")
+    if bool(args.real_slice_options) != bool(args.real_backproject_options):
+        parser.error("Real-data mode requires both slice and backproject options")
+    if args.resume_real_data and not args.real_slice_options:
+        parser.error("--resume-real-data requires real-data options")
     if args.size < 64 or args.size % 64:
         parser.error("--size must be a positive multiple of 64, at least 64")
     if args.child:
         child_run(args)
+    elif args.real_slice_options:
+        benchmark_real_data(args)
     else:
         benchmark(args)
 

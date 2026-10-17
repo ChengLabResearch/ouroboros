@@ -277,8 +277,10 @@ external processes sharing pages affect Linux PSS. Sweeps crossing the end of th
 operation are discarded. Requested and observed intervals, sweep cost, complete
 and incomplete counts and errors accompany the result. No complete sample means
 an unavailable value, never a successful zero. The default interval is one second;
-collection cost is assessed against the combined reporting overhead in the fixed
-local pipeline benchmark.
+collection cost is assessed against combined reporting overhead. The real-data
+benchmark compares the existing slicing/backprojection step durations, excluding
+preceding source/cache setup and final reporting; it retains whole-pipeline times
+separately.
 
 `last_complete_sample_bytes` is the last admitted complete sample, not a live
 reading at report publication. `sampling` gives the window length, first and last
@@ -295,8 +297,19 @@ image on a Windows/WSL host. This does not constitute a new GUI/volume-server
 delivery test or validation on every Docker desktop host.
 
 The fixed-local Linux pipeline benchmark observed negative median differences
-for both operations. Native Windows stress testing observed +4.10% operation
-elapsed time and expensive sweeps under active shared-buffer writes; its overhead
-requirement remains unresolved. Native macOS pipeline overhead has not been
-measured. See the benchmark guide for all times, variability, sampling cost and
-coverage limitations. No cross-platform 1% guarantee is claimed.
+for both operations. Subsequent real-data Linux tests ran two paired trials on
+three annotation paths, slicing and backprojecting each sliced intensity volume.
+The data-step differences varied in sign between pairs; positive median
+differences were smaller than at least one treatment's MAD. All enabled runs
+returned usable RAM samples. These small samples do not establish a 1% bound.
+
+Native Windows real-data tests required an isolated CloudFiles timing workaround
+and a production shared-memory cleanup fix. Five slicing/backprojection workflows
+then completed; seven slicing trials failed during shared-memory result transfer,
+so their dependent backprojections were skipped. Two of the four completed enabled
+operations reported unavailable RAM after mapping-manifest publication failures.
+These findings block native Windows acceptance. The separate +4.10% Windows
+component stress diagnostic is not a real pipeline acceptance measurement. Native macOS pipeline overhead
+has not been measured. See the benchmark guide for all times, variability,
+sampling cost, execution blockers and coverage limitations. No cross-platform
+1% guarantee is claimed.

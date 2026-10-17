@@ -18,7 +18,7 @@ There are prebuilt applications available in [Releases](https://github.com/Cheng
 - Mac: `*.dmg`
 - Linux: Multiple options available
 
-When you open the app, the GUI will open immediately, but **the local server that runs the processing could a while to start the first time** (the server needs to build). 
+When you open the app, the GUI will open immediately, but **the local server that runs the processing may take a while to start the first time** (Docker needs to pull the server image).
 
 There is an indicator in the GUI that shows if the server is connected.
 
@@ -56,107 +56,47 @@ See the [template README](https://github.com/ChengLabResearch/ouroboros/blob/mai
 
 # Development Quick Start
 
-**[Docker](https://www.docker.com/products/docker-desktop/) is REQUIRED to run Ouroboros.**
+Clone this repository and run the following commands from its root. Use Node.js 24 (the version used by CI), npm, and Docker with Compose. In WSL, run Node/npm and Docker commands in the same Linux shell; Docker Desktop must have integration enabled for that distribution.
 
-Ouroboros has two main components:
+## 1. Check Docker and close other instances
 
-- Python package (`python` folder within repository)
-- Electron app (main repository)
-
-The Python package and the Electron app have separate setup steps which are listed below. Before you begin, **it is recommended that you open the Python package (`python` folder) in a separate VSCode window whenever you are running or writing Python code** (one window for the Electron app and one window for Python).
-
-**Before you begin, `git clone` the project locally.**
-
-## Electron Setup
-
-VScode Setup: [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) & [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
-
-### 1. Install Node.js and NPM
-
-If you don't already have them installed, follow the instructions at the following link: https://nodejs.org/en/download/
-
-### 2. Install Dependencies
+Close any installed Ouroboros app or other development instance first. They share the `ouroboros-server` container name, ports, and `ouroboros-volume` Docker volume.
 
 ```bash
-$ npm install
+docker info
 ```
 
-### 3. Run Electron App In Development Mode
+This must succeed in the shell you will use for development. A running Docker Desktop window or an existing server container does not establish that this shell can connect. For a missing `/var/run/docker.sock` or other connection failure, see [Docker/WSL troubleshooting](documentation/docs/development/docker-builds.md#docker-desktop-is-running-but-wsl-cannot-connect).
+
+## 2. Install dependencies and the Electron executable
 
 ```bash
-$ npm run dev
+npm ci
+npm exec --no -- install-electron
 ```
 
-## Python Setup
+The second command uses Electron's bundled binary installer. With the Electron 43.7.8 / electron-vite 5 combination tested in [#141](https://github.com/ChengLabResearch/ouroboros/issues/141), skipping it left electron-vite unable to find the executable (`Error: Electron uninstall`). See [Electron installation troubleshooting](documentation/docs/development/docker-builds.md#electron-uninstall-after-npm-ci).
 
-The following steps are here to streamline the setup process for Python. For more advanced development or if you encounter any issues, you may need to follow the instructions available in the [Python README](./python/README.md).
+## 3. Start the development app
 
-**Easier Python Option (No Python Setup)**
-
-If you only plan on developing the Electron app and not the Python package, there is no need to setup Python.
-
-Running `npm run dev` in the Electron app will automatically build and start the Python server inside of Docker.
-
-This may take up to a minute the first time, but after that, it will be almost instantaneous.
-
-### 1. Install Python
-
-Due to some Python dependencies, it is highly recommended that the default Python installation for the system is `3.11`.
-
-**Easy Installation**
-
-Download and install Python `3.11` from their website: https://www.python.org/downloads/.
-
-**Advanced Installation**
-
-If you use [pyenv](https://github.com/pyenv/pyenv) or a similar Python version manager, install `3.11` and set it to be the global default.
-
-If you don't make it the global version, you'll need to use `poetry env use 3.11` later to set the Python version before running `poetry install`. 
-
-_Example:_
-
-```
-pyenv install 3.11
-pyenv global 3.11
+```bash
+npm run dev
 ```
 
-I recommend following the instructions below first if you want to be able to compile the Python server using PyInstaller:
+This starts the Electron GUI, Docker backend, and host volume-transfer service. No host Python installation is required for this workflow. The first launch may need to build the backend image; wait for the GUI's server connection indicator.
 
-https://stackoverflow.com/questions/60917013/how-to-build-python-with-enable-framework-enable-shared-on-macos
+The development Compose configuration mounts this checkout's `python/ouroboros` at `/app/ouroboros` and enables Uvicorn reload. Ordinary Python edits reload automatically. For dependency or Dockerfile changes, see [rebuilding the development backend](documentation/docs/development/docker-builds.md#verify-and-rebuild-the-development-backend).
 
-### 2. Install Poetry and Dependencies
+## 4. Verify the GUI, backend, and output
 
-[Poetry](https://python-poetry.org/) is the Python project and dependency manager used for the Ouroboros Python package.
+1. [Confirm the running backend's source mount](documentation/docs/development/docker-builds.md#verify-and-rebuild-the-development-backend) points to this checkout. A connected released server does not verify your branch.
+2. Use **File → Open Folder** to open the folder containing a Neuroglancer JSON input. Drag the JSON from the app's file explorer into **Neuroglancer JSON** on the slicing page. Opening a folder is required before entering a JSON path. In Linux Electron under WSL, use `/mnt/c/...` or `/mnt/wsl/...` paths; see [file selection troubleshooting](documentation/docs/development/docker-builds.md#json-paths-and-folder-selection).
+3. Select the image and annotation layers, set a writable host output folder and output name, and use a short annotation path for a small slicing run. Follow the [slicing guide](documentation/docs/guide/slicing.md) for the remaining options.
+4. Check that the slice/bounding-box preview visibly renders and responds to interaction. A working window or file picker alone does not verify WebGL. If it fails, collect the [graphics diagnostics](documentation/docs/development/docker-builds.md#webgl-preview-failures) and use the conditional workaround there if applicable.
+5. Run slicing and confirm the TIFF output and formatted statistics JSON reach the chosen **host** folder. Server tasks report statistics by default; see [run statistics](documentation/docs/reference/run-statistics.md). Successful backend processing alone does not verify host delivery or the visual preview.
 
-Follow the instructions on the following page to install Poetry on your system: https://python-poetry.org/docs/#installing-with-the-official-installer
+These are interactive development checks. Unit tests and headless backend tests do not exercise the Electron file picker, preview, or complete GUI-to-host workflow.
 
-**Before you continue, it is recommended that you open the Python folder (`python`) of the project in a separate window in VSCode.**
+## Optional: native Python development
 
-**It is also usually easier to run the setup commands in the VSCode integrated terminal, which can be opened with `CMD/CTRL + J`.**
-
-Configure Poetry to install the virtual environment in the project folder. This allows VSCode to detect the virtual environment.
-
-```
-poetry config virtualenvs.in-project true
-```
-
-Install the project dependencies. **Make sure the terminal is in the `python` folder before running this command.**
-
-```
-poetry install
-```
-
-Now kill the current terminal and open a new one, and it should indicate that it is using the local virtual environment for Ouroboros. If not, you can run `poetry shell` to activate the shell in the current terminal.
-
-Poetry makes it easier to run the built-in CLI or server with the following commands:
-
-- `ouroboros-cli` - Runs the CLI in the current folder. Use `--help` to learn more.
-
-- `ouroboros-server` - Runs the server that communicates with the Electron app.
-
-
-## Running the App in Development Mode
-
-In the Electron VSCode window, run `npm run dev` to start the Electron app. This will start the main server in the background in a Docker container.
-
-The initial Docker build may take up to a minute, but after that it should only take a second or so.
+To work on the Python package outside Docker or run its tests, follow the [Python development instructions](python/README.md#development) and [testing instructions](python/README.md#testing). The Python README owns that separate environment setup.

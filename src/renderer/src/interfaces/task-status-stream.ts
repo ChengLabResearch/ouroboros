@@ -52,6 +52,18 @@ export function openTaskStatusStream(
 			communicationFailure(`${error} The task outcome could not be determined.`)
 			return
 		}
+		// get_status uses this legacy response when the task is no longer known.
+		// It describes a lookup failure, not Task's scientific outcome.
+		if (
+			result.status === 'error' &&
+			result.error === 'Item ID Not Found' &&
+			result.statistics === undefined
+		) {
+			communicationFailure(
+				'The server cannot find this task. Its outcome is unknown; the backend may have restarted. Last reported progress is shown.'
+			)
+			return
+		}
 		const done = isTerminalTaskStatus(result)
 		// error_event can carry successful science with failed report publication.
 		update({ results: result, error: { status: false, message: '' }, done })

@@ -98,6 +98,13 @@ the last reported progress, without declaring a scientific failure or resubmitti
 the task. Status messages remain in the progress panel until the stream is cleared
 or a new task starts, so a recovery location does not disappear with a timed alert.
 
+The existing unknown-task response (`status: error`, `error: Item ID Not Found`,
+and no `statistics` descriptor) is also treated as an outcome-unknown warning.
+The stream closes and retains the last reported progress: the backend may have
+restarted or dropped the task, which does not establish scientific failure.
+This exact legacy response is recognized at the stream boundary; other scientific
+errors retain their normal presentation and the API contract is unchanged.
+
 The short desktop regression tests run through `npm run test:release`, using the
 existing Node test runner and TypeScript compiler without new dependencies. For
 individual case output, run `node scripts/tests/task-status.test.mjs`. They feed

@@ -189,6 +189,55 @@ for (const operation of ['slice', 'backproject']) {
 		assert.equal(FakeEventSource.instances.length, sources)
 	})
 
+	for (const hasProgress of [false, true]) {
+		test(`${operation}: unknown task ${hasProgress ? 'after progress' : 'before any progress'} has unknown outcome`, async (t) => {
+			const run = fixture(t, operation)
+			if (hasProgress) run.source.emit('update_event', payload('started', 'pending'))
+			const lastStatus = run.state.results
+			const missing = { status: 'error', progress: [], error: 'Item ID Not Found' }
+			const sources = FakeEventSource.instances.length
+			// A missing-task event from another task must not close the current stream.
+			run.source.emit('error_event', missing, 'stale-task')
+			assert.equal(run.source.closeCount, 0)
+			run.source.emit('error_event', missing)
+			await run.stream.finished
+			assert.equal(run.state.results, lastStatus)
+			assert.equal(run.state.done, true)
+			const html = run.render()
+			assert.match(html, /server cannot find this task/)
+			assert.match(html, /outcome is unknown/)
+			assert.match(html, /alert-warning/)
+			assert.doesNotMatch(html, /alert-error/)
+			assert.doesNotMatch(html, new RegExp(`${label} (failed|completed|interrupted)`))
+			if (hasProgress) assert.match(html, /width:40%/)
+			else assert.doesNotMatch(html, /width:/)
+			const count = run.deliveries
+			run.source.emit('error_event', missing)
+			run.source.dispatchEvent(new Event('error'))
+			assert.equal(run.deliveries, count)
+			assert.equal(run.source.closeCount, 1)
+			assert.equal(FakeEventSource.instances.length, sources)
+		})
+	}
+
+	test(`${operation}: legacy scientific errors and known tasks are not lookup failures`, (t) => {
+		const legacy = fixture(t, operation)
+		const input = payload('error', 'disabled')
+		delete input.statistics
+		legacy.source.emit('error_event', input)
+		assert.match(legacy.render(), new RegExp(`${label} failed`))
+		assert.match(legacy.render(), /Scientific processing failed/)
+		assert.doesNotMatch(legacy.render(), /outcome is unknown/)
+
+		const known = fixture(t, operation)
+		const knownError = payload('error', 'published')
+		knownError.error = 'Item ID Not Found'
+		known.source.emit('error_event', knownError)
+		assert.match(known.render(), new RegExp(`${label} failed`))
+		assert.match(known.render(), /Statistics report:/)
+		assert.doesNotMatch(known.render(), /outcome is unknown/)
+	})
+
 	test(`${operation}: stale task IDs and replaced streams cannot update presentation`, async (t) => {
 		const old = fixture(t, operation)
 		old.source.emit('error_event', payload('done', 'failed'), 'stale-task')

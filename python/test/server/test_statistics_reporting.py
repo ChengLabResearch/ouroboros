@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 import shutil
+import sys
 from types import SimpleNamespace
 from threading import Event
 
@@ -202,14 +203,29 @@ def test_native_outcomes_finalize_one_record_from_the_canonical_pipeline(
 
 @pytest.mark.parametrize("operation", ["slice", "backproject"])
 @pytest.mark.parametrize("enabled", [True, False])
-def test_cli_verbose_prints_exact_saved_json_and_disabled_skips_collection(run_fixture, capsys, operation, enabled):
+def test_cli_verbose_prints_exact_saved_json_and_disabled_skips_collection(
+    run_fixture, capsys, monkeypatch, operation, enabled,
+):
     state = run_fixture
-    args = SimpleNamespace(
-        options=str(state.slice_path if operation == "slice" else state.backproject_path), verbose=enabled,
-    )
-    task = (cli.handle_slice if operation == "slice" else cli.handle_backproject)(args)
+    tasks = []
+
+    def execute(task, **kwargs):
+        tasks.append(task)
+        return server_handlers.handle_task(task, **kwargs)
+
+    monkeypatch.setattr(cli, "handle_task", execute)
+    path = state.slice_path if operation == "slice" else state.backproject_path
+    monkeypatch.setattr(sys, "argv", ["ouroboros-cli", operation, str(path)] + (["--verbose"] if enabled else []))
+    cli.main()
+    task, = tasks
     stdout = capsys.readouterr().out
     assert task.pipeline is state.pipelines[0]
+    assert task.reporting_enabled is enabled
+    assert task.show_progress is True
+    name, progress, duration = task.pipeline.get_steps_progress_and_durations()[0]
+    assert name == task.pipeline.steps[0].step_name
+    assert progress == 1
+    assert duration > 0
     if enabled:
         file_text = Path(task.statistics.publication["path"]).read_text()
         assert stdout.split("Calculation Statistics:", 1)[1].strip() == file_text
@@ -569,6 +585,95 @@ def test_api_reporting_default_opt_out_and_publication_status(run_fixture, opera
                 f"/{operation}_status_stream/", params={"task_id": task.task_id, "update_freq": 1},
             )
             assert stream.text.count("event: error_event") == 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("operation", ["slice", "backproject"])
+def test_reporting_toggle_preserves_live_progress_durations_and_terminal_stream(
+    run_fixture, operation, monkeypatch,
+):
+    monkeypatch.setattr(AppStatus, "should_exit_event", None)
+    entered, release = Event(), Event()
+    progress_updates = []
+    factory_name = f"{operation}_pipeline"
+    factory = getattr(server_handlers, factory_name)
+
+    def observed_pipeline(*args):
+        pipeline, data = factory(*args)
+        step = pipeline.steps[0]
+        original_process = step._process
+        step.listen_for_progress(progress_updates.append)
+
+        def blocked_process(values):
+            step.update_progress(0.4)
+            entered.set()
+            assert release.wait(5)
+            return original_process(values)
+
+        monkeypatch.setattr(step, "_process", blocked_process)
+        return pipeline, data
+
+    monkeypatch.setattr(server_handlers, factory_name, observed_pipeline)
+
+    async def scenario():
+        app = FastAPI()
+        queued = []
+
+        @app.middleware("http")
+        async def queue_middleware(request: Request, call_next):
+            request.state.queue = SimpleNamespace(put_nowait=queued.append)
+            return await call_next(request)
+
+        create_api(app)
+        path = run_fixture.slice_path if operation == "slice" else run_fixture.backproject_path
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            for enabled in (False, True, False):
+                entered.clear()
+                release.clear()
+                progress_updates.clear()
+                collected_before = len(run_fixture.collected)
+                memory_before = len(run_fixture.memory_events)
+                reports_before = len(list(run_fixture.output.glob("*statistics*.json")))
+                response = await client.post(
+                    f"/{operation}/", params={"options": str(path), "reporting_enabled": enabled},
+                )
+                assert response.status_code == 200
+                task = queued[-1]
+                assert task.reporting_enabled is enabled
+                with ThreadPoolExecutor(1) as pool:
+                    running = pool.submit(server_handlers.handle_task, task)
+                    try:
+                        assert entered.wait(2)
+                        assert task.pipeline is run_fixture.pipelines[-1]
+                        assert task.pipeline.statistics_enabled is enabled
+                        status = await client.get(f"/status/{task.task_id}")
+                        assert status.status_code == 200
+                        live = status.json()
+                        assert live["status"] == "started"
+                        assert live["progress"] == task.pipeline.get_steps_progress_and_durations()
+                        assert live["progress"][0][1] == 0.4
+                        assert live["statistics"]["status"] == ("pending" if enabled else "disabled")
+                    finally:
+                        release.set()
+                    assert running.result(timeout=2) is task
+                status = (await client.get(f"/status/{task.task_id}")).json()
+                assert status["status"] == "done"
+                assert status["error"] is None and status["progress_error"] is None
+                assert status["progress"] == task.pipeline.get_steps_progress_and_durations()
+                assert status["progress"][0][1] == 1
+                assert status["progress"][0][2] > 0
+                assert progress_updates == [0, 0.4, 1]
+                stream = await client.get(f"/{operation}_status_stream/", params={"task_id": task.task_id})
+                assert stream.text.count("event: done_event") == 1
+                payload, = [line.removeprefix("data: ") for line in stream.text.splitlines() if line.startswith("data: ")]
+                assert json.loads(payload) == status
+                assert len(run_fixture.collected) == collected_before + int(enabled)
+                assert len(run_fixture.memory_events) == memory_before + 2 * int(enabled)
+                assert len(list(run_fixture.output.glob("*statistics*.json"))) == reports_before + int(enabled)
+                if not enabled:
+                    assert task.statistics is None
+                    assert task.pipeline.get_step_statistics()[0]["custom_times"] == {}
 
     asyncio.run(scenario())
 

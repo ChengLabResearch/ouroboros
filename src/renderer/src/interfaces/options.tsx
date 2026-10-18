@@ -1,4 +1,4 @@
-import { any, boolean, number, object, string } from 'valibot'
+import { any, boolean, number, object, optional, string } from 'valibot'
 
 import { Schema } from '@renderer/schemas/schema-helpers'
 
@@ -175,6 +175,22 @@ export class CompoundEntry {
 	}
 }
 
+const DEFAULT_REPORTING_ENABLED = false
+
+class PerformanceLoggingEntry extends Entry {
+	constructor() {
+		super('reporting_enabled', 'Performance Logging', DEFAULT_REPORTING_ENABLED, 'boolean')
+		this.withDescription(
+			'Save detailed performance statistics beside the outputs. Progress bars and step timings remain available when off.'
+		)
+	}
+
+	toSchema(): Schema {
+		// Loading an older file must reset this option, even after an enabled run.
+		return optional(super.toSchema(), DEFAULT_REPORTING_ENABLED)
+	}
+}
+
 export class SliceOptionsFile extends CompoundEntry {
 	constructor(values: CompoundValueType = {}) {
 		super('options', 'Options File', [
@@ -248,6 +264,7 @@ export class SliceOptionsFile extends CompoundEntry {
 				'Whether to fix sub-zero slice values that may cause overflow artifacts.'
 			),
 			new Entry('flush_cache', 'Flush CloudVolume Cache', false, 'boolean').withHidden(),
+			new PerformanceLoggingEntry(),
 			new CompoundEntry('bounding_box_params', 'Bounding Box Parameters', [
 				new Entry('max_depth', 'Max Depth', 12, 'number').withDescription(
 					'The maximum depth for binary space partitioning. It is not recommended to change this option unless you encounter RAM issues.'
@@ -334,6 +351,7 @@ export class BackprojectOptionsFile extends CompoundEntry {
 				'Whether or not to include the (x_min, y_min, z_min) offset for min bounding box in the output file name. Only applies if `Output Min Bounding Box` is true.'
 			),
 			new Entry('flush_cache', 'Flush CloudVolume Cache', false, 'boolean').withHidden(),
+			new PerformanceLoggingEntry(),
 			new Entry(
 				'process_count',
 				'Process Count',

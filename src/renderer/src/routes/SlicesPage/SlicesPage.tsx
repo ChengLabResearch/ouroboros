@@ -150,7 +150,9 @@ function useSlicePageState(): SlicePageState {
 		return (): void => clearStream(SLICE_STREAM)
 	}, [clearStream])
 
-	const saveOptionsToFile = async (): Promise<string | undefined> => {
+	const saveOptionsToFile = async (): Promise<
+		{ options: string; reporting_enabled: boolean } | undefined
+	> => {
 		if (!directoryPath) return
 
 		const optionsObject = entries[0].toObject()
@@ -198,7 +200,7 @@ function useSlicePageState(): SlicePageState {
 
 		const outputOptions = await join(outputFolder, modifiedName)
 
-		return outputOptions
+		return { options: outputOptions, reporting_enabled: optionsObject['reporting_enabled'] }
 	}
 
 	const requestVisualization = async (): Promise<void> => {
@@ -212,7 +214,7 @@ function useSlicePageState(): SlicePageState {
 		if (!outputOptions) return
 
 		// Run the visualization
-		performFetch('/create_slice_visualization/', { options: outputOptions })
+		performFetch('/create_slice_visualization/', { options: outputOptions.options })
 	}
 
 	////// HANDLE ENTRY CHANGES IN OPTIONS PANEL /////////
@@ -314,7 +316,7 @@ function useSlicePageState(): SlicePageState {
 		if (!outputOptions) return
 
 		// Run the slice generation
-		await performFetch('/slice/', { options: outputOptions }, { method: 'POST' })
+		await performFetch('/slice/', outputOptions, { method: 'POST' })
 	}
 
 	////// HANDLE FILE DROP ONTO HEADER OF OPTIONS PANEL //////

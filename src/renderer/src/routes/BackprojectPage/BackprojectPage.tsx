@@ -160,11 +160,12 @@ function useBackprojectPageState(): BackprojectPageState {
 
 		const outputOptions = await join(outputFolder, modifiedName)
 
-		// Run the slice generation
+		// Run the backprojection with this submission's saved reporting setting.
 		await performFetch(
 			'/backproject/',
 			{
-				options: outputOptions
+				options: outputOptions,
+				reporting_enabled: optionsObject['reporting_enabled']
 			},
 			{ method: 'POST' }
 		)

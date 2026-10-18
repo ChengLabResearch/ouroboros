@@ -123,6 +123,7 @@ for (const operation of ['slice', 'backproject']) {
 					)
 				)
 				assert.match(html, new RegExp(`width:${science === 'done' ? 100 : 40}%`))
+				assert.match(html, /1\.3s/)
 				if (science !== 'done') assert.match(html, /Scientific processing/)
 				if (['failed', 'interrupted', 'unavailable'].includes(publication)) {
 					assert.match(html, /alert-warning/)
@@ -162,6 +163,20 @@ for (const operation of ['slice', 'backproject']) {
 			})
 		}
 	}
+
+	test(`${operation}: reporting disabled preserves progress updates, timings and completion`, async (t) => {
+		const run = fixture(t, operation)
+		run.source.emit('update_event', payload('started', 'disabled'))
+		assert.equal(run.state.done, false)
+		assert.match(run.render(), /width:40%/)
+		assert.match(run.render(), /1\.3s/)
+		run.source.emit('done_event', payload('done', 'disabled'))
+		await run.stream.finished
+		assert.match(run.render(), /width:100%/)
+		assert.match(run.render(), /1\.3s/)
+		assert.match(run.render(), new RegExp(`${label} completed`))
+		assert.doesNotMatch(run.render(), /Statistics|alert-warning|alert-error/)
+	})
 
 	test(`${operation}: pending publication remains active and preserves final step progress`, (t) => {
 		const run = fixture(t, operation)

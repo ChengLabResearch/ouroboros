@@ -1,4 +1,8 @@
-import { JSX } from "react"
+import { JSX } from 'react'
+import Alert from '../AlertArea/components/Alert/Alert'
+import { StreamResult } from '../../interfaces/task-status-stream'
+import { taskStatusMessages } from '../../interfaces/task-status-presentation'
+import { TaskStatus } from '../../schemas/task-status-schema'
 import Header from '../Header/Header'
 import ProgressBar from './components/ProgressBar/ProgressBar'
 import ServerConnectedIndicator from './components/ServerConnectedIndicator/ServerConnectedIndicator'
@@ -6,15 +10,19 @@ import ServerConnectedIndicator from './components/ServerConnectedIndicator/Serv
 /**
  * [name, progress (0-1), duration (seconds)]
  */
-export type ProgressType = [string, number, number]
+export type ProgressType = TaskStatus['progress'][number]
 
 function ProgressPanel({
-	progress,
+	operation,
+	stream,
 	connected
 }: {
-	progress: ProgressType[]
+	operation: string
+	stream: StreamResult
 	connected: boolean
 }): JSX.Element {
+	const progress = stream.results?.progress ?? []
+	const messages = taskStatusMessages(operation, stream.results)
 	const progressBars = progress
 		? progress.map((p: ProgressType, i: number) => {
 				const [name, _progress, duration] = p
@@ -35,6 +43,10 @@ function ProgressPanel({
 				<Header text={'Progress'} />
 				<ServerConnectedIndicator connected={connected} />
 				{progressBars}
+				{messages.map((message, index) => (
+					<Alert key={index} {...message} />
+				))}
+				{stream.error.status && <Alert type="warning" message={stream.error.message} />}
 			</div>
 		</div>
 	)

@@ -2,8 +2,8 @@ import { JSX } from 'react'
 import OptionsPanel from '@renderer/components/OptionsPanel/OptionsPanel'
 import styles from './BackprojectPage.module.css'
 import VisualizePanel from '@renderer/components/VisualizePanel/VisualizePanel'
-import ProgressPanel, { ProgressType } from '@renderer/components/ProgressPanel/Progress'
-import { ServerContext } from '@renderer/contexts/ServerContext'
+import ProgressPanel from '@renderer/components/ProgressPanel/Progress'
+import { ServerContext, StreamResult } from '@renderer/contexts/ServerContext'
 import {
 	CompoundEntry,
 	Entry,
@@ -17,18 +17,17 @@ import { join, readFile, writeFile } from '@renderer/interfaces/file'
 import { AlertContext } from '@renderer/contexts/AlertContext'
 import { safeParse } from 'valibot'
 import { parseBackprojectResult } from '@renderer/schemas/backproject-result-schema'
-import { parseBackprojectStatusResult } from '@renderer/schemas/backproject-status-result-schema'
 
 const BACKPROJECT_STREAM = '/backproject_status_stream/'
 
 function BackprojectPage(): JSX.Element {
-	const { progress, connected, entries, onSubmit, onHeaderDrop, isRunning } =
+	const { stream, connected, entries, onSubmit, onHeaderDrop, isRunning } =
 		useBackprojectPageState()
 
 	return (
 		<div className={styles.backprojectPage}>
 			<VisualizePanel></VisualizePanel>
-			<ProgressPanel progress={progress} connected={connected} />
+			<ProgressPanel operation="Backprojection" stream={stream} connected={connected} />
 			<OptionsPanel
 				entries={entries}
 				onSubmit={onSubmit}
@@ -40,7 +39,7 @@ function BackprojectPage(): JSX.Element {
 }
 
 type BackprojectPageState = {
-	progress: ProgressType[]
+	stream: StreamResult
 	connected: boolean
 	entries: (Entry | CompoundEntry)[]
 	onSubmit: () => Promise<void>
@@ -66,18 +65,13 @@ function useBackprojectPageState(): BackprojectPageState {
 
 	const { addAlert } = useContext(AlertContext)
 
-	const [progress, setProgress] = useState<ProgressType[]>([])
-
 	const {
 		results: backprojectResults,
 		error: backprojectRequestError,
 		pending: backprojectRequestPending
 	} = useFetchListener('/backproject/')
-	const {
-		results: streamResults,
-		error: streamError,
-		done: streamDone
-	} = useStreamListener(BACKPROJECT_STREAM)
+	const stream = useStreamListener(BACKPROJECT_STREAM)
+	const streamDone = stream.done
 
 	// Listen to the status stream for the active task
 	useEffect(() => {
@@ -87,22 +81,6 @@ function useBackprojectPageState(): BackprojectPageState {
 			void performStream(BACKPROJECT_STREAM, result)
 		}
 	}, [backprojectResults, performStream])
-
-	// Update the progress state when new data is received
-	useEffect(() => {
-		const { result, error } = parseBackprojectStatusResult(streamResults)
-
-		if (!error && !result.error) {
-			setProgress(result.progress)
-		}
-	}, [streamResults])
-
-	// Refresh the file list when the task is done
-	useEffect(() => {
-		if (streamError?.status) {
-			addAlert(streamError.message, 'error')
-		}
-	}, [streamDone, streamError])
 
 	useEffect(() => {
 		if (backprojectRequestError.status) {
@@ -227,7 +205,7 @@ function useBackprojectPageState(): BackprojectPageState {
 	const backprojectTaskActive = !parseBackprojectResult(backprojectResults).error && !streamDone
 	const isRunning = backprojectRequestPending || backprojectTaskActive
 
-	return { progress, connected, entries, onSubmit, onHeaderDrop, isRunning }
+	return { stream, connected, entries, onSubmit, onHeaderDrop, isRunning }
 }
 
 export default BackprojectPage

@@ -71,6 +71,47 @@ delivery or presentation. When options cannot be loaded and no output
 destination is known, the report is
 explicitly unavailable; no report is silently written to the current directory.
 
+## Desktop status presentation
+
+The slicing and backprojection progress panels show scientific outcome and
+statistics publication separately. A completed task retains its final progress
+when report delivery fails, is interrupted, or is unavailable. The panel shows a
+reporting warning with the publication error and any recovery location; an
+unpublished `path` is labeled as the intended destination. Only `published`
+identifies a delivered report. Disabled reporting produces no missing-report
+warning. A scientific failure or interruption appears first, even when its
+statistics report was delivered successfully.
+
+The HTTP/SSE contract is unchanged: `/status/{task_id}` can return HTTP 500 with
+`status: done`, and a stream can emit `error_event` for successful science with a
+reporting problem. The desktop interprets the validated status and `statistics`
+descriptor, rather than treating the event name or aggregate `error` as the
+scientific outcome. For failed/interrupted science the aggregate error retains
+`Task.error` priority; publication and log-presentation errors are displayed
+separately from that descriptor. No report files are read to reconstruct status.
+
+Publication pending keeps the server status active and retains the existing
+submission/deletion guards. Terminal status closes its stream; events for other
+task IDs and events from closed/replaced streams are ignored. Connection failures
+or invalid status payloads close the stream and show a communication warning with
+the last reported progress, without declaring a scientific failure or resubmitting
+the task. Status messages remain in the progress panel until the stream is cleared
+or a new task starts, so a recovery location does not disappear with a timed alert.
+
+The existing unknown-task response (`status: error`, `error: Item ID Not Found`,
+and no `statistics` descriptor) is also treated as an outcome-unknown warning.
+The stream closes and retains the last reported progress: the backend may have
+restarted or dropped the task, which does not establish scientific failure.
+This exact legacy response is recognized at the stream boundary; other scientific
+errors retain their normal presentation and the API contract is unchanged.
+
+The short desktop regression tests run through `npm run test:release`, using the
+existing Node test runner and TypeScript compiler without new dependencies. For
+individual case output, run `node scripts/tests/task-status.test.mjs`. They feed
+HTTP-shaped status bodies and simulated SSE events through the production parser,
+stream handler, and React progress panel; they do not exercise a full Electron GUI
+or perform slicing/backprojection workloads.
+
 ## Schema version 1
 
 The record contains these groups:

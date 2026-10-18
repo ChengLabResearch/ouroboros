@@ -1,8 +1,8 @@
 import OptionsPanel from '@renderer/components/OptionsPanel/OptionsPanel'
 import styles from './SlicesPage.module.css'
 import VisualizePanel from '@renderer/components/VisualizePanel/VisualizePanel'
-import ProgressPanel, { ProgressType } from '@renderer/components/ProgressPanel/Progress'
-import { ServerContext } from '@renderer/contexts/ServerContext'
+import ProgressPanel from '@renderer/components/ProgressPanel/Progress'
+import { ServerContext, StreamResult } from '@renderer/contexts/ServerContext'
 import {
 	CompoundEntry,
 	CompoundValueType,
@@ -19,7 +19,6 @@ import VisualizeSlicing, {
 } from './components/VisualizeSlicing/VisualizeSlicing'
 import { parseSliceResult } from '@renderer/schemas/slice-result-schema'
 import { safeParse } from 'valibot'
-import { parseSliceStatusResult } from '@renderer/schemas/slice-status-result-schema'
 import { parseNeuroglancerJSON } from '@renderer/schemas/neuroglancer-json-schema'
 import { parseSliceVisualizationToOutputFormat } from '@renderer/schemas/slice-visualization-result-schema'
 
@@ -38,7 +37,7 @@ const SLICE_STEP_NAME = 'SliceParallelPipelineStep'
 
 function SlicesPage(): JSX.Element {
 	const {
-		progress,
+		stream,
 		boundingBoxProgress,
 		connected,
 		entries,
@@ -64,7 +63,7 @@ function SlicesPage(): JSX.Element {
 					/>
 				) : null}
 			</VisualizePanel>
-			<ProgressPanel progress={progress} connected={connected} />
+			<ProgressPanel operation="Slicing" stream={stream} connected={connected} />
 			<OptionsPanel
 				entries={entries}
 				onSubmit={onSubmit}
@@ -77,7 +76,7 @@ function SlicesPage(): JSX.Element {
 }
 
 type SlicePageState = {
-	progress: ProgressType[]
+	stream: StreamResult
 	boundingBoxProgress: number
 	connected: boolean
 	entries: (Entry | CompoundEntry)[]
@@ -105,18 +104,14 @@ function useSlicePageState(): SlicePageState {
 
 	const { addAlert } = useContext(AlertContext)
 
-	const [progress, setProgress] = useState<ProgressType[]>([])
-
 	const {
 		results: sliceResults,
 		error: sliceRequestError,
 		pending: sliceRequestPending
 	} = useFetchListener('/slice/')
-	const {
-		results: streamResults,
-		error: streamError,
-		done: streamDone
-	} = useStreamListener(SLICE_STREAM)
+	const stream = useStreamListener(SLICE_STREAM)
+	const streamDone = stream.done
+	const progress = stream.results?.progress ?? []
 
 	const [isNewVisualization, setIsNewVisualization] = useState(true)
 	const [visualizationData, setVisualizationData] = useState<VisualizationOutput | null>(null)
@@ -144,22 +139,6 @@ function useSlicePageState(): SlicePageState {
 			void performStream(SLICE_STREAM, result)
 		}
 	}, [performStream, sliceResults])
-
-	// Update the progress state when new data is received
-	useEffect(() => {
-		const { result, error } = parseSliceStatusResult(streamResults)
-
-		if (!error && !result.error) {
-			setProgress(result.progress)
-		}
-	}, [streamResults])
-
-	// Refresh the file list when the task is done
-	useEffect(() => {
-		if (streamError?.status) {
-			addAlert(streamError.message, 'error')
-		}
-	}, [streamDone, streamError])
 
 	useEffect(() => {
 		if (sliceRequestError.status) {
@@ -386,7 +365,7 @@ function useSlicePageState(): SlicePageState {
 	const isRunning = sliceRequestPending || sliceTaskActive
 
 	return {
-		progress,
+		stream,
 		boundingBoxProgress,
 		connected,
 		entries,

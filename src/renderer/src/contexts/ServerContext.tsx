@@ -1,23 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { JSX, createContext, useCallback, useEffect, useRef, useState } from 'react'
 
-const DEFAULT_SERVER_URL = 'http://127.0.0.1:8000'
+import {
+	emptyStreamResult,
+	openTaskStatusStream,
+	ServerError,
+	StreamResult
+} from '../interfaces/task-status-stream'
+export type { ServerError, StreamResult } from '../interfaces/task-status-stream'
 
-export type ServerError = {
-	status: boolean
-	message: string
-}
+const DEFAULT_SERVER_URL = 'http://127.0.0.1:8000'
 
 export type FetchResult = {
 	results: object | null
 	error: ServerError
 	pending: boolean
-}
-
-export type StreamResult = {
-	results: object | null
-	error: ServerError
-	done: boolean
 }
 
 export type ServerContextValue = {
@@ -37,11 +34,7 @@ export type ServerContextValue = {
 
 export const ServerContext = createContext<ServerContextValue>(null as any)
 
-type ActiveStream = {
-	eventSource: EventSource
-	taskId: string
-	resolve: () => void
-}
+type ActiveStream = ReturnType<typeof openTaskStatusStream>
 
 function emptyFetchResult(): FetchResult {
 	return {
@@ -93,35 +86,12 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 	)
 
 	const setStreamStatesHelper = useCallback(
-		({
-			relativeURL,
-			results,
-			error,
-			done
-		}: {
-			relativeURL: string
-			results?: object | null
-			error?: ServerError
-			done?: boolean
-		}) => {
-			setStreamStates(
-				(prev) =>
-					new Map(
-						prev.set(relativeURL, {
-							results:
-								results == undefined
-									? (prev.get(relativeURL)?.results ?? null)
-									: results,
-							error:
-								error == undefined
-									? (prev.get(relativeURL)?.error ?? {
-											status: false,
-											message: ''
-										})
-									: error,
-							done: done == undefined ? (prev.get(relativeURL)?.done ?? false) : done
-						})
-					)
+		({ relativeURL, ...update }: Partial<StreamResult> & { relativeURL: string }) => {
+			setStreamStates((previous) =>
+				new Map(previous).set(relativeURL, {
+					...(previous.get(relativeURL) ?? emptyStreamResult()),
+					...update
+				})
 			)
 		},
 		[]
@@ -255,100 +225,24 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 		if (!activeStream) return
 
 		activeStreams.current.delete(relativeURL)
-		activeStream.eventSource.close()
-		activeStream.resolve()
+		activeStream.close()
 	}, [])
 
 	const performStream = useCallback(
 		(relativeURL: string, query: Record<string, any> = {}): Promise<void> => {
 			closeStream(relativeURL)
-
-			const fullURL = getFullURL(relativeURL, query)
-			const eventSource = new EventSource(fullURL)
-			return new Promise((resolve) => {
-				const activeStream = {
-					eventSource,
-					taskId: typeof query.task_id === 'string' ? query.task_id : '',
-					resolve
+			const stream = openTaskStatusStream(
+				getFullURL(relativeURL, query),
+				typeof query.task_id === 'string' ? query.task_id : '',
+				(update) => setStreamStatesHelper({ relativeURL, ...update })
+			)
+			activeStreams.current.set(relativeURL, stream)
+			void stream.finished.then(() => {
+				if (activeStreams.current.get(relativeURL) === stream) {
+					activeStreams.current.delete(relativeURL)
 				}
-				activeStreams.current.set(relativeURL, activeStream)
-
-				const isCurrent = (event?: MessageEvent<string>): boolean => {
-					if (activeStreams.current.get(relativeURL) !== activeStream) return false
-					return event === undefined || event.lastEventId === activeStream.taskId
-				}
-
-				const finish = (): void => {
-					if (activeStreams.current.get(relativeURL) === activeStream) {
-						closeStream(relativeURL)
-					}
-				}
-
-				setStreamStatesHelper({
-					relativeURL,
-					results: null,
-					error: { status: false, message: '' },
-					done: false
-				})
-
-				eventSource.addEventListener('open', () => {
-					if (!isCurrent()) return
-					setStreamStatesHelper({
-						relativeURL,
-						done: false,
-						error: { status: false, message: '' }
-					})
-				})
-
-				eventSource.addEventListener('update_event', (event) => {
-					if (!isCurrent(event)) return
-					setStreamStatesHelper({
-						relativeURL,
-						results: JSON.parse(event.data) as object
-					})
-				})
-
-				eventSource.addEventListener('done_event', (event) => {
-					if (!isCurrent(event)) return
-					setStreamStatesHelper({
-						relativeURL,
-						results: JSON.parse(event.data) as object,
-						done: true
-					})
-					finish()
-				})
-
-				eventSource.addEventListener('error_event', (event) => {
-					if (!isCurrent(event)) return
-					const data = JSON.parse(event.data) as { error?: unknown }
-					const error =
-						typeof data.error === 'string'
-							? data.error
-							: 'Unknown error occurred while streaming data.'
-
-					setStreamStatesHelper({
-						relativeURL,
-						results: data,
-						error: { status: true, message: error },
-						done: true
-					})
-					finish()
-				})
-
-				eventSource.addEventListener('error', (error) => {
-					if (!isCurrent()) return
-					const message =
-						error instanceof Error
-							? error.message
-							: 'Unknown error occurred while streaming data.'
-					setStreamStatesHelper({
-						relativeURL,
-						error: { status: true, message },
-						done: true
-					})
-					finish()
-				})
 			})
+			return stream.finished
 		},
 		[closeStream, getFullURL, setStreamStatesHelper]
 	)
@@ -391,23 +285,8 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 		return { results, error, pending }
 	}
 
-	const useStreamListener = (
-		relativeURL: string
-	): { results: object | null; error: ServerError; done: boolean } => {
-		const [results, setResults] = useState<object | null>(null)
-		const [error, setError] = useState<ServerError>({ status: false, message: '' })
-		const [done, setDone] = useState(false)
-
-		useEffect(() => {
-			const state = streamStates.get(relativeURL)
-			if (state) {
-				setResults(state.results)
-				setError(state.error)
-				setDone(state.done)
-			}
-		}, [relativeURL, streamStates])
-
-		return { results, error, done }
+	const useStreamListener = (relativeURL: string): StreamResult => {
+		return streamStates.get(relativeURL) ?? emptyStreamResult()
 	}
 
 	// Process the fetch queue

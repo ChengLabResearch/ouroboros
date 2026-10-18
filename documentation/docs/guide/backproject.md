@@ -54,6 +54,7 @@ Shape mismatches, dtype mismatches, and missing slice configuration now report s
 - `Upsample Order` - The interpolation order Ouroboros uses to interpolate values from a lower MIP level. If you check the binary option, feel free to set this to 0.
 - `Backprojection Compression` - The compression option to use for the backprojected tiff(s). Recommended options: `none`, `zlib`, `zstd`.
 - `Output Single File` - Whether to output one tiff stack file or a folder of files.
+- `Performance Logging` - Off by default. Enable to save detailed performance statistics beside the outputs. Progress bars and step timings remain available when off. The setting is saved with your options; older options files without it load with logging off. The saved preference applies to desktop runs; CLI runs require `--verbose` regardless of the saved preference.
 - `Output Min Bounding Box` - Save only the minimum volume needed to contain the backprojected slices. The offset will be stored in the `-configuration.json` file under `backprojection_offset`. This value is the (x_min, y_min, z_min).
 - `Binary Backprojection` - Whether or not to binarize all the values of the backprojection. Enable this to backproject a segmentation.
 - `Offset in Filename` - Whether or not to include the (x_min, y_min, z_min) offset for min bounding box in the output file name. Only applies if `Output Min Bounding Box` is true.

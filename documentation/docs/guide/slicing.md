@@ -33,6 +33,7 @@ Slicing is one of the primary features of Ouroboros, available in the CLI and th
     - `Use Adaptive Slicing` - Rather than just using equidistant slices, add more slices in more curved areas.
     - `Adaptive Slicing Ratio` - 1 indicates to consider distance and curvature equally, 0.5 is biased towards distance, and 2 is biased towards curvature.
 - `Output Single File` - Whether to output one tiff stack file or a folder of files.
+- `Performance Logging` - Off by default. Enable to save detailed performance statistics beside the outputs. Progress bars and step timings remain available when off. The setting is saved with your options; older options files without it load with logging off. The saved preference applies to desktop runs; CLI runs require `--verbose` regardless of the saved preference.
 - `Bounding Box Parameters`
     - `Max Depth` - The maximum depth for binary space partitioning. It is not recommended to change this option unless you encounter RAM issues.
     - `Target Slices Per Box` - If you are running on a low-RAM system, or you are taking very large slices, you may want to decrease this.

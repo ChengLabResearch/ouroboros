@@ -415,7 +415,7 @@
 <nav>
     <ul>
         <li><a href="#pipeline-run-statistics">Pipeline run statistics</a></li>
-        <li><a href="#server-and-docker">Server and Docker</a></li><li><a href="#schema-version-1">Schema version 1</a></li><li><a href="#timing-definitions">Timing definitions</a></li><li><a href="#volume-and-storage-definitions">Volume and storage definitions</a></li><li><a href="#verification-and-ownership">Verification and ownership</a></li><li><a href="#memory-measurements">Memory measurements</a></li>
+        <li><a href="#server-and-docker">Server and Docker</a></li><li><a href="#desktop-status-presentation">Desktop status presentation</a></li><li><a href="#schema-version-1">Schema version 1</a></li><li><a href="#timing-definitions">Timing definitions</a></li><li><a href="#volume-and-storage-definitions">Volume and storage definitions</a></li><li><a href="#verification-and-ownership">Verification and ownership</a></li><li><a href="#memory-measurements">Memory measurements</a></li>
     </ul>
 </nav>
 </aside>
@@ -480,6 +480,35 @@ status 1 on failure and 130 on interruption, including interrupted report
 delivery or presentation. When options cannot be loaded and no output
 destination is known, the report is
 explicitly unavailable; no report is silently written to the current directory.</p>
+<h2 id="desktop-status-presentation">Desktop status presentation</h2>
+<p>The slicing and backprojection progress panels show scientific outcome and
+statistics publication separately. A completed task retains its final progress
+when report delivery fails, is interrupted, or is unavailable. The panel shows a
+reporting warning with the publication error and any recovery location; an
+unpublished <code>path</code> is labeled as the intended destination. Only <code>published</code>
+identifies a delivered report. Disabled reporting produces no missing-report
+warning. A scientific failure or interruption appears first, even when its
+statistics report was delivered successfully.</p>
+<p>The HTTP/SSE contract is unchanged: <code>/status/{task_id}</code> can return HTTP 500 with
+<code>status: done</code>, and a stream can emit <code>error_event</code> for successful science with a
+reporting problem. The desktop interprets the validated status and <code>statistics</code>
+descriptor, rather than treating the event name or aggregate <code>error</code> as the
+scientific outcome. For failed/interrupted science the aggregate error retains
+<code>Task.error</code> priority; publication and log-presentation errors are displayed
+separately from that descriptor. No report files are read to reconstruct status.</p>
+<p>Publication pending keeps the server status active and retains the existing
+submission/deletion guards. Terminal status closes its stream; events for other
+task IDs and events from closed/replaced streams are ignored. Connection failures
+or invalid status payloads close the stream and show a communication warning with
+the last reported progress, without declaring a scientific failure or resubmitting
+the task. Status messages remain in the progress panel until the stream is cleared
+or a new task starts, so a recovery location does not disappear with a timed alert.</p>
+<p>The short desktop regression tests run through <code>npm run test:release</code>, using the
+existing Node test runner and TypeScript compiler without new dependencies. For
+individual case output, run <code>node scripts/tests/task-status.test.mjs</code>. They feed
+HTTP-shaped status bodies and simulated SSE events through the production parser,
+stream handler, and React progress panel; they do not exercise a full Electron GUI
+or perform slicing/backprojection workloads.</p>
 <h2 id="schema-version-1">Schema version 1</h2>
 <p>The record contains these groups:</p>
 <table>

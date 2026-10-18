@@ -203,11 +203,23 @@ def test_native_outcomes_finalize_one_record_from_the_canonical_pipeline(
 
 @pytest.mark.parametrize("operation", ["slice", "backproject"])
 @pytest.mark.parametrize("enabled", [True, False])
+@pytest.mark.parametrize("saved_reporting", [None, False, True], ids=["legacy", "saved-off", "saved-on"])
 def test_cli_verbose_prints_exact_saved_json_and_disabled_skips_collection(
-    run_fixture, capsys, monkeypatch, operation, enabled,
+    run_fixture, capsys, monkeypatch, operation, enabled, saved_reporting,
 ):
     state = run_fixture
     tasks = []
+
+    # Desktop preferences enter through the real JSON loaders, including the
+    # original slice options that a backprojection loads alongside its own file.
+    option_paths = [state.slice_path]
+    if operation == "backproject":
+        option_paths.append(state.backproject_path)
+    if saved_reporting is not None:
+        for option_path in option_paths:
+            saved_options = json.loads(option_path.read_text())
+            saved_options["reporting_enabled"] = saved_reporting
+            option_path.write_text(json.dumps(saved_options))
 
     def execute(task, **kwargs):
         tasks.append(task)
@@ -220,8 +232,19 @@ def test_cli_verbose_prints_exact_saved_json_and_disabled_skips_collection(
     task, = tasks
     stdout = capsys.readouterr().out
     assert task.pipeline is state.pipelines[0]
+    assert task.pipeline_input is state.inputs[0]
     assert task.reporting_enabled is enabled
     assert task.show_progress is True
+    loaded_options = [(task.pipeline_input.slice_options, SliceOptions)]
+    if operation == "backproject":
+        loaded_options.append((task.pipeline_input.backproject_options, BackprojectOptions))
+    for options, model in loaded_options:
+        assert isinstance(options, model)
+        # The saved desktop preference is discarded at input, not retained as
+        # another runtime switch. Catch both extra="forbid" and extra="allow" drift.
+        assert not hasattr(options, "reporting_enabled")
+        assert "reporting_enabled" not in options.model_dump()
+        assert "reporting_enabled" not in json.loads(options.to_json())
     name, progress, duration = task.pipeline.get_steps_progress_and_durations()[0]
     assert name == task.pipeline.steps[0].step_name
     assert progress == 1

@@ -6,11 +6,22 @@ import path from 'node:path'
  * the original wildcard cleanup, top-level hidden entries remain untouched.
  */
 export function deleteFilesFromVolumeFolder(volumeName, targetFolder) {
-	const targetFolderPath = path.posix.join('/volume/', targetFolder, '/*')
+	const targetFolderPath = path.posix.join('/volume/', targetFolder)
 	const cleanup =
 		targetFolder === '/'
 			? "find /volume/ -mindepth 1 -maxdepth 1 ! -name '.*' ! -name 'main-statistics' -exec rm -rf {} +"
-			: `rm -rf ${targetFolderPath}`
+			: 'rm -rf "$1"/*'
 
-	return `docker run --rm -v ${volumeName}:/volume alpine sh -c "${cleanup}"`
+	return [
+		'run',
+		'--rm',
+		'-v',
+		`${volumeName}:/volume`,
+		'alpine',
+		'sh',
+		'-c',
+		cleanup,
+		'sh',
+		...(targetFolder === '/' ? [] : [targetFolderPath])
+	]
 }

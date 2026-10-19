@@ -24,10 +24,17 @@ async function cleanupFixture(runTest) {
 		`#!${process.execPath}
 const assert = require('node:assert/strict')
 const { execFile } = require('node:child_process')
-assert.deepEqual(process.argv.slice(2, -1), ['run', '--rm', '-v', 'fixture-volume:/volume', 'alpine', 'sh', '-c'])
-const script = process.argv.at(-1).replaceAll('/volume/', process.env.FIXTURE_VOLUME + '/')
+const args = process.argv.slice(2)
+assert.deepEqual(args.slice(0, 7), ['run', '--rm', '-v', 'fixture-volume:/volume', 'alpine', 'sh', '-c'])
+// The whole-volume find script has one fixed mount root. Plugin paths travel
+// exclusively in positional data, so their shell metacharacters stay literal.
+const script = args[7].replaceAll('/volume/', process.env.FIXTURE_VOLUME + '/')
+const parameters = args.slice(9).map(value => {
+  assert.ok(value.startsWith('/volume/'))
+  return process.env.FIXTURE_VOLUME + value.slice('/volume'.length)
+})
 assert.ok(!script.includes('/volume/'), 'Never execute against a real volume')
-execFile('/bin/sh', ['-c', script], { env: process.env, encoding: 'utf8' }, (error, stdout, stderr) => {
+execFile('/bin/sh', ['-c', script, args[8], ...parameters], { env: process.env, encoding: 'utf8' }, (error, stdout, stderr) => {
   process.stdout.write(stdout)
   process.stderr.write(stderr)
   if (error) process.stderr.write(String(error))
@@ -47,7 +54,7 @@ execFile('/bin/sh', ['-c', script], { env: process.env, encoding: 'utf8' }, (err
 			// Other Unix test hosts use their standard shell utilities.
 		}
 		const clear = (targetFolder) =>
-			run('/bin/sh', ['-c', deleteFilesFromVolumeFolder('fixture-volume', targetFolder)], {
+			run('docker', deleteFilesFromVolumeFolder('fixture-volume', targetFolder), {
 				env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FIXTURE_VOLUME: volume }
 			})
 		await runTest(volume, clear)
@@ -96,14 +103,15 @@ test(
 	},
 	async () => {
 		await cleanupFixture(async (volume, clear) => {
-			await mkdir(join(volume, 'main'))
-			await writeFile(join(volume, 'main', 'output.tif'), 'scratch')
-			await writeFile(join(volume, 'main', '.hidden'), 'preserved')
+			const plugin = 'plugin \' " $HOME `printf EXPANDED` $(printf EXPANDED)  folder'
+			await mkdir(join(volume, plugin))
+			await writeFile(join(volume, plugin, 'output.tif'), 'scratch')
+			await writeFile(join(volume, plugin, '.hidden'), 'preserved')
 			await mkdir(join(volume, 'main-statistics'))
 			await writeFile(join(volume, 'main-statistics', 'report.json'), '{}')
-			await clear('main')
-			await assert.rejects(access(join(volume, 'main', 'output.tif')))
-			assert.equal(await readFile(join(volume, 'main', '.hidden'), 'utf8'), 'preserved')
+			await clear(plugin)
+			await assert.rejects(access(join(volume, plugin, 'output.tif')))
+			assert.equal(await readFile(join(volume, plugin, '.hidden'), 'utf8'), 'preserved')
 			assert.equal(
 				await readFile(join(volume, 'main-statistics', 'report.json'), 'utf8'),
 				'{}'

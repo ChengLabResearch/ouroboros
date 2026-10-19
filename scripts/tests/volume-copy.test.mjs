@@ -5,13 +5,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import test from 'node:test'
-import { copyFileToHostCommand } from '../../resources/processes/volume-copy.mjs'
+import {
+	copyFileToHostCommand,
+	copyFileToVolumeCommand
+} from '../../resources/processes/volume-copy.mjs'
 
 const run = promisify(execFile)
 
 async function copyFixture(plugin, runTest, failOwnership = false) {
 	const root = await mkdtemp(join(tmpdir(), 'ouroboros-volume-copy-'))
-	const host = join(root, 'host')
+	const host = join(root, 'host \' " $HOME `printf EXPANDED` $(printf EXPANDED)  spaces')
 	const volume = join(root, 'volume')
 	const bin = join(root, 'bin')
 	const ownershipLog = join(root, 'ownership')
@@ -27,9 +30,13 @@ async function copyFixture(plugin, runTest, failOwnership = false) {
 			`#!${process.execPath}
 const assert = require('node:assert/strict')
 const { execFile } = require('node:child_process')
-assert.deepEqual(process.argv.slice(2, -1), ['run', '--rm', '-v', process.env.FIXTURE_HOST + ':/host', '-v', 'fixture-volume:/volume', '-w', '/host', 'alpine', 'sh', '-c'])
-const script = process.argv.at(-1).replaceAll('/volume/', process.env.FIXTURE_VOLUME + '/').replaceAll('/host/', process.env.FIXTURE_HOST + '/')
-execFile('/bin/sh', ['-c', script], { env: process.env }, (error, stdout, stderr) => {
+const args = process.argv.slice(2)
+assert.deepEqual(args.slice(0, 11), ['run', '--rm', '-v', process.env.FIXTURE_HOST + ':/host', '-v', 'fixture-volume:/volume', '-w', '/host', 'alpine', 'sh', '-c'])
+// Substitute mount roots only in positional data, never in the shell script.
+const parameters = args.slice(13).map(value => value.startsWith('/volume/')
+  ? process.env.FIXTURE_VOLUME + value.slice('/volume'.length)
+  : value.startsWith('/host/') ? process.env.FIXTURE_HOST + value.slice('/host'.length) : value)
+execFile('/bin/sh', ['-c', args[11], args[12], ...parameters], { env: process.env }, (error, stdout, stderr) => {
   process.stdout.write(stdout)
   process.stderr.write(stderr)
   process.exit(error ? 1 : 0)
@@ -51,27 +58,28 @@ process.exit(result.status ?? 1)
 		)
 		await chmod(join(bin, 'docker'), 0o755)
 		await chmod(join(bin, 'chown'), 0o755)
-		const copy = () =>
-			run(
-				'/bin/sh',
-				[
-					'-c',
-					copyFileToHostCommand(host, 'report.json', 'fixture-volume', plugin, plugin)
-				],
-				{
-					env: {
-						...process.env,
-						PATH: `${bin}:${process.env.PATH}`,
-						FIXTURE_HOST: host,
-						FIXTURE_VOLUME: volume,
-						FIXTURE_OWNERSHIP_LOG: ownershipLog,
-						FIXTURE_REAL_CHOWN: realChown,
-						FIXTURE_FAIL_OWNERSHIP: failOwnership ? '1' : '0'
-					}
+		const execute = (args) =>
+			run('docker', args, {
+				env: {
+					...process.env,
+					PATH: `${bin}:${process.env.PATH}`,
+					FIXTURE_HOST: host,
+					FIXTURE_VOLUME: volume,
+					FIXTURE_OWNERSHIP_LOG: ownershipLog,
+					FIXTURE_REAL_CHOWN: realChown,
+					FIXTURE_FAIL_OWNERSHIP: failOwnership ? '1' : '0'
 				}
-			)
+			})
+		const copy = (fileName = 'report.json') =>
+			execute(copyFileToHostCommand(host, fileName, 'fixture-volume', plugin, plugin))
+		const copyToVolume = (fileName) =>
+			execute(copyFileToVolumeCommand(host, fileName, 'fixture-volume', plugin))
+
 		await runTest({
 			copy,
+			copyToVolume,
+			host,
+			volume,
 			delivered: join(host, 'report.json'),
 			source: join(volume, plugin, 'report.json'),
 			ownershipLog
@@ -145,3 +153,35 @@ console.log(copyFileToHostCommand('output', 'report.json', 'fixture-volume', 'ma
 	assert.match(stdout, /cp -r/)
 	assert.doesNotMatch(stdout, /chown/)
 })
+
+for (const directory of [false, true]) {
+	test(
+		`both copy directions preserve literal ${directory ? 'directory' : 'file'} paths`,
+		{ skip: process.platform === 'win32' },
+		async () => {
+			const plugin = 'plugin \' " $HOME `printf EXPANDED` $(printf EXPANDED)  folder'
+			const name = 'Bob\'s "stack" $HOME `printf EXPANDED` $(printf EXPANDED)  01.tif'
+			await copyFixture(plugin, async ({ copy, copyToVolume, host, volume }) => {
+				const hostPath = join(host, name)
+				const payload = directory ? join(hostPath, 'slice  01.tif') : hostPath
+				if (directory) await mkdir(hostPath)
+				await writeFile(payload, 'literal path payload')
+				await copyToVolume(name)
+				assert.equal(
+					await readFile(
+						join(volume, plugin, name, ...(directory ? ['slice  01.tif'] : [])),
+						'utf8'
+					),
+					'literal path payload'
+				)
+				await writeFile(payload, 'stale output')
+				if (directory)
+					await writeFile(join(hostPath, 'obsolete'), 'replace the old directory')
+				await copy(name)
+				assert.equal(await readFile(payload, 'utf8'), 'literal path payload')
+				if (directory)
+					await assert.rejects(stat(join(hostPath, 'obsolete')), { code: 'ENOENT' })
+			})
+		}
+	)
+}

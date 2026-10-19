@@ -53,6 +53,7 @@ class BackprojectPipelineStep(PipelineStep):
                  input_data: tuple[BackprojectOptions, VolumeCache, np.ndarray, PipelineInput]
                  ) -> tuple[any, None] | tuple[None, any]:
         config, volume_cache, slice_rects, pipeline_input = input_data
+        self.set_stage("preparing_input")
 
         # Verify that a config object is provided
         if not isinstance(config, BackprojectOptions):
@@ -186,6 +187,7 @@ class BackprojectPipelineStep(PipelineStep):
 
         # Process each bounding box in parallel, writing the results to the backprojected volume
         try:
+            self.set_stage("backprojecting_and_writing", determinate=True)
             with (concurrent.futures.ProcessPoolExecutor(self.execution_resources["backproject_processes"]) as executor,
                  concurrent.futures.ProcessPoolExecutor(self.execution_resources["writer_processes"]) as write_executor):
                 bp_futures = []
@@ -292,6 +294,7 @@ class BackprojectPipelineStep(PipelineStep):
         start = time.perf_counter()
 
         if config.make_single_file:
+            self.set_stage("exporting_tiff")
             pipeline_input.output_file_path += ".tif"
             with tifffile.TiffWriter(folder_path.with_suffix(".tif"), bigtiff=is_big_tiff) as output_tiff:
                 writer = tif_write(output_tiff.write)
@@ -303,6 +306,7 @@ class BackprojectPipelineStep(PipelineStep):
 
         self.add_timing("export", time.perf_counter() - start, scope="coordinator")
 
+        self.set_stage("cleaning_intermediates")
         if config.make_single_file:
             shutil.rmtree(folder_path)
         shutil.rmtree(i_path)

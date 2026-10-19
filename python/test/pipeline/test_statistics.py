@@ -119,6 +119,34 @@ def test_disabled_statistics_keep_progress_and_step_duration_but_no_detailed_sam
     assert step.get_time_statistics()["custom_times"]["worker"]["loops"] == 1
 
 
+@pytest.mark.parametrize("enabled", [False, True])
+def test_status_snapshot_derives_lifecycle_from_step_owner_and_keeps_unknown_work_indeterminate(enabled):
+    observed = []
+
+    def work(step):
+        step.set_stage("downloading_and_slicing", determinate=True)
+        step.update_progress(0.75)
+        observed.append(step.get_status())
+        step.set_stage("normalizing_and_writing")
+        observed.append(step.get_status())
+        return "rewrite failed"
+
+    step, skipped = FunctionStep(work), FunctionStep()
+    pipeline = Pipeline([step, skipped]).set_statistics_enabled(enabled)
+    assert pipeline.get_steps_status()[0]["status"] == "pending"
+    pipeline.process(BasePipelineInput())
+    assert observed[0]["status"] == observed[1]["status"] == "running"
+    assert observed[0]["progress"] == 0.75 and observed[1]["progress"] is None
+    status, pending = pipeline.get_steps_status()
+    assert status["status"] == step.timing["status"] == "failed"
+    assert status["stage"] == "normalizing_and_writing" and status["progress"] is None
+    assert status["duration_seconds"] == step.get_duration() > 0
+    assert pending["status"] == skipped.timing["status"] == "pending"
+    assert pipeline.get_steps_progress_and_durations()[0][1] == step.get_progress() == 0.75
+    status["status"] = "succeeded"
+    assert step.timing["status"] == "failed", "Serialized status must never become a runtime authority"
+
+
 def make_rects():
     return np.array([[[0, 0, 1], [2, 0, 1], [2, 2, 1], [0, 2, 1]]], dtype=float)
 
@@ -267,6 +295,71 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
     assert step.timing["custom_times"] == ({"Download Time": [0.25]} if enabled and failed_stage == "slice" else {})
 
 
+@pytest.mark.parametrize("single", [False, True])
+@pytest.mark.parametrize("fail", [False, True])
+def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(tmp_path, monkeypatch, single, fail):
+    options = slice_options(tmp_path).model_copy(update={"make_single_file": single})
+    rects = make_rects()
+    cache = Mock(spec=cache_module.VolumeCache)
+    cache.has_color_channels.return_value = False
+    cache.get_resolution_um.return_value = np.ones(3)
+    cache.get_volume_dtype.return_value = np.uint16
+    cache.volumes = [None]
+    cache.bounding_boxes = [BoundingBox(BoundingBox.bounds_to_rect(0, 3, 0, 3, 0, 3))]
+    cache.cv, cache.mip = object(), 0
+    cache.use_shared = cache.cache_volume = False
+    cache.get_slice_indices.return_value = [0]
+    step = slice_module.SliceParallelPipelineStep(processes=4)
+    observed = []
+
+    class InlineExecutor:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def submit(self, func, **kwargs):
+            future = concurrent.futures.Future()
+            if getattr(func, "func", None) is slice_module.download_volume:
+                assert step.get_status()["stage"] == "downloading_and_slicing"
+                future.set_result((np.arange(27).reshape(3, 3, 3), cache.bounding_boxes[0], 0.25, 0))
+            else:
+                future.set_result(func(**kwargs))
+            return future
+
+    @contextmanager
+    def manager(**kwargs):
+        yield (SimpleNamespace(address="unused"),)
+
+    rewrite_name = "memmap_normalized" if single else "write_normalized"
+    rewrite = getattr(slice_module, rewrite_name)
+
+    def rewrite_observed(*args):
+        observed.append(step.get_status())
+        assert step.get_progress() == 1, "Worker fraction remains a compatibility output, not completion"
+        if fail:
+            raise OSError("cannot rewrite output")
+        return rewrite(*args)
+
+    monkeypatch.setattr(slice_module.concurrent.futures, "ProcessPoolExecutor", InlineExecutor)
+    monkeypatch.setattr(slice_module, "SharedNPManager", manager)
+    monkeypatch.setattr(slice_module, "build_straightened_tiff_metadata", lambda **kwargs: {"photometric": "minisblack"})
+    monkeypatch.setattr(slice_module, rewrite_name, rewrite_observed)
+    data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
+    _, error = Pipeline([step]).process(data)
+    assert len(observed) == 1
+    assert observed[0]["stage"] == "normalizing_and_writing"
+    assert observed[0]["status"] == "running" and observed[0]["progress"] is None
+    if fail:
+        assert "normalizing and writing" in error and "cannot rewrite output" in error
+        assert step.get_status()["status"] == "failed" and step.get_status()["progress"] is None
+    else:
+        assert error is None
+        assert step.get_status()["status"] == "succeeded" and step.get_status()["progress"] == 1
+        assert Path(data.output_file_path).exists()
+
+
 def test_statistics_filename_keeps_operation_and_run_identity():
     assert files_module.format_statistics_file("scan", "slice", "abc") == "scan-slice-abc-statistics.json"
     assert files_module.format_statistics_file("scan", "backproject", "abc") != \
@@ -335,6 +428,74 @@ def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
         assert step.get_time_statistics()["custom_times"]["total_chunk_process"]["includes"] == ["back_project"]
     else:
         assert step.timing["custom_times"] == {}
+
+
+@pytest.mark.parametrize("fail_export", [False, True])
+def test_backproject_single_tiff_export_and_cleanup_keep_step_running(tmp_path, monkeypatch, fail_export):
+    source = tmp_path / "straightened.tif"
+    tifffile.imwrite(source, np.ones((1, 2, 2), dtype=np.uint8), photometric="minisblack")
+    rects = make_rects()
+    options = BackprojectOptions(output_file_folder=str(tmp_path), output_file_name="sample",
+                                 straightened_volume_path=str(source), slice_options_path="unused",
+                                 process_count=4, make_single_file=True)
+    cache = Mock(spec=cache_module.VolumeCache)
+    cache.bounding_boxes = [BoundingBox.from_rects(rects)]
+    cache.get_resolution_um.return_value = np.ones(3)
+    step = backproject_module.BackprojectPipelineStep()
+    observed = []
+
+    class InlineExecutor:
+        def __init__(self, count):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def submit(self, func, **kwargs):
+            assert step.get_status()["stage"] == "backprojecting_and_writing"
+            future = concurrent.futures.Future()
+            if func is backproject_module.process_chunk:
+                future.set_result(({}, 0, (0, 0, 0), [0]))
+            else:
+                path = kwargs["target_folder"] / "0.tif"
+                tifffile.imwrite(path, np.ones((2, 2), dtype=np.uint16), photometric="minisblack")
+                kwargs["source_path"].parent.mkdir(exist_ok=True)
+                future.set_result({})
+            return future
+
+    read = backproject_module.tifffile.imread
+    remove = backproject_module.shutil.rmtree
+
+    def read_observed(path, *args, **kwargs):
+        observed.append(step.get_status())
+        assert step.get_progress() == 1
+        if fail_export:
+            raise OSError("cannot export TIFF")
+        return read(path, *args, **kwargs)
+
+    def cleanup_observed(*args, **kwargs):
+        observed.append(step.get_status())
+        return remove(*args, **kwargs)
+
+    monkeypatch.setattr(backproject_module.concurrent.futures, "ProcessPoolExecutor", InlineExecutor)
+    monkeypatch.setattr(backproject_module.tifffile, "imread", read_observed)
+    monkeypatch.setattr(backproject_module.shutil, "rmtree", cleanup_observed)
+    data = PipelineInput(backproject_options=options, slice_options=slice_options(tmp_path),
+                         volume_cache=cache, slice_rects=rects)
+    pipeline = Pipeline([step])
+    if fail_export:
+        with pytest.raises(OSError, match="cannot export TIFF"):
+            pipeline.process(data)
+        assert step.get_status()["status"] == "failed"
+        assert step.get_status()["stage"] == "exporting_tiff"
+    else:
+        _, error = pipeline.process(data)
+        assert error is None and step.get_status()["status"] == "succeeded"
+        assert [item["stage"] for item in observed] == ["exporting_tiff", "cleaning_intermediates",
+                                                       "cleaning_intermediates"]
+        assert (tmp_path / data.output_file_path).is_file()
+    assert observed[0]["stage"] == "exporting_tiff"
+    assert all(item["status"] == "running" and item["progress"] is None for item in observed)
 
 
 class LocalVolume:

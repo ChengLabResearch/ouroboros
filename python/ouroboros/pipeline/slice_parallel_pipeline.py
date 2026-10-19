@@ -81,6 +81,7 @@ class SliceParallelPipelineStep(PipelineStep):
 
     def _process(self, input_data: tuple[any]) -> None | str:
         config, volume_cache, slice_rects, pipeline_input = input_data
+        self.set_stage("preparing_input")
 
         # Verify that a config object is provided
         if not isinstance(config, SliceOptions):
@@ -155,6 +156,7 @@ class SliceParallelPipelineStep(PipelineStep):
 
         # Start the download volumes process and process downloaded volumes as they become available in the queue
         try:
+            self.set_stage("downloading_and_slicing", determinate=True)
             with concurrent.futures.ProcessPoolExecutor(
                 max_workers=self.execution_resources["download_processes"]
             ) as download_executor, concurrent.futures.ProcessPoolExecutor(
@@ -276,6 +278,7 @@ class SliceParallelPipelineStep(PipelineStep):
                         future.cancel()
                     raise failures[0]
 
+                self.set_stage("normalizing_and_writing")
                 with multiprocessing.pool.ThreadPool(self.execution_resources["rewrite_threads"]) as pool:
                     start_time = time.perf_counter()
                     convert_func = partial(np_convert,
@@ -300,7 +303,7 @@ class SliceParallelPipelineStep(PipelineStep):
                     self.add_timing("Rewrite Temp", time.perf_counter() - start_time, scope="coordinator")
         except Exception as e:
             traceback.print_tb(e.__traceback__, file=sys.stderr)
-            return f"Error downloading data: {e}"
+            return f"Error during {self.stage.replace('_', ' ')}: {e}"
 
         # Update the pipeline input with the output file path
         if config.make_single_file:

@@ -19,11 +19,20 @@ import { AlertContext } from '@renderer/contexts/AlertContext'
 import { safeParse } from 'valibot'
 import { parseBackprojectResult } from '@renderer/schemas/backproject-result-schema'
 
+const BACKPROJECT_REQUEST = '/backproject/'
 const BACKPROJECT_STREAM = '/backproject_status_stream/'
 
 function BackprojectPage(): JSX.Element {
-	const { stream, connected, launchStatus, entries, onSubmit, onHeaderDrop, isRunning } =
-		useBackprojectPageState()
+	const {
+		stream,
+		connected,
+		launchStatus,
+		deleteRequestURL,
+		entries,
+		onSubmit,
+		onHeaderDrop,
+		isRunning
+	} = useBackprojectPageState()
 
 	return (
 		<div className={styles.backprojectPage}>
@@ -33,6 +42,7 @@ function BackprojectPage(): JSX.Element {
 				stream={stream}
 				connected={connected}
 				launchStatus={launchStatus}
+				requestURLs={{ start: BACKPROJECT_REQUEST, delete: deleteRequestURL }}
 			/>
 			<OptionsPanel
 				entries={entries}
@@ -48,6 +58,7 @@ type BackprojectPageState = {
 	stream: StreamResult
 	connected: boolean
 	launchStatus: MainServerLaunchStatus | null
+	deleteRequestURL: string | null
 	entries: (Entry | CompoundEntry)[]
 	onSubmit: () => Promise<void>
 	onHeaderDrop: (content: string) => Promise<void>
@@ -63,6 +74,7 @@ function useBackprojectPageState(): BackprojectPageState {
 		useFetchListener,
 		useStreamListener,
 		clearFetch,
+		clearFetchError,
 		clearStream
 	} = useContext(ServerContext)
 	const { directoryPath } = useContext(DirectoryContext)
@@ -73,11 +85,12 @@ function useBackprojectPageState(): BackprojectPageState {
 
 	const { addAlert } = useContext(AlertContext)
 
-	const {
-		results: backprojectResults,
-		error: backprojectRequestError,
-		pending: backprojectRequestPending
-	} = useFetchListener('/backproject/')
+	const { results: backprojectResults, pending: backprojectRequestPending } =
+		useFetchListener(BACKPROJECT_REQUEST)
+	const previousTask = parseBackprojectResult(backprojectResults)
+	const deleteRequestURL = previousTask.error
+		? null
+		: `/delete/?task_id=${encodeURIComponent(previousTask.result.task_id)}`
 	const stream = useStreamListener(BACKPROJECT_STREAM)
 	const streamDone = stream.done
 
@@ -91,12 +104,6 @@ function useBackprojectPageState(): BackprojectPageState {
 	}, [backprojectResults, performStream])
 
 	useEffect(() => {
-		if (backprojectRequestError.status) {
-			addAlert(backprojectRequestError.message, 'error')
-		}
-	}, [backprojectRequestError])
-
-	useEffect(() => {
 		return (): void => clearStream(BACKPROJECT_STREAM)
 	}, [clearStream])
 
@@ -106,18 +113,16 @@ function useBackprojectPageState(): BackprojectPageState {
 			return
 		}
 
-		const { result, error } = parseBackprojectResult(backprojectResults)
+		clearFetchError(BACKPROJECT_REQUEST)
+		if (deleteRequestURL) clearFetchError(deleteRequestURL)
 
-		// Delete the previous task if it exists
-		if (!error) {
-			const deleteResult = await performFetch('/delete/', result, { method: 'POST' })
-			if (deleteResult.error.status) {
-				addAlert(deleteResult.error.message, 'error')
-				return
-			}
+		// Delete the previous task if it exists. Its URL also scopes its request notice.
+		if (deleteRequestURL) {
+			const deleteResult = await performFetch(deleteRequestURL, {}, { method: 'POST' })
+			if (deleteResult.error.status) return
 
 			// Clear the task once it has been deleted
-			clearFetch('/backproject/')
+			clearFetch(BACKPROJECT_REQUEST)
 			clearStream(BACKPROJECT_STREAM)
 		}
 
@@ -170,7 +175,7 @@ function useBackprojectPageState(): BackprojectPageState {
 
 		// Run the backprojection with this submission's saved reporting setting.
 		await performFetch(
-			'/backproject/',
+			BACKPROJECT_REQUEST,
 			{
 				options: outputOptions,
 				reporting_enabled: optionsObject['reporting_enabled']
@@ -214,7 +219,16 @@ function useBackprojectPageState(): BackprojectPageState {
 	const backprojectTaskActive = !parseBackprojectResult(backprojectResults).error && !streamDone
 	const isRunning = backprojectRequestPending || backprojectTaskActive
 
-	return { stream, connected, launchStatus, entries, onSubmit, onHeaderDrop, isRunning }
+	return {
+		stream,
+		connected,
+		launchStatus,
+		deleteRequestURL,
+		entries,
+		onSubmit,
+		onHeaderDrop,
+		isRunning
+	}
 }
 
 export default BackprojectPage

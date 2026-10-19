@@ -12,6 +12,7 @@ import { TaskStatus } from '../../schemas/task-status-schema'
 import Header from '../Header/Header'
 import ProgressBar from './components/ProgressBar/ProgressBar'
 import BackendStatus from './components/BackendStatus/BackendStatus'
+import RequestNotices, { TaskRequestURLs } from './components/RequestNotices/RequestNotices'
 import styles from './Progress.module.css'
 
 /**
@@ -23,12 +24,14 @@ function ProgressPanel({
 	operation,
 	stream,
 	connected,
-	launchStatus = null
+	launchStatus = null,
+	requestURLs
 }: {
 	operation: string
 	stream: StreamResult
 	connected: boolean
 	launchStatus?: MainServerLaunchStatus | null
+	requestURLs?: TaskRequestURLs
 }): JSX.Element {
 	const progress = stream.results?.progress ?? []
 	const messages = taskStatusMessages(operation, stream.results)
@@ -65,6 +68,11 @@ function ProgressPanel({
 			<div className="inner-panel">
 				<Header text={'Progress'} />
 				<BackendStatus connected={connected} launchStatus={launchStatus} />
+				{requestURLs && (
+					<div className={styles.notices}>
+						<RequestNotices urls={requestURLs} />
+					</div>
+				)}
 				{phase && (
 					<div className={styles.taskPhase} role="status" aria-live="polite">
 						<span>
@@ -78,10 +86,12 @@ function ProgressPanel({
 					<div className={styles.empty}>No task status yet.</div>
 				)}
 				{progressBars}
-				{messages.map((message, index) => (
-					<Alert key={index} {...message} />
-				))}
-				{stream.error.status && <Alert type="warning" message={stream.error.message} />}
+				<div className={styles.notices}>
+					{messages.map((message, index) => (
+						<Alert key={index} {...message} />
+					))}
+					{stream.error.status && <Alert type="warning" message={stream.error.message} />}
+				</div>
 			</div>
 		</div>
 	)

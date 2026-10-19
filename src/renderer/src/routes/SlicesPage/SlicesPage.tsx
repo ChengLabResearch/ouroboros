@@ -25,6 +25,7 @@ import { parseSliceVisualizationToOutputFormat } from '@renderer/schemas/slice-v
 
 const SLICE_RENDER_PROPORTION = 0.008
 
+const SLICE_REQUEST = '/slice/'
 const SLICE_STREAM = '/slice_status_stream/'
 
 // Must match `StepName.SLICE_PARALLEL` in
@@ -42,6 +43,7 @@ function SlicesPage(): JSX.Element {
 		boundingBoxProgress,
 		connected,
 		launchStatus,
+		deleteRequestURL,
 		entries,
 		onSubmit,
 		isRunning,
@@ -70,6 +72,7 @@ function SlicesPage(): JSX.Element {
 				stream={stream}
 				connected={connected}
 				launchStatus={launchStatus}
+				requestURLs={{ start: SLICE_REQUEST, delete: deleteRequestURL }}
 			/>
 			<OptionsPanel
 				entries={entries}
@@ -87,6 +90,7 @@ type SlicePageState = {
 	boundingBoxProgress: number
 	connected: boolean
 	launchStatus: MainServerLaunchStatus | null
+	deleteRequestURL: string | null
 	entries: (Entry | CompoundEntry)[]
 	onSubmit: () => Promise<void>
 	isRunning: boolean
@@ -105,6 +109,7 @@ function useSlicePageState(): SlicePageState {
 		performStream,
 		useStreamListener,
 		clearFetch,
+		clearFetchError,
 		clearStream
 	} = useContext(ServerContext)
 	const { directoryPath } = useContext(DirectoryContext)
@@ -113,11 +118,11 @@ function useSlicePageState(): SlicePageState {
 
 	const { addAlert } = useContext(AlertContext)
 
-	const {
-		results: sliceResults,
-		error: sliceRequestError,
-		pending: sliceRequestPending
-	} = useFetchListener('/slice/')
+	const { results: sliceResults, pending: sliceRequestPending } = useFetchListener(SLICE_REQUEST)
+	const previousTask = parseSliceResult(sliceResults)
+	const deleteRequestURL = previousTask.error
+		? null
+		: `/delete/?task_id=${encodeURIComponent(previousTask.result.task_id)}`
 	const stream = useStreamListener(SLICE_STREAM)
 	const streamDone = stream.done
 	const progress = stream.results?.progress ?? []
@@ -148,12 +153,6 @@ function useSlicePageState(): SlicePageState {
 			void performStream(SLICE_STREAM, result)
 		}
 	}, [performStream, sliceResults])
-
-	useEffect(() => {
-		if (sliceRequestError.status) {
-			addAlert(sliceRequestError.message, 'error')
-		}
-	}, [sliceRequestError])
 
 	useEffect(() => {
 		return (): void => clearStream(SLICE_STREAM)
@@ -305,18 +304,16 @@ function useSlicePageState(): SlicePageState {
 			return
 		}
 
-		const { result, error } = parseSliceResult(sliceResults)
+		clearFetchError(SLICE_REQUEST)
+		if (deleteRequestURL) clearFetchError(deleteRequestURL)
 
-		// Delete the previous task if it exists
-		if (!error) {
-			const deleteResult = await performFetch('/delete/', result, { method: 'POST' })
-			if (deleteResult.error.status) {
-				addAlert(deleteResult.error.message, 'error')
-				return
-			}
+		// Delete the previous task if it exists. Its URL also scopes its request notice.
+		if (deleteRequestURL) {
+			const deleteResult = await performFetch(deleteRequestURL, {}, { method: 'POST' })
+			if (deleteResult.error.status) return
 
 			// Clear the task once it has been deleted
-			clearFetch('/slice/')
+			clearFetch(SLICE_REQUEST)
 			clearStream(SLICE_STREAM)
 		}
 
@@ -325,7 +322,7 @@ function useSlicePageState(): SlicePageState {
 		if (!outputOptions) return
 
 		// Run the slice generation
-		await performFetch('/slice/', outputOptions, { method: 'POST' })
+		await performFetch(SLICE_REQUEST, outputOptions, { method: 'POST' })
 	}
 
 	////// HANDLE FILE DROP ONTO HEADER OF OPTIONS PANEL //////
@@ -380,6 +377,7 @@ function useSlicePageState(): SlicePageState {
 		boundingBoxProgress,
 		connected,
 		launchStatus,
+		deleteRequestURL,
 		entries,
 		onSubmit,
 		isRunning,

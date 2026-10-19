@@ -30,6 +30,7 @@ export type ServerContextValue = {
 	) => Promise<FetchResult>
 	performStream: (relativeURL: string, query?: Record<string, any>) => Promise<void>
 	clearFetch: (relativeURL: string) => void
+	clearFetchError: (relativeURL: string) => void
 	clearStream: (relativeURL: string) => void
 	useFetchListener: (relativeURL: string) => FetchResult
 	useStreamListener: (relativeURL: string) => StreamResult
@@ -230,6 +231,13 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 		[setFetchStatesHelper]
 	)
 
+	const clearFetchError = useCallback(
+		(relativeURL: string) => {
+			setFetchStatesHelper({ relativeURL, error: { status: false, message: '' } })
+		},
+		[setFetchStatesHelper]
+	)
+
 	const closeStream = useCallback((relativeURL: string): void => {
 		const activeStream = activeStreams.current.get(relativeURL)
 		if (!activeStream) return
@@ -279,20 +287,7 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 	}, [closeStream])
 
 	const useFetchListener = (relativeURL: string): FetchResult => {
-		const [results, setResults] = useState<object | null>(null)
-		const [error, setError] = useState<ServerError>({ status: false, message: '' })
-		const [pending, setPending] = useState(false)
-
-		useEffect(() => {
-			const state = fetchStates.get(relativeURL)
-			if (state) {
-				setResults(state.results)
-				setError(state.error)
-				setPending(state.pending)
-			}
-		}, [relativeURL, fetchStates])
-
-		return { results, error, pending }
+		return fetchStates.get(relativeURL) ?? emptyFetchResult()
 	}
 
 	const useStreamListener = (relativeURL: string): StreamResult => {
@@ -355,6 +350,7 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 		performFetch,
 		performStream,
 		clearFetch,
+		clearFetchError,
 		clearStream,
 		useFetchListener,
 		useStreamListener

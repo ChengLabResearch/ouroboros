@@ -1,33 +1,25 @@
-import { JSX } from "react"
+import { JSX } from 'react'
 import styles from './Alert.module.css'
 
 function Alert({
 	message,
-	type
+	type,
+	onDismiss
 }: {
 	message: string
 	type: 'error' | 'info' | 'success' | 'warning'
+	onDismiss?: () => void
 }): JSX.Element {
 	const style = styles[`alert-${type}`]
 
-	// const [visible, setVisible] = useState(true)
-
-	// // Clear the alert after 4 seconds
-	// useEffect(() => {
-	// 	const timeout = setTimeout(() => {
-	// 		setVisible(false)
-	// 	}, duration)
-
-	// 	return () => {
-	// 		clearTimeout(timeout)
-	// 	}
-	// }, [])
-
-	// ${visible ? '' : styles.alertHidden}
-
 	return (
-		<div className={`${styles.alert} ${style}`}>
-			<div className="poppins-medium">{message}</div>
+		<div className={`${styles.alert} ${style}`} role={type === 'error' ? 'alert' : 'status'}>
+			<div className={styles.message}>{message}</div>
+			{onDismiss && (
+				<button type="button" className={styles.dismiss} onClick={onDismiss}>
+					Dismiss
+				</button>
+			)}
 		</div>
 	)
 }

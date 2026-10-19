@@ -46,3 +46,36 @@ Keep workflow-specific stages rather than inventing a universal lifecycle.
 The main app's `STATUS_LABELS` and `StatusLabel` own its display vocabulary and
 state appearance. Plugin views follow this document through their local display
 adapter. A shared cross-repository runtime package is not required.
+
+## Notices
+
+Use compact notices beside the information they explain: launch diagnostics in the
+initialization section; submission, task, and communication diagnostics in the task
+section. Keep the reported text and failure-stage details, including statistics-report
+messages. Long paths and messages wrap, and explicit line breaks remain readable.
+
+Severity uses a subdued background and border with these accents: info `#a9ceff`,
+success `#a7ddb5`, warning `#f3d18b`, error `#ffb3a8`. Errors announce with `role="alert"`;
+other notices use `role="status"`. A request diagnostic has a visible, keyboard-accessible
+**Dismiss** button. Reported outcomes, steps, launch observations, and communication
+warnings remain source-derived and do not disappear when that diagnostic is dismissed.
+
+The main app moves only task-start request failures (`/slice/`, `/backproject/`) and
+previous-task deletion failures into these retained notices. Local form/input errors
+(including invalid options and Neuroglancer JSON), filesystem warnings, and rendering
+errors keep their existing global alerts. A moved failure is not also shown as a toast.
+
+`ServerContext` remains the owner of request errors; there is no copied notice history
+or page-local dismissal flag. Dismiss clears only that request's error, preserving
+results, pending state, and task/stream data. A new submission clears its earlier start
+and deletion notices before preparing the request. Successful requests retain their
+existing error-clearing behavior. Input editing or an unrelated successful request does
+not clear a retained diagnostic. Unlike autoseg's error list, these notices follow the
+existing request lifecycle rather than accumulating past failures.
+
+Undismissed errors retain the existing provider lifetime and can still be seen on
+returning to a page. A dismissed error cannot reappear on navigation because it was
+cleared at its owner. No navigation/reload storage is added. Each deletion request is
+identified by its actual task-specific URL (`/delete/?task_id=…`), so one workflow cannot
+display another workflow's deletion failure. The saved task response remains the source
+of that task ID until the existing deletion/submission lifecycle replaces it.

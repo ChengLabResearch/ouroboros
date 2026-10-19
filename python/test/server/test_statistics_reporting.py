@@ -4,6 +4,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
+from queue import Queue
 import shutil
 import sys
 from types import SimpleNamespace
@@ -674,6 +675,10 @@ def test_reporting_toggle_preserves_live_progress_durations_and_terminal_stream(
                         assert status.status_code == 200
                         live = status.json()
                         assert live["status"] == "started"
+                        assert live["phase"] == "processing"
+                        assert live["failure_phase"] is None
+                        assert live["steps"][0]["status"] == task.pipeline.steps[0].timing["status"] == "running"
+                        assert live["steps"][0]["progress"] == 0.4
                         assert live["progress"] == task.pipeline.get_steps_progress_and_durations()
                         assert live["progress"][0][1] == 0.4
                         assert live["statistics"]["status"] == ("pending" if enabled else "disabled")
@@ -682,6 +687,8 @@ def test_reporting_toggle_preserves_live_progress_durations_and_terminal_stream(
                     assert running.result(timeout=2) is task
                 status = (await client.get(f"/status/{task.task_id}")).json()
                 assert status["status"] == "done"
+                assert status["phase"] == "complete"
+                assert status["steps"][0]["status"] == "succeeded"
                 assert status["error"] is None and status["progress_error"] is None
                 assert status["progress"] == task.pipeline.get_steps_progress_and_durations()
                 assert status["progress"][0][1] == 1
@@ -740,6 +747,10 @@ def test_disabled_reporting_keeps_failed_task_active_through_docker_cleanup(run_
                     status = await client.get(f"/status/{task.task_id}")
                     assert status.status_code == 200
                     assert status.json()["status"] == "started"
+                    assert status.json()["phase"] == "cleanup"
+                    assert status.json()["failure_phase"] == "processing"
+                    assert status.json()["steps"][0]["status"] == "failed"
+                    assert status.json()["error"] is None
                     assert status.json()["statistics"]["status"] == "disabled"
                     duplicate = await client.post("/slice/", params={"options": str(state.slice_path)})
                     assert duplicate.status_code == 409
@@ -752,9 +763,136 @@ def test_disabled_reporting_keeps_failed_task_active_through_docker_cleanup(run_
             status = await client.get(f"/status/{task.task_id}")
             assert status.status_code == 500
             assert status.json()["status"] == "error"
+            assert status.json()["phase"] == "complete"
+            assert status.json()["failure_phase"] == "processing"
             assert status.json()["error"] == "returned failure"
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("operation", ["slice", "backproject"])
+@pytest.mark.parametrize("enabled", [False, True])
+def test_docker_status_tracks_actual_input_output_cleanup_and_publication_boundaries(
+    run_fixture, monkeypatch, operation, enabled,
+):
+    state = run_fixture
+    _docker_transport(state, monkeypatch)
+    boundaries = Queue()
+    entered = set()
+    releases = []
+
+    def gate(phase):
+        if phase in entered:
+            return
+        entered.add(phase)
+        release = Event()
+        releases.append(release)
+        boundaries.put((phase, release))
+        assert release.wait(5), f"Status consumer did not release {phase}"
+
+    import_files = file_system.copy_to_volume
+    export_files = file_system.copy_to_host
+    cleanup = server_handlers.clear_plugin_folder
+    factory = getattr(server_handlers, f"{operation}_pipeline")
+
+    def import_observed(*args, **kwargs):
+        gate("loading_input")
+        return import_files(*args, **kwargs)
+
+    def export_observed(*args, **kwargs):
+        gate("publishing_statistics" if kwargs.get("plugin_folder_name") == "main-statistics"
+             else "returning_output")
+        return export_files(*args, **kwargs)
+
+    def cleanup_observed():
+        gate("cleanup")
+        return cleanup()
+
+    def pipeline_observed(*args):
+        pipeline, data = factory(*args)
+        step = pipeline.steps[0]
+        process = step._process
+
+        def process_observed(values):
+            gate("processing")
+            return process(values)
+
+        monkeypatch.setattr(step, "_process", process_observed)
+        return pipeline, data
+
+    monkeypatch.setattr(file_system, "copy_to_volume", import_observed)
+    monkeypatch.setattr(file_system, "copy_to_host", export_observed)
+    monkeypatch.setattr(server_handlers, "clear_plugin_folder", cleanup_observed)
+    monkeypatch.setattr(server_handlers, f"{operation}_pipeline", pipeline_observed)
+
+    async def scenario():
+        app = FastAPI()
+        queued = []
+
+        @app.middleware("http")
+        async def queue_middleware(request: Request, call_next):
+            request.state.queue = SimpleNamespace(put_nowait=queued.append)
+            return await call_next(request)
+
+        create_api(app, docker=True)
+        path = state.slice_path if operation == "slice" else state.backproject_path
+        phases = ["loading_input", "processing", "returning_output", "cleanup"]
+        if enabled:
+            phases.append("publishing_statistics")
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await client.post(f"/{operation}/", params={"options": str(path), "reporting_enabled": enabled})
+            task = queued[0]
+            initial = (await client.get(f"/status/{task.task_id}")).json()
+            assert initial["phase"] == "queued" and initial["steps"] == []
+            with ThreadPoolExecutor(1) as pool:
+                running = pool.submit(server_handlers.handle_task_docker, task)
+                try:
+                    for expected in phases:
+                        phase, release = boundaries.get(timeout=5)
+                        assert phase == expected
+                        snapshot = (await client.get(f"/status/{task.task_id}")).json()
+                        assert snapshot["phase"] == task.phase == expected
+                        assert snapshot["status"] == "started" and snapshot["error"] is None
+                        assert snapshot["failure_phase"] is None
+                        assert task.is_active and not running.done()
+                        if expected == "loading_input":
+                            assert snapshot["steps"] == []
+                        else:
+                            assert snapshot["steps"] == task.pipeline.get_steps_status()
+                            status = "running" if expected == "processing" else "succeeded"
+                            assert snapshot["steps"][0]["status"] == status
+                        if expected == "publishing_statistics":
+                            assert task.status == "done" and task.publication_pending
+                        release.set()
+                finally:
+                    for release in releases:
+                        release.set()
+                assert running.result(timeout=5) is task
+            snapshot = (await client.get(f"/status/{task.task_id}")).json()
+            assert snapshot["phase"] == "complete" and snapshot["status"] == "done"
+            assert not task.is_active
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure, expected", [("input", "loading_input"), ("output", "returning_output"),
+                                              ("cleanup", "cleanup"), ("both", "processing")])
+def test_failure_phase_preserves_first_failure_across_cleanup(run_fixture, monkeypatch, failure, expected):
+    state = run_fixture
+    _docker_transport(state, monkeypatch)
+    task = _task(state, "slice")
+    task.reporting_enabled = False
+    if failure == "input":
+        state.import_failure = state.slice_path.name
+    elif failure == "output":
+        state.transfer_failure = "main"
+    else:
+        state.transfer_failure = "cleanup"
+        if failure == "both":
+            state.behavior = "returned"
+    server_handlers.handle_task_docker(task)
+    assert task.status == "error" and task.phase == "complete"
+    assert task.failure_phase == expected
 
 
 @pytest.mark.parametrize(("failure", "exit_code"), [(BrokenPipeError("closed stdout"), 1), (KeyboardInterrupt(), 130)])

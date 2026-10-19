@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { JSX, createContext, useCallback, useEffect, useRef, useState } from 'react'
+import type { MainServerLaunchStatus } from '@shared/main-server-status'
+import { subscribeToMainServerLaunchStatus } from '../interfaces/main-server-status'
 
 import {
 	emptyStreamResult,
@@ -20,6 +22,7 @@ export type FetchResult = {
 export type ServerContextValue = {
 	baseURL: string
 	connected: boolean
+	launchStatus: MainServerLaunchStatus | null
 	performFetch: (
 		relativeURL: string,
 		query?: Record<string, any>,
@@ -52,6 +55,7 @@ function responseErrorMessage(data: object, status: number): string {
 
 function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextValue {
 	const [connected, setConnected] = useState(false)
+	const [launchStatus, setLaunchStatus] = useState<MainServerLaunchStatus | null>(null)
 	const retryDelay = 5000 // Delay between checks in milliseconds
 
 	const [fetchStates, setFetchStates] = useState<Map<string, FetchResult>>(new Map())
@@ -60,6 +64,12 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 	const activeFetches = useRef<Map<string, Promise<FetchResult>>>(new Map())
 	const activeStreams = useRef<Map<string, ActiveStream>>(new Map())
 	const [fetchQueue, setFetchQueue] = useState<unknown[][]>([])
+
+	useEffect(() => {
+		// A custom URL is an external backend; the local Docker launcher does not own it.
+		if (baseURL !== DEFAULT_SERVER_URL || !window.electron?.ipcRenderer) return
+		return subscribeToMainServerLaunchStatus(window.electron.ipcRenderer, setLaunchStatus)
+	}, [baseURL])
 
 	const setFetchStatesHelper = useCallback(
 		({
@@ -341,6 +351,7 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 	return {
 		baseURL,
 		connected,
+		launchStatus: baseURL === DEFAULT_SERVER_URL ? launchStatus : null,
 		performFetch,
 		performStream,
 		clearFetch,

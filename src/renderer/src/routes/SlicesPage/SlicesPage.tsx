@@ -11,6 +11,7 @@ import {
 	SliceOptionsFile
 } from '@renderer/interfaces/options'
 import { JSX, useContext, useEffect, useState } from 'react'
+import type { MainServerLaunchStatus } from '@shared/main-server-status'
 import { DirectoryContext } from '@renderer/contexts/DirectoryContext'
 import { join, readFile, writeFile } from '@renderer/interfaces/file'
 import { AlertContext } from '@renderer/contexts/AlertContext'
@@ -40,6 +41,7 @@ function SlicesPage(): JSX.Element {
 		stream,
 		boundingBoxProgress,
 		connected,
+		launchStatus,
 		entries,
 		onSubmit,
 		isRunning,
@@ -63,7 +65,12 @@ function SlicesPage(): JSX.Element {
 					/>
 				) : null}
 			</VisualizePanel>
-			<ProgressPanel operation="Slicing" stream={stream} connected={connected} />
+			<ProgressPanel
+				operation="Slicing"
+				stream={stream}
+				connected={connected}
+				launchStatus={launchStatus}
+			/>
 			<OptionsPanel
 				entries={entries}
 				onSubmit={onSubmit}
@@ -79,6 +86,7 @@ type SlicePageState = {
 	stream: StreamResult
 	boundingBoxProgress: number
 	connected: boolean
+	launchStatus: MainServerLaunchStatus | null
 	entries: (Entry | CompoundEntry)[]
 	onSubmit: () => Promise<void>
 	isRunning: boolean
@@ -91,6 +99,7 @@ type SlicePageState = {
 function useSlicePageState(): SlicePageState {
 	const {
 		connected,
+		launchStatus,
 		performFetch,
 		useFetchListener,
 		performStream,
@@ -370,6 +379,7 @@ function useSlicePageState(): SlicePageState {
 		stream,
 		boundingBoxProgress,
 		connected,
+		launchStatus,
 		entries,
 		onSubmit,
 		isRunning,

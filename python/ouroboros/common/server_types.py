@@ -18,6 +18,19 @@ class Task:
     reporting_enabled: bool = True
     show_progress: bool = False
     statistics: "RunStatistics | None" = None
+    execution_phase: str = "loading_input"
+    failure_phase: str | None = None
+
+    @property
+    def phase(self) -> str:
+        """Present execution and publication through their existing lifecycle owners."""
+        if self.status == "enqueued":
+            return "queued"
+        if self.status == "started":
+            return self.execution_phase
+        if self.publication_pending:
+            return "publishing_statistics"
+        return "complete"
 
     @property
     def publication_pending(self) -> bool:

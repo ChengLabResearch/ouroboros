@@ -22,6 +22,7 @@ def _configure(task, options):
 def _process(task, pipeline, input_data):
     task.pipeline = pipeline
     task.pipeline_input = input_data
+    task.execution_phase = "processing"
     pipeline.set_statistics_enabled(task.reporting_enabled)
     try:
         if task.statistics is not None:
@@ -61,6 +62,7 @@ def handle_slice_docker(task: SliceTask):
     error = handle_slice_core(task, options)
     if error is not None:
         return error
+    task.execution_phase = "returning_output"
     return save_output_for_slice_docker(host_output_file, host_output_slices=host_output_slices,
                                         cleanup=False)
 
@@ -91,6 +93,7 @@ def handle_backproject_docker(task: BackProjectTask):
         host_output_file = combine_unknown_folder(host_output_folder, result.output_file_path)
     else:
         host_output_slices = combine_unknown_folder(host_output_folder, result.output_file_path)
+    task.execution_phase = "returning_output"
     return save_output_for_backproject_docker(host_output_file, host_output_slices=host_output_slices,
                                               cleanup=False)
 
@@ -99,6 +102,8 @@ def _execute_task(task: Task, *, docker: bool = False, print_statistics: bool = 
     # Task owns lifecycle state for CLI and queued server execution.
     task.status = "started"
     task.error = None
+    task.execution_phase = "loading_input"
+    task.failure_phase = None
     task.statistics = RunStatistics(task, docker=docker) if task.reporting_enabled else None
     outcome, failure = "done", None
     try:
@@ -115,15 +120,20 @@ def _execute_task(task: Task, *, docker: bool = False, print_statistics: bool = 
     except Exception as error:
         outcome, failure = "error", str(error) or type(error).__name__
     finally:
+        if outcome != "done":
+            task.failure_phase = task.execution_phase
         if docker:
+            task.execution_phase = "cleanup"
             try:
                 success, error = clear_plugin_folder()
                 if not success:
                     raise OSError(error or "Scientific output cleanup failed.")
             except (KeyboardInterrupt, SystemExit) as error:
+                task.failure_phase = task.failure_phase or task.execution_phase
                 outcome = "interrupted"
                 failure = f"{failure + '; ' if failure else ''}Cleanup interrupted: {str(error) or type(error).__name__}"
             except Exception as error:
+                task.failure_phase = task.failure_phase or task.execution_phase
                 failure = f"{failure + '; ' if failure else ''}Cleanup failed: {error}"
                 if outcome != "interrupted":
                     outcome = "error"

@@ -1,0 +1,58 @@
+.backendStatus,
+.taskPhase {
+	box-sizing: border-box;
+	width: calc(100% - 2rem);
+	margin: 0.5rem 1rem;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	font-size: 0.9rem;
+}
+
+.backendStatus {
+	color: var(--panel-header-text);
+	border-bottom: 1px solid var(--light-background);
+	padding-bottom: 0.6rem;
+}
+
+.backendStatus strong {
+	color: var(--primary-text);
+	font-weight: 500;
+}
+
+.taskPhase {
+	padding: 0.6rem 0.75rem;
+	border-radius: 0.4rem;
+	background: var(--light-background);
+}
+
+.activity {
+	width: 0.5rem;
+	height: 0.5rem;
+	flex-shrink: 0;
+	border-radius: 50%;
+	background: var(--option-highlight-color);
+	animation: activity-pulse 1.4s ease-in-out infinite alternate;
+}
+
+.empty {
+	margin: 0.5rem 1rem;
+	color: var(--panel-header-text);
+	font-size: 0.9rem;
+}
+
+@keyframes activity-pulse {
+	from {
+		opacity: 0.4;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.activity {
+		animation: none;
+	}
+}

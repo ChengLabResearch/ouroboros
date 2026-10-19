@@ -67,11 +67,10 @@ function createWindow(): void {
 
 	// Start the main server
 	if (is.dev) {
-		startMainServerDevelopment()
+		void startMainServerDevelopment()
 	} else {
-		startMainServerProduction()
+		void startMainServerProduction()
 	}
-	console.info('Started Main Server')
 
 	// Start the docker volume server
 	startVolumeServer()

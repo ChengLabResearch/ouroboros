@@ -6,10 +6,14 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
 const renderer = new URL('../../../src/renderer/src/', import.meta.url)
+const shared = new URL('../../../src/shared/', import.meta.url)
 registerHooks({
 	resolve(specifier, context, nextResolve) {
 		if (specifier.startsWith('@renderer/')) {
 			specifier = new URL(specifier.slice('@renderer/'.length), renderer).href
+		}
+		if (specifier.startsWith('@shared/')) {
+			specifier = new URL(specifier.slice('@shared/'.length), shared).href
 		}
 		if (specifier.startsWith('.') || specifier.startsWith('file:')) {
 			const url = new URL(specifier, context.parentURL)

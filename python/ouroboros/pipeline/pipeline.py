@@ -58,6 +58,10 @@ class Pipeline:
     def get_step_statistics(self) -> list[dict]:
         return [step.get_time_statistics() for step in self.steps]
 
+    def get_steps_status(self) -> list[dict]:
+        """Serialize the live step owners without enabling optional statistics."""
+        return [step.get_status() for step in self.steps]
+
 
 class PipelineStep(ABC):
     """Own step duration, progress, and optional detailed elapsed-time samples.
@@ -88,6 +92,8 @@ class PipelineStep(ABC):
         self.byte_counts = {}
         self.execution_resources = {}
         self.progress = 0
+        self.stage = None
+        self._stage_determinate = True
 
     def process(
         self, input_data: BasePipelineInput
@@ -149,6 +155,28 @@ class PipelineStep(ABC):
 
     def get_duration(self) -> float:
         return self.timing["duration_seconds"]
+
+    def set_stage(self, stage: str, *, determinate: bool = False):
+        """Name the current work; a fraction is valid only with a known denominator.
+
+        A stage describes work inside this step, including concurrent workers.
+        Its lifecycle remains exclusively owned by ``timing['status']``.
+        """
+        with self._statistics_lock:
+            self.stage = stage
+            self._stage_determinate = determinate
+
+    def get_status(self) -> dict:
+        with self._statistics_lock:
+            status = self.timing["status"]
+            return {
+                "name": self.step_name,
+                "status": status,
+                "progress": (float(self.get_progress())
+                             if self._stage_determinate or status == "succeeded" else None),
+                "duration_seconds": self.get_duration(),
+                "stage": self.stage,
+            }
 
     def add_timing(self, key: str, value: float, *, scope="worker", includes=()):
         if self.statistics_enabled:

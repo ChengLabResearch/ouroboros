@@ -1,4 +1,5 @@
 import { JSX } from 'react'
+import type { MainServerLaunchStatus } from '@shared/main-server-status'
 import OptionsPanel from '@renderer/components/OptionsPanel/OptionsPanel'
 import styles from './BackprojectPage.module.css'
 import VisualizePanel from '@renderer/components/VisualizePanel/VisualizePanel'
@@ -21,13 +22,18 @@ import { parseBackprojectResult } from '@renderer/schemas/backproject-result-sch
 const BACKPROJECT_STREAM = '/backproject_status_stream/'
 
 function BackprojectPage(): JSX.Element {
-	const { stream, connected, entries, onSubmit, onHeaderDrop, isRunning } =
+	const { stream, connected, launchStatus, entries, onSubmit, onHeaderDrop, isRunning } =
 		useBackprojectPageState()
 
 	return (
 		<div className={styles.backprojectPage}>
 			<VisualizePanel></VisualizePanel>
-			<ProgressPanel operation="Backprojection" stream={stream} connected={connected} />
+			<ProgressPanel
+				operation="Backprojection"
+				stream={stream}
+				connected={connected}
+				launchStatus={launchStatus}
+			/>
 			<OptionsPanel
 				entries={entries}
 				onSubmit={onSubmit}
@@ -41,6 +47,7 @@ function BackprojectPage(): JSX.Element {
 type BackprojectPageState = {
 	stream: StreamResult
 	connected: boolean
+	launchStatus: MainServerLaunchStatus | null
 	entries: (Entry | CompoundEntry)[]
 	onSubmit: () => Promise<void>
 	onHeaderDrop: (content: string) => Promise<void>
@@ -50,6 +57,7 @@ type BackprojectPageState = {
 function useBackprojectPageState(): BackprojectPageState {
 	const {
 		connected,
+		launchStatus,
 		performFetch,
 		performStream,
 		useFetchListener,
@@ -206,7 +214,7 @@ function useBackprojectPageState(): BackprojectPageState {
 	const backprojectTaskActive = !parseBackprojectResult(backprojectResults).error && !streamDone
 	const isRunning = backprojectRequestPending || backprojectTaskActive
 
-	return { stream, connected, entries, onSubmit, onHeaderDrop, isRunning }
+	return { stream, connected, launchStatus, entries, onSubmit, onHeaderDrop, isRunning }
 }
 
 export default BackprojectPage

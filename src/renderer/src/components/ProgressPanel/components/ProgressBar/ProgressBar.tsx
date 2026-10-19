@@ -1,25 +1,60 @@
-import { JSX } from "react"
+import { JSX } from 'react'
+import type { StepStatus } from '../../../../schemas/task-status-schema'
 import styles from './ProgressBar.module.css'
 
 function ProgressBar({
 	progress,
 	name,
-	duration
+	duration,
+	status,
+	stage,
+	live = true
 }: {
-	progress: number
+	progress: number | null
 	name: string
 	duration?: number
+	status?: StepStatus['status']
+	stage?: string
+	live?: boolean
 }): JSX.Element {
+	const labels = {
+		pending: 'Waiting',
+		running: 'Running',
+		succeeded: 'Complete',
+		failed: 'Failed',
+		interrupted: 'Interrupted'
+	}
+	const indeterminate = progress === null && status === 'running' && live
 	return (
-		<div className={styles.progressBarParent}>
-			<div className={styles.progressBarContainer}>
-				<div className={styles.progressBarText}>{name}</div>
-				<div className={styles.progressBar} style={{ width: `${progress}%` }}></div>
+		<div className={styles.progressBarParent} data-state={status}>
+			<div className={styles.progressHeading}>
+				<span>{name}</span>
+				{status && <span className={styles.stepState}>{labels[status]}</span>}
 			</div>
-			<div className={styles.progressLabel}>{Math.round(progress)}%</div>
-			{duration && (
-				<div className={styles.progressLabel}>{roundToDecimals(duration, 1)}s</div>
-			)}
+			{stage && <div className={styles.stage}>{stage}</div>}
+			<div className={styles.progressRow}>
+				<div
+					className={styles.progressBarContainer}
+					role="progressbar"
+					aria-label={name}
+					aria-valuemin={0}
+					aria-valuemax={100}
+					aria-valuenow={progress === null ? undefined : progress}
+					aria-valuetext={stage ?? (status ? labels[status] : undefined)}
+					aria-busy={indeterminate}
+				>
+					<div
+						className={`${styles.progressBar} ${indeterminate ? styles.indeterminate : ''}`}
+						style={progress === null ? undefined : { width: `${progress}%` }}
+					/>
+				</div>
+				{progress !== null && (
+					<span className={styles.progressLabel}>{Math.round(progress)}%</span>
+				)}
+				{duration !== undefined && duration > 0 && (
+					<span className={styles.progressLabel}>{roundToDecimals(duration, 1)}s</span>
+				)}
+			</div>
 		</div>
 	)
 }

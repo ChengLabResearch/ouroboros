@@ -50,12 +50,13 @@ function fixture(t, operation) {
 		get deliveries() {
 			return deliveries
 		},
-		render() {
+		render(props = {}) {
 			return renderToStaticMarkup(
 				createElement(ProgressPanel, {
 					operation: operation === 'slice' ? 'Slicing' : 'Backprojection',
 					stream: state,
-					connected: true
+					connected: true,
+					...props
 				})
 			)
 		}
@@ -93,8 +94,246 @@ function payload(status = 'done', publication = 'published') {
 	}
 }
 
+function structuredPayload(operation, overrides = {}) {
+	return {
+		...payload('started', 'disabled'),
+		phase: 'processing',
+		failure_phase: null,
+		// Deliberately different from the structured snapshot: the renderer must
+		// derive the displayed status, fraction and timing from a single source.
+		progress: [['Legacy progress representation', 0.9, 99]],
+		steps: [
+			{
+				name:
+					operation === 'slice' ? 'SliceParallelPipelineStep' : 'BackprojectPipelineStep',
+				status: 'running',
+				progress: 0.4,
+				duration_seconds: 1.25,
+				stage:
+					operation === 'slice' ? 'downloading_and_slicing' : 'backprojecting_and_writing'
+			}
+		],
+		...overrides
+	}
+}
+
 for (const operation of ['slice', 'backproject']) {
 	const label = operation === 'slice' ? 'Slicing' : 'Backprojection'
+
+	test(`${operation}: awaiting the initial snapshot does not claim there are no active tasks`, (t) => {
+		const run = fixture(t, operation)
+		assert.equal(run.state.results, null)
+		assert.match(run.render(), /No task status yet\./)
+		assert.doesNotMatch(run.render(), /No active tasks|Task active|role="progressbar"/)
+
+		const input = structuredPayload(operation)
+		input.steps[0].name = 'ParseJSONPipelineStep'
+		input.steps[0].stage = null
+		run.source.emit('update_event', input)
+		assert.match(run.render(), /Processing/)
+		assert.match(run.render(), /Read annotations and source/)
+		assert.doesNotMatch(
+			run.render(),
+			/No task status yet|No active tasks|ParseJSONPipelineStep/
+		)
+	})
+
+	test(`${operation}: a stream failure before the first snapshot leaves the task outcome unknown`, async (t) => {
+		const run = fixture(t, operation)
+		run.source.dispatchEvent(new Event('error'))
+		await run.stream.finished
+		assert.equal(run.state.results, null)
+		assert.equal(run.state.done, true)
+		const html = run.render()
+		assert.match(html, /Connection to the status stream was lost/)
+		assert.match(html, /task outcome is unknown/)
+		assert.doesNotMatch(
+			html,
+			/No task status yet|No active tasks|Task active|role="progressbar"/
+		)
+		assert.doesNotMatch(html, new RegExp(`${label} (failed|completed|interrupted)`))
+	})
+
+	test(`${operation}: structured status is preserved through SSE and owns the displayed progress`, (t) => {
+		const run = fixture(t, operation)
+		const input = structuredPayload(operation)
+		const parsed = parseTaskStatus(input)
+		assert.equal(parsed.error, null)
+		assert.deepEqual(parsed.result.steps, input.steps)
+		assert.equal(parsed.result.phase, input.phase)
+		run.source.emit('update_event', input)
+		assert.deepEqual(run.state.results.steps, input.steps)
+		assert.equal(run.state.done, false)
+		const html = run.render()
+		assert.match(html, new RegExp(label))
+		assert.match(html, /Running/)
+		assert.match(html, /Processing/)
+		assert.match(
+			html,
+			operation === 'slice'
+				? /Downloading data and slicing/
+				: /Backprojecting and writing output/
+		)
+		assert.match(html, /role="progressbar"/)
+		assert.match(html, /aria-valuenow="40"/)
+		assert.match(html, /width:40%/)
+		assert.match(html, /1\.3s/)
+		assert.doesNotMatch(html, /PipelineStep|Legacy progress representation|90%|99s/)
+		assert.doesNotMatch(html, /Statistics|alert-warning|alert-error/)
+	})
+
+	for (const [stepStatus, taskStatus, badge] of [
+		['succeeded', 'done', 'Complete'],
+		['failed', 'error', 'Failed'],
+		['interrupted', 'interrupted', 'Interrupted']
+	]) {
+		test(`${operation}: ${stepStatus} lifecycle remains informative with reporting disabled`, async (t) => {
+			const run = fixture(t, operation)
+			const input = structuredPayload(operation, { status: 'enqueued', phase: 'queued' })
+			input.steps[0].status = 'pending'
+			input.steps[0].progress = 0
+			input.steps[0].stage = null
+			run.source.emit('update_event', input)
+			assert.match(run.render(), /Waiting in queue/)
+			assert.match(run.render(), /Waiting/)
+			assert.doesNotMatch(run.render(), /Running|completed|failed|interrupted/)
+
+			input.status = 'started'
+			input.phase = 'processing'
+			input.steps[0].status = 'running'
+			input.steps[0].progress = 0.4
+			run.source.emit('update_event', input)
+			assert.match(run.render(), /Running/)
+			assert.equal(run.state.done, false)
+
+			input.status = taskStatus
+			input.phase = 'complete'
+			input.steps[0].status = stepStatus
+			input.steps[0].progress = stepStatus === 'succeeded' ? 1 : 0.4
+			input.error = stepStatus === 'succeeded' ? null : 'Scientific processing stopped'
+			input.failure_phase = stepStatus === 'succeeded' ? null : 'processing'
+			run.source.emit(taskStatus === 'done' ? 'done_event' : 'error_event', input)
+			await run.stream.finished
+			assert.equal(run.state.done, true)
+			assert.match(run.render(), new RegExp(badge))
+			assert.match(
+				run.render(),
+				new RegExp(
+					`${label} ${taskStatus === 'done' ? 'completed' : taskStatus === 'error' ? 'failed' : 'interrupted'}\\.`
+				)
+			)
+			assert.doesNotMatch(run.render(), /Running|Statistics/)
+			if (stepStatus !== 'succeeded') {
+				assert.match(run.render(), /Scientific processing stopped/)
+				assert.match(run.render(), /Failure stage: Processing/)
+			}
+		})
+	}
+
+	test(`${operation}: execution phases stay visible outside scientific processing`, (t) => {
+		const run = fixture(t, operation)
+		for (const [phase, text] of [
+			['loading_input', 'Loading input'],
+			['returning_output', 'Returning output'],
+			['cleanup', 'Cleaning up'],
+			['publishing_statistics', 'Publishing statistics report']
+		]) {
+			const input = structuredPayload(operation, { phase, steps: [], progress: [] })
+			if (phase === 'publishing_statistics') input.statistics.status = 'pending'
+			run.source.emit('update_event', input)
+			assert.equal(run.state.done, false)
+			assert.equal(run.source.closeCount, 0)
+			assert.match(run.render(), new RegExp(text))
+			assert.doesNotMatch(run.render(), new RegExp(`${label} completed`))
+		}
+	})
+
+	for (const reporting of ['disabled', 'pending']) {
+		test(`${operation}: 100% scientific progress does not finish pending output (${reporting} reporting)`, (t) => {
+			const run = fixture(t, operation)
+			const input = structuredPayload(operation, { phase: 'returning_output' })
+			input.statistics.status = reporting
+			input.steps[0].status = 'succeeded'
+			input.steps[0].progress = 1
+			run.source.emit('update_event', input)
+			assert.equal(run.state.done, false)
+			assert.equal(run.source.closeCount, 0)
+			assert.match(run.render(), /width:100%/)
+			assert.match(run.render(), /Complete/)
+			assert.match(run.render(), /Returning output/)
+			assert.doesNotMatch(run.render(), new RegExp(`${label} completed`))
+		})
+	}
+
+	const indeterminateStages =
+		operation === 'slice'
+			? [
+					['preparing_input', 'Preparing input'],
+					['normalizing_and_writing', 'Finalizing TIFF output']
+				]
+			: [
+					['preparing_input', 'Preparing input'],
+					['exporting_tiff', 'Exporting TIFF'],
+					['cleaning_intermediates', 'Cleaning intermediate files']
+				]
+	for (const [stage, stageLabel] of indeterminateStages) {
+		test(`${operation}: ${stage} shows unknown progress without fabricating a percentage`, (t) => {
+			const run = fixture(t, operation)
+			const input = structuredPayload(operation)
+			input.steps[0].progress = null
+			input.steps[0].stage = stage
+			run.source.emit('update_event', input)
+			assert.equal(run.state.done, false)
+			const html = run.render()
+			assert.match(html, new RegExp(stageLabel))
+			assert.match(html, /Running/)
+			assert.match(html, /role="progressbar"/)
+			assert.match(html, /aria-busy="true"/)
+			assert.doesNotMatch(html, /aria-valuenow|\d+%|Legacy progress representation/)
+		})
+	}
+
+	test(`${operation}: output failure retains successful scientific steps and identifies the failure phase`, async (t) => {
+		const run = fixture(t, operation)
+		const input = structuredPayload(operation, {
+			status: 'error',
+			phase: 'complete',
+			failure_phase: 'returning_output',
+			error: 'Output destination is unavailable'
+		})
+		input.steps[0].status = 'succeeded'
+		input.steps[0].progress = 1
+		run.source.emit('error_event', input)
+		await run.stream.finished
+		assert.equal(run.state.results.failure_phase, 'returning_output')
+		const html = run.render()
+		assert.match(html, new RegExp(`${label} failed`))
+		assert.match(html, /Complete/)
+		assert.match(html, /width:100%/)
+		assert.match(html, /Failure stage: Returning output/)
+		assert.match(html, /Output destination is unavailable/)
+	})
+
+	test(`${operation}: lost stream preserves the last structured snapshot without claiming live progress`, async (t) => {
+		const run = fixture(t, operation)
+		const input = structuredPayload(operation)
+		input.steps[0].progress = null
+		input.steps[0].stage = operation === 'slice' ? 'normalizing_and_writing' : 'exporting_tiff'
+		run.source.emit('update_event', input)
+		const lastSnapshot = run.state.results
+		run.source.dispatchEvent(new Event('error'))
+		await run.stream.finished
+		assert.equal(run.state.results, lastSnapshot)
+		const html = run.render()
+		assert.match(html, /Last reported status/)
+		assert.match(html, /Connection to the status stream was lost/)
+		assert.match(html, /task outcome is unknown/)
+		assert.match(html, /aria-busy="false"/)
+		assert.doesNotMatch(html, /aria-busy="true"|indeterminate|Task active/)
+		assert.doesNotMatch(html, /aria-valuenow|\d+%/)
+		assert.doesNotMatch(html, new RegExp(`${label} (failed|completed|interrupted)`))
+	})
+
 	for (const science of ['done', 'error', 'interrupted']) {
 		for (const publication of [
 			'published',
@@ -307,4 +546,57 @@ test('legacy status without a publication descriptor does not invent a missing r
 	run.source.emit('done_event', input)
 	assert.match(run.render(), /Slicing completed/)
 	assert.doesNotMatch(run.render(), /Statistics|alert-warning/)
+})
+
+test('structured status with no steps does not fall back to unrelated legacy progress', (t) => {
+	const run = fixture(t, 'slice')
+	run.source.emit(
+		'update_event',
+		structuredPayload('slice', { phase: 'loading_input', steps: [] })
+	)
+	assert.match(run.render(), /Loading input/)
+	assert.doesNotMatch(run.render(), /Legacy progress representation|90%|99s/)
+})
+
+test('an unreachable backend freezes the last reported activity while retaining its status', (t) => {
+	const run = fixture(t, 'slice')
+	const input = structuredPayload('slice')
+	input.steps[0].progress = null
+	input.steps[0].stage = 'normalizing_and_writing'
+	run.source.emit('update_event', input)
+	assert.match(run.render(), /aria-busy="true"/)
+	const html = run.render({ connected: false })
+	assert.match(html, /Last reported status/)
+	assert.match(html, /Finalizing TIFF output/)
+	assert.match(html, /aria-busy="false"/)
+	assert.doesNotMatch(html, /aria-busy="true"|indeterminate|Task active/)
+	assert.doesNotMatch(html, /Slicing (completed|failed|interrupted)/)
+})
+
+for (const [state, connected, expected] of [
+	['idle', false, 'Waiting for backend'],
+	['starting', false, 'Starting backend'],
+	['started', false, 'Waiting for backend'],
+	['started', true, 'Ready']
+]) {
+	test(`backend launch ${state}, API ${connected ? 'healthy' : 'unreachable'}: ${expected}`, (t) => {
+		const run = fixture(t, 'slice')
+		const html = run.render({ connected, launchStatus: { state, error: null } })
+		assert.equal(run.state.results, null)
+		assert.match(html, new RegExp(expected))
+		assert.doesNotMatch(html, /Backend launch failed|Slicing (completed|failed)/)
+		if (!connected) assert.doesNotMatch(html, /Ready/)
+	})
+}
+
+test('backend launch failure is visible before a task or status stream response exists', (t) => {
+	const run = fixture(t, 'backproject')
+	const html = run.render({
+		connected: false,
+		launchStatus: { state: 'failed', error: 'Docker Desktop is not running' }
+	})
+	assert.equal(run.state.results, null)
+	assert.match(html, /Backend launch failed/)
+	assert.match(html, /Docker Desktop is not running/)
+	assert.doesNotMatch(html, /Ready|Backprojection (completed|failed|interrupted)/)
 })

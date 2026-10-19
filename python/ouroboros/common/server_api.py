@@ -198,9 +198,11 @@ def create_api(app: FastAPI, docker: bool = False):
             task = tasks[task_id]
             progress_error = None
             progress = []
+            steps = []
             if task.pipeline is not None:
                 try:
                     progress = task.pipeline.get_steps_progress_and_durations()
+                    steps = task.pipeline.get_steps_status()
                 except BaseException as e:
                     progress_error = f"Error occurred while getting progress details: {e}."
             publication = (task.statistics.publication if task.statistics is not None else
@@ -210,6 +212,9 @@ def create_api(app: FastAPI, docker: bool = False):
             publishing = task.publication_pending
             return {
                 "status": "started" if publishing else task.status,
+                "phase": task.phase,
+                "failure_phase": task.failure_phase,
+                "steps": steps,
                 "progress": progress,
                 "error": None if publishing else (
                     task.error or publication["error"] or publication.get("presentation_error")
@@ -220,6 +225,9 @@ def create_api(app: FastAPI, docker: bool = False):
         else:
             return {
                 "status": "error",
+                "phase": "complete",
+                "failure_phase": None,
+                "steps": [],
                 "progress": [],
                 "error": "Item ID Not Found",
             }

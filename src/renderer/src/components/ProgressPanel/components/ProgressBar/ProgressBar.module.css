@@ -15,19 +15,9 @@
 	justify-content: space-between;
 }
 
-.stepState,
 .stage {
 	font-size: 0.8rem;
 	color: var(--panel-header-text);
-}
-
-.progressBarParent[data-state='failed'] .stepState,
-.progressBarParent[data-state='interrupted'] .stepState {
-	color: #ffb3a8;
-}
-
-.progressBarParent[data-state='succeeded'] .stepState {
-	color: #a7ddb5;
 }
 
 .stage {

@@ -1,0 +1,36 @@
+.backend {
+	box-sizing: border-box;
+	width: calc(100% - 2rem);
+	margin: 0.5rem 1rem;
+	padding: 0.75rem;
+	border: 1px solid var(--light-background);
+	border-radius: 0.4rem;
+	color: var(--primary-text);
+	font-size: 0.9rem;
+}
+
+.summary,
+.steps > div {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.summary {
+	padding-bottom: 0.5rem;
+	border-bottom: 1px solid var(--light-background);
+}
+
+.steps {
+	margin: 0.5rem 0 0;
+}
+
+.steps > div + div {
+	margin-top: 0.35rem;
+}
+
+.steps dd {
+	margin: 0;
+	text-align: right;
+}

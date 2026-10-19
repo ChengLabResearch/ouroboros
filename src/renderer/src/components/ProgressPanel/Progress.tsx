@@ -11,7 +11,7 @@ import {
 import { TaskStatus } from '../../schemas/task-status-schema'
 import Header from '../Header/Header'
 import ProgressBar from './components/ProgressBar/ProgressBar'
-import ServerConnectedIndicator from './components/ServerConnectedIndicator/ServerConnectedIndicator'
+import BackendStatus from './components/BackendStatus/BackendStatus'
 import styles from './Progress.module.css'
 
 /**
@@ -34,13 +34,6 @@ function ProgressPanel({
 	const messages = taskStatusMessages(operation, stream.results)
 	const live = connected && !stream.error.status
 	const phase = activeTaskLabel(stream.results)
-	const backendLabel = connected
-		? 'Ready'
-		: launchStatus?.state === 'failed'
-			? 'Backend launch failed'
-			: launchStatus?.state === 'starting'
-				? 'Starting backend'
-				: 'Waiting for backend'
 	const steps = stream.results?.steps
 	const progressBars =
 		steps !== undefined
@@ -71,17 +64,7 @@ function ProgressPanel({
 		<div className="panel">
 			<div className="inner-panel">
 				<Header text={'Progress'} />
-				<ServerConnectedIndicator connected={connected} />
-				<div className={styles.backendStatus}>
-					<span>Backend</span>
-					<strong>{backendLabel}</strong>
-				</div>
-				{launchStatus?.state === 'failed' && launchStatus.error && (
-					<Alert
-						type="warning"
-						message={`Backend launch failed: ${launchStatus.error}`}
-					/>
-				)}
+				<BackendStatus connected={connected} launchStatus={launchStatus} />
 				{phase && (
 					<div className={styles.taskPhase} role="status" aria-live="polite">
 						<span>

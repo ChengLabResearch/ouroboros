@@ -573,30 +573,58 @@ test('an unreachable backend freezes the last reported activity while retaining 
 	assert.doesNotMatch(html, /Slicing (completed|failed|interrupted)/)
 })
 
-for (const [state, connected, expected] of [
-	['idle', false, 'Waiting for backend'],
-	['starting', false, 'Starting backend'],
-	['started', false, 'Waiting for backend'],
-	['started', true, 'Ready']
+for (const [state, connected, expected, launchLabel] of [
+	[null, false, 'Waiting for backend', null],
+	[null, true, 'Connected', null],
+	['idle', false, 'Waiting for backend', 'Waiting'],
+	['starting', false, 'Starting backend', 'Running'],
+	['started', false, 'Waiting for backend', 'Complete'],
+	['started', true, 'Connected', 'Complete']
 ]) {
 	test(`backend launch ${state}, API ${connected ? 'healthy' : 'unreachable'}: ${expected}`, (t) => {
 		const run = fixture(t, 'slice')
-		const html = run.render({ connected, launchStatus: { state, error: null } })
+		const html = run.render({
+			connected,
+			launchStatus: state === null ? null : { state, error: null }
+		})
 		assert.equal(run.state.results, null)
+		assert.match(html, /aria-label="Backend initialization"/)
 		assert.match(html, new RegExp(expected))
-		assert.doesNotMatch(html, /Backend launch failed|Slicing (completed|failed)/)
-		if (!connected) assert.doesNotMatch(html, /Ready/)
+		assert.match(
+			html,
+			new RegExp(
+				`Backend connection</dt><dd><span[^>]*>${connected ? 'Connected' : 'Waiting'}</span>`
+			)
+		)
+		if (launchLabel) {
+			assert.match(
+				html,
+				new RegExp(`Local backend launch</dt><dd><span[^>]*>${launchLabel}</span>`)
+			)
+		} else {
+			assert.doesNotMatch(html, /Local backend launch/)
+		}
+		assert.doesNotMatch(html, /launch failed|Ready|Slicing (completed|failed)/)
 	})
 }
 
-test('backend launch failure is visible before a task or status stream response exists', (t) => {
-	const run = fixture(t, 'backproject')
-	const html = run.render({
-		connected: false,
-		launchStatus: { state: 'failed', error: 'Docker Desktop is not running' }
+for (const connected of [false, true]) {
+	test(`backend launch failure remains visible when the API is ${connected ? 'connected' : 'unreachable'}`, (t) => {
+		const run = fixture(t, 'backproject')
+		const html = run.render({
+			connected,
+			launchStatus: { state: 'failed', error: 'Docker Desktop is not running' }
+		})
+		assert.equal(run.state.results, null)
+		assert.match(html, connected ? /Connected — local launch failed/ : /Local launch failed/)
+		assert.match(html, /Local backend launch<\/dt><dd><span[^>]*>Failed<\/span>/)
+		assert.match(
+			html,
+			new RegExp(
+				`Backend connection</dt><dd><span[^>]*>${connected ? 'Connected' : 'Waiting'}</span>`
+			)
+		)
+		assert.match(html, /Local backend launch failed: Docker Desktop is not running/)
+		assert.doesNotMatch(html, /Ready|Backprojection (completed|failed|interrupted)/)
 	})
-	assert.equal(run.state.results, null)
-	assert.match(html, /Backend launch failed/)
-	assert.match(html, /Docker Desktop is not running/)
-	assert.doesNotMatch(html, /Ready|Backprojection (completed|failed|interrupted)/)
-})
+}

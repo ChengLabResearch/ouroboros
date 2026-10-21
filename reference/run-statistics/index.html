@@ -775,9 +775,12 @@ predate the operation. Concurrent operations in the same server share the parent
 and descendants, so overlapping records describe overlapping process trees,
 <strong>not isolated per-job allocations</strong>. A descendant already observed remains in
 scope if it is subsequently reparented. Children born and gone between samples
-can be missed; process identities include creation times to guard against PID
-reuse. The host OS remains unknown from inside Docker; the selected metric follows
-the execution OS in <code>environment.os</code>.</p>
+can be missed. Psutil <code>Process</code> equality and hashing are the sole runtime process
+identity, including PID-reuse protection; public <code>create_time()</code> values are not
+identity keys. On Linux and macOS those wall-clock timestamps can change after a clock
+adjustment even while the same process is running. The host OS remains unknown
+from inside Docker; the selected metric follows the execution OS in
+<code>environment.os</code>.</p>
 <p>A small separate interpreter performs collection, avoiding a sampler thread in
 the parent before Linux forks workers. The manager's existing <code>_segments</code>
 registry remains the sole owner of live allocation handles and release policy.
@@ -793,6 +796,25 @@ acquiring unlink authority. A manager started before an observation session is
 not retroactively observed. The scientific pipelines start their managers inside
 the collection window. Disabled reporting creates no sampler or observation
 workspace.</p>
+<p>The narrow identity adapter in <code>common/memory_ipc.py</code> serializes the validated
+private <code>Process._ident</code> value together with the psutil version and platform. It
+matches incoming identities against live <code>Process</code> objects at the IPC boundary;
+serialized values do not become a second runtime identity registry. Missing,
+unsupported, or unverified identity data makes the affected measurement
+unavailable rather than falling back to a PID or public creation timestamp, or
+treating an unverified manager as owning no segments.</p>
+<p>Psutil is pinned to <strong>7.1.3</strong> in package metadata as well as the Poetry lock,
+covering pip/wheel installations and both Docker build paths. This private-API
+dependency must be reviewed before changing that pin: Linux, Windows and macOS
+identity/IPC compatibility tests and the clock-adjustment regressions must pass
+for the proposed version. Supported runtime identity comes from psutil itself;
+Ouroboros does not maintain an alternative platform identity calculation.
+Liveness checks likewise validate a fresh psutil identity before comparing it
+with the retained <code>Process</code>: unreadable identity is unknown coverage, not proof
+that the worker exited. Discovery still uses psutil's <code>children()</code> implementation;
+in 7.1.3 a backwards clock adjustment within one enumeration can omit a previously
+unseen child because psutil itself filters by public creation timestamps. Retained
+workers are checked independently, but sampling is not a complete process census.</p>
 <p><code>status</code> is <code>sampled</code> when all admitted sweeps succeeded, <code>partial</code> when some
 failed, <code>unavailable</code> when none completed, or <code>not_started</code> if the pipeline was
 never reached. Process or allocation changes during a sweep make that sweep
@@ -826,6 +848,14 @@ long-path overhead finding applies to the removed working-set enumeration and
 mapping-tracking implementation, not a measurement of this replacement.</p>
 <p>Focused tests do not establish a 1% overhead bound or native macOS pipeline
 acceptance. No cross-platform 1% guarantee is claimed.</p>
+<p>The clock-dependent identity defect in
+<a href="https://github.com/ChengLabResearch/ouroboros/issues/162">#162</a> invalidates the
+affected RAM results; fixing identity does not retroactively repair those
+reports. Fresh long-run overhead acceptance is tracked separately in
+<a href="https://github.com/ChengLabResearch/ouroboros/issues/163">#163</a>, and replacement
+publication measurements remain under
+<a href="https://github.com/ChengLabResearch/ouroboros/issues/121">#121</a>. The native macOS
+pipeline and macOS-host Docker deferrals on #139 remain unchanged.</p>
 </section>
 
             </main>

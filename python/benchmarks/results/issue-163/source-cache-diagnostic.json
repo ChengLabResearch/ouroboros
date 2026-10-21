@@ -1,0 +1,336 @@
+{
+  "utc": "2026-10-21T21:26:32.527483+00:00",
+  "source": "https://neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2",
+  "cloud_volume_version": "12.7.0",
+  "cloud_volume_direct_url": {
+    "url": "https://github.com/den-sq/cloud-volume/releases/download/v12.7.0a0/cloud_volume-12.7.0a0-py3-none-any.whl",
+    "archive_info": {
+      "hashes": {
+        "sha256": "d92e7717370ea6a5b65829c6ebfe557f9729156c6b5f8893c604055105afc5ad"
+      }
+    }
+  },
+  "cloud_files_version": "5.8.2",
+  "cached_indices": {
+    "08d.shard.index": {
+      "bytes": 32,
+      "first_16_hex": "8562f3b000000000ce6df3b000000000",
+      "sha256": "cb4c7667c1db3f1de851f22df0431caee6bc0d868a269d2a73a19b72a01be147",
+      "relative_ranges": [
+        2968740485,
+        2968743374,
+        2968743374,
+        2968748106
+      ]
+    },
+    "0a9.shard.index": {
+      "bytes": 32,
+      "first_16_hex": "d9b9384001000000e0cf384001000000",
+      "sha256": "1311a02e78f04618fd20a8ffc1310e73dff73436f81c8f16ab2b4d891fccc9c3",
+      "relative_ranges": [
+        5372426713,
+        5372432352,
+        5372432352,
+        5372438482
+      ]
+    },
+    "0c4.shard.index": {
+      "bytes": 32,
+      "first_16_hex": "30f33768000000009bf9376800000000",
+      "sha256": "14499f37de1f2eaacb188d6770cc616c4421c76df45d177e497095ac0de477b7",
+      "relative_ranges": [
+        1748497200,
+        1748498843,
+        1748498843,
+        1748502474
+      ]
+    },
+    "0e0.shard.index": {
+      "bytes": 32,
+      "first_16_hex": "6b03490d010000003f16490d01000000",
+      "sha256": "28450fb458ac8316c2d7c1c769ee63ba432bc8fdc58085260d8ca478a2961627",
+      "relative_ranges": [
+        4517856107,
+        4517860927,
+        4517860927,
+        4517866426
+      ]
+    },
+    "11b.shard.index": {
+      "bytes": 32,
+      "first_16_hex": "8aabcf45010000002ec4cf4501000000",
+      "sha256": "86244585671e02271224a5f07f579b049bb6b7d567f8cca309bca86e213922e6",
+      "relative_ranges": [
+        5466205066,
+        5466211374,
+        5466211374,
+        5466217569
+      ]
+    },
+    "152.shard.index": {
+      "bytes": 32,
+      "first_16_hex": "73b32e38010000004fcc2e3801000000",
+      "sha256": "987b55e6c06c87251d07763213ed9245846a202279bcde590a8157bb1ff13f34",
+      "relative_ranges": [
+        5237551987,
+        5237558351,
+        5237558351,
+        5237564066
+      ]
+    }
+  },
+  "cached_minishards": {
+    "08d.shard-1.msi": {
+      "bytes": 4732,
+      "first_16_hex": "1f8b08000000000002ffecd2cb8b9055",
+      "sha256": "d5d242e24868c70fa61e6aa3e2a8a881b0e1174f99dda0601ff04b281da7b036",
+      "expected_bytes_from_own_index": 4732,
+      "source_path": "/campaign/cache/https/neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/08d.shard-1.msi",
+      "mtime_ns": 1792617243244046823,
+      "decoded_bytes": 49152,
+      "gzip_valid": true
+    },
+    "0a9.shard-0.msi": {
+      "bytes": 5639,
+      "first_16_hex": "1f8b08000000000002ffecc5cf6bd075",
+      "sha256": "bcdad697b87305f71ebd8ff65a406d82419f770b619c065817598c9757119dff",
+      "expected_bytes_from_own_index": 5639,
+      "source_path": "/campaign/cache/https/neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/0a9.shard-0.msi",
+      "mtime_ns": 1792617243244614759,
+      "decoded_bytes": 49152,
+      "gzip_valid": true
+    },
+    "0c4.shard-1.msi": {
+      "bytes": 3631,
+      "first_16_hex": "1f8b08000000000002ffecc5bf8b1674",
+      "sha256": "3b5d5702d797f2fae32b36866fd8ef269debb7384fc1bce5f40956331bb979db",
+      "expected_bytes_from_own_index": 3631,
+      "source_path": "/campaign/cache/https/neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/0c4.shard-1.msi",
+      "mtime_ns": 1792617243244614759,
+      "decoded_bytes": 49152,
+      "gzip_valid": true
+    },
+    "0e0.shard-0.msi": {
+      "bytes": 4820,
+      "first_16_hex": "1f8b08000000000002ffecc5cfcbdf03",
+      "sha256": "c4cf1e0412cdc3aa170c40b1cb073908a5c918ccb8dbe0ab6ae4119fc3de3ee5",
+      "expected_bytes_from_own_index": 4820,
+      "source_path": "/campaign/cache/https/neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/0e0.shard-0.msi",
+      "mtime_ns": 1792617243244046823,
+      "decoded_bytes": 49152,
+      "gzip_valid": true
+    },
+    "11b.shard-0.msi": {
+      "bytes": 6364,
+      "first_16_hex": "954ba36f0f7783eb32267146d295a4a0",
+      "sha256": "9fd0c49e288b142a45e6cf4c4a5a5a86f95f938e71aebf5e10a54cc9115ab026",
+      "expected_bytes_from_own_index": 6308,
+      "source_path": "/campaign/cache/https/neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/11b.shard-0.msi",
+      "mtime_ns": 1792617389692244066,
+      "gzip_valid": false,
+      "gzip_error": "Not a gzipped file (b'\\x95K')"
+    },
+    "11b.shard-1.msi": {
+      "bytes": 5715,
+      "first_16_hex": "7ea89be9c1b7a582de4c6fbf05aad243",
+      "sha256": "8dabde9e0ab1f197eaa02f9f58f67fb53fd2208937a1809284e39c943993685d",
+      "expected_bytes_from_own_index": 6195,
+      "source_path": "/campaign/cache/https/neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/11b.shard-1.msi",
+      "mtime_ns": 1792617389387220934,
+      "gzip_valid": false,
+      "gzip_error": "Not a gzipped file (b'~\\xa8')"
+    },
+    "152.shard-0.msi": {
+      "bytes": 6364,
+      "first_16_hex": "1f8b08000000000002ffecc5cf6bd075",
+      "sha256": "63f092d2e6a39703670ec4958ce1539ba44f80b91b5e7a9da13aa99bc67bf910",
+      "expected_bytes_from_own_index": 6364,
+      "source_path": "/campaign/cache/https/neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/152.shard-0.msi",
+      "mtime_ns": 1792617389386672594,
+      "decoded_bytes": 49152,
+      "gzip_valid": true
+    },
+    "152.shard-1.msi": {
+      "bytes": 5715,
+      "first_16_hex": "1f8b08000000000002ffecd2cbab5655",
+      "sha256": "c598a0dee1bac952280be9bcceb257b5bb2630688da6aaee5a95e2d06480c879",
+      "expected_bytes_from_own_index": 5715,
+      "source_path": "/campaign/cache/https/neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/152.shard-1.msi",
+      "mtime_ns": 1792617389387913084,
+      "decoded_bytes": 49152,
+      "gzip_valid": true
+    }
+  },
+  "remote": [
+    {
+      "name": "index",
+      "url": "https://neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/11b.shard",
+      "range_start": 0,
+      "range_end_exclusive": 32,
+      "status": 206,
+      "headers": {
+        "Date": "Wed, 21 Oct 2026 21:26:31 GMT",
+        "Server": "Apache/2.4.37 (Red Hat Enterprise Linux) OpenSSL/1.1.1k",
+        "Strict-Transport-Security": "max-age=15552000; includeSubDomains",
+        "Last-Modified": "Tue, 18 Mar 2025 18:08:57 GMT",
+        "ETag": "\"145cfdc81-630a1cc60ac21\"",
+        "Accept-Ranges": "bytes",
+        "Content-Length": "32",
+        "Access-Control-Allow-Origin": "*",
+        "Content-Range": "bytes 0-31/5466217601",
+        "Keep-Alive": "timeout=5, max=99",
+        "Connection": "Keep-Alive"
+      },
+      "bytes": 32,
+      "first_16_hex": "8aabcf45010000002ec4cf4501000000",
+      "sha256": "86244585671e02271224a5f07f579b049bb6b7d567f8cca309bca86e213922e6",
+      "matches_cached_index_exactly": true
+    },
+    {
+      "name": "correct_0",
+      "url": "https://neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/11b.shard",
+      "range_start": 5466205098,
+      "range_end_exclusive": 5466211406,
+      "status": 206,
+      "headers": {
+        "Date": "Wed, 21 Oct 2026 21:26:31 GMT",
+        "Server": "Apache/2.4.37 (Red Hat Enterprise Linux) OpenSSL/1.1.1k",
+        "Strict-Transport-Security": "max-age=15552000; includeSubDomains",
+        "Last-Modified": "Tue, 18 Mar 2025 18:08:57 GMT",
+        "ETag": "\"145cfdc81-630a1cc60ac21\"",
+        "Accept-Ranges": "bytes",
+        "Content-Length": "6308",
+        "Access-Control-Allow-Origin": "*",
+        "Content-Range": "bytes 5466205098-5466211405/5466217601",
+        "Keep-Alive": "timeout=5, max=98",
+        "Connection": "Keep-Alive"
+      },
+      "bytes": 6308,
+      "first_16_hex": "1f8b08000000000002ffecc5cd6bd005",
+      "sha256": "e60cf290d1c36837a2b3a4b87fc536176ebd00708bef1d7f20dc73a73a6251dd",
+      "decoded_bytes": 49152
+    },
+    {
+      "name": "correct_1",
+      "url": "https://neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/11b.shard",
+      "range_start": 5466211406,
+      "range_end_exclusive": 5466217601,
+      "status": 206,
+      "headers": {
+        "Date": "Wed, 21 Oct 2026 21:26:31 GMT",
+        "Server": "Apache/2.4.37 (Red Hat Enterprise Linux) OpenSSL/1.1.1k",
+        "Strict-Transport-Security": "max-age=15552000; includeSubDomains",
+        "Last-Modified": "Tue, 18 Mar 2025 18:08:57 GMT",
+        "ETag": "\"145cfdc81-630a1cc60ac21\"",
+        "Accept-Ranges": "bytes",
+        "Content-Length": "6195",
+        "Access-Control-Allow-Origin": "*",
+        "Content-Range": "bytes 5466211406-5466217600/5466217601",
+        "Keep-Alive": "timeout=5, max=97",
+        "Connection": "Keep-Alive"
+      },
+      "bytes": 6195,
+      "first_16_hex": "1f8b08000000000002ffecd2cb8b9665",
+      "sha256": "4c0ffb1f6018aa5db0e83ceae24290fae8109685e76811a62317ccf9148e48a2",
+      "decoded_bytes": 49152
+    },
+    {
+      "name": "wrong_152_offsets_0",
+      "url": "https://neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/11b.shard",
+      "range_start": 5237552019,
+      "range_end_exclusive": 5237558383,
+      "status": 206,
+      "headers": {
+        "Date": "Wed, 21 Oct 2026 21:26:31 GMT",
+        "Server": "Apache/2.4.37 (Red Hat Enterprise Linux) OpenSSL/1.1.1k",
+        "Strict-Transport-Security": "max-age=15552000; includeSubDomains",
+        "Last-Modified": "Tue, 18 Mar 2025 18:08:57 GMT",
+        "ETag": "\"145cfdc81-630a1cc60ac21\"",
+        "Accept-Ranges": "bytes",
+        "Content-Length": "6364",
+        "Access-Control-Allow-Origin": "*",
+        "Content-Range": "bytes 5237552019-5237558382/5466217601",
+        "Keep-Alive": "timeout=5, max=96",
+        "Connection": "Keep-Alive"
+      },
+      "bytes": 6364,
+      "first_16_hex": "954ba36f0f7783eb32267146d295a4a0",
+      "sha256": "9fd0c49e288b142a45e6cf4c4a5a5a86f95f938e71aebf5e10a54cc9115ab026",
+      "matches_bad_cache_exactly": true
+    },
+    {
+      "name": "wrong_152_offsets_1",
+      "url": "https://neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/11b.shard",
+      "range_start": 5237558383,
+      "range_end_exclusive": 5237564098,
+      "status": 206,
+      "headers": {
+        "Date": "Wed, 21 Oct 2026 21:26:31 GMT",
+        "Server": "Apache/2.4.37 (Red Hat Enterprise Linux) OpenSSL/1.1.1k",
+        "Strict-Transport-Security": "max-age=15552000; includeSubDomains",
+        "Last-Modified": "Tue, 18 Mar 2025 18:08:57 GMT",
+        "ETag": "\"145cfdc81-630a1cc60ac21\"",
+        "Accept-Ranges": "bytes",
+        "Content-Length": "5715",
+        "Access-Control-Allow-Origin": "*",
+        "Content-Range": "bytes 5237558383-5237564097/5466217601",
+        "Keep-Alive": "timeout=5, max=95",
+        "Connection": "Keep-Alive"
+      },
+      "bytes": 5715,
+      "first_16_hex": "7ea89be9c1b7a582de4c6fbf05aad243",
+      "sha256": "8dabde9e0ab1f197eaa02f9f58f67fb53fd2208937a1809284e39c943993685d",
+      "matches_bad_cache_exactly": true
+    }
+  ],
+  "remote_head": {
+    "url": "https://neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/11b.shard",
+    "status": 200,
+    "headers": {
+      "Date": "Wed, 21 Oct 2026 21:26:31 GMT",
+      "Server": "Apache/2.4.37 (Red Hat Enterprise Linux) OpenSSL/1.1.1k",
+      "Strict-Transport-Security": "max-age=15552000; includeSubDomains",
+      "Last-Modified": "Tue, 18 Mar 2025 18:08:57 GMT",
+      "ETag": "\"145cfdc81-630a1cc60ac21\"",
+      "Accept-Ranges": "bytes",
+      "Content-Length": "5466217601",
+      "Access-Control-Allow-Origin": "*",
+      "Keep-Alive": "timeout=5, max=100",
+      "Connection": "Keep-Alive"
+    }
+  },
+  "fresh_uncached_reader": {
+    "absolute_index_ranges": {
+      "700_700_700/152.shard": [
+        [
+          5237552019,
+          5237558383
+        ],
+        [
+          5237558383,
+          5237564098
+        ]
+      ],
+      "700_700_700/11b.shard": [
+        [
+          5466205098,
+          5466211406
+        ],
+        [
+          5466211406,
+          5466217601
+        ]
+      ]
+    },
+    "decoded_minishard_entries": {
+      "152.shard": {
+        "0": 2048,
+        "1": 2048
+      },
+      "11b.shard": {
+        "1": 2048,
+        "0": 2048
+      }
+    }
+  }
+}

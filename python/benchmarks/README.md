@@ -1,8 +1,17 @@
 # Run-statistics overhead benchmark
 
-## Current memory collectors and evidence (#139)
+## Docker cost and coverage after the identity fix (#163)
 
-The current real-data evidence measures revision
+The [#163 campaign report](results/issue-163/README.md) records Linux Docker on
+Windows/WSL2 at merged #162 revision `e81c4d4`, including all paired timings,
+collector coverage, controlled-clock identity evidence, and source-cache failures.
+It separates the data-operation timer from the broader pipeline timer and retains
+the historical native reference runs below. It does not change the metric or
+certify native macOS/macOS-host Docker workflows.
+
+## Historical native reference measurements and metric semantics (#139)
+
+The historical native real-data evidence measures revision
 [`10145cd`](https://github.com/ChengLabResearch/ouroboros/commit/10145cd34ecaff138fedd21336046cf989ca6ff4),
 using manager-owned shared-buffer observations. It does not measure the removed
 worker/TIFF registry or Windows working-set enumeration. Later review cleanup
@@ -223,7 +232,10 @@ slice/backprojection options and choose a new work directory:
 ```
 
 This copies original annotations, preserves the image source/scientific settings,
-and visits every annotation path from shortest list to longest. Both timing
+and visits every annotation path from shortest list to longest. Use
+`--annotation-layer "Exact path name"` to select a path without editing the
+annotations; repeat the option for multiple paths. Selection is recorded and
+checked when resuming. Both timing
 boundaries above are recorded without adding production timers. Each pair runs
 slicing then backprojection of that exact output. Output headers, times, logs,
 options and reports remain; scientific TIFFs are removed after matching

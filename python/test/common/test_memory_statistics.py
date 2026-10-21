@@ -12,6 +12,7 @@ import psutil
 import pytest
 
 from ouroboros.common import memory_observer, memory_statistics as memory
+from ouroboros.common.memory_ipc import export_process_identity
 
 
 def retry_clock(monkeypatch, *, system="win32"):
@@ -119,14 +120,18 @@ def test_control_file_malformed_json_is_not_hidden_by_retry(monkeypatch, tmp_pat
 
 class Process:
     def __init__(self, pid, created=1.0, pss=10, command=None):
-        self.pid, self.created, self.pss = pid, created, pss
+        self.pid, self.pss = pid, pss
+        self._ident = (pid, created)
         self.command = command or ["python", "worker.py"]
         self.running = True
         self.descendants = []
         self.on_read = lambda: None
 
-    def create_time(self):
-        return self.created
+    def __hash__(self):
+        return hash(self._ident)
+
+    def __eq__(self, other):
+        return self._ident == other._ident
 
     def is_running(self):
         return self.running
@@ -146,17 +151,18 @@ class Process:
 def sampler(monkeypatch, *, system="Linux", directory=None):
     root = Process(123)
     monkeypatch.setattr(memory.psutil, "Process", lambda pid=None: root)
+    monkeypatch.setattr(memory, "process_is_running", lambda process: process.running)
     monkeypatch.setattr(memory.platform, "system", lambda: system)
-    reader = memory.TreeSampler(root.pid, root.created, managers_directory=directory)
+    reader = memory.TreeSampler(export_process_identity(root), managers_directory=directory)
     monkeypatch.setattr(memory, "_linux_nonshmem_pss", lambda pid: next(
-        process for process in reader.known.values() if process.pid == pid
+        process for process in reader.known if process.pid == pid
     ).memory_full_info().pss)
     return root, reader
 
 
 def manifest(directory, process, segments=(), errors=()):
     memory._write_json(Path(directory) / f"{process.pid}.json", {
-        "pid": process.pid, "create_time": process.created,
+        "owner": export_process_identity(process),
         "segments": list(segments), "errors": list(errors),
     })
 
@@ -164,7 +170,7 @@ def manifest(directory, process, segments=(), errors=()):
 def test_constructor_rejects_reused_backend_pid(monkeypatch):
     monkeypatch.setattr(memory.psutil, "Process", lambda pid: Process(pid, created=2))
     with pytest.raises(psutil.NoSuchProcess, match="reused"):
-        memory.TreeSampler(123, 1)
+        memory.TreeSampler(export_process_identity(Process(123, created=1)))
 
 
 def test_tree_sums_current_pss_and_excludes_all_memory_observers(monkeypatch):
@@ -179,7 +185,7 @@ def test_tree_sums_current_pss_and_excludes_all_memory_observers(monkeypatch):
     assert reader.sample() == (12, 2)
     child.running = False
     assert reader.sample() == (10, 1)
-    assert (child.pid, child.created) not in reader.known
+    assert child not in reader.known
 
 
 def test_reused_child_pid_is_a_new_identity(monkeypatch):
@@ -191,7 +197,14 @@ def test_reused_child_pid_is_a_new_identity(monkeypatch):
     new = Process(124, created=2, pss=3)
     root.descendants = [new]
     assert reader.sample() == (13, 2)
-    assert set(reader.known) == {(123, 1.0), (124, 2)}
+    assert reader.known == {root, new}
+
+
+def test_conflicting_live_identities_never_contribute_twice(monkeypatch):
+    root, reader = sampler(monkeypatch)
+    root.descendants = [Process(124, created=1), Process(124, created=2)]
+    with pytest.raises(OSError, match="Multiple live process identities"):
+        reader.sample()
 
 
 @pytest.mark.parametrize("change", ["appeared", "exited"])
@@ -235,7 +248,7 @@ def test_managed_buffers_are_counted_once_without_worker_manifests(monkeypatch, 
     assert reader.sample() == (30 + expected_shared, 3)
     assert queries == ([] if system == "Windows" else [segment])
     if system == "Darwin":
-        assert exclusions == [(123, []), (124, [segment]), (125, [])]
+        assert dict(exclusions) == {123: [], 124: [segment], 125: []}
 
 
 def test_linux_reader_subtracts_shared_pss_including_single_reader_pages(monkeypatch, tmp_path):
@@ -261,7 +274,7 @@ def test_manager_change_during_a_sweep_is_incomplete(monkeypatch, tmp_path):
 def test_stale_manifest_cannot_supply_another_process_segments(monkeypatch, tmp_path):
     root, reader = sampler(monkeypatch, directory=tmp_path)
     manifest(tmp_path, Process(root.pid, created=0), [{"stale": "mapping"}])
-    mappings, generation = reader._segments((root.pid, root.created))
+    mappings, generation = reader._segments(root)
     assert mappings == [] and generation is not None
 
 
@@ -325,7 +338,7 @@ def test_failed_samples_preserve_coverage_without_retaining_tracebacks():
 
 def test_observer_discards_sweep_when_stop_publication_was_delayed(monkeypatch, tmp_path):
     memory._write_json(tmp_path / "config.json", {
-        "root_pid": 123, "root_created": 1, "interval": 1, "managers_directory": None,
+        "root_identity": export_process_identity(Process(123)), "interval": 1, "managers_directory": None,
     })
     memory._write_json(tmp_path / "start.json", 0)
     reader = SimpleNamespace(system="Linux", root=Process(123), sample=lambda: (999, 1))
@@ -443,7 +456,8 @@ def test_unpublished_manager_failure_invalidates_sampled_peak(monkeypatch):
     assert session.released
 
 
-def test_spawn_failure_releases_manager_session_and_workspace(monkeypatch):
+@pytest.mark.parametrize("failure", ["spawn", "identity"])
+def test_start_failure_releases_manager_session_and_workspace(monkeypatch, failure):
     from ouroboros.common import memory_managed
 
     monkeypatch.setattr(memory.platform, "system", lambda: "Darwin")
@@ -455,7 +469,10 @@ def test_spawn_failure_releases_manager_session_and_workspace(monkeypatch):
     def fail(*args, **kwargs):
         raise OSError("cannot spawn")
 
-    monkeypatch.setattr(memory.subprocess, "Popen", fail)
+    if failure == "spawn":
+        monkeypatch.setattr(memory.subprocess, "Popen", fail)
+    else:
+        monkeypatch.setattr(memory, "export_process_identity", fail)
     collector = memory.MemoryCollector()
     with pytest.raises(OSError, match="cannot spawn"):
         collector.start()
@@ -573,7 +590,7 @@ os.waitpid(pid, 0)
     try:
         child = psutil.Process(int(process.stdout.readline()))
         root = psutil.Process(process.pid)
-        reader = memory.TreeSampler(root.pid, root.create_time())
+        reader = memory.TreeSampler(export_process_identity(root))
         value, count = reader.sample()
         assert count == 2
         details = [item.memory_full_info() for item in (root, child)]
@@ -596,10 +613,11 @@ os.waitpid(pid, 0)
 
 
 def test_manifest_read_retries_transient_windows_denial(monkeypatch, tmp_path):
-    identity = (os.getpid(), psutil.Process().create_time())
-    path = tmp_path / f"{identity[0]}.json"
-    path.write_text(json.dumps({"pid": identity[0], "create_time": identity[1], "segments": []}))
     _, sleeps = retry_clock(monkeypatch)
+    process = psutil.Process()
+    identity = export_process_identity(process)
+    path = tmp_path / f"{process.pid}.json"
+    path.write_text(json.dumps({"owner": identity, "segments": []}))
     read = Path.read_bytes
     attempts = []
 
@@ -610,8 +628,8 @@ def test_manifest_read_retries_transient_windows_denial(monkeypatch, tmp_path):
         return read(self)
 
     monkeypatch.setattr(Path, "read_bytes", briefly_locked)
-    sampler = memory.TreeSampler(*identity, managers_directory=tmp_path)
-    records, generation = sampler._segments(identity)
+    sampler = memory.TreeSampler(identity, managers_directory=tmp_path)
+    records, generation = sampler._segments(process)
     assert records == []
     assert generation == read(path)
     assert sleeps == [0.01]

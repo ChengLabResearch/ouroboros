@@ -20,7 +20,7 @@ from threading import RLock
 
 import psutil
 
-from ouroboros.common.memory_ipc import observation_file_io
+from ouroboros.common.memory_ipc import export_process_identity, observation_file_io
 
 
 @dataclass(frozen=True)
@@ -111,7 +111,7 @@ def publish_owned_segments(segments):
             records.append(record)
         # A clock is not a revision: Windows can return the same timestamp for
         # several allocations/releases, including an empty -> live -> empty cycle.
-        payload = json.dumps({"pid": os.getpid(), "create_time": psutil.Process().create_time(),
+        payload = json.dumps({"owner": export_process_identity(psutil.Process()),
                               "generation": next(_generations), "segments": records})
 
         def publish():

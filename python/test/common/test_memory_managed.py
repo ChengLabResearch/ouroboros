@@ -13,6 +13,7 @@ import psutil
 import pytest
 
 from ouroboros.common import memory_managed as managed
+from ouroboros.common.memory_ipc import process_from_identity
 from ouroboros.helpers.mem import SharedNPArray, SharedNPManager, _OwnedSharedMemoryTracker
 from ouroboros.helpers.shapes import ImgSlice
 
@@ -106,8 +107,8 @@ def test_owner_snapshot_follows_allocations_not_attachments(tmp_path):
             assert marker.read_text() == "caller initializer ran"
             initial = snapshot(session.context, pid)
             assert initial["segments"] == []
-            assert initial["pid"] == pid
-            assert initial["create_time"] == psutil.Process(pid).create_time()
+            assert process_from_identity(initial["owner"]) == psutil.Process(pid)
+            assert "pid" not in initial and "create_time" not in initial
 
             array = manager.TermedNPArray(ImgSlice(2, 4), np.uint8)
             arrays.append(array)
@@ -158,12 +159,13 @@ def test_owner_snapshot_follows_allocations_not_attachments(tmp_path):
             SharedMemory(retained_name)
 
 
-def test_observation_write_failure_does_not_break_owner_allocation(monkeypatch):
+@pytest.mark.parametrize("failure", ["observation_file_io", "export_process_identity"])
+def test_observation_failure_does_not_break_owner_allocation(monkeypatch, failure):
     def unavailable(*args, **kwargs):
         raise PermissionError("test observation destination unavailable")
 
     with managed.ManagerSession() as session:
-        monkeypatch.setattr(managed, "observation_file_io", unavailable)
+        monkeypatch.setattr(managed, failure, unavailable)
         owner = _OwnedSharedMemoryTracker()
         try:
             name = owner.allocate(64, termed=True)

@@ -12,12 +12,13 @@ def dispatch_frozen_observer():
 def main(directory):
     from pathlib import Path
     import time
+    from ouroboros.common.memory_ipc import process_is_running
     from ouroboros.common.memory_statistics import TreeSampler, Samples, _read_json, _write_json, unavailable
 
     directory = Path(directory)
     try:
         config = _read_json(directory / "config.json")
-        sampler = TreeSampler(config["root_pid"], config["root_created"],
+        sampler = TreeSampler(config.pop("root_identity"),
                               managers_directory=config["managers_directory"])
         samples = Samples(config["interval"])
         # Load native adapters before declaring readiness, outside data operations.
@@ -29,7 +30,7 @@ def main(directory):
             _native()
         (directory / "ready").touch()
         while not (directory / "start.json").exists():
-            if not sampler.root.is_running():
+            if not process_is_running(sampler.root):
                 return
             time.sleep(0.01)
         started = _read_json(directory / "start.json")
@@ -38,7 +39,7 @@ def main(directory):
         while not (directory / "stop.json").exists():
             now = time.perf_counter()
             if now < next_sample:
-                if not sampler.root.is_running():
+                if not process_is_running(sampler.root):
                     return
                 time.sleep(min(0.02, next_sample - now))
                 continue

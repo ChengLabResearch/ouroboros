@@ -16,7 +16,10 @@ import time
 
 import psutil
 
-from ouroboros.common.memory_ipc import observation_file_io
+from ouroboros.common.memory_ipc import (
+    export_process_identity, matches_process_identity, observation_file_io,
+    process_from_identity, process_is_running, validate_process_identity,
+)
 
 
 DEFAULT_INTERVAL_SECONDS = 1.0
@@ -55,10 +58,6 @@ def _write_json(path, value):
     observation_file_io(publish)
 
 
-def _identity(process):
-    return process.pid, process.create_time()
-
-
 def _observer(process):
     command = process.cmdline()
     return (len(command) >= 3 and command[1:3] == ["-m", _OBSERVER_MODULE]
@@ -83,11 +82,9 @@ def _linux_nonshmem_pss(pid):
 class TreeSampler:
     """Retain observed identities, never individual-process lifetime peaks."""
 
-    def __init__(self, root_pid, root_created, *, managers_directory=None):
-        self.root = psutil.Process(root_pid)
-        if self.root.create_time() != root_created:
-            raise psutil.NoSuchProcess(root_pid, msg="Backend PID was reused")
-        self.known = {_identity(self.root): self.root}
+    def __init__(self, root_identity, *, managers_directory=None):
+        self.root = process_from_identity(root_identity)
+        self.known = {self.root}
         self.excluded = set()
         self.managers_directory = Path(managers_directory) if managers_directory else None
         self.system = platform.system()
@@ -95,35 +92,39 @@ class TreeSampler:
             raise NotImplementedError(f"Memory collection is unavailable on {self.system}")
 
     def _discover(self):
-        if not self.root.is_running():
+        if not process_is_running(self.root):
             raise psutil.NoSuchProcess(self.root.pid)
         discovered = set()
         for child in self.root.children(recursive=True):
-            identity = _identity(child)
-            discovered.add(identity)
-            if identity in self.excluded:
+            validate_process_identity(child)
+            discovered.add(child)
+            if child in self.excluded:
                 continue
-            if identity not in self.known:
+            if child not in self.known:
                 if _observer(child):
-                    self.excluded.add(identity)
+                    self.excluded.add(child)
                     continue
-                self.known[identity] = child
+                self.known.add(child)
         # A child that ended between samples is normal; one ending during a read
         # makes that sweep incomplete. Already observed reparented children stay.
-        self.known = {identity: process for identity, process in self.known.items() if process.is_running()}
+        self.known = {process for process in self.known if process_is_running(process)}
         self.excluded.intersection_update(discovered)
-        return dict(self.known)
+        # Stable Process equality is authoritative. This invariant catches any
+        # future contract drift before a PID can contribute more than once.
+        if len({process.pid for process in self.known}) != len(self.known):
+            raise OSError("Multiple live process identities for one PID")
+        return set(self.known)
 
-    def _segments(self, identity):
+    def _segments(self, process):
         if self.managers_directory is None:
             return [], None
-        path = self.managers_directory / f"{identity[0]}.json"
+        path = self.managers_directory / f"{process.pid}.json"
         try:
             raw = observation_file_io(path.read_bytes)
         except FileNotFoundError:
             return [], None  # Only shared-memory managers publish a manifest.
         record = json.loads(raw)
-        if (record["pid"], record["create_time"]) != identity:
+        if not matches_process_identity(process, record.get("owner")):
             return [], raw  # Stale file from a different process identity.
         if record.get("errors"):
             raise OSError(f"Manager observation failed: {record['errors']}")
@@ -140,11 +141,11 @@ class TreeSampler:
             from ouroboros.common import memory_windows as native
         elif self.system == "Darwin":
             from ouroboros.common import memory_macos as native
-        for identity, process in processes.items():
-            if not process.is_running():
+        for process in processes:
+            if not process_is_running(process):
                 raise psutil.NoSuchProcess(process.pid)
-            owned, generation = self._segments(identity)
-            observed[identity] = generation
+            owned, generation = self._segments(process)
+            observed[process] = generation
             for segment in owned:
                 previous = segments.setdefault(segment["name"], segment)
                 if previous["size"] != segment["size"]:
@@ -155,17 +156,17 @@ class TreeSampler:
                 total += native.private_resident_bytes(process.pid)
             else:
                 total += native.private_resident_bytes(process.pid, owned)
-            if not process.is_running():
+            if not process_is_running(process):
                 raise psutil.NoSuchProcess(process.pid)
         total += sum(segment["size"] if self.system == "Windows" else resident_bytes(segment)
                      for segment in segments.values())
         # Allocation/release and process churn invalidate a sweep, rather than
         # mixing observations from different owners or recycled process IDs.
-        for identity in processes:
-            if self._segments(identity)[1] != observed[identity]:
+        for process in processes:
+            if self._segments(process)[1] != observed[process]:
                 raise OSError("Manager observations changed during memory sweep")
         after = self._discover()
-        if set(after) != set(processes):
+        if after != processes:
             raise OSError("Process tree changed during memory sweep")
         return int(total), len(processes)
 
@@ -245,7 +246,7 @@ class MemoryCollector:
             self.workspace = tempfile.TemporaryDirectory(prefix="ouroboros-memory-")
             directory = Path(self.workspace.name)
             _write_json(directory / "config.json", {
-                "root_pid": os.getpid(), "root_created": psutil.Process().create_time(),
+                "root_identity": export_process_identity(psutil.Process()),
                 "interval": self.interval,
                 "managers_directory": self.manager_context.directory if self.manager_context else None,
             })

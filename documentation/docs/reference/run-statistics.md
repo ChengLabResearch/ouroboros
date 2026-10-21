@@ -318,9 +318,12 @@ predate the operation. Concurrent operations in the same server share the parent
 and descendants, so overlapping records describe overlapping process trees,
 **not isolated per-job allocations**. A descendant already observed remains in
 scope if it is subsequently reparented. Children born and gone between samples
-can be missed; process identities include creation times to guard against PID
-reuse. The host OS remains unknown from inside Docker; the selected metric follows
-the execution OS in `environment.os`.
+can be missed. Psutil `Process` equality and hashing are the sole runtime process
+identity, including PID-reuse protection; public `create_time()` values are not
+identity keys. On Linux and macOS those wall-clock timestamps can change after a clock
+adjustment even while the same process is running. The host OS remains unknown
+from inside Docker; the selected metric follows the execution OS in
+`environment.os`.
 
 A small separate interpreter performs collection, avoiding a sampler thread in
 the parent before Linux forks workers. The manager's existing `_segments`
@@ -338,6 +341,27 @@ acquiring unlink authority. A manager started before an observation session is
 not retroactively observed. The scientific pipelines start their managers inside
 the collection window. Disabled reporting creates no sampler or observation
 workspace.
+
+The narrow identity adapter in `common/memory_ipc.py` serializes the validated
+private `Process._ident` value together with the psutil version and platform. It
+matches incoming identities against live `Process` objects at the IPC boundary;
+serialized values do not become a second runtime identity registry. Missing,
+unsupported, or unverified identity data makes the affected measurement
+unavailable rather than falling back to a PID or public creation timestamp, or
+treating an unverified manager as owning no segments.
+
+Psutil is pinned to **7.1.3** in package metadata as well as the Poetry lock,
+covering pip/wheel installations and both Docker build paths. This private-API
+dependency must be reviewed before changing that pin: Linux, Windows and macOS
+identity/IPC compatibility tests and the clock-adjustment regressions must pass
+for the proposed version. Supported runtime identity comes from psutil itself;
+Ouroboros does not maintain an alternative platform identity calculation.
+Liveness checks likewise validate a fresh psutil identity before comparing it
+with the retained `Process`: unreadable identity is unknown coverage, not proof
+that the worker exited. Discovery still uses psutil's `children()` implementation;
+in 7.1.3 a backwards clock adjustment within one enumeration can omit a previously
+unseen child because psutil itself filters by public creation timestamps. Retained
+workers are checked independently, but sampling is not a complete process census.
 
 `status` is `sampled` when all admitted sweeps succeeded, `partial` when some
 failed, `unavailable` when none completed, or `not_started` if the pipeline was
@@ -376,3 +400,11 @@ mapping-tracking implementation, not a measurement of this replacement.
 
 Focused tests do not establish a 1% overhead bound or native macOS pipeline
 acceptance. No cross-platform 1% guarantee is claimed.
+
+The clock-dependent identity defect in
+[#162](https://github.com/ChengLabResearch/ouroboros/issues/162) invalidates the
+affected RAM results; fixing identity does not retroactively repair those
+reports. Fresh long-run overhead acceptance is tracked separately in
+[#163](https://github.com/ChengLabResearch/ouroboros/issues/163), and replacement
+publication measurements remain with the publication. The native macOS
+pipeline and macOS-host Docker deferrals on #139 remain unchanged.

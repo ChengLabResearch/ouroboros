@@ -406,6 +406,5 @@ The clock-dependent identity defect in
 affected RAM results; fixing identity does not retroactively repair those
 reports. Fresh long-run overhead acceptance is tracked separately in
 [#163](https://github.com/ChengLabResearch/ouroboros/issues/163), and replacement
-publication measurements remain under
-[#121](https://github.com/ChengLabResearch/ouroboros/issues/121). The native macOS
+publication measurements remain with the publication. The native macOS
 pipeline and macOS-host Docker deferrals on #139 remain unchanged.

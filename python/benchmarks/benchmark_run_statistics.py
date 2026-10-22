@@ -392,6 +392,12 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
     slice_options["neuroglancer_json"] = str(annotation_copy)
     layers = [layer for layer in annotations["layers"]
               if layer.get("type") == "annotation" and layer.get("annotations")]
+    if args.annotation_layer:
+        requested = set(args.annotation_layer)
+        missing = requested - {layer["name"] for layer in layers}
+        if missing:
+            raise ValueError(f"Requested annotation paths are missing or empty: {sorted(missing)}")
+        layers = [layer for layer in layers if layer["name"] in requested]
     for variable, name in (("CLOUD_VOLUME_DIR", "cloudvolume"),
                            ("CLOUD_VOLUME_CACHE_DIR", "cloudvolume-cache"),
                            ("CLOUD_FILES_DIR", "cloudfiles")):
@@ -410,15 +416,16 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
         "production_python_sha256": production_digest(),
         "benchmark_python_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "annotation_sha256": hashlib.sha256(annotation_copy.read_bytes()).hexdigest(),
+        "annotation_layers": sorted(args.annotation_layer) if args.annotation_layer else None,
         "slice_options_template": slice_options,
         "backproject_options_template": backproject_options,
         "workers": args.workers, "pairs": args.pairs, "paths": {},
     }
     if args.resume_real_data:
         previous = json.loads((folder / "results.json").read_text())
-        for key in ("production_python_sha256", "annotation_sha256", "workers", "pairs",
+        for key in ("production_python_sha256", "annotation_sha256", "annotation_layers", "workers", "pairs",
                     "slice_options_template", "backproject_options_template", "versions"):
-            if previous[key] != result[key]:
+            if previous.get(key) != result[key]:
                 raise ValueError(f"Cannot resume with changed {key}")
         previous["resumed_benchmark_python_sha256"] = result["benchmark_python_sha256"]
         previous["resume_note"] = "Retain completed trials, record failed existing trials without retry, and finish remaining scheduled trials using the same run_once timing boundary."
@@ -524,6 +531,8 @@ def main() -> None:
                         help="Existing real-data slice options; run every annotation path, paired with backprojection.")
     parser.add_argument("--real-backproject-options", type=Path,
                         help="Existing backprojection settings for real-data mode.")
+    parser.add_argument("--annotation-layer", action="append",
+                        help="Select an exact annotation path in real-data mode; repeat for multiple paths.")
     parser.add_argument("--cache-dir", type=Path,
                         help="Reuse this CloudVolume chunk cache in real-data mode.")
     parser.add_argument("--resume-real-data", action="store_true",
@@ -548,6 +557,8 @@ def main() -> None:
         parser.error("Real-data mode requires both slice and backproject options")
     if args.resume_real_data and not args.real_slice_options:
         parser.error("--resume-real-data requires real-data options")
+    if args.annotation_layer and not args.real_slice_options:
+        parser.error("--annotation-layer requires real-data options")
     if args.size < 64 or args.size % 64:
         parser.error("--size must be a positive multiple of 64, at least 64")
     if args.child:

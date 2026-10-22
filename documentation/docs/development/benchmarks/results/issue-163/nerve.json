@@ -1,0 +1,1271 @@
+{
+  "schema_version": 1,
+  "scope": "Existing data-processing step duration; excludes preceding parsing, geometry and source/cache setup. External Pipeline.process timer retained separately. Both exclude sampler startup/shutdown and final reporting.",
+  "cache_policy": "One disabled slicing warmup per path; shared CloudVolume cache across all trials. Remote metadata requests may remain.",
+  "cloudvolume_cache_directory": "/campaign/cache-validated",
+  "hardware": {
+    "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.36",
+    "processor": "",
+    "logical_cpus": 12,
+    "python": "3.11.12"
+  },
+  "versions": {
+    "numpy": "1.26.4",
+    "scipy": "1.11.2",
+    "tifffile": "2024.12.12",
+    "cloud-volume": "12.7.0",
+    "psutil": "7.1.3"
+  },
+  "production_python_sha256": "32f50045607acbdb954d0904467c7a04451756eb52a215af69a0658b52b21e91",
+  "benchmark_python_sha256": "1406c9db750307ddc4da855c6f33c6dc5234010cd093f5fd346b8a7fcaaa6163",
+  "annotation_sha256": "51df2b4154a53cb00f0f7ac217b9a368133b7208c08d2e7d65a47f84963aaa17",
+  "annotation_layers": [
+    "Long Nerve Trace"
+  ],
+  "slice_options_template": {
+    "neuroglancer_json": "/campaign/results/nerve/annotations.json",
+    "neuroglancer_image_layer": "PSU Octo9 16bit S1p4s2p2 sharded",
+    "neuroglancer_annotation_layer": "Long Nerve Trace",
+    "slice_width": 120,
+    "slice_height": 120,
+    "output_file_folder": "/mnt/wsl/PHYSICALDRIVE2p1/ouroboros_demo/legacy/original_layout/Octopus_Nerve_Cords/",
+    "output_file_name": "sample",
+    "annotation_mip_level": 0,
+    "output_mip_level": 0,
+    "slicing_params": {
+      "dist_between_slices": 1,
+      "use_adaptive_slicing": true,
+      "adaptive_slicing_ratio": 0.5
+    },
+    "make_single_file": true,
+    "connect_start_and_end": false,
+    "normalize_output": true,
+    "zeroguard_output": true,
+    "flush_cache": false,
+    "bounding_box_params": {
+      "max_depth": 12,
+      "target_slices_per_box": 128
+    }
+  },
+  "backproject_options_template": {
+    "straightened_volume_path": "/mnt/wsl/PHYSICALDRIVE2p1/ouroboros_demo/legacy/original_layout/Octopus_Posterior_Salivary_Duct/perfdatatest/TestOne.tif",
+    "slice_options_path": "/mnt/wsl/PHYSICALDRIVE2p1/ouroboros_demo/legacy/original_layout/Octopus_Posterior_Salivary_Duct/perfdatatest/TestOne-slice-options.json",
+    "output_file_folder": "/mnt/wsl/PHYSICALDRIVE2p1/ouroboros_demo/legacy/original_layout/Octopus_Posterior_Salivary_Duct/perfdatatest/",
+    "output_file_name": "BPTestOne",
+    "output_mip_level": 0,
+    "upsample_order": 2,
+    "backprojection_compression": "zlib",
+    "make_single_file": false,
+    "backproject_min_bounding_box": true,
+    "make_backprojection_binary": false,
+    "make_backprojection_discrete": false,
+    "offset_in_name": true,
+    "flush_cache": false,
+    "process_count": 12,
+    "chunk_size": 160
+  },
+  "workers": 12,
+  "pairs": 2,
+  "paths": {
+    "Long Nerve Trace": {
+      "annotation_points": 59,
+      "runs": [
+        {
+          "handler_elapsed_seconds": 27.34698157501407,
+          "pipeline_elapsed_seconds": 27.345541281974874,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0015636010211892426,
+            "SlicesGeometryPipelineStep": 0.7144845140282996,
+            "VolumeCachePipelineStep": 0.48662204400170594,
+            "SliceParallelPipelineStep": 26.142572702025063
+          },
+          "data_operation_elapsed_seconds": 26.142572702025063,
+          "enabled": false,
+          "process_elapsed_seconds": 30.953254182008095,
+          "label": "path-0-pair-1-0-slice",
+          "statistics_files": [],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 10386,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 300844806
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 153.62701357202604,
+          "pipeline_elapsed_seconds": 153.6251384500065,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.001996830978896469,
+            "SlicesGeometryPipelineStep": 0.6810499120038003,
+            "VolumeCachePipelineStep": 0.15112562204012647,
+            "BackprojectPipelineStep": 152.79076927399728
+          },
+          "data_operation_elapsed_seconds": 152.79076927399728,
+          "enabled": false,
+          "process_elapsed_seconds": 157.46754821704235,
+          "label": "path-0-pair-1-0-backproject",
+          "statistics_files": [],
+          "output_header": {
+            "files": 4671,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              2216,
+              4851
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 419835147
+          },
+          "operation": "backproject"
+        },
+        {
+          "handler_elapsed_seconds": 28.253506699984428,
+          "pipeline_elapsed_seconds": 28.11518227402121,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0018756180070340633,
+            "SlicesGeometryPipelineStep": 0.7453886480070651,
+            "VolumeCachePipelineStep": 0.1669874729705043,
+            "SliceParallelPipelineStep": 27.20063931698678
+          },
+          "data_operation_elapsed_seconds": 27.20063931698678,
+          "enabled": true,
+          "process_elapsed_seconds": 31.88109073601663,
+          "label": "path-0-pair-1-1-slice",
+          "statistics_files": [
+            "path-0-pair-1-1-slice/output/slice-slice-d49e76ce-8a38-4c3e-bed7-52be8356ec91-statistics.json"
+          ],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 10386,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 300844806
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+            "unit": "bytes",
+            "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 1985029120,
+            "last_complete_sample_bytes": 1985029120,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.0002418310032226,
+                "max": 1.0020079669775441
+              },
+              "complete_samples": 8,
+              "incomplete_samples": 21,
+              "discarded_samples": 0,
+              "max_process_count": 15,
+              "max_sweep_seconds": 0.1882207650342025,
+              "collector_cpu_seconds": 3.9012761,
+              "window_seconds": 28.11547189200064,
+              "first_sample_start_seconds": 0.005568449036218226,
+              "last_sample_end_seconds": 28.041682073031552
+            },
+            "errors": [
+              {
+                "kind": "FileNotFoundError",
+                "count": 16,
+                "example": "[Errno 2] No such file or directory: '/psm_44763101'"
+              },
+              {
+                "kind": "NoSuchProcess",
+                "count": 1,
+                "example": "process no longer exists (pid=110326)"
+              },
+              {
+                "kind": "OSError",
+                "count": 4,
+                "example": "Manager observations changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 150.02620827103965,
+          "pipeline_elapsed_seconds": 149.80158283404307,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.002405756968073547,
+            "SlicesGeometryPipelineStep": 0.7152926159906201,
+            "VolumeCachePipelineStep": 0.14933745295275003,
+            "BackprojectPipelineStep": 148.93425608996768
+          },
+          "data_operation_elapsed_seconds": 148.93425608996768,
+          "enabled": true,
+          "process_elapsed_seconds": 153.5761446810211,
+          "label": "path-0-pair-1-1-backproject",
+          "statistics_files": [
+            "path-0-pair-1-1-backproject/output/backproject-backproject-c0c6d686-1196-4428-b71f-90c66244ed2c-statistics.json"
+          ],
+          "output_header": {
+            "files": 4671,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              2216,
+              4851
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 419835148
+          },
+          "memory": {
+            "status": "sampled",
+            "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+            "unit": "bytes",
+            "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 2542523392,
+            "last_complete_sample_bytes": 952855552,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.0001083909883164,
+                "max": 1.0047607169835828
+              },
+              "complete_samples": 150,
+              "incomplete_samples": 0,
+              "discarded_samples": 0,
+              "max_process_count": 14,
+              "max_sweep_seconds": 0.43709576601395383,
+              "collector_cpu_seconds": 15.5216898,
+              "window_seconds": 149.80189355497714,
+              "first_sample_start_seconds": 0.009013489005155861,
+              "last_sample_end_seconds": 149.17219875496812
+            },
+            "errors": []
+          },
+          "operation": "backproject"
+        },
+        {
+          "handler_elapsed_seconds": 27.549828414979856,
+          "pipeline_elapsed_seconds": 27.401668469014112,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0015343860141001642,
+            "SlicesGeometryPipelineStep": 0.7512789350003004,
+            "VolumeCachePipelineStep": 0.14462663099402562,
+            "SliceParallelPipelineStep": 26.503953100997023
+          },
+          "data_operation_elapsed_seconds": 26.503953100997023,
+          "enabled": true,
+          "process_elapsed_seconds": 31.071255583956372,
+          "label": "path-0-pair-2-1-slice",
+          "statistics_files": [
+            "path-0-pair-2-1-slice/output/slice-slice-b4505e99-d129-434d-9f13-ca40d2b046fe-statistics.json"
+          ],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 10386,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 300844806
+          },
+          "memory": {
+            "status": "partial",
+            "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+            "unit": "bytes",
+            "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 2168511488,
+            "last_complete_sample_bytes": 2168511488,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.0000227979617193,
+                "max": 1.0034218700020574
+              },
+              "complete_samples": 16,
+              "incomplete_samples": 12,
+              "discarded_samples": 0,
+              "max_process_count": 15,
+              "max_sweep_seconds": 0.22909625997999683,
+              "collector_cpu_seconds": 4.0266872,
+              "window_seconds": 27.401935885020066,
+              "first_sample_start_seconds": 0.0006371359922923148,
+              "last_sample_end_seconds": 27.089610278024338
+            },
+            "errors": [
+              {
+                "kind": "FileNotFoundError",
+                "count": 3,
+                "example": "[Errno 2] No such file or directory: '/psm_300e16d7'"
+              },
+              {
+                "kind": "OSError",
+                "count": 9,
+                "example": "Manager observations changed during memory sweep"
+              }
+            ]
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 177.0125259589986,
+          "pipeline_elapsed_seconds": 176.68329097301466,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0013697840040549636,
+            "SlicesGeometryPipelineStep": 0.697772610001266,
+            "VolumeCachePipelineStep": 0.15714641602244228,
+            "BackprojectPipelineStep": 175.826536684006
+          },
+          "data_operation_elapsed_seconds": 175.826536684006,
+          "enabled": true,
+          "process_elapsed_seconds": 180.78445877396734,
+          "label": "path-0-pair-2-1-backproject",
+          "statistics_files": [
+            "path-0-pair-2-1-backproject/output/backproject-backproject-ddd38e82-8b5a-4644-8b71-a226c00fe8a3-statistics.json"
+          ],
+          "output_header": {
+            "files": 4671,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              2216,
+              4851
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 419835151
+          },
+          "memory": {
+            "status": "sampled",
+            "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+            "unit": "bytes",
+            "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+            "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+            "sampled_peak_bytes": 2355590144,
+            "last_complete_sample_bytes": 942750720,
+            "sampling": {
+              "requested_interval_seconds": 1.0,
+              "observed_interval_seconds": {
+                "min": 1.0000671439920552,
+                "max": 1.0159843080327846
+              },
+              "complete_samples": 177,
+              "incomplete_samples": 0,
+              "discarded_samples": 0,
+              "max_process_count": 14,
+              "max_sweep_seconds": 0.5027118900325149,
+              "collector_cpu_seconds": 24.066265100000003,
+              "window_seconds": 176.68361200601794,
+              "first_sample_start_seconds": 0.002937079989351332,
+              "last_sample_end_seconds": 176.28033472201787
+            },
+            "errors": []
+          },
+          "operation": "backproject"
+        },
+        {
+          "handler_elapsed_seconds": 38.61982921598246,
+          "pipeline_elapsed_seconds": 38.61656729597598,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.0035877719637937844,
+            "SlicesGeometryPipelineStep": 1.158776302007027,
+            "VolumeCachePipelineStep": 0.15661396301584318,
+            "SliceParallelPipelineStep": 37.29712417896371
+          },
+          "data_operation_elapsed_seconds": 37.29712417896371,
+          "enabled": false,
+          "process_elapsed_seconds": 45.06097283802228,
+          "label": "path-0-pair-2-0-slice",
+          "statistics_files": [],
+          "output_header": {
+            "files": 1,
+            "pages_in_first_file": 10386,
+            "page_shape": [
+              120,
+              120
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 300844806
+          },
+          "operation": "slice"
+        },
+        {
+          "handler_elapsed_seconds": 202.05418890697183,
+          "pipeline_elapsed_seconds": 202.05106393800816,
+          "step_elapsed_seconds": {
+            "ParseJSONPipelineStep": 0.003202583990059793,
+            "SlicesGeometryPipelineStep": 0.8117258120328188,
+            "VolumeCachePipelineStep": 0.18242254195502028,
+            "BackprojectPipelineStep": 201.05341624602443
+          },
+          "data_operation_elapsed_seconds": 201.05341624602443,
+          "enabled": false,
+          "process_elapsed_seconds": 207.00422458199318,
+          "label": "path-0-pair-2-0-backproject",
+          "statistics_files": [],
+          "output_header": {
+            "files": 4671,
+            "pages_in_first_file": 1,
+            "page_shape": [
+              2216,
+              4851
+            ],
+            "dtype": "uint16",
+            "storage_bytes": 419835151
+          },
+          "operation": "backproject"
+        }
+      ],
+      "slicing_warmup": {
+        "handler_elapsed_seconds": 106.22608113498427,
+        "pipeline_elapsed_seconds": 106.22456742898794,
+        "step_elapsed_seconds": {
+          "ParseJSONPipelineStep": 0.002036445017438382,
+          "SlicesGeometryPipelineStep": 0.6941206629853696,
+          "VolumeCachePipelineStep": 0.15566782600944862,
+          "SliceParallelPipelineStep": 105.37242247600807
+        },
+        "data_operation_elapsed_seconds": 105.37242247600807,
+        "enabled": false,
+        "process_elapsed_seconds": 109.8141933369916,
+        "label": "path-0-warmup",
+        "statistics_files": [],
+        "output_header": {
+          "files": 1,
+          "pages_in_first_file": 10386,
+          "page_shape": [
+            120,
+            120
+          ],
+          "dtype": "uint16",
+          "storage_bytes": 300844806
+        }
+      },
+      "operations": {
+        "slice": {
+          "disabled": {
+            "median_seconds": 31.71984844049439,
+            "min_seconds": 26.142572702025063,
+            "max_seconds": 37.29712417896371,
+            "median_absolute_deviation_seconds": 5.577275738469325,
+            "samples_seconds": [
+              26.142572702025063,
+              37.29712417896371
+            ]
+          },
+          "enabled": {
+            "median_seconds": 26.852296208991902,
+            "min_seconds": 26.503953100997023,
+            "max_seconds": 27.20063931698678,
+            "median_absolute_deviation_seconds": 0.34834310799487866,
+            "samples_seconds": [
+              27.20063931698678,
+              26.503953100997023
+            ]
+          },
+          "median_elapsed_overhead_percent": -15.345446056067669,
+          "paired_overhead_percent": [
+            4.047293382413564,
+            -28.93834663009821
+          ],
+          "measured_median_at_most_one_percent": true,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 27.34698157501407,
+              "pipeline_elapsed_seconds": 27.345541281974874,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0015636010211892426,
+                "SlicesGeometryPipelineStep": 0.7144845140282996,
+                "VolumeCachePipelineStep": 0.48662204400170594,
+                "SliceParallelPipelineStep": 26.142572702025063
+              },
+              "data_operation_elapsed_seconds": 26.142572702025063,
+              "enabled": false,
+              "process_elapsed_seconds": 30.953254182008095,
+              "label": "path-0-pair-1-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 10386,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 300844806
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 28.253506699984428,
+              "pipeline_elapsed_seconds": 28.11518227402121,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0018756180070340633,
+                "SlicesGeometryPipelineStep": 0.7453886480070651,
+                "VolumeCachePipelineStep": 0.1669874729705043,
+                "SliceParallelPipelineStep": 27.20063931698678
+              },
+              "data_operation_elapsed_seconds": 27.20063931698678,
+              "enabled": true,
+              "process_elapsed_seconds": 31.88109073601663,
+              "label": "path-0-pair-1-1-slice",
+              "statistics_files": [
+                "path-0-pair-1-1-slice/output/slice-slice-d49e76ce-8a38-4c3e-bed7-52be8356ec91-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 10386,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 300844806
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+                "unit": "bytes",
+                "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1985029120,
+                "last_complete_sample_bytes": 1985029120,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0002418310032226,
+                    "max": 1.0020079669775441
+                  },
+                  "complete_samples": 8,
+                  "incomplete_samples": 21,
+                  "discarded_samples": 0,
+                  "max_process_count": 15,
+                  "max_sweep_seconds": 0.1882207650342025,
+                  "collector_cpu_seconds": 3.9012761,
+                  "window_seconds": 28.11547189200064,
+                  "first_sample_start_seconds": 0.005568449036218226,
+                  "last_sample_end_seconds": 28.041682073031552
+                },
+                "errors": [
+                  {
+                    "kind": "FileNotFoundError",
+                    "count": 16,
+                    "example": "[Errno 2] No such file or directory: '/psm_44763101'"
+                  },
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=110326)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 4,
+                    "example": "Manager observations changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 27.549828414979856,
+              "pipeline_elapsed_seconds": 27.401668469014112,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0015343860141001642,
+                "SlicesGeometryPipelineStep": 0.7512789350003004,
+                "VolumeCachePipelineStep": 0.14462663099402562,
+                "SliceParallelPipelineStep": 26.503953100997023
+              },
+              "data_operation_elapsed_seconds": 26.503953100997023,
+              "enabled": true,
+              "process_elapsed_seconds": 31.071255583956372,
+              "label": "path-0-pair-2-1-slice",
+              "statistics_files": [
+                "path-0-pair-2-1-slice/output/slice-slice-b4505e99-d129-434d-9f13-ca40d2b046fe-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 10386,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 300844806
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+                "unit": "bytes",
+                "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 2168511488,
+                "last_complete_sample_bytes": 2168511488,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0000227979617193,
+                    "max": 1.0034218700020574
+                  },
+                  "complete_samples": 16,
+                  "incomplete_samples": 12,
+                  "discarded_samples": 0,
+                  "max_process_count": 15,
+                  "max_sweep_seconds": 0.22909625997999683,
+                  "collector_cpu_seconds": 4.0266872,
+                  "window_seconds": 27.401935885020066,
+                  "first_sample_start_seconds": 0.0006371359922923148,
+                  "last_sample_end_seconds": 27.089610278024338
+                },
+                "errors": [
+                  {
+                    "kind": "FileNotFoundError",
+                    "count": 3,
+                    "example": "[Errno 2] No such file or directory: '/psm_300e16d7'"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 9,
+                    "example": "Manager observations changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 38.61982921598246,
+              "pipeline_elapsed_seconds": 38.61656729597598,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0035877719637937844,
+                "SlicesGeometryPipelineStep": 1.158776302007027,
+                "VolumeCachePipelineStep": 0.15661396301584318,
+                "SliceParallelPipelineStep": 37.29712417896371
+              },
+              "data_operation_elapsed_seconds": 37.29712417896371,
+              "enabled": false,
+              "process_elapsed_seconds": 45.06097283802228,
+              "label": "path-0-pair-2-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 10386,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 300844806
+              },
+              "operation": "slice"
+            }
+          ]
+        },
+        "backproject": {
+          "disabled": {
+            "median_seconds": 176.92209276001086,
+            "min_seconds": 152.79076927399728,
+            "max_seconds": 201.05341624602443,
+            "median_absolute_deviation_seconds": 24.13132348601357,
+            "samples_seconds": [
+              152.79076927399728,
+              201.05341624602443
+            ]
+          },
+          "enabled": {
+            "median_seconds": 162.38039638698683,
+            "min_seconds": 148.93425608996768,
+            "max_seconds": 175.826536684006,
+            "median_absolute_deviation_seconds": 13.446140297019156,
+            "samples_seconds": [
+              148.93425608996768,
+              175.826536684006
+            ]
+          },
+          "median_elapsed_overhead_percent": -8.219265410086107,
+          "paired_overhead_percent": [
+            -2.52404854190752,
+            -12.547351859542088
+          ],
+          "measured_median_at_most_one_percent": true,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 153.62701357202604,
+              "pipeline_elapsed_seconds": 153.6251384500065,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.001996830978896469,
+                "SlicesGeometryPipelineStep": 0.6810499120038003,
+                "VolumeCachePipelineStep": 0.15112562204012647,
+                "BackprojectPipelineStep": 152.79076927399728
+              },
+              "data_operation_elapsed_seconds": 152.79076927399728,
+              "enabled": false,
+              "process_elapsed_seconds": 157.46754821704235,
+              "label": "path-0-pair-1-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 4671,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  2216,
+                  4851
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 419835147
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 150.02620827103965,
+              "pipeline_elapsed_seconds": 149.80158283404307,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.002405756968073547,
+                "SlicesGeometryPipelineStep": 0.7152926159906201,
+                "VolumeCachePipelineStep": 0.14933745295275003,
+                "BackprojectPipelineStep": 148.93425608996768
+              },
+              "data_operation_elapsed_seconds": 148.93425608996768,
+              "enabled": true,
+              "process_elapsed_seconds": 153.5761446810211,
+              "label": "path-0-pair-1-1-backproject",
+              "statistics_files": [
+                "path-0-pair-1-1-backproject/output/backproject-backproject-c0c6d686-1196-4428-b71f-90c66244ed2c-statistics.json"
+              ],
+              "output_header": {
+                "files": 4671,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  2216,
+                  4851
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 419835148
+              },
+              "memory": {
+                "status": "sampled",
+                "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+                "unit": "bytes",
+                "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 2542523392,
+                "last_complete_sample_bytes": 952855552,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0001083909883164,
+                    "max": 1.0047607169835828
+                  },
+                  "complete_samples": 150,
+                  "incomplete_samples": 0,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 0.43709576601395383,
+                  "collector_cpu_seconds": 15.5216898,
+                  "window_seconds": 149.80189355497714,
+                  "first_sample_start_seconds": 0.009013489005155861,
+                  "last_sample_end_seconds": 149.17219875496812
+                },
+                "errors": []
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 177.0125259589986,
+              "pipeline_elapsed_seconds": 176.68329097301466,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0013697840040549636,
+                "SlicesGeometryPipelineStep": 0.697772610001266,
+                "VolumeCachePipelineStep": 0.15714641602244228,
+                "BackprojectPipelineStep": 175.826536684006
+              },
+              "data_operation_elapsed_seconds": 175.826536684006,
+              "enabled": true,
+              "process_elapsed_seconds": 180.78445877396734,
+              "label": "path-0-pair-2-1-backproject",
+              "statistics_files": [
+                "path-0-pair-2-1-backproject/output/backproject-backproject-ddd38e82-8b5a-4644-8b71-a226c00fe8a3-statistics.json"
+              ],
+              "output_header": {
+                "files": 4671,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  2216,
+                  4851
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 419835151
+              },
+              "memory": {
+                "status": "sampled",
+                "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+                "unit": "bytes",
+                "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 2355590144,
+                "last_complete_sample_bytes": 942750720,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0000671439920552,
+                    "max": 1.0159843080327846
+                  },
+                  "complete_samples": 177,
+                  "incomplete_samples": 0,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 0.5027118900325149,
+                  "collector_cpu_seconds": 24.066265100000003,
+                  "window_seconds": 176.68361200601794,
+                  "first_sample_start_seconds": 0.002937079989351332,
+                  "last_sample_end_seconds": 176.28033472201787
+                },
+                "errors": []
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 202.05418890697183,
+              "pipeline_elapsed_seconds": 202.05106393800816,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.003202583990059793,
+                "SlicesGeometryPipelineStep": 0.8117258120328188,
+                "VolumeCachePipelineStep": 0.18242254195502028,
+                "BackprojectPipelineStep": 201.05341624602443
+              },
+              "data_operation_elapsed_seconds": 201.05341624602443,
+              "enabled": false,
+              "process_elapsed_seconds": 207.00422458199318,
+              "label": "path-0-pair-2-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 4671,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  2216,
+                  4851
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 419835151
+              },
+              "operation": "backproject"
+            }
+          ]
+        }
+      },
+      "pipeline_operations": {
+        "slice": {
+          "disabled": {
+            "median_seconds": 32.98105428897543,
+            "min_seconds": 27.345541281974874,
+            "max_seconds": 38.61656729597598,
+            "median_absolute_deviation_seconds": 5.635513007000554,
+            "samples_seconds": [
+              27.345541281974874,
+              38.61656729597598
+            ]
+          },
+          "enabled": {
+            "median_seconds": 27.75842537151766,
+            "min_seconds": 27.401668469014112,
+            "max_seconds": 28.11518227402121,
+            "median_absolute_deviation_seconds": 0.3567569025035482,
+            "samples_seconds": [
+              28.11518227402121,
+              27.401668469014112
+            ]
+          },
+          "median_elapsed_overhead_percent": -15.835239442917192,
+          "paired_overhead_percent": [
+            2.814502679285602,
+            -29.041677218499206
+          ],
+          "measured_median_at_most_one_percent": true,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 27.34698157501407,
+              "pipeline_elapsed_seconds": 27.345541281974874,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0015636010211892426,
+                "SlicesGeometryPipelineStep": 0.7144845140282996,
+                "VolumeCachePipelineStep": 0.48662204400170594,
+                "SliceParallelPipelineStep": 26.142572702025063
+              },
+              "data_operation_elapsed_seconds": 26.142572702025063,
+              "enabled": false,
+              "process_elapsed_seconds": 30.953254182008095,
+              "label": "path-0-pair-1-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 10386,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 300844806
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 28.253506699984428,
+              "pipeline_elapsed_seconds": 28.11518227402121,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0018756180070340633,
+                "SlicesGeometryPipelineStep": 0.7453886480070651,
+                "VolumeCachePipelineStep": 0.1669874729705043,
+                "SliceParallelPipelineStep": 27.20063931698678
+              },
+              "data_operation_elapsed_seconds": 27.20063931698678,
+              "enabled": true,
+              "process_elapsed_seconds": 31.88109073601663,
+              "label": "path-0-pair-1-1-slice",
+              "statistics_files": [
+                "path-0-pair-1-1-slice/output/slice-slice-d49e76ce-8a38-4c3e-bed7-52be8356ec91-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 10386,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 300844806
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+                "unit": "bytes",
+                "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 1985029120,
+                "last_complete_sample_bytes": 1985029120,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0002418310032226,
+                    "max": 1.0020079669775441
+                  },
+                  "complete_samples": 8,
+                  "incomplete_samples": 21,
+                  "discarded_samples": 0,
+                  "max_process_count": 15,
+                  "max_sweep_seconds": 0.1882207650342025,
+                  "collector_cpu_seconds": 3.9012761,
+                  "window_seconds": 28.11547189200064,
+                  "first_sample_start_seconds": 0.005568449036218226,
+                  "last_sample_end_seconds": 28.041682073031552
+                },
+                "errors": [
+                  {
+                    "kind": "FileNotFoundError",
+                    "count": 16,
+                    "example": "[Errno 2] No such file or directory: '/psm_44763101'"
+                  },
+                  {
+                    "kind": "NoSuchProcess",
+                    "count": 1,
+                    "example": "process no longer exists (pid=110326)"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 4,
+                    "example": "Manager observations changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 27.549828414979856,
+              "pipeline_elapsed_seconds": 27.401668469014112,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0015343860141001642,
+                "SlicesGeometryPipelineStep": 0.7512789350003004,
+                "VolumeCachePipelineStep": 0.14462663099402562,
+                "SliceParallelPipelineStep": 26.503953100997023
+              },
+              "data_operation_elapsed_seconds": 26.503953100997023,
+              "enabled": true,
+              "process_elapsed_seconds": 31.071255583956372,
+              "label": "path-0-pair-2-1-slice",
+              "statistics_files": [
+                "path-0-pair-2-1-slice/output/slice-slice-b4505e99-d129-434d-9f13-ca40d2b046fe-statistics.json"
+              ],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 10386,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 300844806
+              },
+              "memory": {
+                "status": "partial",
+                "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+                "unit": "bytes",
+                "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 2168511488,
+                "last_complete_sample_bytes": 2168511488,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0000227979617193,
+                    "max": 1.0034218700020574
+                  },
+                  "complete_samples": 16,
+                  "incomplete_samples": 12,
+                  "discarded_samples": 0,
+                  "max_process_count": 15,
+                  "max_sweep_seconds": 0.22909625997999683,
+                  "collector_cpu_seconds": 4.0266872,
+                  "window_seconds": 27.401935885020066,
+                  "first_sample_start_seconds": 0.0006371359922923148,
+                  "last_sample_end_seconds": 27.089610278024338
+                },
+                "errors": [
+                  {
+                    "kind": "FileNotFoundError",
+                    "count": 3,
+                    "example": "[Errno 2] No such file or directory: '/psm_300e16d7'"
+                  },
+                  {
+                    "kind": "OSError",
+                    "count": 9,
+                    "example": "Manager observations changed during memory sweep"
+                  }
+                ]
+              },
+              "operation": "slice"
+            },
+            {
+              "handler_elapsed_seconds": 38.61982921598246,
+              "pipeline_elapsed_seconds": 38.61656729597598,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0035877719637937844,
+                "SlicesGeometryPipelineStep": 1.158776302007027,
+                "VolumeCachePipelineStep": 0.15661396301584318,
+                "SliceParallelPipelineStep": 37.29712417896371
+              },
+              "data_operation_elapsed_seconds": 37.29712417896371,
+              "enabled": false,
+              "process_elapsed_seconds": 45.06097283802228,
+              "label": "path-0-pair-2-0-slice",
+              "statistics_files": [],
+              "output_header": {
+                "files": 1,
+                "pages_in_first_file": 10386,
+                "page_shape": [
+                  120,
+                  120
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 300844806
+              },
+              "operation": "slice"
+            }
+          ]
+        },
+        "backproject": {
+          "disabled": {
+            "median_seconds": 177.83810119400732,
+            "min_seconds": 153.6251384500065,
+            "max_seconds": 202.05106393800816,
+            "median_absolute_deviation_seconds": 24.212962744000833,
+            "samples_seconds": [
+              153.6251384500065,
+              202.05106393800816
+            ]
+          },
+          "enabled": {
+            "median_seconds": 163.24243690352887,
+            "min_seconds": 149.80158283404307,
+            "max_seconds": 176.68329097301466,
+            "median_absolute_deviation_seconds": 13.440854069485795,
+            "samples_seconds": [
+              149.80158283404307,
+              176.68329097301466
+            ]
+          },
+          "median_elapsed_overhead_percent": -8.207276276839991,
+          "paired_overhead_percent": [
+            -2.488886685174707,
+            -12.555129614549642
+          ],
+          "measured_median_at_most_one_percent": true,
+          "pixel_equivalence": null,
+          "runs": [
+            {
+              "handler_elapsed_seconds": 153.62701357202604,
+              "pipeline_elapsed_seconds": 153.6251384500065,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.001996830978896469,
+                "SlicesGeometryPipelineStep": 0.6810499120038003,
+                "VolumeCachePipelineStep": 0.15112562204012647,
+                "BackprojectPipelineStep": 152.79076927399728
+              },
+              "data_operation_elapsed_seconds": 152.79076927399728,
+              "enabled": false,
+              "process_elapsed_seconds": 157.46754821704235,
+              "label": "path-0-pair-1-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 4671,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  2216,
+                  4851
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 419835147
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 150.02620827103965,
+              "pipeline_elapsed_seconds": 149.80158283404307,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.002405756968073547,
+                "SlicesGeometryPipelineStep": 0.7152926159906201,
+                "VolumeCachePipelineStep": 0.14933745295275003,
+                "BackprojectPipelineStep": 148.93425608996768
+              },
+              "data_operation_elapsed_seconds": 148.93425608996768,
+              "enabled": true,
+              "process_elapsed_seconds": 153.5761446810211,
+              "label": "path-0-pair-1-1-backproject",
+              "statistics_files": [
+                "path-0-pair-1-1-backproject/output/backproject-backproject-c0c6d686-1196-4428-b71f-90c66244ed2c-statistics.json"
+              ],
+              "output_header": {
+                "files": 4671,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  2216,
+                  4851
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 419835148
+              },
+              "memory": {
+                "status": "sampled",
+                "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+                "unit": "bytes",
+                "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 2542523392,
+                "last_complete_sample_bytes": 952855552,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0001083909883164,
+                    "max": 1.0047607169835828
+                  },
+                  "complete_samples": 150,
+                  "incomplete_samples": 0,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 0.43709576601395383,
+                  "collector_cpu_seconds": 15.5216898,
+                  "window_seconds": 149.80189355497714,
+                  "first_sample_start_seconds": 0.009013489005155861,
+                  "last_sample_end_seconds": 149.17219875496812
+                },
+                "errors": []
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 177.0125259589986,
+              "pipeline_elapsed_seconds": 176.68329097301466,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.0013697840040549636,
+                "SlicesGeometryPipelineStep": 0.697772610001266,
+                "VolumeCachePipelineStep": 0.15714641602244228,
+                "BackprojectPipelineStep": 175.826536684006
+              },
+              "data_operation_elapsed_seconds": 175.826536684006,
+              "enabled": true,
+              "process_elapsed_seconds": 180.78445877396734,
+              "label": "path-0-pair-2-1-backproject",
+              "statistics_files": [
+                "path-0-pair-2-1-backproject/output/backproject-backproject-ddd38e82-8b5a-4644-8b71-a226c00fe8a3-statistics.json"
+              ],
+              "output_header": {
+                "files": 4671,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  2216,
+                  4851
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 419835151
+              },
+              "memory": {
+                "status": "sampled",
+                "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+                "unit": "bytes",
+                "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+                "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+                "sampled_peak_bytes": 2355590144,
+                "last_complete_sample_bytes": 942750720,
+                "sampling": {
+                  "requested_interval_seconds": 1.0,
+                  "observed_interval_seconds": {
+                    "min": 1.0000671439920552,
+                    "max": 1.0159843080327846
+                  },
+                  "complete_samples": 177,
+                  "incomplete_samples": 0,
+                  "discarded_samples": 0,
+                  "max_process_count": 14,
+                  "max_sweep_seconds": 0.5027118900325149,
+                  "collector_cpu_seconds": 24.066265100000003,
+                  "window_seconds": 176.68361200601794,
+                  "first_sample_start_seconds": 0.002937079989351332,
+                  "last_sample_end_seconds": 176.28033472201787
+                },
+                "errors": []
+              },
+              "operation": "backproject"
+            },
+            {
+              "handler_elapsed_seconds": 202.05418890697183,
+              "pipeline_elapsed_seconds": 202.05106393800816,
+              "step_elapsed_seconds": {
+                "ParseJSONPipelineStep": 0.003202583990059793,
+                "SlicesGeometryPipelineStep": 0.8117258120328188,
+                "VolumeCachePipelineStep": 0.18242254195502028,
+                "BackprojectPipelineStep": 201.05341624602443
+              },
+              "data_operation_elapsed_seconds": 201.05341624602443,
+              "enabled": false,
+              "process_elapsed_seconds": 207.00422458199318,
+              "label": "path-0-pair-2-0-backproject",
+              "statistics_files": [],
+              "output_header": {
+                "files": 4671,
+                "pages_in_first_file": 1,
+                "page_shape": [
+                  2216,
+                  4851
+                ],
+                "dtype": "uint16",
+                "storage_bytes": 419835151
+              },
+              "operation": "backproject"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "production_code_unchanged": true
+}

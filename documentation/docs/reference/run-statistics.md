@@ -257,7 +257,7 @@ Output naming, atomic file publication, Docker export, and recovery extend the
 existing file/volume facilities. The memory collector extends this same lifecycle.
 
 The fixed-local-source benchmark and reproducible commands are documented in
-[the Python benchmark guide](https://github.com/ChengLabResearch/ouroboros/blob/main/python/benchmarks/README.md).
+[the benchmark guide](../development/benchmarks/index.md).
 The owner-approved 1% combined in-operation engineering target applies to longer
 runs, assessed alongside inter-run variability and fixed startup/shutdown costs.
 For the recorded #139 real-data evidence, acceptance is scoped to the long
@@ -393,7 +393,7 @@ The native CI matrix covers Linux, Windows and Apple Silicon macOS on Python
 accounting and reporting tests; it has not repeated the long real-data benchmark
 campaign. Historical Linux and Windows pipeline results, component diagnostics,
 and Docker/frozen-executable checks are retained in
-[the Python benchmark guide](https://github.com/ChengLabResearch/ouroboros/blob/main/python/benchmarks/README.md).
+[the benchmark guide](../development/benchmarks/index.md).
 Those results describe earlier collectors. In particular, the earlier Windows
 long-path overhead finding applies to the removed working-set enumeration and
 mapping-tracking implementation, not a measurement of this replacement.

@@ -35,6 +35,7 @@ jobs:
         run: mkdocs build
 
       - name: Deploy
+        if: github.ref == 'refs/heads/main'
         uses: JamesIves/github-pages-deploy-action@v4
         with:
             branch: gh-pages

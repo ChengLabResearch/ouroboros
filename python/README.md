@@ -30,7 +30,7 @@ Server reporting is enabled by default; pass `reporting_enabled=false` when
 submitting a task to opt out. Task status exposes report delivery and recovery
 information. See the [run-statistics reference](../documentation/docs/reference/run-statistics.md)
 for timing boundaries, schema definitions, Docker behavior, and limitations, and
-the [benchmark guide](benchmarks/README.md) for reproducible overhead measurements.
+the [benchmark guide](../documentation/docs/development/benchmarks/index.md) for reproducible overhead measurements.
 
 Export sample options files into the current folder.
 

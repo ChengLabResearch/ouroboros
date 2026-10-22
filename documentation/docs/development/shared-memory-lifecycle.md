@@ -186,7 +186,7 @@ release, shutdown and inherited `ShareableList` registration, along with missing
 or duplicated managed-buffer accounting. The native CI matrix runs ownership
 and collector tests on Python 3.11/3.12.
 
-The earlier real-data batches in `python/benchmarks/README.md` measured the prior
+The earlier real-data batches in the [benchmark guide](benchmarks/index.md) measured the prior
 collector. Their Windows working-set enumeration overhead is historical evidence
 for this simplification, not a result for the replacement. Focused tests do not
 establish a pipeline overhead bound or replace native macOS validation.

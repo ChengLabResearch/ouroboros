@@ -59,8 +59,9 @@ allocation churn can no longer invalidate a sweep.
 an explicit assessment of the reported coverage limits before broad overhead or
 peak-coverage claims. That follow-up must distinguish treatment cost from host
 variation and retain the same timing boundary; this campaign makes no sampler,
-interval, metric or scientific-workload changes to obtain acceptance. The cold-cache
-offset-misassociation finding below also remains diagnosed but unrepaired. Native
+interval, metric or scientific-workload changes to obtain acceptance. The cache
+contents were repaired for testing; the code path that created the bad entries
+has not been identified or fixed. Native
 macOS performance and macOS-host Docker delivery remain deferred under #139.
 
 ## Deployment and timing protocol
@@ -116,7 +117,7 @@ remains in the raw results. The original failure used 48 workers; this 12-CPU,
 12-worker campaign is corroborative, not a matched reproduction of that deployment.
 No new native Windows/macOS or GUI/server delivery run was performed. Historical
 native Linux/Windows comparisons and macOS workflow deferrals remain in the
-[parent benchmark report](../../README.md).
+[parent benchmark report](../../index.md).
 
 ## Source-cache failure and separate recovery cohort
 
@@ -126,14 +127,23 @@ failed warmup means Short 2 does not establish the intended warm-cache condition
 The original Long warmup and all four measured slices failed gzip decoding; their
 four backprojections were skipped. They have no overhead estimate.
 
+**The benchmark cache was repaired; the code path that created the bad entries
+has not been identified or fixed.**
+
+An offset is a byte position inside a file. This dataset is stored in large shard
+files, each with index blocks locating its contents.
 [Forensic evidence](source-cache-diagnostic.json) identifies two bad cached
-`11b.shard-*.msi` files. Their bytes exactly match remote shard `11b` read with
-shard `152`'s offsets. Correct ranges are valid gzip, and a fresh metadata-only
-CloudVolume reader succeeds. All six other cached MSI entries pass gzip and
-expected-length checks. The initial offset-misassociation path is not established;
-this is not evidence of a persistent remote source failure. CloudVolume caches the
-bytes before decoding, so bad entries persist. These two entries fail before
-producing image-chunk offsets; this is not a general proof of data integrity.
+`11b.shard-*.msi` files. Their bytes exactly match remote shard `11b` read at
+positions specified by shard `152`'s index. Reading `11b` at its correct positions
+returns valid indexes, and a fresh metadata-only CloudVolume reader succeeds.
+All six other cached MSI entries pass gzip and expected-length checks. This
+establishes a file/offset mismatch in the cached data; the originating code path
+remains unproven. No race or other specific originating cause is established.
+
+CloudVolume saved the incorrect bytes before checking whether they could be
+decompressed. Subsequent attempts reused them and repeatedly failed with the same
+gzip error, before the malformed indexes could supply image-chunk offsets. This
+specific failure does not establish a general proof of image-data integrity.
 
 The original cache and failed cohort were preserved. A separate cache copy
 replaced exactly those two entries with the validated remote bytes, recorded in
@@ -142,6 +152,12 @@ replaced exactly those two entries with the validated remote bytes, recorded in
 pairs. Its results are not pooled with the failed original cohort. Nerve follows
 using that cache. No production code, dependency, source volume, or annotation
 was patched to obtain these results.
+
+"Cold-cache" describes the circumstances in which the bad entries were encountered;
+it does not establish that an empty cache alone triggers the failure. Because the
+originating code path remains unresolved, the problem could recur when uncached
+indexes are downloaded. This is a data-loading/cache finding discovered during
+the RAM campaign; there is no evidence that RAM collection caused it.
 
 ## Canonical data-step summaries
 

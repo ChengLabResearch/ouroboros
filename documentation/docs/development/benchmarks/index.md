@@ -1,8 +1,12 @@
 # Run-statistics overhead benchmark
 
+Benchmark reports and raw evidence live in this documentation directory. The
+runnable benchmark scripts remain in `python/benchmarks/`; reproduction commands
+below run from the repository's `python/` directory.
+
 ## Docker cost and coverage after the identity fix (#163)
 
-The [#163 campaign report](results/issue-163/README.md) records Linux Docker on
+The [#163 campaign report](results/issue-163/index.md) records Linux Docker on
 Windows/WSL2 at merged #162 revision `e81c4d4`, including all paired timings,
 collector coverage, controlled-clock identity evidence, and source-cache failures.
 It separates the data-operation timer from the broader pipeline timer and retains

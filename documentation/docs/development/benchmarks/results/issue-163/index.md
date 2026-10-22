@@ -37,12 +37,22 @@ above both treatment MADs. Preserve those short-run costs outside the scoped
 longer-run target; do not call them negligible. Short 2's failed warmup further
 limits its timing interpretation.
 
-Coverage is mixed. Long Salivary slicing accepts only **3/13 and 7/14** attempted
-sweeps; Nerve slicing accepts **8/29 and 16/28**. Errors include disappearing
-segments/processes and changing manager observations. Short 3 slicing accepts
-only one sample, with a maximum of two processes, in each enabled run: its
-non-null peaks do not establish worker-phase coverage. Nerve backprojection
-accepts **150/150 and 177/177** sweeps, with maximum sweeps of 437 / 503 ms and
+Long Salivary slicing accepts only **3/13 and 7/14** attempted sweeps; Nerve
+slicing accepts **8/29 and 16/28**. Across these four runs, the 50 incomplete
+sweeps comprise 29 `FileNotFoundError`, 19 `OSError`, and two `NoSuchProcess`
+records. Their retained examples name missing `/psm_*` segments, changed manager
+observations, and process exits, respectively; none names process-tree churn.
+Errors are counted by exception class, with only the first message retained per
+class in each report. These examples point to **managed shared-memory allocation
+and release racing the sweep** as the main remaining long-slicing coverage
+limitation, between the manager manifest read and segment-open or residency
+checks; individual lifecycle sequences were not traced. The campaign's only two
+retained `Process tree changed during memory sweep` examples are both in Short 2
+backprojection, consistent with removal of the clock-induced false churn in #162.
+
+Short 3 slicing accepts only one sample, with a maximum of two processes, in each
+enabled run: its non-null peaks do not establish worker-phase coverage. Nerve
+backprojection accepts **150/150 and 177/177** sweeps, with maximum sweeps of 437 / 503 ms and
 collector CPU of 15.522 / 24.066 s across 149.802 / 176.684 s windows. These CPU
 figures describe observer work, not workload slowdown.
 
@@ -56,10 +66,11 @@ by this comparison, and the controlled-clock result does not imply that real
 allocation churn can no longer invalidate a sweep.
 
 **#163 remains open** for follow-up on the observed Long backprojection cost and
-an explicit assessment of the reported coverage limits before broad overhead or
-peak-coverage claims. That follow-up must distinguish treatment cost from host
-variation and retain the same timing boundary; this campaign makes no sampler,
-interval, metric or scientific-workload changes to obtain acceptance. The cache
+an explicit assessment of managed-segment churn and the reported coverage limits
+before broad overhead or peak-coverage claims. That follow-up must distinguish
+treatment cost from host variation and retain the same timing boundary; this
+campaign makes no sampler, interval, metric or scientific-workload changes to
+obtain acceptance. The cache
 contents were repaired for testing; the code path that created the bad entries
 has not been identified or fixed. Native
 macOS performance and macOS-host Docker delivery remain deferred under #139.

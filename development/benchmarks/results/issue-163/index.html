@@ -1,0 +1,2020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="generator" content="mkdocs-1.6.1, mkdocs-terminal-4.8.0">
+    
+    <meta name="description" content="Quickly extract long ROIs (e.g. blood vessels, nerves) from cloud-hosted medical scans."> 
+    
+    <meta name="author" content="Weaver Goldman and David Northover"> 
+    
+    <link rel="canonical" href="https://wegold.me/ouroboros/development/benchmarks/results/issue-163/"><link rel="icon" type="image/png" sizes="192x192" href="../../../../img/android-chrome-192x192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="../../../../img/android-chrome-512x512.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="../../../../img/apple-touch-icon.png" />
+<link rel="shortcut icon" type="image/png" sizes="48x48" href="../../../../img/favicon.ico" />
+<link rel="icon" type="image/png" sizes="16x16" href="../../../../img/favicon-16x16.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="../../../../img/favicon-32x32.png" />
+
+
+    
+ 
+<title>RAM Collector Campaign (#163) - Ouroboros Documentation</title>
+
+
+<link href="../../../../css/fontawesome/css/fontawesome.min.css" rel="stylesheet">
+<link href="../../../../css/fontawesome/css/solid.min.css" rel="stylesheet">
+<link href="../../../../css/normalize.css" rel="stylesheet">
+<link href="../../../../css/terminal.css" rel="stylesheet">
+<link href="../../../../css/theme.css" rel="stylesheet">
+<link href="../../../../css/theme.tile_grid.css" rel="stylesheet">
+<link href="../../../../css/theme.footer.css" rel="stylesheet">
+<!-- dark color palette -->
+<link href="../../../../css/palettes/dark.css" rel="stylesheet">
+
+<!-- page layout -->
+<style>
+/* initially set page layout to a one column grid */
+.terminal-mkdocs-main-grid {
+    display: grid;
+    grid-column-gap: 1.4em;
+    grid-template-columns: auto;
+    grid-template-rows: auto;
+}
+
+/*  
+*   when side navigation is not hidden, use a two column grid.  
+*   if the screen is too narrow, fall back to the initial one column grid layout.
+*   in this case the main content will be placed under the navigation panel. 
+*/
+@media only screen and (min-width: 70em) {
+    .terminal-mkdocs-main-grid {
+        grid-template-columns: 4fr 9fr;
+    }
+}</style>
+
+
+
+     
+    
+    
+
+    
+    <!-- search css support -->
+<link href="../../../../css/search/bootstrap-modal.css" rel="stylesheet">
+<!-- search scripts -->
+<script>
+    var base_url = "../../../..",
+    shortcuts = "{}";
+</script>
+<script src="../../../../js/jquery/jquery-1.10.1.min.js" defer></script>
+<script src="../../../../js/bootstrap/bootstrap.min.js" defer></script>
+<script src="../../../../js/mkdocs/base.js" defer></script>
+    
+    
+    
+    
+    <script src="../../../../search/main.js"></script>
+    
+
+    
+</head>
+
+<body class="terminal"><div class="container">
+    <div class="terminal-nav">
+        <header class="terminal-logo">
+            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://wegold.me/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
+        </header>
+        
+        <nav class="terminal-menu">
+            
+            <ul vocab="https://schema.org/" typeof="BreadcrumbList">
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="../../../.." class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Home</span>
+                    </a>
+                    <meta property="position" content="0">
+                </li>
+                
+                
+                
+                
+                
+                
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="https://github.com/ChengLabResearch/ouroboros/releases" class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Releases</span>
+                    </a>
+                    <meta property="position" content="1">
+                </li>
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="https://github.com/ChengLabResearch/ouroboros" class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Repository</span>
+                    </a>
+                    <meta property="position" content="2">
+                </li>
+                
+                    
+                    
+
+
+<li property="itemListElement" typeof="ListItem">
+    <a href="#" class="menu-item" data-toggle="modal" data-target="#mkdocs_search_modal" property="item" typeof="SearchAction">
+        <i aria-hidden="true" class="fa fa-search"></i> <span property="name">Search</span>
+    </a>
+    <meta property="position" content="3">
+</li>
+                    
+            </ul>
+            
+        </nav>
+    </div>
+</div>
+        
+    <div class="container">
+        <div class="terminal-mkdocs-main-grid"><aside id="terminal-mkdocs-side-panel"><nav>
+    <ul class="terminal-mkdocs-side-nav-items">
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../../..">Home</a>
+        
+    
+    
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Usage Guide</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../../../guide/downloading/">Download Ouroboros</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../../../guide/slicing/">Slicing</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../../../guide/backproject/">Backprojection</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../../../guide/plugins/">Plugins</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Reference</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../../../reference/technical-constants/">Technical Constants</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../../../reference/run-statistics/">Pipeline Run Statistics</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        <span class="
+        
+    terminal-mkdocs-side-nav-item--active terminal-mkdocs-side-nav-section-no-index">Development</span>
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/README.md">App</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/README.md">Python</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md">Plugins</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../../docker-builds/">Docker Builds</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../../registry-server-images/">Registry Server Images</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../../production-package-flavors/">Production Package Flavors</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        <span class="
+        
+    terminal-mkdocs-side-nav-item--active terminal-mkdocs-side-nav-section-no-index">Benchmarks</span>
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/releases">Releases</a>
+        
+    
+    
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros">Repository</a>
+        
+    
+    
+    
+       </li>
+        
+    </ul>
+</nav><hr>
+<nav>
+    <ul>
+        <li><a href="#ram-collector-cost-and-coverage-after-162">RAM collector cost and coverage after #162</a></li>
+        <li><a href="#findings-and-remaining-work">Findings and remaining work</a></li><li><a href="#deployment-and-timing-protocol">Deployment and timing protocol</a></li><li><a href="#source-cache-failure-and-separate-recovery-cohort">Source-cache failure and separate recovery cohort</a></li><li><a href="#canonical-data-step-summaries">Canonical data-step summaries</a></li><li><a href="#external-pipeline-summaries-separate-boundary">External pipeline summaries (separate boundary)</a></li><li><a href="#every-operation-attempt">Every operation attempt</a></li><li><a href="#every-enabled-report">Every enabled report</a></li><li><a href="#failed-or-skipped-attempts">Failed or skipped attempts</a></li><li><a href="#controlled-clock-identity-evidence">Controlled-clock identity evidence</a></li><li><a href="#reproduction-and-validation">Reproduction and validation</a></li><li><a href="#raw-evidence">Raw evidence</a></li>
+    </ul>
+</nav>
+</aside>
+            <main id="terminal-mkdocs-main-content">
+<section id="mkdocs-terminal-content">
+    <h1 id="ram-collector-cost-and-coverage-after-162">RAM collector cost and coverage after #162</h1>
+<p>This campaign measures merged production revision
+<a href="https://github.com/ChengLabResearch/ouroboros/commit/e81c4d4743777d80b5b6fa70f8354d9c285ecd0e"><code>e81c4d4</code></a>
+for <a href="https://github.com/ChengLabResearch/ouroboros/issues/163">#163</a>. Production
+code, the one-second sampling interval, metric semantics, and report reduction
+are unchanged. This is engineering evidence; it does not replace publication
+Table 1 measurements tracked by
+<a href="https://github.com/den-sq/ouroboros_pub/issues/121">ouroboros_pub#121</a>.</p>
+<h2 id="findings-and-remaining-work">Findings and remaining work</h2>
+<p><strong>The identity-growth regression is absent in the controlled probe; blanket
+negligible-overhead and adequate-peak-coverage claims are not established.</strong>
+All 64 controlled-clock sweeps retain exactly 51 unique processes, with no failures
+and early/late median sweep costs of 16.500 / 16.808 ms. New successful timed
+reports have maximum counts of 7/6 for the four-worker fixture and at most 15/14
+for 12-worker real-data slicing/backprojection. See the separate identity evidence
+and its limits below.</p>
+<p>The owner-approved <strong>1% engineering target remains limited to #139's named longer
+Salivary workload</strong>, interpreted with variability. In the valid Docker cohort,
+Long slicing changes by <strong>+0.157%</strong> (+0.020 s), below both MADs and with opposite
+pair signs. Long backprojection changes by <strong>+6.476%</strong> (+0.957 s), above both MADs
+(0.364 / 0.565 s), with positive changes in both pairs (+0.183% / +13.087%). The
+latter is a material observed difference and does <strong>not</strong> establish the scoped
+1% acceptance. Two shared-host pairs do not isolate the collector as the sole
+cause or establish a statistical upper bound. Historical native Linux/Windows
+acceptance remains specifically at the older recorded revision/deployments.</p>
+<p>Nerve changes by <strong>−15.345% slicing / −8.219% backprojection</strong>. Disabled-treatment
+MADs are 5.577 / 24.131 s, and the final disabled trial is substantially slower
+than the first. These measurements illustrate inter-run variation, not a reporting
+speedup, and do not override the Salivary finding. Fixed-local slicing (+5.198%)
+and Short 3 slicing (+3.053%) are slower in both pairs with median differences
+above both treatment MADs. Preserve those short-run costs outside the scoped
+longer-run target; do not call them negligible. Short 2's failed warmup further
+limits its timing interpretation.</p>
+<p>Long Salivary slicing accepts only <strong>3/13 and 7/14</strong> attempted sweeps; Nerve
+slicing accepts <strong>8/29 and 16/28</strong>. Across these four runs, the 50 incomplete
+sweeps comprise 29 <code>FileNotFoundError</code>, 19 <code>OSError</code>, and two <code>NoSuchProcess</code>
+records. Their retained examples name missing <code>/psm_*</code> segments, changed manager
+observations, and process exits, respectively; none names process-tree churn.
+Errors are counted by exception class, with only the first message retained per
+class in each report. These examples point to <strong>managed shared-memory allocation
+and release racing the sweep</strong> as the main remaining long-slicing coverage
+limitation, between the manager manifest read and segment-open or residency
+checks; individual lifecycle sequences were not traced. The campaign's only two
+retained <code>Process tree changed during memory sweep</code> examples are both in Short 2
+backprojection, consistent with removal of the clock-induced false churn in #162.</p>
+<p>Short 3 slicing accepts only one sample, with a maximum of two processes, in each
+enabled run: its non-null peaks do not establish worker-phase coverage. Nerve
+backprojection accepts <strong>150/150 and 177/177</strong> sweeps, with maximum sweeps of 437 / 503 ms and
+collector CPU of 15.522 / 24.066 s across 149.802 / 176.684 s windows. These CPU
+figures describe observer work, not workload slowdown.</p>
+<p>The original failing Nerve report had 1,551 reported processes, a maximum sweep
+of 18.951 s, 1,132.140 collector CPU-seconds over 1,129.921 s, and 173 complete /
+117 incomplete samples. The current counts and sweep costs corroborate removal
+of duplicate accounting, but these are <strong>12-worker versus 48-worker</strong> slicing
+runs with different durations/hardware. Real slicing's incomplete fraction did
+not uniformly improve. No historical values are numerically repaired or replaced
+by this comparison, and the controlled-clock result does not imply that real
+allocation churn can no longer invalidate a sweep.</p>
+<p><strong>#163 remains open</strong> for follow-up on the observed Long backprojection cost and
+an explicit assessment of managed-segment churn and the reported coverage limits
+before broad overhead or peak-coverage claims. That follow-up must distinguish
+treatment cost from host variation and retain the same timing boundary; this
+campaign makes no sampler, interval, metric or scientific-workload changes to
+obtain acceptance. The cache
+contents were repaired for testing; the code path that created the bad entries
+has not been identified or fixed. Native
+macOS performance and macOS-host Docker delivery remain deferred under #139.</p>
+<h2 id="deployment-and-timing-protocol">Deployment and timing protocol</h2>
+<p>The CLI harness ran in an isolated Linux Docker container on Windows 11 Enterprise
+22631 / WSL2, with an Intel Xeon W-10855M (6 cores, 12 logical CPUs). Docker
+Desktop's Linux VM exposed 12 CPUs and 70.67 GiB RAM; the container had no extra
+CPU/memory cap and a 64 GiB <code>/dev/shm</code>. Python was 3.11.12, psutil 7.1.3, NumPy
+1.26.4, SciPy 1.11.2, tifffile 2024.12.12, CloudVolume 12.7.0 and CloudFiles 5.8.2.
+All installed versions represented in <code>poetry.lock</code> match it. CloudVolume's
+metadata says 12.7.0, but its recorded wheel origin and hash match the declared
+12.7.0a0 fork. BLAS/OpenMP/MKL threads were limited to one in both treatments.
+Existing application containers remained running on this shared development host.</p>
+<p>The local image ID is
+<code>sha256:3719d0a81c31dd078d78fed6398c6d2441a2e918fb7db4d6ca7771c3b5ce1ea2</code>.
+It retains the installed dependency environment from local image
+<code>sha256:44f155af7e0ff1971ccce2a70760da78472238984643a8cc442ba561bce8d37d</code>
+and copies the exact fixed production source over it. Neither image has a registry
+<code>RepoDigest</code>. This was not a fresh release-image certification. See
+<a href="provenance.json">provenance</a>, the <a href="Dockerfile">campaign Dockerfile</a>, and the
+<a href="container_provenance.py">container provenance reader</a>.</p>
+<p>Reporting off omits <code>--verbose</code>; reporting on enables statistics and RAM
+collection together. Each workload has two pairs in order off → on, then on → off.
+Summaries use the existing benchmark <code>summary()</code> function, including per-treatment
+MAD. <strong>Overhead uses the existing data-step duration</strong>: downloads, computation,
+writes, worker/manager lifecycle and cleanup inside the step all count. Earlier
+parsing/geometry/source setup, sampler startup/shutdown outside the step, and
+final formatting/persistence/delivery do not. The external <code>Pipeline.process()</code>
+timer is reported separately. Observer CPU time spans the broader sampling window
+and is not additive elapsed-time overhead.</p>
+<p>Workloads retain the existing scientific configurations:</p>
+<ul>
+<li><strong>Fixed local:</strong> seed 138, 384³ uint16 source, 192 × 192 slices, four workers,
+  one disabled warmup per operation, the existing pipeline benchmark mode.</li>
+<li><strong>Salivary:</strong> the original three <code>PosteriorSalivaryDuct_cut_ng.json</code> paths,
+  120 × 120 uint16 slices, adaptive distance 1 / ratio 0.5, 128 target slices
+  per box, 12 workers. Short 2 has 10 points / 875 slices; Short 3 has 16 / 887;
+  Long has 50 / 4,901. Each treatment backprojects its own intensity TIFF with
+  160³ chunks, zlib, minimum bounding box and separate output planes.</li>
+<li><strong>Nerve:</strong> <code>Long Nerve Trace</code> from <code>NerveCords_ng.json</code>, 59 points / 10,386 uint16
+  slices of 120 × 120,
+  the saved source/scientific options and the same 12-worker treatment protocol.
+  Each treatment backprojects its own sliced intensity TIFF, as for Salivary.
+  Explicit annotation selection leaves the original annotation file unchanged.</li>
+</ul>
+<p>Real-data paths use one disabled slicing warmup, a shared CloudVolume cache and
+uncleared OS caches; remote metadata requests may remain. No timed trial hashes
+output pixels. Every attempt, including failed warmups and dependent skips,
+remains in the raw results. The original failure used 48 workers; this 12-CPU,
+12-worker campaign is corroborative, not a matched reproduction of that deployment.
+No new native Windows/macOS or GUI/server delivery run was performed. Historical
+native Linux/Windows comparisons and macOS workflow deferrals remain in the
+<a href="../../">parent benchmark report</a>.</p>
+<h2 id="source-cache-failure-and-separate-recovery-cohort">Source-cache failure and separate recovery cohort</h2>
+<p>The original Salivary Short 2 warmup failed with HTTP 416, although all 16
+measured operations for the two short paths completed. That
+failed warmup means Short 2 does not establish the intended warm-cache condition.
+The original Long warmup and all four measured slices failed gzip decoding; their
+four backprojections were skipped. They have no overhead estimate.</p>
+<p><strong>The benchmark cache was repaired; the code path that created the bad entries
+has not been identified or fixed.</strong></p>
+<p>An offset is a byte position inside a file. This dataset is stored in large shard
+files, each with index blocks locating its contents.
+<a href="source-cache-diagnostic.json">Forensic evidence</a> identifies two bad cached
+<code>11b.shard-*.msi</code> files. Their bytes exactly match remote shard <code>11b</code> read at
+positions specified by shard <code>152</code>'s index. Reading <code>11b</code> at its correct positions
+returns valid indexes, and a fresh metadata-only CloudVolume reader succeeds.
+All six other cached MSI entries pass gzip and expected-length checks. This
+establishes a file/offset mismatch in the cached data; the originating code path
+remains unproven. No race or other specific originating cause is established.</p>
+<p>CloudVolume saved the incorrect bytes before checking whether they could be
+decompressed. Subsequent attempts reused them and repeatedly failed with the same
+gzip error, before the malformed indexes could supply image-chunk offsets. This
+specific failure does not establish a general proof of image-data integrity.</p>
+<p>The original cache and failed cohort were preserved. A separate cache copy
+replaced exactly those two entries with the validated remote bytes, recorded in
+<a href="cache-recovery.json">cache recovery provenance</a>. The separately named
+<code>salivary-long-validated</code> cohort gets a full new disabled warmup and both complete
+pairs. Its results are not pooled with the failed original cohort. Nerve follows
+using that cache. No production code, dependency, source volume, or annotation
+was patched to obtain these results.</p>
+<p>"Cold-cache" describes the circumstances in which the bad entries were encountered;
+it does not establish that an empty cache alone triggers the failure. Because the
+originating code path remains unresolved, the problem could recur when uncached
+indexes are downloaded. This is a data-loading/cache finding discovered during
+the RAM campaign; there is no evidence that RAM collection caused it.</p>
+<h2 id="canonical-data-step-summaries">Canonical data-step summaries</h2>
+<table>
+<thead>
+<tr>
+<th>Cohort / path</th>
+<th>Operation</th>
+<th style="text-align: right;">Off median s</th>
+<th style="text-align: right;">On median s</th>
+<th style="text-align: right;">Delta s</th>
+<th style="text-align: right;">Change %</th>
+<th style="text-align: right;">Off / on MAD s</th>
+<th style="text-align: right;">Pair deltas s</th>
+<th style="text-align: right;">Pair changes %</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>fixed-local / Fixed local fixture</td>
+<td>slice</td>
+<td style="text-align: right;">8.781005</td>
+<td style="text-align: right;">9.237414</td>
+<td style="text-align: right;">0.456409</td>
+<td style="text-align: right;">5.197681</td>
+<td style="text-align: right;">0.140387 / 0.114794</td>
+<td style="text-align: right;">0.201227, 0.711590</td>
+<td style="text-align: right;">2.255561, 8.235404</td>
+</tr>
+<tr>
+<td>fixed-local / Fixed local fixture</td>
+<td>backproject</td>
+<td style="text-align: right;">5.854895</td>
+<td style="text-align: right;">5.730546</td>
+<td style="text-align: right;">-0.124349</td>
+<td style="text-align: right;">-2.123853</td>
+<td style="text-align: right;">0.041594 / 0.140005</td>
+<td style="text-align: right;">0.057250, -0.305949</td>
+<td style="text-align: right;">0.984816, -5.188664</td>
+</tr>
+<tr>
+<td>nerve / Long Nerve Trace</td>
+<td>slice</td>
+<td style="text-align: right;">31.719848</td>
+<td style="text-align: right;">26.852296</td>
+<td style="text-align: right;">-4.867552</td>
+<td style="text-align: right;">-15.345446</td>
+<td style="text-align: right;">5.577276 / 0.348343</td>
+<td style="text-align: right;">1.058067, -10.793171</td>
+<td style="text-align: right;">4.047293, -28.938347</td>
+</tr>
+<tr>
+<td>nerve / Long Nerve Trace</td>
+<td>backproject</td>
+<td style="text-align: right;">176.922093</td>
+<td style="text-align: right;">162.380396</td>
+<td style="text-align: right;">-14.541696</td>
+<td style="text-align: right;">-8.219265</td>
+<td style="text-align: right;">24.131323 / 13.446140</td>
+<td style="text-align: right;">-3.856513, -25.226880</td>
+<td style="text-align: right;">-2.524049, -12.547352</td>
+</tr>
+<tr>
+<td>salivary / Posterior Salivary Duct 2</td>
+<td>slice</td>
+<td style="text-align: right;">3.604959</td>
+<td style="text-align: right;">3.249789</td>
+<td style="text-align: right;">-0.355170</td>
+<td style="text-align: right;">-9.852271</td>
+<td style="text-align: right;">0.160511 / 0.316726</td>
+<td style="text-align: right;">-0.511385, -0.198956</td>
+<td style="text-align: right;">-14.846650, -5.283684</td>
+</tr>
+<tr>
+<td>salivary / Posterior Salivary Duct 2</td>
+<td>backproject</td>
+<td style="text-align: right;">2.537026</td>
+<td style="text-align: right;">2.508138</td>
+<td style="text-align: right;">-0.028889</td>
+<td style="text-align: right;">-1.138686</td>
+<td style="text-align: right;">0.153913 / 0.147190</td>
+<td style="text-align: right;">0.272214, -0.329991</td>
+<td style="text-align: right;">11.422606, -12.263049</td>
+</tr>
+<tr>
+<td>salivary / Posterior Salivary Duct 3</td>
+<td>slice</td>
+<td style="text-align: right;">2.748314</td>
+<td style="text-align: right;">2.832232</td>
+<td style="text-align: right;">0.083919</td>
+<td style="text-align: right;">3.053460</td>
+<td style="text-align: right;">0.029722 / 0.041032</td>
+<td style="text-align: right;">0.013165, 0.154672</td>
+<td style="text-align: right;">0.473898, 5.689426</td>
+</tr>
+<tr>
+<td>salivary / Posterior Salivary Duct 3</td>
+<td>backproject</td>
+<td style="text-align: right;">2.315126</td>
+<td style="text-align: right;">2.438078</td>
+<td style="text-align: right;">0.122952</td>
+<td style="text-align: right;">5.310830</td>
+<td style="text-align: right;">0.047437 / 0.095033</td>
+<td style="text-align: right;">-0.019517, 0.265422</td>
+<td style="text-align: right;">-0.826091, 11.704500</td>
+</tr>
+<tr>
+<td>salivary / Posterior Salivary Duct</td>
+<td>slice</td>
+<td style="text-align: right;">incomplete pairs</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary / Posterior Salivary Duct</td>
+<td>backproject</td>
+<td style="text-align: right;">incomplete pairs</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary-long-validated / Posterior Salivary Duct</td>
+<td>slice</td>
+<td style="text-align: right;">12.457339</td>
+<td style="text-align: right;">12.476935</td>
+<td style="text-align: right;">0.019596</td>
+<td style="text-align: right;">0.157303</td>
+<td style="text-align: right;">0.073576 / 0.172273</td>
+<td style="text-align: right;">-0.226254, 0.265445</td>
+<td style="text-align: right;">-1.805563, 2.143494</td>
+</tr>
+<tr>
+<td>salivary-long-validated / Posterior Salivary Duct</td>
+<td>backproject</td>
+<td style="text-align: right;">14.772077</td>
+<td style="text-align: right;">15.728734</td>
+<td style="text-align: right;">0.956657</td>
+<td style="text-align: right;">6.476120</td>
+<td style="text-align: right;">0.363892 / 0.565084</td>
+<td style="text-align: right;">0.027681, 1.885634</td>
+<td style="text-align: right;">0.182883, 13.087241</td>
+</tr>
+</tbody>
+</table>
+<h2 id="external-pipeline-summaries-separate-boundary">External pipeline summaries (separate boundary)</h2>
+<table>
+<thead>
+<tr>
+<th>Cohort / path</th>
+<th>Operation</th>
+<th style="text-align: right;">Off median s</th>
+<th style="text-align: right;">On median s</th>
+<th style="text-align: right;">Delta s</th>
+<th style="text-align: right;">Change %</th>
+<th style="text-align: right;">Off / on MAD s</th>
+<th style="text-align: right;">Pair deltas s</th>
+<th style="text-align: right;">Pair changes %</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>fixed-local / Fixed local fixture</td>
+<td>slice</td>
+<td style="text-align: right;">8.831604</td>
+<td style="text-align: right;">9.290229</td>
+<td style="text-align: right;">0.458625</td>
+<td style="text-align: right;">5.192992</td>
+<td style="text-align: right;">0.137813 / 0.116874</td>
+<td style="text-align: right;">0.203937, 0.713312</td>
+<td style="text-align: right;">2.273689, 8.204849</td>
+</tr>
+<tr>
+<td>fixed-local / Fixed local fixture</td>
+<td>backproject</td>
+<td style="text-align: right;">5.906702</td>
+<td style="text-align: right;">5.790074</td>
+<td style="text-align: right;">-0.116627</td>
+<td style="text-align: right;">-1.974493</td>
+<td style="text-align: right;">0.039232 / 0.147920</td>
+<td style="text-align: right;">0.070524, -0.303779</td>
+<td style="text-align: right;">1.201957, -5.109025</td>
+</tr>
+<tr>
+<td>nerve / Long Nerve Trace</td>
+<td>slice</td>
+<td style="text-align: right;">32.981054</td>
+<td style="text-align: right;">27.758425</td>
+<td style="text-align: right;">-5.222629</td>
+<td style="text-align: right;">-15.835239</td>
+<td style="text-align: right;">5.635513 / 0.356757</td>
+<td style="text-align: right;">0.769641, -11.214899</td>
+<td style="text-align: right;">2.814503, -29.041677</td>
+</tr>
+<tr>
+<td>nerve / Long Nerve Trace</td>
+<td>backproject</td>
+<td style="text-align: right;">177.838101</td>
+<td style="text-align: right;">163.242437</td>
+<td style="text-align: right;">-14.595664</td>
+<td style="text-align: right;">-8.207276</td>
+<td style="text-align: right;">24.212963 / 13.440854</td>
+<td style="text-align: right;">-3.823556, -25.367773</td>
+<td style="text-align: right;">-2.488887, -12.555130</td>
+</tr>
+<tr>
+<td>salivary / Posterior Salivary Duct 2</td>
+<td>slice</td>
+<td style="text-align: right;">3.789457</td>
+<td style="text-align: right;">3.428439</td>
+<td style="text-align: right;">-0.361018</td>
+<td style="text-align: right;">-9.526895</td>
+<td style="text-align: right;">0.192303 / 0.304959</td>
+<td style="text-align: right;">-0.473674, -0.248361</td>
+<td style="text-align: right;">-13.168032, -6.237462</td>
+</tr>
+<tr>
+<td>salivary / Posterior Salivary Duct 2</td>
+<td>backproject</td>
+<td style="text-align: right;">2.744761</td>
+<td style="text-align: right;">2.680135</td>
+<td style="text-align: right;">-0.064627</td>
+<td style="text-align: right;">-2.354544</td>
+<td style="text-align: right;">0.164924 / 0.152617</td>
+<td style="text-align: right;">0.252914, -0.382167</td>
+<td style="text-align: right;">9.803488, -13.134318</td>
+</tr>
+<tr>
+<td>salivary / Posterior Salivary Duct 3</td>
+<td>slice</td>
+<td style="text-align: right;">2.920185</td>
+<td style="text-align: right;">3.022392</td>
+<td style="text-align: right;">0.102207</td>
+<td style="text-align: right;">3.500006</td>
+<td style="text-align: right;">0.027161 / 0.043776</td>
+<td style="text-align: right;">0.031269, 0.173144</td>
+<td style="text-align: right;">1.060937, 5.984874</td>
+</tr>
+<tr>
+<td>salivary / Posterior Salivary Duct 3</td>
+<td>backproject</td>
+<td style="text-align: right;">2.548784</td>
+<td style="text-align: right;">2.612204</td>
+<td style="text-align: right;">0.063419</td>
+<td style="text-align: right;">2.488224</td>
+<td style="text-align: right;">0.092584 / 0.089462</td>
+<td style="text-align: right;">-0.118627, 0.245466</td>
+<td style="text-align: right;">-4.491128, 9.993739</td>
+</tr>
+<tr>
+<td>salivary / Posterior Salivary Duct</td>
+<td>slice</td>
+<td style="text-align: right;">incomplete pairs</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary / Posterior Salivary Duct</td>
+<td>backproject</td>
+<td style="text-align: right;">incomplete pairs</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary-long-validated / Posterior Salivary Duct</td>
+<td>slice</td>
+<td style="text-align: right;">12.912314</td>
+<td style="text-align: right;">12.944759</td>
+<td style="text-align: right;">0.032445</td>
+<td style="text-align: right;">0.251269</td>
+<td style="text-align: right;">0.084283 / 0.175344</td>
+<td style="text-align: right;">-0.227183, 0.292072</td>
+<td style="text-align: right;">-1.748016, 2.276825</td>
+</tr>
+<tr>
+<td>salivary-long-validated / Posterior Salivary Duct</td>
+<td>backproject</td>
+<td style="text-align: right;">15.242203</td>
+<td style="text-align: right;">16.318097</td>
+<td style="text-align: right;">1.075893</td>
+<td style="text-align: right;">7.058648</td>
+<td style="text-align: right;">0.347804 / 0.719750</td>
+<td style="text-align: right;">0.008339, 2.143447</td>
+<td style="text-align: right;">0.053492, 14.390963</td>
+</tr>
+</tbody>
+</table>
+<h2 id="every-operation-attempt">Every operation attempt</h2>
+<p>Warmups are excluded from summaries. Missing durations stay missing, including failed and dependent skipped trials.</p>
+<table>
+<thead>
+<tr>
+<th>Cohort</th>
+<th>Label</th>
+<th>Phase</th>
+<th>Reporting</th>
+<th>Status</th>
+<th style="text-align: right;">Data step s</th>
+<th style="text-align: right;">Pipeline s</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>fixed-local</td>
+<td>slice-warmup-0</td>
+<td>warmup</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">9.872730</td>
+<td style="text-align: right;">9.940157</td>
+</tr>
+<tr>
+<td>fixed-local</td>
+<td>backproject-warmup-0</td>
+<td>warmup</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">6.770284</td>
+<td style="text-align: right;">6.819431</td>
+</tr>
+<tr>
+<td>fixed-local</td>
+<td>slice-00-0</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">8.921393</td>
+<td style="text-align: right;">8.969418</td>
+</tr>
+<tr>
+<td>fixed-local</td>
+<td>slice-00-1</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">9.122620</td>
+<td style="text-align: right;">9.173354</td>
+</tr>
+<tr>
+<td>fixed-local</td>
+<td>slice-01-1</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">9.352207</td>
+<td style="text-align: right;">9.407103</td>
+</tr>
+<tr>
+<td>fixed-local</td>
+<td>slice-01-0</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">8.640618</td>
+<td style="text-align: right;">8.693791</td>
+</tr>
+<tr>
+<td>fixed-local</td>
+<td>backproject-00-0</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">5.813301</td>
+<td style="text-align: right;">5.867470</td>
+</tr>
+<tr>
+<td>fixed-local</td>
+<td>backproject-00-1</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">5.870551</td>
+<td style="text-align: right;">5.937995</td>
+</tr>
+<tr>
+<td>fixed-local</td>
+<td>backproject-01-1</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">5.590540</td>
+<td style="text-align: right;">5.642154</td>
+</tr>
+<tr>
+<td>fixed-local</td>
+<td>backproject-01-0</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">5.896489</td>
+<td style="text-align: right;">5.945934</td>
+</tr>
+<tr>
+<td>nerve</td>
+<td>path-0-warmup</td>
+<td>warmup</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">105.372422</td>
+<td style="text-align: right;">106.224567</td>
+</tr>
+<tr>
+<td>nerve</td>
+<td>path-0-pair-1-0-slice</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">26.142573</td>
+<td style="text-align: right;">27.345541</td>
+</tr>
+<tr>
+<td>nerve</td>
+<td>path-0-pair-1-0-backproject</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">152.790769</td>
+<td style="text-align: right;">153.625138</td>
+</tr>
+<tr>
+<td>nerve</td>
+<td>path-0-pair-1-1-slice</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">27.200639</td>
+<td style="text-align: right;">28.115182</td>
+</tr>
+<tr>
+<td>nerve</td>
+<td>path-0-pair-1-1-backproject</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">148.934256</td>
+<td style="text-align: right;">149.801583</td>
+</tr>
+<tr>
+<td>nerve</td>
+<td>path-0-pair-2-1-slice</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">26.503953</td>
+<td style="text-align: right;">27.401668</td>
+</tr>
+<tr>
+<td>nerve</td>
+<td>path-0-pair-2-1-backproject</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">175.826537</td>
+<td style="text-align: right;">176.683291</td>
+</tr>
+<tr>
+<td>nerve</td>
+<td>path-0-pair-2-0-slice</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">37.297124</td>
+<td style="text-align: right;">38.616567</td>
+</tr>
+<tr>
+<td>nerve</td>
+<td>path-0-pair-2-0-backproject</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">201.053416</td>
+<td style="text-align: right;">202.051064</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-0-warmup</td>
+<td>warmup</td>
+<td>off</td>
+<td>failed_trial</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-0-pair-1-0-slice</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">3.444448</td>
+<td style="text-align: right;">3.597154</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-0-pair-1-0-backproject</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">2.383114</td>
+<td style="text-align: right;">2.579838</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-0-pair-1-1-slice</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">2.933063</td>
+<td style="text-align: right;">3.123480</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-0-pair-1-1-backproject</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">2.655327</td>
+<td style="text-align: right;">2.832752</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-0-pair-2-1-slice</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">3.566515</td>
+<td style="text-align: right;">3.733399</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-0-pair-2-1-backproject</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">2.360948</td>
+<td style="text-align: right;">2.527518</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-0-pair-2-0-slice</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">3.765470</td>
+<td style="text-align: right;">3.981760</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-0-pair-2-0-backproject</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">2.690939</td>
+<td style="text-align: right;">2.909685</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-1-warmup</td>
+<td>warmup</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">6.692638</td>
+<td style="text-align: right;">6.851906</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-1-pair-1-0-slice</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">2.778035</td>
+<td style="text-align: right;">2.947346</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-1-pair-1-0-backproject</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">2.362562</td>
+<td style="text-align: right;">2.641369</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-1-pair-1-1-slice</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">2.791200</td>
+<td style="text-align: right;">2.978615</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-1-pair-1-1-backproject</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">2.343045</td>
+<td style="text-align: right;">2.522742</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-1-pair-2-1-slice</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">2.873264</td>
+<td style="text-align: right;">3.066168</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-1-pair-2-1-backproject</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">2.533111</td>
+<td style="text-align: right;">2.701666</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-1-pair-2-0-slice</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">2.718592</td>
+<td style="text-align: right;">2.893024</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-1-pair-2-0-backproject</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">2.267689</td>
+<td style="text-align: right;">2.456200</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-warmup</td>
+<td>warmup</td>
+<td>off</td>
+<td>failed_trial</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-1-0-slice</td>
+<td>measured</td>
+<td>off</td>
+<td>failed_trial</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-1-0-backproject</td>
+<td>measured</td>
+<td>off</td>
+<td>skipped</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-1-1-slice</td>
+<td>measured</td>
+<td>on</td>
+<td>failed_trial</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-1-1-backproject</td>
+<td>measured</td>
+<td>on</td>
+<td>skipped</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-2-1-slice</td>
+<td>measured</td>
+<td>on</td>
+<td>failed_trial</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-2-1-backproject</td>
+<td>measured</td>
+<td>on</td>
+<td>skipped</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-2-0-slice</td>
+<td>measured</td>
+<td>off</td>
+<td>failed_trial</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-2-0-backproject</td>
+<td>measured</td>
+<td>off</td>
+<td>skipped</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td>salivary-long-validated</td>
+<td>path-0-warmup</td>
+<td>warmup</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">46.939174</td>
+<td style="text-align: right;">47.400840</td>
+</tr>
+<tr>
+<td>salivary-long-validated</td>
+<td>path-0-pair-1-0-slice</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">12.530916</td>
+<td style="text-align: right;">12.996597</td>
+</tr>
+<tr>
+<td>salivary-long-validated</td>
+<td>path-0-pair-1-0-backproject</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">15.135969</td>
+<td style="text-align: right;">15.590007</td>
+</tr>
+<tr>
+<td>salivary-long-validated</td>
+<td>path-0-pair-1-1-slice</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">12.304662</td>
+<td style="text-align: right;">12.769414</td>
+</tr>
+<tr>
+<td>salivary-long-validated</td>
+<td>path-0-pair-1-1-backproject</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">15.163650</td>
+<td style="text-align: right;">15.598347</td>
+</tr>
+<tr>
+<td>salivary-long-validated</td>
+<td>path-0-pair-2-1-slice</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">12.649208</td>
+<td style="text-align: right;">13.120103</td>
+</tr>
+<tr>
+<td>salivary-long-validated</td>
+<td>path-0-pair-2-1-backproject</td>
+<td>measured</td>
+<td>on</td>
+<td>succeeded</td>
+<td style="text-align: right;">16.293818</td>
+<td style="text-align: right;">17.037847</td>
+</tr>
+<tr>
+<td>salivary-long-validated</td>
+<td>path-0-pair-2-0-slice</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">12.383763</td>
+<td style="text-align: right;">12.828031</td>
+</tr>
+<tr>
+<td>salivary-long-validated</td>
+<td>path-0-pair-2-0-backproject</td>
+<td>measured</td>
+<td>off</td>
+<td>succeeded</td>
+<td style="text-align: right;">14.408184</td>
+<td style="text-align: right;">14.894400</td>
+</tr>
+</tbody>
+</table>
+<h2 id="every-enabled-report">Every enabled report</h2>
+<p>C/I/D = complete/incomplete/discarded sweeps. Counts and peaks derive from accepted sweeps; low counts can reflect missed worker-phase coverage. CPU is observer CPU time, not workload slowdown.</p>
+<table>
+<thead>
+<tr>
+<th>Cohort</th>
+<th>Label</th>
+<th>Outcome</th>
+<th>RAM status</th>
+<th style="text-align: right;">Peak MiB</th>
+<th style="text-align: right;">Max processes</th>
+<th>C/I/D</th>
+<th style="text-align: right;">Requested s</th>
+<th style="text-align: right;">Observed min / max s</th>
+<th style="text-align: right;">Max sweep ms</th>
+<th style="text-align: right;">CPU s</th>
+<th style="text-align: right;">Window s</th>
+<th>Errors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>fixed-local</td>
+<td>slice-00-1</td>
+<td>succeeded</td>
+<td>partial</td>
+<td style="text-align: right;">790.874</td>
+<td style="text-align: right;">7</td>
+<td>9/1/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000271 / 1.005842</td>
+<td style="text-align: right;">66.154</td>
+<td style="text-align: right;">0.524864</td>
+<td style="text-align: right;">9.173741</td>
+<td>FileNotFoundError ×1: [Errno 2] No such file or directory: '/psm_05f5b9ae'</td>
+</tr>
+<tr>
+<td>fixed-local</td>
+<td>slice-01-1</td>
+<td>succeeded</td>
+<td>partial</td>
+<td style="text-align: right;">825.531</td>
+<td style="text-align: right;">7</td>
+<td>9/1/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000264 / 1.000469</td>
+<td style="text-align: right;">61.902</td>
+<td style="text-align: right;">0.512859</td>
+<td style="text-align: right;">9.407411</td>
+<td>OSError ×1: Manager observations changed during memory sweep</td>
+</tr>
+<tr>
+<td>fixed-local</td>
+<td>backproject-00-1</td>
+<td>succeeded</td>
+<td>sampled</td>
+<td style="text-align: right;">487.446</td>
+<td style="text-align: right;">6</td>
+<td>6/0/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000242 / 1.000365</td>
+<td style="text-align: right;">44.654</td>
+<td style="text-align: right;">0.254811</td>
+<td style="text-align: right;">5.938279</td>
+<td>none</td>
+</tr>
+<tr>
+<td>fixed-local</td>
+<td>backproject-01-1</td>
+<td>succeeded</td>
+<td>sampled</td>
+<td style="text-align: right;">491.402</td>
+<td style="text-align: right;">6</td>
+<td>6/0/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000205 / 1.000355</td>
+<td style="text-align: right;">41.202</td>
+<td style="text-align: right;">0.244516</td>
+<td style="text-align: right;">5.642384</td>
+<td>none</td>
+</tr>
+<tr>
+<td>nerve</td>
+<td>path-0-pair-1-1-slice</td>
+<td>succeeded</td>
+<td>partial</td>
+<td style="text-align: right;">1893.071</td>
+<td style="text-align: right;">15</td>
+<td>8/21/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000242 / 1.002008</td>
+<td style="text-align: right;">188.221</td>
+<td style="text-align: right;">3.901276</td>
+<td style="text-align: right;">28.115472</td>
+<td>FileNotFoundError ×16: [Errno 2] No such file or directory: '/psm_44763101'; NoSuchProcess ×1: process no longer exists (pid=110326); OSError ×4: Manager observations changed during memory sweep</td>
+</tr>
+<tr>
+<td>nerve</td>
+<td>path-0-pair-1-1-backproject</td>
+<td>succeeded</td>
+<td>sampled</td>
+<td style="text-align: right;">2424.739</td>
+<td style="text-align: right;">14</td>
+<td>150/0/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000108 / 1.004761</td>
+<td style="text-align: right;">437.096</td>
+<td style="text-align: right;">15.521690</td>
+<td style="text-align: right;">149.801894</td>
+<td>none</td>
+</tr>
+<tr>
+<td>nerve</td>
+<td>path-0-pair-2-1-slice</td>
+<td>succeeded</td>
+<td>partial</td>
+<td style="text-align: right;">2068.054</td>
+<td style="text-align: right;">15</td>
+<td>16/12/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000023 / 1.003422</td>
+<td style="text-align: right;">229.096</td>
+<td style="text-align: right;">4.026687</td>
+<td style="text-align: right;">27.401936</td>
+<td>FileNotFoundError ×3: [Errno 2] No such file or directory: '/psm_300e16d7'; OSError ×9: Manager observations changed during memory sweep</td>
+</tr>
+<tr>
+<td>nerve</td>
+<td>path-0-pair-2-1-backproject</td>
+<td>succeeded</td>
+<td>sampled</td>
+<td style="text-align: right;">2246.466</td>
+<td style="text-align: right;">14</td>
+<td>177/0/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000067 / 1.015984</td>
+<td style="text-align: right;">502.712</td>
+<td style="text-align: right;">24.066265</td>
+<td style="text-align: right;">176.683612</td>
+<td>none</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-0-pair-1-1-slice</td>
+<td>succeeded</td>
+<td>partial</td>
+<td style="text-align: right;">1343.079</td>
+<td style="text-align: right;">15</td>
+<td>3/1/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000288 / 1.000417</td>
+<td style="text-align: right;">134.800</td>
+<td style="text-align: right;">0.384899</td>
+<td style="text-align: right;">3.123695</td>
+<td>OSError ×1: Manager observations changed during memory sweep</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-0-pair-1-1-backproject</td>
+<td>succeeded</td>
+<td>partial</td>
+<td style="text-align: right;">635.469</td>
+<td style="text-align: right;">14</td>
+<td>2/1/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000359 / 1.000462</td>
+<td style="text-align: right;">123.339</td>
+<td style="text-align: right;">0.252351</td>
+<td style="text-align: right;">2.832994</td>
+<td>OSError ×1: Process tree changed during memory sweep</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-0-pair-2-1-slice</td>
+<td>succeeded</td>
+<td>partial</td>
+<td style="text-align: right;">1008.281</td>
+<td style="text-align: right;">15</td>
+<td>2/2/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000335 / 1.006804</td>
+<td style="text-align: right;">292.263</td>
+<td style="text-align: right;">0.641104</td>
+<td style="text-align: right;">3.733755</td>
+<td>FileNotFoundError ×1: [Errno 2] No such file or directory: '/psm_9f91b7b8'; OSError ×1: Manager observations changed during memory sweep</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-0-pair-2-1-backproject</td>
+<td>succeeded</td>
+<td>partial</td>
+<td style="text-align: right;">636.170</td>
+<td style="text-align: right;">14</td>
+<td>2/1/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000271 / 1.000360</td>
+<td style="text-align: right;">128.886</td>
+<td style="text-align: right;">0.253488</td>
+<td style="text-align: right;">2.527777</td>
+<td>OSError ×1: Process tree changed during memory sweep</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-1-pair-1-1-slice</td>
+<td>succeeded</td>
+<td>partial</td>
+<td style="text-align: right;">183.979</td>
+<td style="text-align: right;">2</td>
+<td>1/2/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000369 / 1.000370</td>
+<td style="text-align: right;">143.874</td>
+<td style="text-align: right;">0.294494</td>
+<td style="text-align: right;">2.978897</td>
+<td>FileNotFoundError ×1: [Errno 2] No such file or directory: '/psm_69e2df92'; OSError ×1: Manager observations changed during memory sweep</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-1-pair-1-1-backproject</td>
+<td>succeeded</td>
+<td>sampled</td>
+<td style="text-align: right;">1234.995</td>
+<td style="text-align: right;">14</td>
+<td>3/0/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000273 / 1.000406</td>
+<td style="text-align: right;">115.816</td>
+<td style="text-align: right;">0.244369</td>
+<td style="text-align: right;">2.523001</td>
+<td>none</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-1-pair-2-1-slice</td>
+<td>succeeded</td>
+<td>partial</td>
+<td style="text-align: right;">185.445</td>
+<td style="text-align: right;">2</td>
+<td>1/3/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000277 / 1.000433</td>
+<td style="text-align: right;">192.380</td>
+<td style="text-align: right;">0.408568</td>
+<td style="text-align: right;">3.066620</td>
+<td>OSError ×2: Manager observations changed during memory sweep; ProcessLookupError ×1: [Errno 3] No such process: '/proc/13030/smaps_rollup'</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-1-pair-2-1-backproject</td>
+<td>succeeded</td>
+<td>sampled</td>
+<td style="text-align: right;">1240.196</td>
+<td style="text-align: right;">14</td>
+<td>3/0/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000277 / 1.000372</td>
+<td style="text-align: right;">114.713</td>
+<td style="text-align: right;">0.242687</td>
+<td style="text-align: right;">2.701982</td>
+<td>none</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-1-1-slice</td>
+<td>failed</td>
+<td>partial</td>
+<td style="text-align: right;">185.062</td>
+<td style="text-align: right;">2</td>
+<td>1/1/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000261 / 1.000261</td>
+<td style="text-align: right;">22.791</td>
+<td style="text-align: right;">0.047736</td>
+<td style="text-align: right;">1.017157</td>
+<td>ProcessLookupError ×1: [Errno 3] No such process: '/proc/13515/smaps_rollup'</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-1-1-backproject</td>
+<td>skipped</td>
+<td>no report</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td>—/—/—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">— / —</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td>none</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-2-1-slice</td>
+<td>failed</td>
+<td>partial</td>
+<td style="text-align: right;">184.752</td>
+<td style="text-align: right;">2</td>
+<td>1/1/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000316 / 1.000316</td>
+<td style="text-align: right;">21.096</td>
+<td style="text-align: right;">0.033275</td>
+<td style="text-align: right;">1.012036</td>
+<td>ProcessLookupError ×1: [Errno 3] No such process: '/proc/13552/smaps_rollup'</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-2-1-backproject</td>
+<td>skipped</td>
+<td>no report</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td>—/—/—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">— / —</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td>none</td>
+</tr>
+<tr>
+<td>salivary-long-validated</td>
+<td>path-0-pair-1-1-slice</td>
+<td>succeeded</td>
+<td>partial</td>
+<td style="text-align: right;">1298.645</td>
+<td style="text-align: right;">15</td>
+<td>3/10/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000299 / 1.000472</td>
+<td style="text-align: right;">155.163</td>
+<td style="text-align: right;">1.663375</td>
+<td style="text-align: right;">12.769848</td>
+<td>FileNotFoundError ×6: [Errno 2] No such file or directory: '/psm_a11e470d'; OSError ×4: Manager observations changed during memory sweep</td>
+</tr>
+<tr>
+<td>salivary-long-validated</td>
+<td>path-0-pair-1-1-backproject</td>
+<td>succeeded</td>
+<td>sampled</td>
+<td style="text-align: right;">2075.643</td>
+<td style="text-align: right;">14</td>
+<td>16/0/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000284 / 1.001533</td>
+<td style="text-align: right;">487.291</td>
+<td style="text-align: right;">2.275208</td>
+<td style="text-align: right;">15.598886</td>
+<td>none</td>
+</tr>
+<tr>
+<td>salivary-long-validated</td>
+<td>path-0-pair-2-1-slice</td>
+<td>succeeded</td>
+<td>partial</td>
+<td style="text-align: right;">1207.062</td>
+<td style="text-align: right;">15</td>
+<td>7/7/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000214 / 1.002094</td>
+<td style="text-align: right;">235.375</td>
+<td style="text-align: right;">1.931725</td>
+<td style="text-align: right;">13.120475</td>
+<td>FileNotFoundError ×4: [Errno 2] No such file or directory: '/psm_c63e7192'; NoSuchProcess ×1: process no longer exists (pid=46503); OSError ×2: Manager observations changed during memory sweep</td>
+</tr>
+<tr>
+<td>salivary-long-validated</td>
+<td>path-0-pair-2-1-backproject</td>
+<td>succeeded</td>
+<td>partial</td>
+<td style="text-align: right;">2006.921</td>
+<td style="text-align: right;">14</td>
+<td>17/1/0</td>
+<td style="text-align: right;">1.000</td>
+<td style="text-align: right;">1.000277 / 1.001246</td>
+<td style="text-align: right;">437.776</td>
+<td style="text-align: right;">2.507177</td>
+<td style="text-align: right;">17.038165</td>
+<td>NoSuchProcess ×1: process no longer exists (pid=46832)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="failed-or-skipped-attempts">Failed or skipped attempts</h2>
+<table>
+<thead>
+<tr>
+<th>Cohort</th>
+<th>Label</th>
+<th>Status</th>
+<th>Error / dependency</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>salivary</td>
+<td>path-0-warmup</td>
+<td>failed_trial</td>
+<td>Pipeline Error: Error during downloading and slicing: 416 Client Error: Requested Range Not Satisfiable for url: https://neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2/700_700_700/0e0.shard</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-warmup</td>
+<td>failed_trial</td>
+<td>Pipeline Error: Error during downloading and slicing: File is not in gzip format. Magic numbers 0x95, 0x4b did not match 0x1f, 0x8b.</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-1-0-slice</td>
+<td>failed_trial</td>
+<td>Pipeline Error: Error during downloading and slicing: File is not in gzip format. Magic numbers 0x95, 0x4b did not match 0x1f, 0x8b.</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-1-0-backproject</td>
+<td>skipped</td>
+<td>Matching slicing trial did not complete</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-1-1-slice</td>
+<td>failed_trial</td>
+<td>Error during downloading and slicing: File is not in gzip format. Magic numbers 0x95, 0x4b did not match 0x1f, 0x8b.</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-1-1-backproject</td>
+<td>skipped</td>
+<td>Matching slicing trial did not complete</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-2-1-slice</td>
+<td>failed_trial</td>
+<td>Error during downloading and slicing: File is not in gzip format. Magic numbers 0x95, 0x4b did not match 0x1f, 0x8b.</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-2-1-backproject</td>
+<td>skipped</td>
+<td>Matching slicing trial did not complete</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-2-0-slice</td>
+<td>failed_trial</td>
+<td>Pipeline Error: Error during downloading and slicing: File is not in gzip format. Magic numbers 0x95, 0x4b did not match 0x1f, 0x8b.</td>
+</tr>
+<tr>
+<td>salivary</td>
+<td>path-2-pair-2-0-backproject</td>
+<td>skipped</td>
+<td>Matching slicing trial did not complete</td>
+</tr>
+</tbody>
+</table>
+<h2 id="controlled-clock-identity-evidence">Controlled-clock identity evidence</h2>
+<p>The separate probe completed 64 of 64 sweeps with 0 failures; <code>passed: true</code>. All reported, retained, unique-PID and unique-identity counts remained 51 (one root plus 50 real children). Fresh wrappers matched retained identities while public creation timestamps changed forward/backward and within sweeps.</p>
+<p>Early / late median sweep time: 16.499633 / 16.808487 ms. Early / late median CPU: 16.495450 / 16.804750 ms. This is diagnostic evidence against duplicate-identity growth, not an operation-overhead acceptance measurement.</p>
+<h2 id="reproduction-and-validation">Reproduction and validation</h2>
+<p>Run the existing harness in a matching dependency environment; use new output
+folders so failed attempts cannot be overwritten. The recorded container commands
+were (the <code>/campaign/inputs</code> files are copies of the saved options/annotations,
+with path adapters only; hashes and complete options are in the raw evidence):</p>
+<pre><code class="language-sh">docker exec ouroboros-163 python /app/benchmarks/benchmark_run_statistics.py \
+  --scope pipeline --size 384 --workers 4 --pairs 2 --timeout 3600 \
+  --work-dir /campaign/results/fixed-local
+
+docker exec ouroboros-163 python /app/benchmarks/benchmark_run_statistics.py \
+  --real-slice-options /campaign/inputs/salivary-slice-options.json \
+  --real-backproject-options /campaign/inputs/backproject-options.json \
+  --cache-dir /campaign/cache --workers 12 --pairs 2 --timeout 3600 \
+  --work-dir /campaign/results/salivary
+
+docker exec ouroboros-163 python /app/benchmarks/benchmark_run_statistics.py \
+  --real-slice-options /campaign/inputs/salivary-slice-options.json \
+  --real-backproject-options /campaign/inputs/backproject-options.json \
+  --annotation-layer 'Posterior Salivary Duct' \
+  --cache-dir /campaign/cache-validated --workers 12 --pairs 2 --timeout 3600 \
+  --work-dir /campaign/results/salivary-long-validated
+
+docker exec ouroboros-163 python /app/benchmarks/benchmark_run_statistics.py \
+  --real-slice-options /campaign/inputs/nerve-slice-options.json \
+  --real-backproject-options /campaign/inputs/backproject-options.json \
+  --annotation-layer 'Long Nerve Trace' \
+  --cache-dir /campaign/cache-validated --workers 12 --pairs 2 --timeout 3600 \
+  --work-dir /campaign/results/nerve
+
+docker exec -e PYTHONPATH=/app:/app/benchmarks ouroboros-163 \
+  python /campaign/probe_memory_identity.py \
+  --output /campaign/identity-clock.json --mid-sweep-shift
+
+docker exec ouroboros-163 python -m pytest \
+  /app/test/common/test_memory_identity.py -q -p no:cacheprovider
+</code></pre>
+<p>The native identity checks passed <strong>26 tests</strong> inside the measured image. The
+first test invocation emitted a pytest cache-permission warning because UID 1000
+could not write <code>/app/.pytest_cache</code>; rerunning with <code>-p no:cacheprovider</code> passed
+without warnings. Both invocation outcomes are retained in provenance. This is
+not another implementation of #162's platform-contract tests.</p>
+<p>The controlled-clock probe uses production <code>TreeSampler</code> to observe a separate
+root and 50 waiting children. It changes only psutil's boot-time conversion,
+including a shift after the first native memory read, while the OS clock remains
+untouched. Canonical <code>psutil.Process</code> identities and <code>export_process_identity</code>
+supply the evidence; no PID/timestamp identity algorithm is reimplemented. The
+observer and its growing JSON ledger live outside the measured tree, and evidence
+serialization is outside the timed sweep. The probe demonstrates repeated
+rediscovery under injected clock movement, not long-workload overhead or managed
+buffer coverage. Timed operation reports retain aggregate counts, not per-sweep
+PID traces; the merged production unique-PID guard and separate identity probe
+are the corresponding uniqueness evidence.</p>
+<p>The new <code>--annotation-layer</code> option only selects which existing annotation layers
+the benchmark schedules. It preserves input bytes and records/checks selection
+on resume. The existing pipeline timers own operation durations, <code>RunStatistics</code>
+and <code>MemoryCollector</code> own lifecycle/reporting, <code>TreeSampler</code> owns process discovery
+and RAM reads, and the existing benchmark <code>summary()</code> owns the timing reduction.
+No duplicate production writer, carrier, calculation or sampler was added or
+removed. Exported identities, JSON reports and tables are read-only evidence
+adapters, not another runtime authority.</p>
+<p>Postflight verified unchanged production source, dependency resolution and harness
+fingerprints, and an empty <code>/dev/shm</code>. Across all cohorts, 40 measured operations
+succeeded, four measured slices failed and four dependent backprojections were
+skipped. Five of seven excluded warmups succeeded; both failed warmups remain.</p>
+<h2 id="raw-evidence">Raw evidence</h2>
+<p>The following are byte-for-byte copies of the completed raw campaign outputs.
+Provenance combines the recorded preflight with postflight checks and records the
+other artifact hashes. Data-step and pipeline table summaries both use the existing
+benchmark <code>summary()</code> function on each raw operation group; no failed group is
+assigned an overhead estimate. <code>measured_median_at_most_one_percent</code> in raw JSON
+is an arithmetic comparison, not an engineering acceptance verdict.</p>
+<table>
+<thead>
+<tr>
+<th>Artifact</th>
+<th>SHA-256</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="fixed-local.json">fixed-local.json</a></td>
+<td><code>8d061202926d726d5111206805bbdf446a18ffc744a6e3afe61fe1e43e676f92</code></td>
+</tr>
+<tr>
+<td><a href="salivary-original.json">salivary-original.json</a></td>
+<td><code>a0a6f28ce7db17bbba60a0aab995eea39d836fe6d39799a1ac6c2ab8d4376b88</code></td>
+</tr>
+<tr>
+<td><a href="salivary-long-validated.json">salivary-long-validated.json</a></td>
+<td><code>563b2beb04e2b0e30085c14a42bbb4504b985b956f0a9ba7e845dae1930c5a37</code></td>
+</tr>
+<tr>
+<td><a href="nerve.json">nerve.json</a></td>
+<td><code>c9b105960b8a6a97ee9870281507804bc8f05e983e42906afa1d4fb2f00462ce</code></td>
+</tr>
+<tr>
+<td><a href="identity-clock.json">identity-clock.json</a></td>
+<td><code>b115280588b9222b5db0dc3397f768692f0905cb9023246c229dc6527eb5806e</code></td>
+</tr>
+<tr>
+<td><a href="source-cache-diagnostic.json">source-cache-diagnostic.json</a></td>
+<td><code>65e9695f88caad1797698f3f7ea2815cc3141d631716bb71785a4f71d2077f57</code></td>
+</tr>
+<tr>
+<td><a href="cache-recovery.json">cache-recovery.json</a></td>
+<td><code>7e921de0c6a34a5cab0bbb198b31ebe96f269184a361a33b3a9fd76e9976b4f3</code></td>
+</tr>
+<tr>
+<td><a href="provenance.json">provenance.json</a></td>
+<td><code>45f15afe2d386a6946ff1dd3a0941b674ea770d1a8d3dd16095fc5fdde2fea8a</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+
+            </main>
+        </div>
+        <hr><footer>
+    <div class="terminal-mkdocs-footer-grid">
+        <div id="terminal-mkdocs-footer-copyright-info">
+            
+            <p class="text-center text-muted">Copyright 2024=2025 Weaver Goldman and David Northover, All rights reserved</p>
+             Site built with <a href="http://www.mkdocs.org">MkDocs</a> and <a href="https://github.com/ntno/mkdocs-terminal">Terminal for MkDocs</a>.
+        </div>
+        <div id="terminal-mkdocs-footer-prev-next">
+            <nav class="btn-group">
+                <a href="../../" title="Guide and Historical Evidence">Previous</a>
+                
+            </nav>
+        </div>
+    </div>
+</footer>
+    </div>
+
+    
+    <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="searchModalLabel">
+    <div class="modal-dialog modal-lg" role="search">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="searchModalLabel">Search</h5>
+                <button type="button" class="close btn btn-default btn-ghost" data-dismiss="modal" aria-label="Close">x</button>
+            </div>
+            <div class="modal-body">
+                <p id="searchInputLabel">Type to start searching</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" aria-labelledby="searchInputLabel" placeholder="" id="mkdocs-search-query" title="Please enter search terms here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No document matches found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+    
+    
+</body>
+
+</html>

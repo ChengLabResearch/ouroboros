@@ -6,9 +6,10 @@ from pathlib import Path
 import sys
 import time
 import threading
+import weakref
 from contextlib import contextmanager
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import numpy as np
 import psutil
@@ -208,6 +209,100 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(tmp_path
     }
 
 
+def _fail_mapped_slice_worker(failure_stage, **worker_args):
+    from ouroboros.helpers import slice as interpolation_module
+
+    # Only weak references survive the failed task. The real executor owns
+    # exception transport and traceback disposal; this probe does neither.
+    global _failed_slice_mapping_probe
+    record = _failed_slice_mapping_probe = {
+        "pid": os.getpid(), "mappings": [], "backings": [], "calls": 0, "flushes": 0,
+    }
+    open_mapping = slice_module.memmap
+    interpolate = interpolation_module.map_coordinates
+
+    def observe_mapping(*args, **kwargs):
+        result = open_mapping(*args, **kwargs)
+        record["mappings"].append(weakref.ref(result))
+        record["backings"].append(weakref.ref(result._mmap))
+        return result
+
+    def interpolate_or_fail(*args, **kwargs):
+        record["calls"] += 1
+        assert np.shares_memory(kwargs["output"], record["mappings"][0]())
+        if failure_stage == "interpolation" and record["calls"] == 2:
+            raise OSError("injected interpolation failure")
+        return interpolate(*args, **kwargs)
+
+    def fail_flush(mapping):
+        record["flushes"] += 1
+        assert np.shares_memory(mapping, record["mappings"][0]())
+        raise OSError("injected flush failure")
+
+    with patch.object(slice_module, "memmap", observe_mapping), \
+            patch.object(interpolation_module, "map_coordinates", interpolate_or_fail), \
+            patch.object(np.memmap, "flush", fail_flush):
+        return slice_module.process_worker_save_parallel(**worker_args)
+
+
+def _inspect_failed_slice_mapping():
+    record = _failed_slice_mapping_probe
+    return {
+        "pid": os.getpid(), "failed_pid": record["pid"],
+        "mappings_released": [ref() is None for ref in record["mappings"]],
+        "backings_released": [ref() is None for ref in record["backings"]],
+        "calls": record["calls"], "flushes": record["flushes"],
+    }
+
+
+@pytest.mark.parametrize("start_method", multiprocessing.get_all_start_methods())
+@pytest.mark.parametrize("failure_stage", ["interpolation", "flush"])
+def test_failed_mapped_slice_releases_mapping_before_pool_shutdown(tmp_path, start_method, failure_stage):
+    options = slice_options(tmp_path).model_copy(update={"slice_width": 3})
+    box = BoundingBox(BoundingBox.bounds_to_rect(0, 5, 0, 4, 0, 4))
+    volume = np.arange(80, dtype=np.uint16).reshape(5, 4, 4)
+    volume = np.stack([np.roll(volume, channel, axis=0) for channel in range(3)], axis=-1)
+    rects = np.array([[[0.25, 0.5, z], [3.75, 0.5, z],
+                       [3.75, 2.5, z], [0.25, 2.5, z]] for z in [0.5, 1.25, 2.5]])
+    grids = slice_module.coordinate_grid(rects[1], (2, 3), floor=box.get_min())[None]
+    expected = np.full((3, 2, 3, 3), -999, dtype=np.float32)
+    interpolated = slice_module.slice_volume_from_grids(volume, box, grids, 3, 2)
+    # The interpolation failure is injected after the first real channel write.
+    # A flush failure occurs after every channel has been written.
+    if failure_stage == "interpolation":
+        expected[1:2, ..., 0] = interpolated[..., 0]
+    else:
+        expected[1:2] = interpolated
+    path = tmp_path / "failed-slices.tif"
+    tifffile.imwrite(path, np.full(expected.shape, -999, dtype=np.float32), photometric="rgb")
+
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=1, mp_context=multiprocessing.get_context(start_method),
+    ) as pool:
+        pid = pool.submit(os.getpid).result(timeout=30)
+        failed = pool.submit(
+            _fail_mapped_slice_worker, failure_stage,
+            config=options, volume=volume, bounding_box=box, slice_indices=[1],
+            volume_index=0, slice_rects=rects, temporary_path=str(path),
+        )
+        with pytest.raises(OSError, match=f"injected {failure_stage} failure"):
+            failed.result(timeout=30)
+        # Retain the failed Future while checking the same live worker. There
+        # is no manual close, traceback clearing, GC, or worker restart here.
+        observed = pool.submit(_inspect_failed_slice_mapping).result(timeout=30)
+        assert observed == {
+            "pid": pid, "failed_pid": pid,
+            "mappings_released": [True], "backings_released": [True],
+            "calls": 2 if failure_stage == "interpolation" else 3,
+            "flushes": 0 if failure_stage == "interpolation" else 1,
+        }
+        np.testing.assert_array_equal(tifffile.imread(path), expected)
+        renamed = path.with_name("released-slices.tif")
+        path.rename(renamed)
+        renamed.unlink()  # Also proves the mapping no longer blocks Windows deletion.
+        assert not renamed.exists()
+
+
 def test_download_worker_returns_elapsed_time_with_the_owned_geometry(monkeypatch):
     source = SimpleNamespace(
         bounds=Bbox((0, 0, 0), (4, 4, 4)), num_channels=1,
@@ -341,21 +436,50 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
 
 
 @pytest.mark.parametrize("single", [False, True])
-@pytest.mark.parametrize("fail", [False, True])
-def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(tmp_path, monkeypatch, single, fail):
-    options = slice_options(tmp_path).model_copy(update={"make_single_file": single})
-    rects = make_rects()
+@pytest.mark.parametrize("fail, normalize, zero_guard", [
+    (False, False, False), (False, False, True),
+    (False, True, False), (False, True, True), (True, True, True),
+])
+def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
+    tmp_path, monkeypatch, single, fail, normalize, zero_guard
+):
+    options = slice_options(tmp_path).model_copy(update={
+        "make_single_file": single, "slice_height": 3, "slice_width": 5,
+        "normalize_output": normalize, "zeroguard_output": zero_guard,
+    })
+    rects = np.repeat(np.array([[[0.4, 0.25, 0.6], [7.6, 0.25, 0.6],
+                                [7.6, 6.75, 0.6], [0.4, 6.75, 0.6]]]), 3, axis=0)
+    rects[:, :, 2] = np.array([0.6, 2.4, 5.2])[:, None]
+    x, y, z = np.indices((9, 8, 7))
+    volume = np.where((x >= 2) & (x <= 3), (y + 1) * 100 + z * 31, 0).astype(np.uint16)
+    box = BoundingBox(BoundingBox.bounds_to_rect(0, 9, 0, 8, 0, 7))
+
+    # The allocating path retains the interpolation used before mapped output.
+    # Compare each real final writer against its float32 result and the owning converter.
+    grids = np.stack([slice_module.coordinate_grid(rect, (3, 5), floor=box.get_min()) for rect in rects])
+    interpolate = slice_module.slice_volume_from_grids
+    reference = interpolate(volume, box, grids, 5, 3)
+    assert reference.min() < 0, "Cubic overshoot must exercise zero-guard when normalization is disabled"
+    expected = np.stack([files_module.np_convert(
+        target_dtype=volume.dtype, source=plane, normalize=normalize, zero_guard=zero_guard,
+        preset_min=reference.min(), preset_max=reference.max(),
+    ) for plane in reference])
     cache = Mock(spec=cache_module.VolumeCache)
     cache.has_color_channels.return_value = False
     cache.get_resolution_um.return_value = np.ones(3)
-    cache.get_volume_dtype.return_value = np.uint16
+    cache.get_volume_dtype.return_value = volume.dtype
     cache.volumes = [None]
-    cache.bounding_boxes = [BoundingBox(BoundingBox.bounds_to_rect(0, 3, 0, 3, 0, 3))]
+    cache.bounding_boxes = [box]
     cache.cv, cache.mip = object(), 0
     cache.use_shared = cache.cache_volume = False
-    cache.get_slice_indices.return_value = [0]
+    cache.get_slice_indices.return_value = [0, 1, 2]
     step = slice_module.SliceParallelPipelineStep()
-    observed = []
+    observed, mapped_shapes = [], []
+
+    def interpolate_observed(*args, output=None, **kwargs):
+        assert isinstance(output, np.memmap), "Final pixels must come from the mapped worker path"
+        mapped_shapes.append(output.shape)
+        return interpolate(*args, output=output, **kwargs)
 
     class InlineExecutor:
         def __init__(self, *args, **kwargs):
@@ -368,7 +492,7 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
             future = concurrent.futures.Future()
             if getattr(func, "func", None) is slice_module.download_volume:
                 assert step.get_status()["stage"] == "downloading_and_slicing"
-                future.set_result((np.arange(27).reshape(3, 3, 3), cache.bounding_boxes[0], 0.25, 0))
+                future.set_result((volume, box, 0.25, 0))
             else:
                 future.set_result(func(**kwargs))
             return future
@@ -390,10 +514,12 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
     monkeypatch.setattr(slice_module.concurrent.futures, "ProcessPoolExecutor", InlineExecutor)
     monkeypatch.setattr(slice_module, "SharedNPManager", manager)
     monkeypatch.setattr(slice_module, "build_straightened_tiff_metadata", lambda **kwargs: {"photometric": "minisblack"})
+    monkeypatch.setattr(slice_module, "slice_volume_from_grids", interpolate_observed)
     monkeypatch.setattr(slice_module, rewrite_name, rewrite_observed)
     data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
     _, error = Pipeline([step]).process(data)
-    assert len(observed) == 1
+    assert len(observed) == len(rects)
+    assert mapped_shapes == [expected.shape]
     assert observed[0]["stage"] == "normalizing_and_writing"
     assert observed[0]["status"] == "running" and observed[0]["progress"] is None
     if fail:
@@ -402,7 +528,19 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
     else:
         assert error is None
         assert step.get_status()["status"] == "succeeded" and step.get_status()["progress"] == 1
-        assert Path(data.output_file_path).exists()
+        output_path = Path(data.output_file_path)
+        if single:
+            actual = tifffile.imread(output_path)
+            assert actual.dtype == volume.dtype
+            np.testing.assert_array_equal(actual, expected)
+        else:
+            filenames = [files_module.format_tiff_name(i, files_module.num_digits_for_n_files(len(rects)))
+                         for i in range(len(rects))]
+            assert sorted(path.name for path in output_path.iterdir()) == filenames
+            for index, filename in enumerate(filenames):
+                actual = tifffile.imread(output_path / filename)
+                assert actual.dtype == volume.dtype
+                np.testing.assert_array_equal(actual, expected[index])
 
 
 def test_statistics_filename_keeps_operation_and_run_identity():

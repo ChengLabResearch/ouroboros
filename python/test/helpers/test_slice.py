@@ -164,7 +164,7 @@ def test_coordinate_grid_rejects_invalid_destination(invalid):
 
 @pytest.mark.parametrize("dtype", [np.uint8, np.uint16, np.int16, np.float32])
 @pytest.mark.parametrize("channels", [None, 1, 3])
-def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, monkeypatch):
+def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, monkeypatch, tmp_path):
     amplitude = 255 if dtype == np.float32 else np.iinfo(dtype).max
     step = np.array([0, 0, 0, amplitude, amplitude, amplitude, 0, 0], dtype=dtype)
     volume = np.broadcast_to(step[:, None, None], (8, 4, 4)).copy()
@@ -198,17 +198,29 @@ def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, 
     actual = slice_volume_from_grids(volume, box, grids, width=3, height=2)
     assert actual.shape == (2, 2, 3) + (() if channels is None else (channels,))
     assert actual.dtype == np.float32
-    assert len(interpolated_inputs) == (channels or 1)
     np.testing.assert_array_equal(actual, expected)
     # Cubic overshoot and fractional values must survive integer source storage.
     assert expected.min() < 0
     assert expected.max() > amplitude
     assert np.any(expected != np.rint(expected))
 
+    path = tmp_path / "native-dtype.tif"
+    destination = tifffile.memmap(path, shape=expected.shape, dtype=np.float32,
+                                 photometric="minisblack")
+    try:
+        mapped = slice_volume_from_grids(volume, box, grids, width=3, height=2, output=destination)
+        assert mapped is destination
+        np.testing.assert_array_equal(mapped, actual)
+        destination.flush()
+    finally:
+        destination._mmap.close()
+    np.testing.assert_array_equal(tifffile.imread(path), expected)
+    assert len(interpolated_inputs) == 2 * (channels or 1)
+
 
 @pytest.mark.parametrize("dtype", [np.uint32, np.uint64, np.int32, np.int64, np.float64])
 @pytest.mark.parametrize("channels", [None, 3])
-def test_high_precision_source_interpolates_before_float32_output(dtype, channels):
+def test_high_precision_source_interpolates_before_float32_output(dtype, channels, tmp_path):
     values = np.array([2**24, 2**24 + 1, 2**24 + 5, 2**24 + 9,
                        2**24 + 7, 2**24 + 1, 2**24, 2**24], dtype=dtype)
     volume = np.broadcast_to(values[:, None, None], (8, 4, 4)).copy()
@@ -234,6 +246,18 @@ def test_high_precision_source_interpolates_before_float32_output(dtype, channel
     # The previous eager conversion discarded source bits before interpolation.
     old = slice_volume_from_grids(volume.astype(np.float32), box, grids, width=3, height=2)
     assert np.any(actual != old)
+
+    path = tmp_path / "high-precision-dtype.tif"
+    destination = tifffile.memmap(path, shape=expected.shape, dtype=np.float32,
+                                 photometric="minisblack")
+    try:
+        mapped = slice_volume_from_grids(volume, box, grids, width=3, height=2, output=destination)
+        assert mapped is destination
+        np.testing.assert_array_equal(mapped, actual)
+        destination.flush()
+    finally:
+        destination._mmap.close()
+    np.testing.assert_array_equal(tifffile.imread(path), expected)
 
 
 @pytest.mark.parametrize("channels", [None, 1, 3])

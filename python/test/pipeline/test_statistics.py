@@ -178,7 +178,7 @@ def test_download_worker_returns_elapsed_time_with_the_owned_geometry(monkeypatc
         bounds=Bbox((0, 0, 0), (4, 4, 4)), num_channels=1,
         download=lambda bbox, **kwargs: np.full((*bbox.size3(), 1), 5),
     )
-    cv = SimpleNamespace(cv=source)
+    cv = SimpleNamespace(cv=source, dtype=np.uint16)
     box = BoundingBox(BoundingBox.bounds_to_rect(-1, 3, 0, 3, 0, 3))
     monkeypatch.setattr(cache_module, "time", clock([10, 12]))
     actual, returned_box, elapsed = cache_module.download_volume(cv, box, mip=0)

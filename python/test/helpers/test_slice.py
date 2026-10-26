@@ -2,8 +2,10 @@ from functools import partial
 import pytest
 
 import numpy as np
+from scipy.ndimage import map_coordinates
 
 from ouroboros.helpers.bounding_boxes import BoundingBox
+from ouroboros.helpers import slice as slice_module
 from ouroboros.helpers.slice import (
     calculate_slice_rects,
     detect_color_channels,
@@ -160,6 +162,78 @@ def test_slice_volume_from_grids_multi_channel():
 
     assert result.shape == (5, height, width, 3)
     assert result.dtype == np.float32
+
+
+@pytest.mark.parametrize("dtype", [np.uint8, np.uint16, np.int16, np.float32])
+@pytest.mark.parametrize("channels", [None, 1, 3])
+def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, monkeypatch):
+    amplitude = 255 if dtype == np.float32 else np.iinfo(dtype).max
+    step = np.array([0, 0, 0, amplitude, amplitude, amplitude, 0, 0], dtype=dtype)
+    volume = np.broadcast_to(step[:, None, None], (8, 4, 4)).copy()
+    if channels is not None:
+        volume = np.stack([np.roll(volume, channel, axis=0) for channel in range(channels)], axis=-1)
+    grids = np.array([[1.5, 1.25, 1.75], [2.25, 1.25, 1.75], [3.5, 1.25, 1.75],
+                      [4.5, 1.25, 1.75], [5.5, 1.25, 1.75], [6.5, 1.25, 1.75]],
+                     dtype=np.float32).reshape(1, 2, 3, 3)
+    coordinates = grids.reshape(-1, 3).T
+    box = BoundingBox(BoundingBox.bounds_to_rect(0, 8, 0, 4, 0, 4))
+    old_volume = volume.astype(np.float32)
+    if channels is None:
+        expected = map_coordinates(old_volume, coordinates).reshape(1, 2, 3)
+    else:
+        expected = np.stack([
+            map_coordinates(old_volume[..., channel], coordinates).reshape(1, 2, 3)
+            for channel in range(channels)
+        ], axis=-1)
+
+    interpolated_inputs = []
+
+    def observe_input(data, *args, **kwargs):
+        # Only the small interpolation output may be converted to float32.
+        assert data.dtype == volume.dtype
+        assert np.shares_memory(data, volume)
+        interpolated_inputs.append(data.dtype)
+        return map_coordinates(data, *args, **kwargs)
+
+    monkeypatch.setattr(slice_module, "map_coordinates", observe_input)
+    actual = slice_volume_from_grids(volume, box, grids, width=3, height=2)
+    assert actual.dtype == np.float32
+    assert len(interpolated_inputs) == (channels or 1)
+    np.testing.assert_array_equal(actual, expected)
+    # Cubic overshoot and fractional values must survive integer source storage.
+    assert expected.min() < 0
+    assert expected.max() > amplitude
+    assert np.any(expected != np.rint(expected))
+
+
+@pytest.mark.parametrize("dtype", [np.uint32, np.uint64, np.int32, np.int64, np.float64])
+@pytest.mark.parametrize("channels", [None, 3])
+def test_high_precision_source_interpolates_before_float32_output(dtype, channels):
+    values = np.array([2**24, 2**24 + 1, 2**24 + 5, 2**24 + 9,
+                       2**24 + 7, 2**24 + 1, 2**24, 2**24], dtype=dtype)
+    volume = np.broadcast_to(values[:, None, None], (8, 4, 4)).copy()
+    if channels is not None:
+        volume = np.stack([np.roll(volume, channel, axis=0) for channel in range(channels)], axis=-1)
+    grids = np.array([[1.25, 1.25, 1.75], [2.25, 1.25, 1.75], [3.5, 1.25, 1.75],
+                      [4.5, 1.25, 1.75], [5.5, 1.25, 1.75], [6.5, 1.25, 1.75]],
+                     dtype=np.float32).reshape(1, 2, 3, 3)
+    coordinates = grids.reshape(-1, 3).T
+    box = BoundingBox(BoundingBox.bounds_to_rect(0, 8, 0, 4, 0, 4))
+    if channels is None:
+        expected = map_coordinates(volume, coordinates, output=np.float32).reshape(1, 2, 3)
+    else:
+        expected = np.stack([
+            map_coordinates(volume[..., channel], coordinates, output=np.float32).reshape(1, 2, 3)
+            for channel in range(channels)
+        ], axis=-1)
+
+    actual = slice_volume_from_grids(volume, box, grids, width=3, height=2)
+
+    assert actual.dtype == np.float32
+    np.testing.assert_array_equal(actual, expected)
+    # The previous eager conversion discarded source bits before interpolation.
+    old = slice_volume_from_grids(volume.astype(np.float32), box, grids, width=3, height=2)
+    assert np.any(actual != old)
 
 
 def test_slice_volume_from_grids_empty_grids():

@@ -156,12 +156,14 @@ def slice_volume_from_grids(
             cur_channel = np.s_[..., channel]
 
             # Map the grid coordinates to the current channel volume
-            channel_slices[cur_channel] = map_coordinates(volume[cur_channel], normalized_grid).reshape(target_shape)
+            channel_slices[cur_channel] = map_coordinates(
+                volume[cur_channel], normalized_grid, output=np.float32
+            ).reshape(target_shape)
 
         return channel_slices
     else:
         # If no color channels, process as before
-        slice_points = map_coordinates(volume, normalized_grid)
+        slice_points = map_coordinates(volume, normalized_grid, output=np.float32)
         return slice_points.reshape(target_shape)
 
 

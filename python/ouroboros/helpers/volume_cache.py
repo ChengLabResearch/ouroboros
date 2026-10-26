@@ -232,15 +232,16 @@ def download_volume(
                          :]
 
     # Download the bounding box volume
-    if use_shared:  # pragma: no cover - live SharedNPManager.
+    if use_shared:
         shm_host = SharedNPManager(address=shm_address, authkey=shm_authkey)
         shm_host.connect()
-        volume = shm_host.TermedNPArray(vol_shape, np.float32)
+        # The manager creates a fresh OS-zeroed segment for every download;
+        # leave unwritten background pages untouched rather than filling them.
+        volume = shm_host.TermedNPArray(vol_shape, cv.dtype)
         with volume as volume_data:
-            volume_data[:] = 0     # Prob not most efficient but makes math much easier
             volume_data[local_bounds] = cv.cv.download(dl_box, mip=mip, parallel=parallel)
     else:
-        volume = np.zeros(astuple(vol_shape))
+        volume = np.zeros(astuple(vol_shape), dtype=cv.dtype)
         volume[local_bounds] = cv.cv.download(dl_box, mip=mip, parallel=parallel)
 
     # Return volume

@@ -28,6 +28,7 @@ jobs:
               uses: actions/checkout@v7
 
             - name: Install Python
+              id: python
               uses: actions/setup-python@v7
               with:
                   python-version: '3.11'
@@ -44,7 +45,15 @@ jobs:
 
             - name: Install locked Python dependencies
               working-directory: ./python
-              run: poetry install
+              run: |
+                  poetry env use "${{ steps.python.outputs.python-path }}"
+                  poetry install
+
+            - name: Verify test Python version
+              working-directory: ./python
+              run: |
+                  poetry run python --version
+                  poetry run python -c "import sys; sys.exit(0 if sys.version_info[:2] == (3, 11) else f'Expected Python 3.11, got {sys.version}')"
 
             - name: Test server source
               working-directory: ./python

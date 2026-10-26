@@ -782,16 +782,27 @@ transfer into the volume fails.</p>
 <p><strong>When to reconsider.</strong> Change the URL only in coordination with the
 Electron-side <code>VOLUME_SERVER_PORT</code> in
 <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/volume-server.ts"><code>src/main/servers/volume-server.ts</code></a>.</p>
-<h3 id="backprojection-chunk-and-process-defaults">Backprojection chunk and process defaults</h3>
+<h3 id="slicingbackprojection-worker-counts-and-backprojection-chunk-size">Slicing/backprojection worker counts and backprojection chunk size</h3>
 <ul>
-<li>Symbols: <code>chunk_size</code> and <code>process_count</code> on <code>BackprojectOptions</code></li>
+<li>Symbols: <code>process_count</code> on <code>CommonOptions</code> (inherited by <code>SliceOptions</code> and
+  <code>BackprojectOptions</code>), and <code>chunk_size</code> on <code>BackprojectOptions</code></li>
 <li>Values:<ul>
 <li><code>chunk_size</code> = <code>160</code></li>
 <li><code>process_count</code> = <code>os.cpu_count()</code></li>
 </ul>
 </li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/options.py"><code>python/ouroboros/helpers/options.py</code></a> lines 77-78</li>
-<li>User override: fields of the same name in the backproject options JSON</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/options.py"><code>python/ouroboros/helpers/options.py</code></a></li>
+<li>User override: <code>process_count</code> in either operation’s options JSON;
+  <code>chunk_size</code> in backprojection options. An explicit count must be at least four.
+  Use multiples of four for an exact total worker count with the existing role splits.
+  Omitted counts resolve to the backend logical CPU count when options are loaded.
+  These are worker budgets, not CPU affinity or quota controls.</li>
+<li>API discovery: <code>GET /options-schema</code> returns JSON schemas directly from both
+  options models, allowing clients to detect support before submitting jobs.</li>
+<li>Slicing reads its budget from <code>SliceOptions.process_count</code> during execution;
+  the former step constructor count and <code>with_processes()</code> override were removed.
+  Callers must set the options field instead. Slicing uses one-quarter download
+  and three-quarters slicing workers; backprojection keeps its existing split.</li>
 </ul>
 <p><strong>Why it exists.</strong> <code>chunk_size</code> is the per-dimension size of the
 processing chunk used by the backproject pipeline (see
@@ -812,7 +823,7 @@ overhead but raises peak memory per worker and can cause disproportionate
 increases in memory usage and slowdowns. On very small hosts,
 <code>process_count = cpu_count()</code> may over-subscribe and thrash; lowering it
 in the options JSON trades throughput for stability.</p>
-<p><strong>When to reconsider.</strong> Tune per-run through the backproject options
+<p><strong>When to reconsider.</strong> Tune per-run through the relevant operation’s options
 JSON. Edit the defaults only if a different global tuning is measured
 to be better across typical workloads.</p>
 <h3 id="volume-cache-flush-default">Volume-cache flush default</h3>

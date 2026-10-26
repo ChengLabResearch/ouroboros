@@ -1,0 +1,78 @@
+{
+  "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.36",
+  "source_dtype": "uint16",
+  "requested_bounds": [
+    [
+      -64,
+      -64,
+      -64
+    ],
+    [
+      192,
+      192,
+      192
+    ]
+  ],
+  "clipped_bounds": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      192,
+      192,
+      192
+    ]
+  ],
+  "buffers": [
+    {
+      "shared": false,
+      "dtype": "float64",
+      "nbytes": 134217728,
+      "shape": [
+        256,
+        256,
+        256,
+        1
+      ],
+      "unwritten_background_zero": true,
+      "written_nonzero_count": 7077784
+    },
+    {
+      "shared": true,
+      "dtype": "float32",
+      "nbytes": 67108864,
+      "name": "psm_af2ef8ee",
+      "resident_bytes_before_inspection": 67108864,
+      "shape": [
+        256,
+        256,
+        256,
+        1
+      ],
+      "unwritten_background_zero": true,
+      "written_nonzero_count": 7077784
+    },
+    {
+      "shared": true,
+      "dtype": "float32",
+      "nbytes": 67108864,
+      "name": "psm_ab9660cc",
+      "resident_bytes_before_inspection": 67108864,
+      "shape": [
+        256,
+        256,
+        256,
+        1
+      ],
+      "unwritten_background_zero": true,
+      "written_nonzero_count": 7077784
+    }
+  ],
+  "full_buffer_zero_assignments": [
+    240
+  ],
+  "volume_cache_sha256": "0566382bce51ea7a0234694881e84b3453c0d9f725f9d317d2df1ca38b2b04b1",
+  "fresh_segment_names_distinct": true
+}

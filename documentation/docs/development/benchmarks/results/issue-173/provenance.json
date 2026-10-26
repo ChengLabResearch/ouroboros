@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-26",
+  "baseline_revision": "fbf4297ba991bfa34a435970c9cb4b3efb9e5e10",
+  "modified_revision": "138e79db923d819bc55520f3127fcc67e06699e3",
+  "linux_host": {
+    "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "logical_cpus": 12
+  },
+  "windows_host": {
+    "Caption": "Microsoft Windows 11 Enterprise",
+    "Version": "10.0.22631",
+    "BuildNumber": "22631",
+    "TotalVisibleMemorySize": 100287600
+  },
+  "docker": {
+    "image_id": "sha256:d53dfab457830ffffb7a940a601029862c7055848a991ba5618eeca45e3e6408",
+    "memory_limit_bytes": 8589934592,
+    "shared_memory_limit_bytes": 2147483648,
+    "cpu_quota": 0,
+    "cpuset": "",
+    "published_ports": {},
+    "user": "1000:1000",
+    "environment_note": "OUR_ENV=local allows container-local loopback source; deployment is proven by container provenance, not CLI execution.deployment label."
+  },
+  "focused_tests": {
+    "command": "python -m pytest -q -p no:cacheprovider test/test_download_buffers.py test/helpers/test_slice.py",
+    "docker": {
+      "passed": 63,
+      "elapsed_seconds": 5.44,
+      "warnings": [
+        "Google api_core Python3.11 EOL FutureWarning, also present in baseline runs"
+      ]
+    },
+    "windows": {
+      "passed": 63,
+      "elapsed_seconds": 7.17,
+      "warnings": []
+    }
+  },
+  "native_dependencies_note": "psutil7.1.3 installed into campaign-only target; original Windows environment had7.1.0. Same isolated target and documented CloudFiles patch for both tested revisions. No global or shipped dependency changed.",
+  "artifact_sha256": {
+    "prepare.py": "5ea1f7a7280a0bbb193bf2677e6076cfeee2ea797e93ee41680d4d1213975780",
+    "windows-results.json": "a1dcbea25c5e3c20b2c3e1cd80f28abd62d44c06bb77ca1c2a54b678f234a102",
+    "windows-allocation-baseline.json": "5d67f8e17276cf163e75f4b23b01a1c592627f60dffc1cf9565174416968e8c5",
+    "docker-allocation-baseline.json": "680dc3a64f12d03b0bd97050bf489f6921b2d31807b4b34c067f8aa85b8c80ee",
+    "docker-allocation-modified.json": "7de0e7f891f3d399ac2775bb591b9ba2ae699ebcc9679d52c4909e957e164468",
+    "windows-workaround.json": "51d9bcb52d6285dfd121fddaf7bf40668b8c80870be367e3c7a386b7ba843fcb",
+    "preflights.json": "154b56d418145c5aca8f1d10ba9c10643bc430ba96f980fe56b238821af26d1c",
+    "commands.json": "32fad93fd92e127748146613018aac83c0a61f88e9bd7fca10537773e315cc0d",
+    "docker-results.json": "4d18da9311316e312d2a0f0121f402dea48764ace3aa50fb8c9d7e79bd674960",
+    "windows-allocation-modified.json": "30126773ee99b933e37bf833f1a6b005b90f668c16291789e0c7ae3cacee7e2c",
+    "allocation_probe.py": "16521b81f3621b3500fadd1e1ae784ee1fb36ff87fb66063a1ecac549ea6838f",
+    "compare.py": "e21b407da85d7996f6d02d884b3a987ad8d751843072c5178bf99043e662aefa"
+  },
+  "scope_notes": [
+    "Identical uint16 raw voxel data within and across platforms; representative crop is first six original Posterior Salivary Duct2 points with original coordinates/700nm spacing.",
+    "Synthetic fixture normalizes=false/zeroguard=false; representative normalizes=true/zeroguard=true.",
+    "Only within-platform before/after timing comparisons; raw source backend differs by platform. Full remote sharded download campaign is not timed.",
+    "No production instrumentation: existing benchmark.run_once and TIFF evidence, canonical RAM collector, manager allocation/release and existing resident_bytes are reused.",
+    "Original and modified production Python file hashes and benchmark harness hash are in platform results. Reproduction driver optional output-root argument was added for native NTFS outputs.",
+    "All per-run canonical statistics retained, including memory status/sampling coverage and worker timings. Short runs and incomplete sweeps can miss phase peaks; allocation size reduction is not a whole-pipeline RAM guarantee.",
+    "Windows allocation JSON line endings were normalized from CRLF to LF for repository publication; parsed values are unchanged and original capture hashes are retained separately."
+  ],
+  "captured_crlf_artifact_sha256": {
+    "windows-allocation-baseline.json": "1809aeb7a7b646ac50b6dbe8830e230aa6870cf13cca27809ed073f1f78685e9",
+    "windows-allocation-modified.json": "af9023e76a9e8c0999e57210708cb88f4728089527987cc1390a0ca7afcc4442"
+  }
+}

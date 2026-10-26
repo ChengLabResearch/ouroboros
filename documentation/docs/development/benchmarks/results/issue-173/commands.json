@@ -1,0 +1,10 @@
+{
+  "prepare": "python prepare.py --root FIXTURES --baseline BASELINE_REPO --prior-campaign ISSUE163_CAMPAIGN",
+  "docker_container": "docker run --rm -d --name ouroboros-issue173-measurements --user 1000:1000 --memory 8g --shm-size 2g --env OUR_ENV=local --mount type=bind,source=FIXTURES,target=/campaign --mount type=bind,source=BASELINE_REPO,target=/baseline,readonly --mount type=bind,source=MODIFIED_REPO,target=/modified,readonly --entrypoint python IMAGE_ID -m http.server 18973 --bind 127.0.0.1 --directory /campaign",
+  "docker_compare": "docker exec ouroboros-issue173-measurements python /campaign/compare.py --baseline /baseline --modified /modified --root /campaign --source-root http://127.0.0.1:18973 --platform-label docker",
+  "windows_prepare": "Copy both raw source directories to NTFS fixtures. Install psutil==7.1.3 with pip --target WINDOWS_DEPS; copy installed cloudfiles package into WINDOWS_DEPS and apply existing issue-139-cloudfiles-zero-interval.patch. Set PYTHONPATH=WINDOWS_DEPS for both revisions.",
+  "windows_compare_equivalent_explicit_command": "python compare.py --baseline BASELINE_REPO --modified MODIFIED_REPO --root FIXTURES --output-root NTFS_OUTPUT --source-root file://NTFS_FIXTURES --platform-label windows",
+  "windows_actual_launcher": "windows_runner.py benchmark C:\\Users\\DNORTH~1\\AppData\\Local\\Temp\\ouroboros-issue173-d6pqbyo7 (wrapper created NTFS output tempfile and copied finished results back)",
+  "allocation_probe": "python allocation_probe.py REPO SOURCE_URL OUTPUT_JSON (repeat each revision/platform)",
+  "focused_tests": "python -m pytest -q -p no:cacheprovider test/test_download_buffers.py test/helpers/test_slice.py (PYTHONPATH selects checkout and isolated Windows dependencies; Docker source mounted read-only)"
+}

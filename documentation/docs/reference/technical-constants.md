@@ -386,14 +386,25 @@ transfer into the volume fails.
 Electron-side `VOLUME_SERVER_PORT` in
 [`src/main/servers/volume-server.ts`][volume-server-ts].
 
-### Backprojection chunk and process defaults
+### Slicing/backprojection worker counts and backprojection chunk size
 
-- Symbols: `chunk_size` and `process_count` on `BackprojectOptions`
+- Symbols: `process_count` on `CommonOptions` (inherited by `SliceOptions` and
+  `BackprojectOptions`), and `chunk_size` on `BackprojectOptions`
 - Values:
     - `chunk_size` = `160`
     - `process_count` = `os.cpu_count()`
-- Source: [`python/ouroboros/helpers/options.py`][options-py] lines 77-78
-- User override: fields of the same name in the backproject options JSON
+- Source: [`python/ouroboros/helpers/options.py`][options-py]
+- User override: `process_count` in either operation’s options JSON;
+  `chunk_size` in backprojection options. An explicit count must be at least four.
+  Use multiples of four for an exact total worker count with the existing role splits.
+  Omitted counts resolve to the backend logical CPU count when options are loaded.
+  These are worker budgets, not CPU affinity or quota controls.
+- API discovery: `GET /options-schema` returns JSON schemas directly from both
+  options models, allowing clients to detect support before submitting jobs.
+- Slicing reads its budget from `SliceOptions.process_count` during execution;
+  the former step constructor count and `with_processes()` override were removed.
+  Callers must set the options field instead. Slicing uses one-quarter download
+  and three-quarters slicing workers; backprojection keeps its existing split.
 
 **Why it exists.** `chunk_size` is the per-dimension size of the
 processing chunk used by the backproject pipeline (see
@@ -417,7 +428,7 @@ increases in memory usage and slowdowns. On very small hosts,
 `process_count = cpu_count()` may over-subscribe and thrash; lowering it
 in the options JSON trades throughput for stability.
 
-**When to reconsider.** Tune per-run through the backproject options
+**When to reconsider.** Tune per-run through the relevant operation’s options
 JSON. Edit the defaults only if a different global tuning is measured
 to be better across typical workloads.
 

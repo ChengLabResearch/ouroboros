@@ -99,8 +99,8 @@ def test_source_straightened_and_storage_use_actual_dtype_and_channels(tmp_path,
     assert result["source"]["url"] == "memory://source"
     assert "backprojected_output" not in result
     downloads = result["bounding_box"]["download_partitions"]
-    assert downloads["allocated_logical_bytes"] == np.empty((5, 4, 5, channels), np.uint16).nbytes
-    assert downloads["source_clipped_logical_bytes"] == np.empty((4, 4, 5, channels), np.uint16).nbytes
+    assert downloads["allocated_logical_bytes"] == np.empty((8, 6, 7, channels), np.uint16).nbytes
+    assert downloads["source_clipped_logical_bytes"] == np.empty((6, 6, 7, channels), np.uint16).nbytes
 
 
 def test_geometry_uses_native_owners_and_distinguishes_endpoints_and_clipping(tmp_path, monkeypatch):
@@ -131,25 +131,54 @@ def test_geometry_uses_native_owners_and_distinguishes_endpoints_and_clipping(tm
     assert result["logical_uncompressed_bytes"] == np.empty((8, 6, 7), np.uint16).nbytes
     downloads = result["download_partitions"]
     assert downloads["count"] == 1
-    assert downloads["allocated_logical_bytes"] == np.empty((5, 4, 5), np.uint16).nbytes
-    assert downloads["source_clipped_logical_bytes"] == np.empty((4, 4, 5), np.uint16).nbytes
+    assert downloads["allocated_logical_bytes"] == np.empty((8, 6, 7), np.uint16).nbytes
+    assert downloads["source_clipped_logical_bytes"] == np.empty((6, 6, 7), np.uint16).nbytes
     # Preserve current production clipping semantics, including its default mip.
     assert result["mip"] == 1
     assert result["download_partitions"]["clipping_bounds_mip"] == 0
 
 
-def test_integer_geometry_is_not_half_open_download_size(tmp_path):
+def test_download_geometry_uses_the_box_integer_origin_and_shape(monkeypatch):
+    cache = _cache()
+    box = cache.bounding_boxes[0]
+    origin = box.get_integer_origin
+    shape = box.get_shape
+    calls = []
+
+    def observe_origin():
+        calls.append("origin")
+        return origin()
+
+    def observe_shape():
+        calls.append("shape")
+        return shape()
+
+    def forbid_float_conversion():
+        pytest.fail("Download geometry must not reinterpret the geometric bounds")
+
+    monkeypatch.setattr(box, "get_integer_origin", observe_origin)
+    monkeypatch.setattr(box, "get_shape", observe_shape)
+    monkeypatch.setattr(box, "to_cloudvolume_bbox", forbid_float_conversion)
+    requested, clipped, allocated = volume_statistics.download_volume_geometry(cache.cv, box)
+
+    assert calls == ["origin", "shape"]
+    assert requested == Bbox((-2, 2, 0), (6, 8, 7))
+    assert clipped == Bbox((0, 2, 0), (6, 8, 7))
+    assert (allocated.X, allocated.Y, allocated.Z, allocated.C) == (8, 6, 7, 1)
+
+
+def test_integer_geometry_and_downloads_share_the_inclusive_extent(tmp_path):
     data = _input(tmp_path)
     data.volume_cache.bounding_boxes = [BoundingBox(BoundingBox.bounds_to_rect(1, 4, 2, 6, 3, 8))]
     result = volume_statistics.collect_volume_statistics(data, "slice")["bounding_box"]
     assert result["dimensions"] == [4, 5, 6]
-    assert result["download_partitions"]["allocated_logical_bytes"] == np.empty((3, 4, 5), np.uint16).nbytes
+    assert result["download_partitions"]["allocated_logical_bytes"] == np.empty((4, 5, 6), np.uint16).nbytes
     data.volume_cache.bounding_boxes.append(BoundingBox(BoundingBox.bounds_to_rect(2, 5, 2, 6, 3, 8)))
     result = volume_statistics.collect_volume_statistics(data, "slice")["bounding_box"]
     assert result["dimensions"] == [5, 5, 6]
     assert result["download_partitions"]["count"] == 2
     # Overlapping requests each contribute their own logical allocation, not a union or RAM peak.
-    expected_request_bytes = 2 * np.empty((3, 4, 5), np.uint16).nbytes
+    expected_request_bytes = 2 * np.empty((4, 5, 6), np.uint16).nbytes
     assert result["download_partitions"]["allocated_logical_bytes"] == expected_request_bytes
     assert result["download_partitions"]["source_clipped_logical_bytes"] == expected_request_bytes
 

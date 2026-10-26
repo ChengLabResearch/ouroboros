@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from ouroboros.helpers.bounding_boxes import (
     BoundingBox,
     BoundingBoxParams,
@@ -26,6 +27,19 @@ def test_bounding_box_get_shape():
     bbox = BoundingBox(rect)
     shape = bbox.get_shape()
     assert shape == (2, 2, 2)
+
+
+def test_integer_origin_preserves_the_geometric_bounds():
+    bbox = BoundingBox(np.array([[-1.9, 2.3, 4], [3.1, 5.8, 4]]))
+
+    origin = bbox.get_integer_origin()
+
+    assert origin.dtype == np.int64
+    np.testing.assert_array_equal(origin, [-2, 2, 4])
+    assert bbox.get_shape() == (7, 5, 1)
+    np.testing.assert_array_equal(bbox.get_min(), [-1.9, 2.3, 4])
+    np.testing.assert_allclose(bbox.to_cloudvolume_bbox().minpt, [-1.9, 2.3, 4])
+    np.testing.assert_allclose(bbox.to_cloudvolume_bbox().maxpt, [3.1, 5.8, 4])
 
 
 def test_bounding_box_volume_slice_and_extrema():
@@ -328,6 +342,14 @@ def test_boxes_dim_range():
 
     # Test parameter
     assert np.all(boxes_dim_range(bboxes, 'x') == np.arange(0, 6, dtype=int))
+
+
+@pytest.mark.parametrize("dim", ["x", "y", "z"])
+@pytest.mark.parametrize("maximum, expected", [(3, [1, 2, 3]), (3.5, [1, 2, 3, 4])])
+def test_boxes_dim_range_stops_at_the_last_allocated_voxel(dim, maximum, expected):
+    boxes = [BoundingBox(np.full((2, 3), 1.5)), BoundingBox(np.full((2, 3), maximum))]
+    np.testing.assert_array_equal(boxes_dim_range(boxes, dim), expected)
+    np.testing.assert_array_equal(boxes_dim_range(boxes[1:], dim), [3] if maximum == 3 else [3, 4])
 
 
 def test_shoud_be_divided():

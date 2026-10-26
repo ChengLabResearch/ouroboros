@@ -16,6 +16,7 @@ import psutil
 import pytest
 import tifffile
 from cloudvolume import Bbox
+from scipy.ndimage import map_coordinates
 
 from ouroboros.helpers import files as files_module
 from ouroboros.helpers import volume_cache as cache_module
@@ -209,6 +210,97 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(tmp_path
     }
 
 
+@pytest.mark.parametrize("clipped", [False, True], ids=["inside_source", "clipped_source"])
+def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(tmp_path, monkeypatch, clipped):
+    # A positive coordinate-encoding field makes the old fractional-origin shift
+    # visible. Clipping changes the real source bounds, not the requested box.
+    world_origin = np.full(3, 1000)
+    x, y, z = np.ogrid[:96, :96, :96]
+    world = (128 + 0.5 * x + 0.25 * y + 0.125 * z).astype(np.float32)
+    source_origin = world_origin + (np.array([30, 0, 0]) if clipped else 0)
+    world[:source_origin[0] - world_origin[0]] = 0
+    source_bounds = Bbox(source_origin, world_origin + world.shape)
+
+    def download(bbox, **kwargs):
+        assert source_bounds.contains_bbox(bbox)
+        start, stop = bbox.minpt - world_origin, bbox.maxpt - world_origin
+        return world[tuple(slice(int(low), int(high)) for low, high in zip(start, stop))][..., None]
+
+    cv = SimpleNamespace(cv=SimpleNamespace(bounds=source_bounds, num_channels=1, download=download),
+                         dtype=world.dtype)
+    center = np.array([1048.37, 1050.61, 1048.23])
+    u, v = np.array([0.8, 0.6, 0]), np.array([-0.36, 0.48, 0.8])
+    rect = np.array([center - 20*u + 20*v, center + 20*u + 20*v,
+                     center + 20*u - 20*v, center - 20*u - 20*v])
+    boxes = [BoundingBox.from_rects(rect[None]),
+             BoundingBox.from_rects(np.stack([rect, rect + [-11.71, -13.29, -9.57]]))]
+    assert np.all(boxes[0].get_min() % 1 != boxes[1].get_min() % 1)
+    options = slice_options(tmp_path).model_copy(update={"slice_height": 61, "slice_width": 63})
+    # Evaluate the exact plane independently in float64: the common reference
+    # must not inherit production coordinate-grid arithmetic or its rounding.
+    horizontal = np.linspace(0, 1, 63)[None, :, None]
+    vertical = np.linspace(0, 1, 61)[:, None, None]
+    world_grid = (rect[0] + (rect[1] - rect[0])*horizontal +
+                  (rect[3] - rect[0])*vertical - world_origin)
+    reference = map_coordinates(world, world_grid.reshape(-1, 3).T,
+                                order=3, mode="constant", output=np.float32).reshape(61, 63)
+    interpolate = slice_module.slice_volume_from_grids
+    observed_grids = []
+
+    def interpolate_observed(volume, box, grids, width, height, *, output=None):
+        assert isinstance(output, np.memmap)
+        assert np.all(grids >= 0)
+        assert np.all(grids <= np.array(volume.shape[:3]) - 1)
+        observed_grids.append(grids.copy())
+        return interpolate(volume, box, grids, width, height, output=output)
+
+    monkeypatch.setattr(slice_module, "slice_volume_from_grids", interpolate_observed)
+    results, coordinate_references = [], []
+    for index, box in enumerate(boxes):
+        volume, returned_box, _ = cache_module.download_volume(cv, box, mip=0)
+        assert returned_box is box
+        assert volume.shape[:3] == box.get_shape()
+        if clipped:
+            missing = source_origin[0] - box.get_integer_origin()[0]
+            assert missing > 0 and np.all(volume[:missing] == 0)
+            assert np.all(volume[missing:] > 0)
+        path = tmp_path / f"box-{index}.tif"
+        tifffile.imwrite(path, np.full((1, 61, 63, 1), -999, dtype=np.float32), photometric="minisblack")
+        slice_module.process_worker_save_parallel(options, volume, box, [0], index, rect[None], str(path))
+        sampled = tifffile.imread(path).reshape(61, 63)
+        if not clipped:
+            assert np.all(sampled > 0), "Contained corners must not become constant-fill zero edges"
+        results.append(sampled)
+        actual_world_grid = observed_grids[-1][0] + box.get_integer_origin() - world_origin
+        # The existing float32 grid arithmetic can round differently when an
+        # integer origin crosses a power-of-two boundary. In this fixture the two
+        # rounded endpoint arrays contribute at most one world-coordinate ULP,
+        # their absolute-coordinate sum one, and the rounded rect[0]+origin one.
+        # Also compare interpolation at those exact production coordinates.
+        np.testing.assert_allclose(actual_world_grid, world_grid, rtol=0,
+                                   atol=3*np.spacing(np.float32(rect.max())))
+        coordinate_references.append(map_coordinates(
+            world, actual_world_grid.reshape(-1, 3).T, order=3, mode="constant", output=np.float32,
+        ).reshape(61, 63))
+
+    # Cubic prefilter boundaries decay rather than having finite support. For
+    # this linear float32 fixture, >8 voxels from both cutouts' last voxel
+    # centers limits filtering residual to one ULP at identical coordinates.
+    # Existing grid quantization contributes up to 21 ULP against the independent
+    # exact plane and 10 ULP between boxes near the clipped source edge. Bound
+    # these separately at 32 and 16 ULP rather than hiding the coordinate error.
+    # No extra padding or interpolation setting change is used.
+    interior = np.ones((61, 63), dtype=bool)
+    for box, grids in zip(boxes, observed_grids):
+        distance = np.minimum(grids[0], np.array(box.get_shape()) - 1 - grids[0]).min(axis=-1)
+        interior &= distance > 8
+    assert interior.sum() > 100
+    for sampled, coordinate_reference in zip(results, coordinate_references):
+        np.testing.assert_array_max_ulp(sampled[interior], coordinate_reference[interior], maxulp=1)
+        np.testing.assert_array_max_ulp(sampled[interior], reference[interior], maxulp=32)
+    np.testing.assert_array_max_ulp(results[0][interior], results[1][interior], maxulp=16)
+
+
 def _fail_mapped_slice_worker(failure_stage, **worker_args):
     from ouroboros.helpers import slice as interpolation_module
 
@@ -341,6 +433,43 @@ def test_backproject_worker_timers_are_disjoint_and_bytes_are_separate(tmp_path,
     assert "total_bytes" not in durations
     assert index == (0, 0, 0)
     assert stack.tolist() == [0]
+
+
+def test_backproject_chunk_places_fractional_box_in_full_integer_extent(tmp_path):
+    # The two sampled positions on each axis are 1.5 and 3. The first splits
+    # equally across voxels 1/2; the exact maximum must only contribute to 3.
+    rects = np.array([[[1.5, 1.5, z], [3, 1.5, z], [3, 3, z], [1.5, 3, z]]
+                      for z in (1.5, 3)])
+    x = np.array([1.5, 3])[None, None, :]
+    y = np.array([1.5, 3])[None, :, None]
+    z = np.array([1.5, 3])[:, None, None]
+    slices = (x + 10*y + 100*z).astype(np.float32)
+    source = tmp_path / "coordinate-slices.tif"
+    tifffile.imwrite(source, slices, photometric="minisblack")
+    full_box = BoundingBox(BoundingBox.bounds_to_rect(0.75, 4.25, 0.25, 4.5, 0.875, 4.875))
+    config = BackprojectOptions(output_file_folder=str(tmp_path), output_file_name="coordinates",
+                                straightened_volume_path=str(source), slice_options_path="unused")
+    _, byte_count, index, pages = backproject_module.process_chunk(
+        config, str(source), rects, (slice(None),) * 3, (0, 0, 0), full_box,
+        intermediate_threads=1,
+    )
+    assert byte_count > 0 and index == (0, 0, 0)
+    np.testing.assert_array_equal(pages, [1, 2, 3])
+    shape = ImgSliceC(X=full_box.get_shape()[0], Y=full_box.get_shape()[1], C=1)
+    actual = np.zeros(np.flip(full_box.get_shape()), dtype=np.float32)
+    intermediates = tmp_path / f"{os.getppid()}_coordinates"
+    for page in pages:
+        path = intermediates / f"i_{page:05}.dat"
+        actual[page] = files_module.volume_from_intermediates(path, shape, thread_count=1).reshape(shape.Y, shape.X)
+
+    # Independent global placement oracle: every destination receives exactly
+    # one sample value, although its trilinear contribution may have weight <1.
+    sample_coordinates = np.array([1.5, 1.5, 3], dtype=np.float32)
+    expected = np.zeros((6, 6, 6), dtype=np.float32)
+    expected[1:4, 1:4, 1:4] = (sample_coordinates[None, None, :] +
+                               10*sample_coordinates[None, :, None] +
+                               100*sample_coordinates[:, None, None])
+    np.testing.assert_array_equal(actual, expected)
 
 
 def test_writer_returns_nested_timings_and_uses_dispatched_merge_threads(tmp_path, monkeypatch):

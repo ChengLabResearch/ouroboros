@@ -72,11 +72,13 @@ def test_download_preserves_source_values_and_clipped_zero_background(
     )
     try:
         pixels = result.array() if use_shared else result
-        assert pixels.shape == (5, 3, 2, channels)
+        assert pixels.shape == (6, 4, 3, channels)
         assert pixels.dtype == np.dtype(dtype)
-        np.testing.assert_array_equal(pixels[1:4], values)
+        np.testing.assert_array_equal(pixels[1:4, :3, :2], values)
         assert np.all(pixels[0] == 0)
-        assert np.all(pixels[4] == 0)
+        assert np.all(pixels[4:] == 0)
+        assert np.all(pixels[:, 3:] == 0)
+        assert np.all(pixels[:, :, 2:] == 0)
     finally:
         if use_shared:
             manager.remove_termed(result)
@@ -111,7 +113,7 @@ def test_download_allocates_native_bytes_without_writing_the_full_buffer(
     source.cv.download = download
     monkeypatch.setattr(SharedNPArray, "__enter__", observe)
     # Page-aligned byte counts make the manager's native size exact on Windows too.
-    box = BoundingBox(BoundingBox.bounds_to_rect(-1, 63, 0, 64, 0, 16))
+    box = BoundingBox(BoundingBox.bounds_to_rect(-1, 62, 0, 63, 0, 15))
     result, *_ = download_volume(
         source, box, mip=2, parallel=3, use_shared=True,
         shm_address=manager.address, shm_authkey=bytes(manager._authkey),

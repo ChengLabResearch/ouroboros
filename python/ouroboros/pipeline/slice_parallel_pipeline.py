@@ -332,7 +332,7 @@ def process_worker_save_parallel(
     # Fill the final grid through the shared coordinate-generation facility.
     start = time.perf_counter()
 
-    grid_call = partial(coordinate_grid, shape=(config.slice_height, config.slice_width), floor=bounding_box.get_min())
+    grid_call = partial(coordinate_grid, shape=(config.slice_height, config.slice_width), floor=bounding_box.get_integer_origin())
     grids = np.empty((len(slice_indices), config.slice_height, config.slice_width, 3), dtype=np.float32)
     for grid, slice_index in zip(grids, slice_indices):
         grid_call(slice_rects[slice_index], output=grid)

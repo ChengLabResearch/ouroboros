@@ -90,21 +90,22 @@ def calculate_slice_rects(
 
 
 def coordinate_grid(rect: np.ndarray, shape: tuple[int, int] | FrontProj,
-                    floor: np.ndarray = None, flip: bool = False) -> np.ndarray:
+                    floor: np.ndarray = None, flip: bool = False, *,
+                    output: np.ndarray | None = None) -> np.ndarray:
     """
     Generate a coordinate grid for a rectangle, relative to space of rectangle.
 
     Parameters:
     ----------
         rect (numpy.ndarray): The corners of the rectangle as a list of 3D coordinates.
-        width (int): The width of the grid.
-        height (int): The height of the grid.
+        shape (tuple[int, int] | FrontProj): The height and width of the grid.
         floor (ndarray): Extra minimum value to use as baseline, instead of rect[0]
         flip (bool): Whether to flip the slice rects coordiante order (e.g. X/Y/Z to Z/Y/X)
+        output (ndarray): Optional writable float32 destination of shape (height, width, 3).
 
     Returns:
     -------
-        numpy.ndarray: The grid of coordinates (height, width, 3).
+        numpy.ndarray: The supplied destination, or a newly allocated float32 grid.
     """
     # Addition adds an extra rect[0] so we extend floor by it.
     floor = (rect[0] if floor is None else rect[0] + floor).astype(np.float32)
@@ -118,7 +119,19 @@ def coordinate_grid(rect: np.ndarray, shape: tuple[int, int] | FrontProj,
     u = np.linspace(l_rect[0], l_rect[1], shape.U, dtype=np.float32)
     v = np.linspace(l_rect[0], l_rect[3], shape.V, dtype=np.float32)
 
-    return np.add(u.reshape(1, shape.U, 3), v.reshape(shape.V, 1, 3)) - floor
+    target_shape = (shape.V, shape.U, 3)
+    if output is None:
+        output = np.empty(target_shape, dtype=np.float32)
+    elif not isinstance(output, np.ndarray) or output.dtype != np.float32:
+        raise TypeError("output must be a float32 NumPy array")
+    elif output.shape != target_shape:
+        raise ValueError(f"output must have shape {target_shape}")
+    elif not output.flags.writeable:
+        raise ValueError("output must be writable")
+
+    np.add(u.reshape(1, shape.U, 3), v.reshape(shape.V, 1, 3), out=output)
+    np.subtract(output, floor, out=output)
+    return output
 
 
 def slice_volume_from_grids(

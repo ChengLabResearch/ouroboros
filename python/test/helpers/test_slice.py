@@ -12,6 +12,7 @@ from ouroboros.helpers.slice import (
     make_volume_binary,
     slice_volume_from_grids,
     coordinate_grid,
+    FrontProj,
     backproject_box,
     FrontProjStack,
     BackProjectIter
@@ -84,60 +85,80 @@ def test_calculate_slice_rects():
         ), "Height should be 100"
 
 
-def test_generate_coordinate_grid_for_rect():
-    rect = np.array([[-42.64727347, -54.72166585,  -4.78695662],
-                     [-47.22139466,  43.8212048,  -21.16926598],
-                     [40.81561612,  55.54768491,  24.78695662],
-                     [45.38973732, -42.99518573,  41.16926598]])
-#     rect = np.array([[0, 0, 0], [2, 2, 0], [2, 3, 2], [0, 1, 2]])
-#     rect = np.array([[ 57.35272653,  45.27833415,  95.21304338],
-#        [ 52.77860534, 143.8212048 ,  78.83073402],
-#        [140.81561612, 155.54768491, 124.78695662],
-#        [145.38973732,  57.00481427, 141.16926598]])
+@pytest.mark.parametrize("flip", [False, True])
+@pytest.mark.parametrize("floor", [None, np.array([-50.0, -60.0, -40.0])])
+@pytest.mark.parametrize("provided", [False, True])
+def test_coordinate_grid_preserves_formula_in_its_destination(flip, floor, provided, monkeypatch):
+    rect = np.array([[-42.64727347, -54.72166585, -4.78695662],
+                     [-47.22139466, 43.8212048, -21.16926598],
+                     [40.81561612, 55.54768491, 24.78695662],
+                     [45.38973732, -42.99518573, 41.16926598]])
+    height, width = 5, 7
+    adjusted_floor = (rect[0] if floor is None else rect[0] + floor).astype(np.float32)
+    local_rect = np.flip(rect, axis=1) if flip else rect
+    if flip:
+        adjusted_floor = np.flip(adjusted_floor)
+    u = np.linspace(local_rect[0], local_rect[1], width, dtype=np.float32)
+    v = np.linspace(local_rect[0], local_rect[3], height, dtype=np.float32)
+    # Preserve the original two-operation formula, including float32 rounding.
+    expected = np.add(u.reshape(1, width, 3), v.reshape(height, 1, 3)) - adjusted_floor
+    backing = np.full((2, height, width * 2, 3), -999, dtype=np.float32)
+    destination = backing[1, :, ::2] if provided else None
+    allocations, writes = [], []
+    empty, add, subtract = np.empty, np.add, np.subtract
 
-    WIDTH = 100
-    HEIGHT = 60
+    def observe_empty(*args, **kwargs):
+        result = empty(*args, **kwargs)
+        if result.shape == expected.shape:
+            allocations.append(result)
+        return result
 
-    # Generate a coordinate grid for the rectangle
-    cg = coordinate_grid(rect, (HEIGHT, WIDTH))
+    def observe_add(left, right, *, out):
+        writes.append(out)
+        return add(left, right, out=out)
 
-    # Assert that the method returns a numpy array
-    assert isinstance(
-        cg, np.ndarray
-    ), "Coordinate grid should be a numpy array"
-    assert cg.shape == (
-        HEIGHT,
-        WIDTH,
-        3,
-    ), "Coordinate grid should have shape (60, 100, 3)"
-    assert np.allclose(
-        cg[0][0], rect[0]
-    ), "The first coordinate should be the top left corner of the rectangle"
+    def observe_subtract(left, right, *, out):
+        assert left is out
+        writes.append(out)
+        return subtract(left, right, out=out)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(slice_module.np, "empty", observe_empty)
+        patch.setattr(slice_module.np, "add", observe_add)
+        patch.setattr(slice_module.np, "subtract", observe_subtract)
+        actual = coordinate_grid(rect, FrontProj(height, width) if provided else (height, width),
+                                 floor=floor, flip=flip, output=destination)
+
+    assert actual.shape == (height, width, 3)
+    assert actual.dtype == np.float32
+    np.testing.assert_array_equal(actual, expected)
+    assert len(writes) == 2 and all(target is actual for target in writes)
+    if provided:
+        assert actual is destination
+        assert np.shares_memory(actual, backing) and not actual.flags.c_contiguous
+        assert allocations == []
+        assert np.all(backing[0] == -999) and np.all(backing[1, :, 1::2] == -999)
+    else:
+        assert len(allocations) == 1 and allocations[0] is actual
 
 
-def test_generate_coordinate_grid_flipped():
-    rect = np.array([[-42.64727347, -54.72166585,  -4.78695662],
-                     [-47.22139466,  43.8212048,  -21.16926598],
-                     [40.81561612,  55.54768491,  24.78695662],
-                     [45.38973732, -42.99518573,  41.16926598]])
-    floor = np.array([-50.0, -60.0, -40.0])
-#     rect = np.array([[0, 0, 0], [2, 2, 0], [2, 3, 2], [0, 1, 2]])
-#     rect = np.array([[ 57.35272653,  45.27833415,  95.21304338],
-#        [ 52.77860534, 143.8212048 ,  78.83073402],
-#        [140.81561612, 155.54768491, 124.78695662],
-#        [145.38973732,  57.00481427, 141.16926598]])
-
-    WIDTH = 100
-    HEIGHT = 60
-
-    # Generate a coordinate grid for the rectangle
-    cg = coordinate_grid(rect, (HEIGHT, WIDTH), flip=True, floor=floor)
-
-    # Assert that the method returns a numpy array
-    assert isinstance(cg, np.ndarray), "Coordinate grid should be a numpy array"
-    assert cg.shape == (HEIGHT, WIDTH, 3, ), "Coordinate grid should have shape (60, 100, 3)"
-    assert np.allclose(cg[0][0], np.flip(rect[0] - floor)
-                       ), "The first coordinate should be the top left corner of the rectangle"
+@pytest.mark.parametrize("invalid", ["dtype", "shape", "readonly", "not_array"])
+def test_coordinate_grid_rejects_invalid_destination(invalid):
+    output = np.zeros((5, 7, 3), dtype=np.float32)
+    error, message = ValueError, "shape"
+    if invalid == "dtype":
+        output = output.astype(np.float64)
+        error, message = TypeError, "float32"
+    elif invalid == "shape":
+        output = output.transpose(1, 0, 2)
+    elif invalid == "readonly":
+        output.flags.writeable = False
+        message = "writable"
+    else:
+        output = output.tolist()
+        error, message = TypeError, "float32"
+    with pytest.raises(error, match=message):
+        coordinate_grid(np.arange(12).reshape(4, 3), (5, 7), output=output)
 
 
 @pytest.mark.parametrize("dtype", [np.uint8, np.uint16, np.int16, np.float32])

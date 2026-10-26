@@ -329,11 +329,13 @@ def process_worker_save_parallel(
     durations = {}
     durations["initial_load"] = [time.perf_counter() - start_total]
 
-    # Generate a grid for each slice and stack them along the first axis
+    # Fill the final grid through the shared coordinate-generation facility.
     start = time.perf_counter()
 
     grid_call = partial(coordinate_grid, shape=(config.slice_height, config.slice_width), floor=bounding_box.get_min())
-    grids = np.array(list(map(grid_call, slice_rects[slice_indices])))
+    grids = np.empty((len(slice_indices), config.slice_height, config.slice_width, 3), dtype=np.float32)
+    for grid, slice_index in zip(grids, slice_indices):
+        grid_call(slice_rects[slice_index], output=grid)
     durations["generate_grid"] = [time.perf_counter() - start]
 
     # Slice the volume using the grids

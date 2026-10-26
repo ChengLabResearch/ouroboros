@@ -329,24 +329,32 @@ def process_worker_save_parallel(
     durations = {}
     durations["initial_load"] = [time.perf_counter() - start_total]
 
-    # Generate a grid for each slice and stack them along the first axis
+    # Fill the final grid through the shared coordinate-generation facility.
     start = time.perf_counter()
 
     grid_call = partial(coordinate_grid, shape=(config.slice_height, config.slice_width), floor=bounding_box.get_min())
-    grids = np.array(list(map(grid_call, slice_rects[slice_indices])))
+    grids = np.empty((len(slice_indices), config.slice_height, config.slice_width, 3), dtype=np.float32)
+    for grid, slice_index in zip(grids, slice_indices):
+        grid_call(slice_rects[slice_index], output=grid)
     durations["generate_grid"] = [time.perf_counter() - start]
 
     # Slice the volume using the grids
     start = time.perf_counter()
+    contiguous = len(slice_indices) > 0 and slice_indices[0] >= 0 and all(
+        index == slice_indices[0] + offset for offset, index in enumerate(slice_indices)
+    )
+    mmap = memmap(temporary_path) if contiguous else None
     slices = slice_volume_from_grids(
-        volume_data, bounding_box, grids, config.slice_width, config.slice_height
+        volume_data, bounding_box, grids, config.slice_width, config.slice_height,
+        output=mmap[slice_indices[0]:slice_indices[-1] + 1] if contiguous else None,
     )
     durations["slice_volume"] = [time.perf_counter() - start]
 
     start = time.perf_counter()
     # Save the slices to a previously created tiff file
-    mmap = memmap(temporary_path)
-    mmap[slice_indices] = slices
+    if mmap is None:
+        mmap = memmap(temporary_path)
+        mmap[slice_indices] = slices
     mmap.flush()
     del mmap
 

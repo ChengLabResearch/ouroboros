@@ -90,21 +90,22 @@ def calculate_slice_rects(
 
 
 def coordinate_grid(rect: np.ndarray, shape: tuple[int, int] | FrontProj,
-                    floor: np.ndarray = None, flip: bool = False) -> np.ndarray:
+                    floor: np.ndarray = None, flip: bool = False, *,
+                    output: np.ndarray | None = None) -> np.ndarray:
     """
     Generate a coordinate grid for a rectangle, relative to space of rectangle.
 
     Parameters:
     ----------
         rect (numpy.ndarray): The corners of the rectangle as a list of 3D coordinates.
-        width (int): The width of the grid.
-        height (int): The height of the grid.
+        shape (tuple[int, int] | FrontProj): The height and width of the grid.
         floor (ndarray): Extra minimum value to use as baseline, instead of rect[0]
         flip (bool): Whether to flip the slice rects coordiante order (e.g. X/Y/Z to Z/Y/X)
+        output (ndarray): Optional writable float32 destination of shape (height, width, 3).
 
     Returns:
     -------
-        numpy.ndarray: The grid of coordinates (height, width, 3).
+        numpy.ndarray: The supplied destination, or a newly allocated float32 grid.
     """
     # Addition adds an extra rect[0] so we extend floor by it.
     floor = (rect[0] if floor is None else rect[0] + floor).astype(np.float32)
@@ -118,11 +119,24 @@ def coordinate_grid(rect: np.ndarray, shape: tuple[int, int] | FrontProj,
     u = np.linspace(l_rect[0], l_rect[1], shape.U, dtype=np.float32)
     v = np.linspace(l_rect[0], l_rect[3], shape.V, dtype=np.float32)
 
-    return np.add(u.reshape(1, shape.U, 3), v.reshape(shape.V, 1, 3)) - floor
+    target_shape = (shape.V, shape.U, 3)
+    if output is None:
+        output = np.empty(target_shape, dtype=np.float32)
+    elif not isinstance(output, np.ndarray) or output.dtype != np.float32:
+        raise TypeError("output must be a float32 NumPy array")
+    elif output.shape != target_shape:
+        raise ValueError(f"output must have shape {target_shape}")
+    elif not output.flags.writeable:
+        raise ValueError("output must be writable")
+
+    np.add(u.reshape(1, shape.U, 3), v.reshape(shape.V, 1, 3), out=output)
+    np.subtract(output, floor, out=output)
+    return output
 
 
 def slice_volume_from_grids(
-    volume: VolumeCutout, bounding_box: BoundingBox, grids: np.ndarray, width, height
+    volume: VolumeCutout, bounding_box: BoundingBox, grids: np.ndarray, width, height,
+    *, output: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Slice a volume based on a grid of coordinates.
@@ -134,6 +148,7 @@ def slice_volume_from_grids(
         grids (numpy.ndarray): The grids of coordinates to slice the volume (n, width, height, 3).
         width (int): The width of the grid.
         height (int): The height of the grid.
+        output (ndarray): Optional writable C-contiguous float32 destination.
 
     Returns:
     -------
@@ -145,10 +160,16 @@ def slice_volume_from_grids(
     # Check if volume has color channels
     has_color_channels, num_channels = detect_color_channels(volume)
     target_shape = (len(grids), height, width)
+    if output is not None:
+        output_shape = target_shape + ((num_channels,) if has_color_channels else ())
+        if (output.shape != output_shape or output.dtype != np.float32
+                or not output.flags.c_contiguous or not output.flags.writeable):
+            raise ValueError(f"output must be a writable C-contiguous float32 array of shape {output_shape}")
 
     if has_color_channels:
         # Initialize an empty array to store slices from each channel
-        channel_slices = np.empty(target_shape + (num_channels, ), dtype=np.float32)
+        channel_slices = (np.empty(target_shape + (num_channels, ), dtype=np.float32)
+                          if output is None else output)
 
         # Iterate over each color channel
         for channel in range(num_channels):
@@ -156,15 +177,21 @@ def slice_volume_from_grids(
             cur_channel = np.s_[..., channel]
 
             # Map the grid coordinates to the current channel volume
-            channel_slices[cur_channel] = map_coordinates(
-                volume[cur_channel], normalized_grid, output=np.float32
-            ).reshape(target_shape)
+            if output is None:
+                channel_slices[cur_channel] = map_coordinates(
+                    volume[cur_channel], normalized_grid, output=np.float32
+                ).reshape(target_shape)
+            else:
+                # Flatten the contiguous slab before selecting the strided channel.
+                map_coordinates(volume[cur_channel], normalized_grid,
+                                output=output.reshape(-1, num_channels)[:, channel])
 
         return channel_slices
     else:
         # If no color channels, process as before
-        slice_points = map_coordinates(volume, normalized_grid, output=np.float32)
-        return slice_points.reshape(target_shape)
+        slice_points = map_coordinates(volume, normalized_grid,
+                                       output=np.float32 if output is None else output.reshape(-1))
+        return slice_points.reshape(target_shape) if output is None else output
 
 
 def _apply_weights(values, weights, corner):

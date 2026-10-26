@@ -2,6 +2,7 @@ from functools import partial
 import pytest
 
 import numpy as np
+import tifffile
 from scipy.ndimage import map_coordinates
 
 from ouroboros.helpers.bounding_boxes import BoundingBox
@@ -233,6 +234,64 @@ def test_high_precision_source_interpolates_before_float32_output(dtype, channel
     # The previous eager conversion discarded source bits before interpolation.
     old = slice_volume_from_grids(volume.astype(np.float32), box, grids, width=3, height=2)
     assert np.any(actual != old)
+
+
+@pytest.mark.parametrize("channels", [None, 1, 3])
+def test_slice_volume_writes_flat_interpolation_into_tiff_destination(channels, tmp_path, monkeypatch):
+    volume = np.arange(80, dtype=np.uint16).reshape(5, 4, 4)
+    if channels is not None:
+        volume = np.stack([np.roll(volume, channel, axis=0) for channel in range(channels)], axis=-1)
+    grids = np.array([[0.25, 1.25, 1.75], [1.25, 1.25, 1.75], [2.5, 1.25, 1.75],
+                      [3.5, 1.25, 1.75], [4.5, 1.25, 1.75], [-0.5, 1.25, 1.75]],
+                     dtype=np.float32).reshape(1, 2, 3, 3)
+    grids = np.concatenate((grids, grids[:, :, ::-1]))
+    box = BoundingBox(BoundingBox.bounds_to_rect(0, 5, 0, 4, 0, 4))
+    expected = slice_volume_from_grids(volume, box, grids, width=3, height=2)
+    path = tmp_path / "destination.tif"
+    mapping = tifffile.memmap(path, shape=(4, *expected.shape[1:]), dtype=np.float32,
+                             photometric="minisblack")
+    mapping[:] = -999
+    destination = mapping[1:3]
+    writes = []
+
+    def observe_map(data, coordinates, **kwargs):
+        assert set(kwargs) == {"output"}, "Preserve SciPy's interpolation defaults"
+        target = kwargs["output"]
+        expected_target = (destination.reshape(-1) if channels is None
+                           else destination.reshape(-1, channels)[:, len(writes)])
+        assert np.shares_memory(data, volume)
+        assert np.shares_memory(coordinates, grids)
+        np.testing.assert_array_equal(coordinates, grids.reshape(-1, 3).T)
+        assert target.shape == expected_target.shape
+        assert target.strides == expected_target.strides
+        assert target.ctypes.data == expected_target.ctypes.data
+        writes.append(target)
+        return map_coordinates(data, coordinates, **kwargs)
+
+    try:
+        monkeypatch.setattr(slice_module, "map_coordinates", observe_map)
+        actual = slice_volume_from_grids(volume, box, grids, width=3, height=2, output=destination)
+        assert actual is destination
+        assert len(writes) == (channels or 1)
+        mapping.flush()
+    finally:
+        mapping._mmap.close()
+    expected_file = np.full((4, *expected.shape[1:]), -999, dtype=np.float32)
+    expected_file[1:3] = expected
+    np.testing.assert_array_equal(tifffile.imread(path), expected_file)
+
+
+def test_slice_volume_rejects_destinations_that_cannot_be_filled_in_place():
+    volume = np.ones((3, 3, 3), dtype=np.uint16)
+    box = BoundingBox(BoundingBox.bounds_to_rect(0, 3, 0, 3, 0, 3))
+    grids = np.ones((1, 2, 3, 3), dtype=np.float32)
+    readonly = np.empty((1, 2, 3), dtype=np.float32)
+    readonly.flags.writeable = False
+    for output in (readonly, np.empty((1, 2, 3), dtype=np.float64),
+                   np.empty((1, 3, 2), dtype=np.float32),
+                   np.empty((1, 2, 6), dtype=np.float32)[:, :, ::2]):
+        with pytest.raises(ValueError, match="writable C-contiguous float32 array"):
+            slice_volume_from_grids(volume, box, grids, width=3, height=2, output=output)
 
 
 def test_slice_volume_from_grids_empty_grids():

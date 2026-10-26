@@ -340,15 +340,21 @@ def process_worker_save_parallel(
 
     # Slice the volume using the grids
     start = time.perf_counter()
+    contiguous = len(slice_indices) > 0 and slice_indices[0] >= 0 and all(
+        index == slice_indices[0] + offset for offset, index in enumerate(slice_indices)
+    )
+    mmap = memmap(temporary_path) if contiguous else None
     slices = slice_volume_from_grids(
-        volume_data, bounding_box, grids, config.slice_width, config.slice_height
+        volume_data, bounding_box, grids, config.slice_width, config.slice_height,
+        output=mmap[slice_indices[0]:slice_indices[-1] + 1] if contiguous else None,
     )
     durations["slice_volume"] = [time.perf_counter() - start]
 
     start = time.perf_counter()
     # Save the slices to a previously created tiff file
-    mmap = memmap(temporary_path)
-    mmap[slice_indices] = slices
+    if mmap is None:
+        mmap = memmap(temporary_path)
+        mmap[slice_indices] = slices
     mmap.flush()
     del mmap
 

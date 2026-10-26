@@ -156,16 +156,51 @@ def slice_options(tmp_path):
                         slice_width=2, slice_height=2, process_count=4)
 
 
-def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(tmp_path, monkeypatch):
-    rects = make_rects()
+@pytest.mark.parametrize("slice_indices", [[1, 2], [2, 0], [-2, -1]],
+                         ids=["mapped", "buffered", "negative_indices"])
+def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(tmp_path, monkeypatch, slice_indices):
+    rects = np.repeat(make_rects(), 3, axis=0)
+    rects[:, :, 2] = np.array([0.5, 1.0, 1.5])[:, None]
     box = BoundingBox(BoundingBox.bounds_to_rect(0, 3, 0, 3, 0, 3))
     options = slice_options(tmp_path)
     path = tmp_path / "slices.tif"
-    tifffile.memmap(path, shape=(1, 2, 2), dtype=np.float32, photometric="minisblack")
+    tifffile.imwrite(path, np.full((3, 2, 2), -999, dtype=np.float32), photometric="minisblack")
+    volume = np.arange(27).reshape(3, 3, 3)
+    grids = np.stack([slice_module.coordinate_grid(rects[index], (2, 2), floor=box.get_min())
+                     for index in slice_indices])
+    interpolate, open_mapping = slice_module.slice_volume_from_grids, slice_module.memmap
+    expected = interpolate(volume, box, grids, 2, 2)
+    mappings, outputs = [], []
+
+    def observe_mapping(*args, **kwargs):
+        result = open_mapping(*args, **kwargs)
+        mappings.append(result)
+        return result
+
+    def observe_interpolation(volume, bounding_box, grids, width, height, *, output=None):
+        outputs.append(output)
+        if slice_indices == [1, 2]:
+            assert output.base is mappings[0]
+            assert output.ctypes.data == mappings[0][1:3].ctypes.data
+        else:
+            assert output is None
+        return interpolate(volume, bounding_box, grids, width, height, output=output)
+
+    monkeypatch.setattr(slice_module, "memmap", observe_mapping)
+    monkeypatch.setattr(slice_module, "slice_volume_from_grids", observe_interpolation)
     monkeypatch.setattr(slice_module, "time", clock(range(9)))
-    index, durations, _, _ = slice_module.process_worker_save_parallel(
-        options, np.arange(27).reshape(3, 3, 3), box, [0], 0, rects, str(path),
-    )
+    try:
+        index, durations, minimum, maximum = slice_module.process_worker_save_parallel(
+            options, volume, box, slice_indices, 0, rects, str(path),
+        )
+    finally:
+        for mapping in mappings:
+            mapping._mmap.close()
+    assert len(mappings) == len(outputs) == 1
+    expected_file = np.full((3, 2, 2), -999, dtype=np.float32)
+    expected_file[slice_indices] = expected
+    np.testing.assert_array_equal(tifffile.imread(path), expected_file)
+    assert (minimum, maximum) == (expected.min(), expected.max())
     assert index == 0
     assert durations == {
         "initial_load": [1], "generate_grid": [1], "slice_volume": [1],

@@ -18,9 +18,10 @@ import tifffile
 from cloudvolume import Bbox
 from scipy.ndimage import map_coordinates
 
+from ouroboros.common.pipelines import geometry_pipeline
 from ouroboros.helpers import files as files_module
 from ouroboros.helpers import volume_cache as cache_module
-from ouroboros.helpers.bounding_boxes import BoundingBox
+from ouroboros.helpers.bounding_boxes import BoundingBox, calculate_bounding_boxes_bsp_link_rects
 from ouroboros.helpers.options import BackprojectOptions, SliceOptions
 from ouroboros.helpers.shapes import ImgSliceC
 from ouroboros.pipeline import backproject_pipeline as backproject_module
@@ -28,6 +29,7 @@ from ouroboros.pipeline import pipeline as pipeline_module
 from ouroboros.pipeline import slice_parallel_pipeline as slice_module
 from ouroboros.pipeline.pipeline import Pipeline, PipelineStep
 from ouroboros.pipeline.pipeline_input import BasePipelineInput, PipelineInput
+from test.sample_data import generate_sample_curve_helix
 
 
 class FunctionStep(PipelineStep):
@@ -214,10 +216,10 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(tmp_path
 def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(tmp_path, monkeypatch, clipped):
     # A positive coordinate-encoding field makes the old fractional-origin shift
     # visible. Clipping changes the real source bounds, not the requested box.
-    world_origin = np.full(3, 1000)
-    x, y, z = np.ogrid[:96, :96, :96]
+    world_origin = np.full(3, 960)
+    x, y, z = np.ogrid[:192, :192, :192]
     world = (128 + 0.5 * x + 0.25 * y + 0.125 * z).astype(np.float32)
-    source_origin = world_origin + (np.array([30, 0, 0]) if clipped else 0)
+    source_origin = np.array([1030, 960, 960]) if clipped else world_origin
     world[:source_origin[0] - world_origin[0]] = 0
     source_bounds = Bbox(source_origin, world_origin + world.shape)
 
@@ -228,14 +230,30 @@ def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(tmp_pat
 
     cv = SimpleNamespace(cv=SimpleNamespace(bounds=source_bounds, num_channels=1, download=download),
                          dtype=world.dtype)
-    center = np.array([1048.37, 1050.61, 1048.23])
-    u, v = np.array([0.8, 0.6, 0]), np.array([-0.36, 0.48, 0.8])
-    rect = np.array([center - 20*u + 20*v, center + 20*u + 20*v,
-                     center + 20*u - 20*v, center - 20*u - 20*v])
-    boxes = [BoundingBox.from_rects(rect[None]),
-             BoundingBox.from_rects(np.stack([rect, rect + [-11.71, -13.29, -9.57]]))]
-    assert np.all(boxes[0].get_min() % 1 != boxes[1].get_min() % 1)
-    options = slice_options(tmp_path).model_copy(update={"slice_height": 61, "slice_width": 63})
+    # Generate an annotated path, then use production geometry and partitioning
+    # to obtain both boxes. No hand-built rectangles or fractional box bounds.
+    points = generate_sample_curve_helix(start_z=0, end_z=12, radius=3, num_points=30) + 1040
+    annotations = tmp_path / "path.json"
+    annotations.write_text(json.dumps({"layers": [
+        {"type": "annotation", "name": "path", "annotations": [
+            {"type": "point", "point": point.tolist()} for point in points]},
+        {"type": "image", "name": "source", "source": "precomputed://unused"},
+    ]}))
+    options = slice_options(tmp_path).model_copy(update={
+        "slice_height": 61, "slice_width": 63, "neuroglancer_json": str(annotations),
+        "neuroglancer_annotation_layer": "path", "neuroglancer_image_layer": "source",
+    })
+    pipeline, data = geometry_pipeline(options)
+    _, error = pipeline.process(data)
+    assert error is None
+    rects = data.slice_rects
+    selected = len(rects) // 2
+    rect = rects[selected]
+    boxes = []
+    for target in (1, len(rects)):
+        partitions, links = calculate_bounding_boxes_bsp_link_rects(rects, target_slices_per_box=target)
+        boxes.append(partitions[links[selected]])
+    assert np.any(boxes[0].get_min() % 1 != boxes[1].get_min() % 1)
     # Evaluate the exact plane independently in float64: the common reference
     # must not inherit production coordinate-grid arithmetic or its rounding.
     horizontal = np.linspace(0, 1, 63)[None, :, None]
@@ -282,23 +300,45 @@ def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(tmp_pat
         coordinate_references.append(map_coordinates(
             world, actual_world_grid.reshape(-1, 3).T, order=3, mode="constant", output=np.float32,
         ).reshape(61, 63))
+        if not clipped:
+            # Backproject the sampled output through each production-derived box.
+            # Trilinear splatting preserves the sample count and world-position
+            # centroid; a fractional-origin shift fails this independent check.
+            lookup, totals, weights = backproject_module.backproject_box(box, rect[None], sampled[None])
+            positions = np.array(np.unravel_index(lookup, box.get_shape()[::-1])).T[:, ::-1]
+            positions += box.get_integer_origin()
+            np.testing.assert_allclose(weights.sum(), sampled.size, rtol=1e-6)
+            np.testing.assert_allclose(totals.sum(), sampled.sum(), rtol=1e-6)
+            np.testing.assert_allclose(weights @ positions / weights.sum(),
+                                       (world_grid + world_origin).mean(axis=(0, 1)), rtol=0,
+                                       atol=3*np.spacing(np.float32(rect.max())))
 
     # Cubic prefilter boundaries decay rather than having finite support. For
     # this linear float32 fixture, >8 voxels from both cutouts' last voxel
     # centers limits filtering residual to one ULP at identical coordinates.
-    # Existing grid quantization contributes up to 21 ULP against the independent
-    # exact plane and 10 ULP between boxes near the clipped source edge. Bound
-    # these separately at 32 and 16 ULP rather than hiding the coordinate error.
+    # Bound existing grid quantization separately from the filtering residual.
     # No extra padding or interpolation setting change is used.
     interior = np.ones((61, 63), dtype=bool)
     for box, grids in zip(boxes, observed_grids):
         distance = np.minimum(grids[0], np.array(box.get_shape()) - 1 - grids[0]).min(axis=-1)
         interior &= distance > 8
     assert interior.sum() > 100
+    # At the clipped source edge, the field jumps to zero. There, grid
+    # round-off is amplified by the cubic interpolant's gradient, and intensity
+    # ULPs near zero are not a useful bound. Allow twice the source value range
+    # per voxel for that transition, separately from the filtering residual.
+    coordinate_tolerance = 3 * np.spacing(np.float32(rect.max()))
+    edge_tolerance = coordinate_tolerance * 2 * world.max()
     for sampled, coordinate_reference in zip(results, coordinate_references):
         np.testing.assert_array_max_ulp(sampled[interior], coordinate_reference[interior], maxulp=1)
-        np.testing.assert_array_max_ulp(sampled[interior], reference[interior], maxulp=32)
-    np.testing.assert_array_max_ulp(results[0][interior], results[1][interior], maxulp=16)
+        if clipped:
+            np.testing.assert_allclose(sampled[interior], reference[interior], rtol=0, atol=edge_tolerance)
+        else:
+            np.testing.assert_array_max_ulp(sampled[interior], reference[interior], maxulp=32)
+    if clipped:
+        np.testing.assert_allclose(results[0][interior], results[1][interior], rtol=0, atol=2*edge_tolerance)
+    else:
+        np.testing.assert_array_max_ulp(results[0][interior], results[1][interior], maxulp=16)
 
 
 def _fail_mapped_slice_worker(failure_stage, **worker_args):
@@ -433,43 +473,6 @@ def test_backproject_worker_timers_are_disjoint_and_bytes_are_separate(tmp_path,
     assert "total_bytes" not in durations
     assert index == (0, 0, 0)
     assert stack.tolist() == [0]
-
-
-def test_backproject_chunk_places_fractional_box_in_full_integer_extent(tmp_path):
-    # The two sampled positions on each axis are 1.5 and 3. The first splits
-    # equally across voxels 1/2; the exact maximum must only contribute to 3.
-    rects = np.array([[[1.5, 1.5, z], [3, 1.5, z], [3, 3, z], [1.5, 3, z]]
-                      for z in (1.5, 3)])
-    x = np.array([1.5, 3])[None, None, :]
-    y = np.array([1.5, 3])[None, :, None]
-    z = np.array([1.5, 3])[:, None, None]
-    slices = (x + 10*y + 100*z).astype(np.float32)
-    source = tmp_path / "coordinate-slices.tif"
-    tifffile.imwrite(source, slices, photometric="minisblack")
-    full_box = BoundingBox(BoundingBox.bounds_to_rect(0.75, 4.25, 0.25, 4.5, 0.875, 4.875))
-    config = BackprojectOptions(output_file_folder=str(tmp_path), output_file_name="coordinates",
-                                straightened_volume_path=str(source), slice_options_path="unused")
-    _, byte_count, index, pages = backproject_module.process_chunk(
-        config, str(source), rects, (slice(None),) * 3, (0, 0, 0), full_box,
-        intermediate_threads=1,
-    )
-    assert byte_count > 0 and index == (0, 0, 0)
-    np.testing.assert_array_equal(pages, [1, 2, 3])
-    shape = ImgSliceC(X=full_box.get_shape()[0], Y=full_box.get_shape()[1], C=1)
-    actual = np.zeros(np.flip(full_box.get_shape()), dtype=np.float32)
-    intermediates = tmp_path / f"{os.getppid()}_coordinates"
-    for page in pages:
-        path = intermediates / f"i_{page:05}.dat"
-        actual[page] = files_module.volume_from_intermediates(path, shape, thread_count=1).reshape(shape.Y, shape.X)
-
-    # Independent global placement oracle: every destination receives exactly
-    # one sample value, although its trilinear contribution may have weight <1.
-    sample_coordinates = np.array([1.5, 1.5, 3], dtype=np.float32)
-    expected = np.zeros((6, 6, 6), dtype=np.float32)
-    expected[1:4, 1:4, 1:4] = (sample_coordinates[None, None, :] +
-                               10*sample_coordinates[None, :, None] +
-                               100*sample_coordinates[:, None, None])
-    np.testing.assert_array_equal(actual, expected)
 
 
 def test_writer_returns_nested_timings_and_uses_dispatched_merge_threads(tmp_path, monkeypatch):

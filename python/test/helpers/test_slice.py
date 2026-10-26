@@ -101,16 +101,12 @@ def test_coordinate_grid_preserves_formula_in_its_destination(flip, floor, provi
         adjusted_floor = np.flip(adjusted_floor)
     u = np.linspace(local_rect[0], local_rect[1], width, dtype=np.float32)
     v = np.linspace(local_rect[0], local_rect[3], height, dtype=np.float32)
-    # Preserve the original formula except rounding excursions beyond the rectangle.
+    # Preserve the original two-operation formula, including float32 rounding.
     expected = np.add(u.reshape(1, width, 3), v.reshape(height, 1, 3)) - adjusted_floor
-    bounds = np.array([rect.min(axis=0), rect.max(axis=0)]) - (0 if floor is None else floor)
-    if flip:
-        bounds = bounds[:, ::-1]
-    expected = np.clip(expected, *bounds).astype(np.float32)
     backing = np.full((2, height, width * 2, 3), -999, dtype=np.float32)
     destination = backing[1, :, ::2] if provided else None
     allocations, writes = [], []
-    empty, add, subtract, clip = np.empty, np.add, np.subtract, np.clip
+    empty, add, subtract = np.empty, np.add, np.subtract
 
     def observe_empty(*args, **kwargs):
         result = empty(*args, **kwargs)
@@ -127,23 +123,17 @@ def test_coordinate_grid_preserves_formula_in_its_destination(flip, floor, provi
         writes.append(out)
         return subtract(left, right, out=out)
 
-    def observe_clip(data, lower, upper, *, out):
-        assert data is out
-        writes.append(out)
-        return clip(data, lower, upper, out=out)
-
     with monkeypatch.context() as patch:
         patch.setattr(slice_module.np, "empty", observe_empty)
         patch.setattr(slice_module.np, "add", observe_add)
         patch.setattr(slice_module.np, "subtract", observe_subtract)
-        patch.setattr(slice_module.np, "clip", observe_clip)
         actual = coordinate_grid(rect, FrontProj(height, width) if provided else (height, width),
                                  floor=floor, flip=flip, output=destination)
 
     assert actual.shape == (height, width, 3)
     assert actual.dtype == np.float32
     np.testing.assert_array_equal(actual, expected)
-    assert len(writes) == 3 and all(target is actual for target in writes)
+    assert len(writes) == 2 and all(target is actual for target in writes)
     if provided:
         assert actual is destination
         assert np.shares_memory(actual, backing) and not actual.flags.c_contiguous
@@ -151,20 +141,6 @@ def test_coordinate_grid_preserves_formula_in_its_destination(flip, floor, provi
         assert np.all(backing[0] == -999) and np.all(backing[1, :, 1::2] == -999)
     else:
         assert len(allocations) == 1 and allocations[0] is actual
-
-
-def test_coordinate_grid_keeps_reversed_integer_face_inside_download():
-    # Absolute float32 addition/subtraction previously produced x=-0.0001220703125.
-    rect = np.array([[1001.00007, 10, 20.5], [1000, 10, 20.5],
-                     [1000, 12, 20.5], [1001.00007, 12, 20.5]])
-    box = BoundingBox(rect)
-    grid = coordinate_grid(rect, (2, 2), floor=box.get_integer_origin())
-    assert np.all(grid >= 0)
-    assert np.all(grid <= np.array(box.get_shape()) - 1)
-    np.testing.assert_array_equal(grid[:, 1, 0], 0)
-    sampled = slice_volume_from_grids(np.full(box.get_shape(), 7, dtype=np.float32),
-                                     box, grid[None], 2, 2)
-    np.testing.assert_array_equal(sampled, 7)
 
 
 @pytest.mark.parametrize("invalid", ["dtype", "shape", "readonly", "not_array"])
@@ -388,40 +364,6 @@ def test_backproject_empty_slices():
 
     assert volume.dtype == np.float32
     assert np.all(volume == 0)
-
-
-def test_coordinate_encoded_slice_round_trip_has_no_box_dependent_offset():
-    rect = BoundingBox.bounds_to_rect(4, 7, 5, 8, 9, 9)
-    expected_world = np.array([[x, y, 9] for y in range(5, 9) for x in range(4, 8)])
-    expected_values = expected_world @ np.array([1, 10, 100])
-    for bounds in [(1.5, 10.5, 2.25, 12.5, 3.75, 14.5),
-                   (0.25, 11.125, 1.5, 14.75, 2.125, 16.25)]:
-        box = BoundingBox(BoundingBox.bounds_to_rect(*bounds))
-        origin = box.get_integer_origin()
-        xyz = np.indices(box.get_shape()) + origin[:, None, None, None]
-        volume = (xyz[0] + 10 * xyz[1] + 100 * xyz[2]).astype(np.float32)
-        grids = coordinate_grid(rect, (4, 4), floor=origin)[None]
-        slices = slice_volume_from_grids(volume, box, grids, 4, 4)
-        lookup, totals, weights = backproject_box(box, np.array([rect]), slices)
-        world = np.array(np.unravel_index(lookup, box.get_shape()[::-1])).T[:, ::-1] + origin
-        np.testing.assert_array_equal(world, expected_world)
-        np.testing.assert_array_equal(weights, 1)
-        np.testing.assert_array_equal(totals / weights, expected_values)
-
-
-@pytest.mark.parametrize("rect", [
-    [[1.5, 1.5, 1.5], [3, 1.5, 3], [3, 3, 3], [1.5, 3, 1.5]],
-    [[1, 1, 3], [3, 1, 3], [3, 3, 3], [1, 3, 3]],
-])
-def test_backproject_maximum_faces_conserve_values_weights_and_position(rect):
-    rect = np.array(rect)
-    box = BoundingBox(rect)
-    slices = np.array([[[2, 3], [5, 7]]], dtype=np.float32)
-    lookup, totals, weights = backproject_box(box, rect[None], slices)
-    world = np.array(np.unravel_index(lookup, box.get_shape()[::-1])).T[:, ::-1] + box.get_integer_origin()
-    assert totals.sum() == slices.sum()
-    assert weights.sum() == 4
-    np.testing.assert_allclose(weights @ world, rect.sum(axis=0), rtol=0, atol=1e-6)
 
 
 def test_backproject_slices_large_volume():

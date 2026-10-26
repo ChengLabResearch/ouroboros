@@ -107,15 +107,12 @@ def coordinate_grid(rect: np.ndarray, shape: tuple[int, int] | FrontProj,
     -------
         numpy.ndarray: The supplied destination, or a newly allocated float32 grid.
     """
-    origin = 0 if floor is None else floor
-    bounds = np.array([rect.min(axis=0), rect.max(axis=0)]) - origin
     # Addition adds an extra rect[0] so we extend floor by it.
     floor = (rect[0] if floor is None else rect[0] + floor).astype(np.float32)
     if isinstance(shape, tuple): shape = FrontProj(*shape)     # noqa: E701
     if flip:
         floor = np.flip(floor)
         l_rect = np.flip(rect, axis=1)
-        bounds = np.flip(bounds, axis=1)
     else:
         l_rect = rect
 
@@ -134,8 +131,6 @@ def coordinate_grid(rect: np.ndarray, shape: tuple[int, int] | FrontProj,
 
     np.add(u.reshape(1, shape.U, 3), v.reshape(shape.V, 1, 3), out=output)
     np.subtract(output, floor, out=output)
-    # Float32 cancellation at a face must not move samples outside the rectangle.
-    np.clip(output, bounds[0], bounds[1], out=output)
     return output
 
 
@@ -246,16 +241,11 @@ def backproject_box(bounding_box: BoundingBox, slice_rects: np.ndarray, slices: 
     # Sequentially allocate the points and weights for each corner to the flattened array.
     for corner in np.array(list(np.ndindex(2, 2, 2))):
         w_values, c_weights = _apply_weights(values, weights, corner)
-        active = c_weights != 0
-        if not np.any(active):
-            continue
-        # An exact maximum-face sample has no contribution to its outside neighbor.
         point_inc = np.ravel_multi_index(corner, zyx_shape).astype(squish_type)
-        target_points = points[active] + point_inc
 
         for i in range(0, channels):
-            np.add.at(volume[i], target_points, w_values[active, i])
-        np.add.at(volume[-1], target_points, c_weights[active])
+            np.add.at(volume[i], points + point_inc, w_values[..., i])
+        np.add.at(volume[-1], points + point_inc, c_weights)
 
     # Get indicies of the flattened Z-Y-X backprojected domain that have values.
     nz_vol = np.flatnonzero(volume[-1]).astype(squish_type)

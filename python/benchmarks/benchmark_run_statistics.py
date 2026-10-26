@@ -39,7 +39,6 @@ def child_run(args: argparse.Namespace) -> None:
     os.environ.setdefault("CLOUD_FILES_DIR", str(args.options.parent / "cloudfiles"))
 
     import ouroboros.cli as cli
-    import ouroboros.common.server_handlers as handlers
     from ouroboros.pipeline.pipeline import Pipeline
 
     pipeline_times = []
@@ -59,21 +58,6 @@ def child_run(args: argparse.Namespace) -> None:
                                    for step in pipeline.steps})
 
         Pipeline.process = timed_process
-
-    # Use the existing process-count seam, leaving production execution intact.
-    # The slicing CLI has no worker-count option; four workers means one download
-    # process and three slice processes. Backprojection gets the count in options.
-    factory = handlers.slice_pipeline
-
-    def controlled_slice_pipeline(*factory_args, **factory_kwargs):
-        pipeline, data = factory(*factory_args, **factory_kwargs)
-        pipeline.steps[-1].with_processes(args.workers)
-        return pipeline, data
-
-    handlers.slice_pipeline = controlled_slice_pipeline
-    # This assignment also permits running the harness against pre-#138 code.
-    if hasattr(cli, "slice_pipeline"):
-        cli.slice_pipeline = controlled_slice_pipeline
 
     sys.argv = ["ouroboros-cli", args.operation, str(args.options)]
     if args.enabled:
@@ -187,13 +171,14 @@ def run_once(folder: Path, operation: str, options: dict, enabled: bool,
     run_folder.mkdir()
     output_folder = run_folder / "output"
     output_folder.mkdir()
-    options = dict(options, output_file_folder=str(output_folder), output_file_name=operation)
+    options = dict(options, output_file_folder=str(output_folder), output_file_name=operation,
+                   process_count=workers)
     options_path = run_folder / "options.json"
     write_json(options_path, options)
     timing_path = run_folder / "measurement.json"
     command = [sys.executable, str(Path(__file__).resolve()), "--child",
                "--operation", operation, "--options", str(options_path),
-               "--measurement", str(timing_path), "--workers", str(workers), "--scope", scope]
+               "--measurement", str(timing_path), "--scope", scope]
     if enabled:
         command.append("--enabled")
     started = time.perf_counter()

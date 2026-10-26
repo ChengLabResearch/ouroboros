@@ -79,3 +79,36 @@ def test_backproject_options_to_json(tmp_path):
     json_path = tmp_path / "backproject_options.json"
     options.save_to_json(json_path)
     assert json_path.exists()
+
+
+@pytest.mark.parametrize("model, required", [
+    (SliceOptions, dict(slice_width=10, slice_height=10, neuroglancer_json="state.json")),
+    (BackprojectOptions, dict(straightened_volume_path="mask.tif", slice_options_path="slice.json")),
+])
+def test_worker_budget_is_owned_by_serialized_options(model, required):
+    import os
+    common = dict(output_file_folder="output", output_file_name="image", **required)
+    assert model(**common).process_count == os.cpu_count()
+    for count in (4, 8, 12, 48):
+        options = model(**common, process_count=count)
+        restored = model.from_json(options.to_json())
+        assert restored.process_count == count
+    for count in (0, -4, 3, 4.5):
+        with pytest.raises(ValidationError):
+            model(**common, process_count=count)
+
+
+@pytest.mark.parametrize("docker", [False, True])
+def test_api_option_schema_is_derived_from_owning_models(docker):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from ouroboros.common.server_api import create_api
+    app = FastAPI()
+    create_api(app, docker=docker)
+    with TestClient(app) as client:
+        response = client.get("/options-schema")
+    assert response.status_code == 200
+    assert response.json() == {
+        "slice": SliceOptions.model_json_schema(),
+        "backproject": BackprojectOptions.model_json_schema(),
+    }

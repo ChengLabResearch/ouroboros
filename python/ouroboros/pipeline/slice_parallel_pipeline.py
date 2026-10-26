@@ -25,8 +25,8 @@ from ouroboros.helpers.mem import SharedNPArray
 from ouroboros.helpers.options import SliceOptions
 import numpy as np
 import concurrent.futures
-from tifffile import imwrite, memmap
 import multiprocessing
+from tifffile import imwrite, memmap
 import time
 
 
@@ -62,21 +62,16 @@ class SliceParallelPipelineStep(PipelineStep):
     def __init__(
         self,
         threads=1,
-        processes=multiprocessing.cpu_count(),
+        *,
         delete_intermediate=False,
     ) -> None:
         super().__init__(inputs=("slice_options", "volume_cache", "slice_rects"))
 
         self.num_threads = threads
-        self.num_processes = processes
         self.delete_intermediate = delete_intermediate
 
     def with_delete_intermediate(self) -> "SliceParallelPipelineStep":
         self.delete_intermediate = True
-        return self
-
-    def with_processes(self, processes: int) -> "SliceParallelPipelineStep":
-        self.num_processes = processes
         return self
 
     def _process(self, input_data: tuple[any]) -> None | str:
@@ -148,9 +143,9 @@ class SliceParallelPipelineStep(PipelineStep):
         # Set an SharedMemoryManager key so we can pass it around later.
         authkey = secrets.token_bytes(32)
         self.execution_resources = {
-            "download_processes": self.num_processes // 4,
-            "slice_processes": self.num_processes * 3 // 4,
-            "rewrite_threads": self.num_processes,
+            "download_processes": config.process_count // 4,
+            "slice_processes": config.process_count * 3 // 4,
+            "rewrite_threads": config.process_count,
             "download_threads_per_process": self.num_threads,
         }
 

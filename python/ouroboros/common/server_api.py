@@ -13,6 +13,7 @@ from ouroboros.common.file_system import (
 from ouroboros.common.pipelines import visualization_pipeline
 from ouroboros.common.server_types import BackProjectTask, SliceTask
 from ouroboros.common.step_names import step_names_payload
+from ouroboros.helpers.options import SliceOptions, BackprojectOptions
 
 
 def create_api(app: FastAPI, docker: bool = False):
@@ -39,6 +40,14 @@ def create_api(app: FastAPI, docker: bool = False):
     @app.get("/")
     async def server_active():
         return JSONResponse("Server is active")
+
+    @app.get("/options-schema")
+    async def options_schema():
+        """Expose supported option fields directly from their owning models."""
+        return {
+            "slice": SliceOptions.model_json_schema(),
+            "backproject": BackprojectOptions.model_json_schema(),
+        }
 
     @app.get("/step-names")
     async def get_step_names():

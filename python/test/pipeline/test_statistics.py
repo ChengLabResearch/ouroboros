@@ -153,7 +153,7 @@ def make_rects():
 
 def slice_options(tmp_path):
     return SliceOptions(output_file_folder=str(tmp_path), output_file_name="sample", neuroglancer_json="local.json",
-                        slice_width=2, slice_height=2)
+                        slice_width=2, slice_height=2, process_count=4)
 
 
 def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(tmp_path, monkeypatch):
@@ -223,10 +223,12 @@ def test_writer_returns_nested_timings_and_uses_dispatched_merge_threads(tmp_pat
     assert writer.call_count == 1
 
 
+@pytest.mark.parametrize("workers", [4, 8, 12])
 @pytest.mark.parametrize("failed_stage", ["startup", "download", "slice"])
 @pytest.mark.parametrize("enabled", [False, True])
-def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, monkeypatch, failed_stage, enabled):
+def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, monkeypatch, failed_stage, enabled, workers):
     options = slice_options(tmp_path)
+    options.process_count = workers
     rects = make_rects()
     cache = Mock(spec=cache_module.VolumeCache)
     cache.has_color_channels.return_value = False
@@ -239,9 +241,11 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
     cache.cache_volume = False
     cache.get_slice_indices.return_value = [0]
 
+    dispatched = []
+
     class InlineExecutor:
         def __init__(self, *args, **kwargs):
-            pass
+            dispatched.append(kwargs["max_workers"])
         def __enter__(self):
             return self
         def __exit__(self, *args):
@@ -282,7 +286,7 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
             assert result, "The callback failed without releasing the owning thread"
 
     monkeypatch.setattr(slice_module.threading, "Event", ObservedEvent)
-    step = slice_module.SliceParallelPipelineStep(processes=4)
+    step = slice_module.SliceParallelPipelineStep()
     data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
     output, error = Pipeline([step]).set_statistics_enabled(enabled).process(data)
     assert output is None and f"{failed_stage} failed" in error
@@ -290,8 +294,10 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
     assert step.timing["status"] == "failed"
     assert step.get_progress() < 1
     assert step.get_duration() > 0
-    assert step.execution_resources["download_processes"] == 1
-    assert step.execution_resources["slice_processes"] == 3
+    assert dispatched == [workers // 4, workers * 3 // 4]
+    assert step.execution_resources["rewrite_threads"] == workers
+    assert step.execution_resources["download_processes"] == workers // 4
+    assert step.execution_resources["slice_processes"] == workers * 3 // 4
     assert step.timing["custom_times"] == ({"Download Time": [0.25]} if enabled and failed_stage == "slice" else {})
 
 
@@ -309,7 +315,7 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
     cache.cv, cache.mip = object(), 0
     cache.use_shared = cache.cache_volume = False
     cache.get_slice_indices.return_value = [0]
-    step = slice_module.SliceParallelPipelineStep(processes=4)
+    step = slice_module.SliceParallelPipelineStep()
     observed = []
 
     class InlineExecutor:
@@ -565,6 +571,6 @@ def test_released_slice_volume_has_no_worker_attachments_before_pool_shutdown(tm
     monkeypatch.setattr(slice_module, 'build_straightened_tiff_metadata',
                         lambda **kwargs: {'photometric': 'minisblack'})
     data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
-    _, error = Pipeline([slice_module.SliceParallelPipelineStep(processes=4)]).process(data)
+    _, error = Pipeline([slice_module.SliceParallelPipelineStep()]).process(data)
     assert error is None, error
     assert inspected == [True]

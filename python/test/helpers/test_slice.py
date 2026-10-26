@@ -140,30 +140,6 @@ def test_generate_coordinate_grid_flipped():
                        ), "The first coordinate should be the top left corner of the rectangle"
 
 
-def test_slice_volume_from_grids_single_channel():
-    volume = np.random.rand(10, 10, 10).astype(np.float32)
-    bounding_box = BoundingBox(BoundingBox.bounds_to_rect(0, 10, 0, 10, 0, 10))
-    grids = np.random.rand(5, 10, 10, 3).astype(np.float32)
-    width, height = 10, 10
-
-    result = slice_volume_from_grids(volume, bounding_box, grids, width, height)
-
-    assert result.shape == (5, height, width)
-    assert result.dtype == np.float32
-
-
-def test_slice_volume_from_grids_multi_channel():
-    volume = np.random.rand(10, 10, 10, 3).astype(np.float32)
-    bounding_box = BoundingBox(BoundingBox.bounds_to_rect(0, 10, 0, 10, 0, 10))
-    grids = np.random.rand(5, 10, 10, 3).astype(np.float32)
-    width, height = 10, 10
-
-    result = slice_volume_from_grids(volume, bounding_box, grids, width, height)
-
-    assert result.shape == (5, height, width, 3)
-    assert result.dtype == np.float32
-
-
 @pytest.mark.parametrize("dtype", [np.uint8, np.uint16, np.int16, np.float32])
 @pytest.mark.parametrize("channels", [None, 1, 3])
 def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, monkeypatch):
@@ -175,14 +151,15 @@ def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, 
     grids = np.array([[1.5, 1.25, 1.75], [2.25, 1.25, 1.75], [3.5, 1.25, 1.75],
                       [4.5, 1.25, 1.75], [5.5, 1.25, 1.75], [6.5, 1.25, 1.75]],
                      dtype=np.float32).reshape(1, 2, 3, 3)
+    grids = np.concatenate((grids, grids[:, :, ::-1]))
     coordinates = grids.reshape(-1, 3).T
     box = BoundingBox(BoundingBox.bounds_to_rect(0, 8, 0, 4, 0, 4))
     old_volume = volume.astype(np.float32)
     if channels is None:
-        expected = map_coordinates(old_volume, coordinates).reshape(1, 2, 3)
+        expected = map_coordinates(old_volume, coordinates).reshape(2, 2, 3)
     else:
         expected = np.stack([
-            map_coordinates(old_volume[..., channel], coordinates).reshape(1, 2, 3)
+            map_coordinates(old_volume[..., channel], coordinates).reshape(2, 2, 3)
             for channel in range(channels)
         ], axis=-1)
 
@@ -197,6 +174,7 @@ def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, 
 
     monkeypatch.setattr(slice_module, "map_coordinates", observe_input)
     actual = slice_volume_from_grids(volume, box, grids, width=3, height=2)
+    assert actual.shape == (2, 2, 3) + (() if channels is None else (channels,))
     assert actual.dtype == np.float32
     assert len(interpolated_inputs) == (channels or 1)
     np.testing.assert_array_equal(actual, expected)

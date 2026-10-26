@@ -181,8 +181,12 @@ def test_download_worker_returns_elapsed_time_with_the_owned_geometry(monkeypatc
     cv = SimpleNamespace(cv=source, dtype=np.uint16)
     box = BoundingBox(BoundingBox.bounds_to_rect(-1, 3, 0, 3, 0, 3))
     monkeypatch.setattr(cache_module, "time", clock([10, 12]))
-    actual, returned_box, elapsed = cache_module.download_volume(cv, box, mip=0)
+    marker = object()
+    actual, returned_box, elapsed, returned_marker = cache_module.download_volume(
+        cv, box, mip=0, marker=marker,
+    )
     assert returned_box is box
+    assert returned_marker is marker
     assert elapsed == 2
     assert np.all(actual[0] == 0)
     assert np.all(actual[1:] == 5)

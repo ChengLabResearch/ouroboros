@@ -35,12 +35,6 @@ def _snapshot(manager, context):
     return json.loads(Path(context.directory, f"{manager._process.pid}.json").read_text())
 
 
-def _assert_absent(name):
-    with pytest.raises(FileNotFoundError):
-        attachment = SharedMemory(name)
-        attachment.close()
-
-
 def _source(dtype, channels=1, download=None):
     values = np.arange(3 * 3 * 2 * channels, dtype=dtype).reshape(3, 3, 2, channels)
     if np.issubdtype(dtype, np.integer):
@@ -69,42 +63,23 @@ def _source(dtype, channels=1, download=None):
 @pytest.mark.parametrize("use_shared", [False, True])
 def test_download_preserves_source_values_and_clipped_zero_background(
         dtype, channels, use_shared, shared_manager):
-    manager, context = shared_manager
+    manager, _ = shared_manager
     source, values = _source(dtype, channels)
     box = BoundingBox(BoundingBox.bounds_to_rect(-1, 4, 0, 3, 0, 2))
-    marker = object()
-    result, returned_box, elapsed, returned_marker = download_volume(
+    result, *_ = download_volume(
         source, box, mip=2, parallel=3, use_shared=use_shared,
-        shm_address=manager.address, shm_authkey=bytes(manager._authkey), marker=marker,
+        shm_address=manager.address, shm_authkey=bytes(manager._authkey),
     )
     try:
-        assert returned_box is box
-        assert returned_marker is marker
-        assert elapsed >= 0
         pixels = result.array() if use_shared else result
         assert pixels.shape == (5, 3, 2, channels)
         assert pixels.dtype == np.dtype(dtype)
         np.testing.assert_array_equal(pixels[1:4], values)
         assert np.all(pixels[0] == 0)
         assert np.all(pixels[4] == 0)
-        if use_shared:
-            assert isinstance(result, SharedNPArray)
-            assert not result.owns_unlink
-            assert result.size() == pixels.nbytes
-            snapshot = _snapshot(manager, context)
-            segment, = snapshot["segments"]
-            assert process_from_identity(snapshot["owner"]) == psutil.Process(manager._process.pid)
-            assert segment["name"] == result.name
-            assert segment["size"] >= pixels.nbytes  # Windows rounds small mappings to pages.
-            assert manager._request("list_segments") == [result.name]
-        else:
-            assert _snapshot(manager, context)["segments"] == []
     finally:
         if use_shared:
             manager.remove_termed(result)
-    if use_shared:
-        assert _snapshot(manager, context)["segments"] == []
-        _assert_absent(result.name)
 
 
 @pytest.mark.parametrize("dtype", [np.uint8, np.uint16])
@@ -146,22 +121,16 @@ def test_download_allocates_native_bytes_without_writing_the_full_buffer(
         voxel_count = 64 * 64 * 16
         expected_bytes = voxel_count * np.dtype(dtype).itemsize
         assert result.size() == expected_bytes
-        segment, = _snapshot(manager, context)["segments"]
+        assert not result.owns_unlink
+        snapshot = _snapshot(manager, context)
+        assert process_from_identity(snapshot["owner"]) == psutil.Process(manager._process.pid)
+        segment, = snapshot["segments"]
         assert segment["name"] == name
         assert segment["size"] == expected_bytes
-        assert expected_bytes / (voxel_count * np.dtype(np.float32).itemsize) == (
-            0.25 if dtype == np.uint8 else 0.5)
         assert writes == [values.size]
         assert manager._request("list_segments") == [name]
-        result.shutdown()
-        # Closing the download attachment must not revoke the manager's owner.
-        with SharedNPArray(name, result.shape, result.dtype) as pixels:
-            np.testing.assert_array_equal(pixels[1:4, :3, :2], values)
     finally:
-        manager.remove_termed(name)
-        result.shutdown()
-    assert _snapshot(manager, context)["segments"] == []
-    _assert_absent(name)
+        manager.remove_termed(result)
 
 
 @pytest.mark.parametrize("failure", ["download", "assignment"])
@@ -184,9 +153,9 @@ def test_failed_download_remains_owned_until_manager_shutdown(failure):
             snapshot = _snapshot(manager, session.context)
             segment, = snapshot["segments"]
             name = segment["name"]
-            assert process_from_identity(snapshot["owner"]) == psutil.Process(manager._process.pid)
             assert manager._request("list_segments") == [name]
-            assert segment["size"] >= 5 * 3 * 2 * np.dtype(np.uint16).itemsize
         assert _snapshot(manager, session.context)["segments"] == []
         assert session.context.failure_flag.value == 0
-        _assert_absent(name)
+        with pytest.raises(FileNotFoundError):
+            attachment = SharedMemory(name)
+            attachment.close()

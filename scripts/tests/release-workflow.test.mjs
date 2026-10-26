@@ -30,7 +30,7 @@ test('native installers run only for main while pull requests and branch dispatc
 	)
 
 	const preflight = build.jobs['release-preflight']
-	assert.equal(preflight['runs-on'], 'ubuntu-latest')
+	assert.equal(preflight['runs-on'], 'ubuntu-24.04')
 	assert.equal(preflight.if, undefined)
 	for (const command of ['npm ci', 'npm run test:release', 'npm run preflight:release']) {
 		assert(

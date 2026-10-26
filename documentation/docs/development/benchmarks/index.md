@@ -4,13 +4,6 @@ Benchmark reports and raw evidence live in this documentation directory. The
 runnable benchmark scripts remain in `python/benchmarks/`; reproduction commands
 below run from the repository's `python/` directory.
 
-## Native download dtype and fresh shared buffers (#173)
-
-The [#173 report](results/issue-173/index.md) compares source-dtype download
-buffers with the former floating buffers on native Windows and Linux Docker
-through WSL2. It records allocation/residency probes, bounded local-source timing
-and RAM measurements, and exact uint16 TIFF pixel/metadata comparisons.
-
 ## Docker cost and coverage after the identity fix (#163)
 
 The [#163 campaign report](results/issue-163/index.md) records Linux Docker on

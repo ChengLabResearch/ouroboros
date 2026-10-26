@@ -1,8 +1,0 @@
-{
-  "scope": "Isolated campaign-only cloudfiles copy, same dependency for baseline and modified runs; global/repository dependencies unchanged",
-  "reason": "Windows Python 3.11 monotonic resolution produces zero-width fast-transfer intervals",
-  "original_module_sha256": "3795ead0f6192b53b1a18b70045b279df6aaedd1254e063c467d84cff2376a8a",
-  "patched_module_sha256": "5af0e7827d6ec01c4f3155d52f7a94c15bd079934aa872ea3ea9bfefe3c91242",
-  "patch_sha256": "b529186e18a26a269d54c85fcf032da4052be821bee4cbc54c2971ecd5c5093d",
-  "prior_reference": "issue-139-cloudfiles-zero-interval.patch"
-}

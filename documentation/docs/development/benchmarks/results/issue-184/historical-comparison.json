@@ -182,7 +182,29 @@
         "SlicesGeometryPipelineStep": 0.25454403599724174,
         "VolumeCachePipelineStep": 17.861699205008335,
         "SliceParallelPipelineStep": 4.341346999979578
-      }
+      },
+      "historical_memory": [
+        {
+          "cohort": "repeat-1",
+          "status": "partial",
+          "sampled_peak_bytes": 1019470848
+        },
+        {
+          "cohort": "repeat-2",
+          "status": "partial",
+          "sampled_peak_bytes": 1022078976
+        },
+        {
+          "cohort": "repeat-3",
+          "status": "partial",
+          "sampled_peak_bytes": 1012970496
+        }
+      ],
+      "current_memory": {
+        "status": "sampled",
+        "sampled_peak_bytes": 795508736
+      },
+      "historical_sampled_peak_bytes_median": 1019470848
     },
     {
       "dataset": "octopus_posterior_salivary_duct",
@@ -202,7 +224,29 @@
         "SlicesGeometryPipelineStep": 0.46365608304040506,
         "VolumeCachePipelineStep": 20.374776811979245,
         "SliceParallelPipelineStep": 35.028642632008996
-      }
+      },
+      "historical_memory": [
+        {
+          "cohort": "repeat-1",
+          "status": "partial",
+          "sampled_peak_bytes": 2611425280
+        },
+        {
+          "cohort": "repeat-2",
+          "status": "partial",
+          "sampled_peak_bytes": 2549579776
+        },
+        {
+          "cohort": "repeat-3",
+          "status": "partial",
+          "sampled_peak_bytes": 2697312256
+        }
+      ],
+      "current_memory": {
+        "status": "partial",
+        "sampled_peak_bytes": 1561860096
+      },
+      "historical_sampled_peak_bytes_median": 2611425280
     },
     {
       "dataset": "octopus_nerve_cords",
@@ -222,7 +266,36 @@
         "SlicesGeometryPipelineStep": 0.875478743982967,
         "VolumeCachePipelineStep": 25.61459857597947,
         "SliceParallelPipelineStep": 321.63199653098127
-      }
+      },
+      "historical_memory": [
+        {
+          "cohort": "repeat-1",
+          "status": "partial",
+          "sampled_peak_bytes": 14863647744
+        },
+        {
+          "cohort": "repeat-2",
+          "status": "partial",
+          "sampled_peak_bytes": 14755066880
+        },
+        {
+          "cohort": "repeat-3",
+          "status": "partial",
+          "sampled_peak_bytes": 14726348800
+        }
+      ],
+      "current_memory": {
+        "status": "partial",
+        "sampled_peak_bytes": 9175861248
+      },
+      "historical_sampled_peak_bytes_median": 14755066880
     }
-  ]
+  ],
+  "ram_summary": {
+    "unit": "GB",
+    "bytes_per_unit": 1000000000,
+    "historical_aggregation": "median of per-run sampled peaks from the three timing repeat cohorts; independent of the timing median",
+    "current_aggregation": "single candidate/default run",
+    "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes"
+  }
 }

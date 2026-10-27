@@ -73,14 +73,14 @@ metadata are identical across all four configurations for each specimen; all
 30/82/158 source boxes and assignments remain unchanged. These are single-run
 observations, with no estimate of timing variance.
 
-| Specimen | Box order | Pipeline seconds, before → after | Change | Sampled peak GiB, before → after |
+| Specimen | Box order | Pipeline seconds, before → after | Change | Sampled peak RAM GB, before → after |
 | --- | --- | ---: | ---: | ---: |
-| Daphnia | Default | 22.95 → 22.46 | -2.14% | 0.747 → 0.741 |
-| Daphnia | Alternating | 22.89 → 23.58 | +3.02% | 0.733 → 0.617 |
-| PSD | Default | 55.33 → 55.87 | +0.97% | 1.882 → 1.455 |
-| PSD | Alternating | 54.10 → 51.48 | -4.85% | 1.692 → 1.497 |
-| Nerve | Default | 395.34 → 348.12 | -11.94% | 9.125 → 8.546 |
-| Nerve | Alternating | 440.68 → 365.91 | -16.97% | 9.522 → 8.694 |
+| Daphnia | Default | 22.95 → 22.46 | -2.14% | 0.802 → 0.796 |
+| Daphnia | Alternating | 22.89 → 23.58 | +3.02% | 0.788 → 0.662 |
+| PSD | Default | 55.33 → 55.87 | +0.97% | 2.021 → 1.562 |
+| PSD | Alternating | 54.10 → 51.48 | -4.85% | 1.817 → 1.607 |
+| Nerve | Default | 395.34 → 348.12 | -11.94% | 9.798 → 9.176 |
+| Nerve | Alternating | 440.68 → 365.91 | -16.97% | 10.224 → 9.335 |
 
 | Specimen | Box order | Slicing-step seconds, before → after | Complete/incomplete RAM sweeps, before → after | Collector CPU seconds, before → after |
 | --- | --- | ---: | --- | ---: |
@@ -125,11 +125,18 @@ at `90b782941df87910037ba0a8f7926def3a5f415a`. The matching current boundary is
 canonical `operation_elapsed_seconds` from the run-statistics JSON, rather than
 the slightly longer CLI handler span or the shorter pipeline/slicing-step spans.
 
-| Specimen | Historical operation median (range), seconds | Current default operation, seconds | Change from median |
-| --- | ---: | ---: | ---: |
-| Daphnia | 22.319 (22.238–22.620) | 22.547 | +1.02% |
-| PSD | 74.259 (73.539–76.354) | 56.001 | -24.59% |
-| Nerve | 356.492 (352.955–366.417) | 348.238 | -2.32% |
+| Specimen | Historical operation median (range), seconds | Current default operation, seconds | Change from median | Historical sampled peak RAM median, GB | Current sampled peak RAM, GB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Daphnia | 22.319 (22.238–22.620) | 22.547 | +1.02% | 1.019 | 0.796 |
+| PSD | 74.259 (73.539–76.354) | 56.001 | -24.59% | 2.611 | 1.562 |
+| Nerve | 356.492 (352.955–366.417) | 348.238 | -2.32% | 14.755 | 9.176 |
+
+RAM uses decimal GB (1 GB = 1,000,000,000 bytes) and is the sampled peak for
+the complete pipeline, not a separate peak for each timed stage. Historical
+RAM is the median of the three per-run sampled peaks, aggregated independently
+of elapsed time. All nine historical RAM readings have partial coverage;
+current default Daphnia has complete sample coverage, while PSD and nerve
+have partial coverage. These values are not guaranteed continuous peaks.
 
 The candidate is not generally slower: Daphnia falls inside the old range, while
 PSD and nerve are below it. The 395–441-second nerve results in this campaign

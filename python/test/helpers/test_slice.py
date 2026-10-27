@@ -3,7 +3,7 @@ import pytest
 
 import numpy as np
 import tifffile
-from scipy.ndimage import map_coordinates
+from scipy.ndimage import map_coordinates, spline_filter
 
 from ouroboros.helpers.bounding_boxes import BoundingBox
 from ouroboros.helpers import slice as slice_module
@@ -185,16 +185,16 @@ def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, 
             for channel in range(channels)
         ], axis=-1)
 
-    interpolated_inputs = []
+    filtered_inputs = []
 
     def observe_input(data, *args, **kwargs):
-        # Only the small interpolation output may be converted to float32.
+        # Native source precision must reach the cubic prefilter unchanged.
         assert data.dtype == volume.dtype
         assert np.shares_memory(data, volume)
-        interpolated_inputs.append(data.dtype)
-        return map_coordinates(data, *args, **kwargs)
+        filtered_inputs.append(data.dtype)
+        return spline_filter(data, *args, **kwargs)
 
-    monkeypatch.setattr(slice_module, "map_coordinates", observe_input)
+    monkeypatch.setattr(slice_module, "spline_filter", observe_input)
     actual = slice_volume_from_grids(volume, box, grids, width=3, height=2)
     assert actual.shape == (2, 2, 3) + (() if channels is None else (channels,))
     assert actual.dtype == np.float32
@@ -215,7 +215,7 @@ def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, 
     finally:
         destination._mmap.close()
     np.testing.assert_array_equal(tifffile.imread(path), expected)
-    assert len(interpolated_inputs) == 2 * (channels or 1)
+    assert len(filtered_inputs) == 2 * (channels or 1)
 
 
 @pytest.mark.parametrize("dtype", [np.uint32, np.uint64, np.int32, np.int64, np.float64])
@@ -261,7 +261,7 @@ def test_high_precision_source_interpolates_before_float32_output(dtype, channel
 
 
 @pytest.mark.parametrize("channels", [None, 1, 3])
-def test_slice_volume_writes_flat_interpolation_into_tiff_destination(channels, tmp_path, monkeypatch):
+def test_slice_volume_writes_each_interpolated_plane_into_tiff_destination(channels, tmp_path, monkeypatch):
     volume = np.arange(80, dtype=np.uint16).reshape(5, 4, 4)
     if channels is not None:
         volume = np.stack([np.roll(volume, channel, axis=0) for channel in range(channels)], axis=-1)
@@ -276,16 +276,27 @@ def test_slice_volume_writes_flat_interpolation_into_tiff_destination(channels, 
                              photometric="minisblack")
     mapping[:] = -999
     destination = mapping[1:3]
-    writes = []
+    writes, coefficients = [], []
+
+    def observe_filter(data, **kwargs):
+        assert np.shares_memory(data, volume)
+        assert kwargs["order"] == 3 and kwargs["mode"] == "constant"
+        workspace = kwargs["output"]
+        assert workspace.dtype == np.float64 and workspace.shape == volume.shape[:3]
+        coefficients.append(workspace)
+        return spline_filter(data, **kwargs)
 
     def observe_map(data, coordinates, **kwargs):
-        assert set(kwargs) == {"output"}, "Preserve SciPy's interpolation defaults"
+        assert {key: value for key, value in kwargs.items() if key != "output"} == {
+            "order": 3, "mode": "constant", "cval": 0, "prefilter": False,
+        }
+        channel, index = divmod(len(writes), len(grids))
         target = kwargs["output"]
-        expected_target = (destination.reshape(-1) if channels is None
-                           else destination.reshape(-1, channels)[:, len(writes)])
-        assert np.shares_memory(data, volume)
+        expected_target = (destination[index].reshape(-1) if channels is None
+                           else destination[index].reshape(-1, channels)[:, channel])
+        assert data is coefficients[-1]
         assert np.shares_memory(coordinates, grids)
-        np.testing.assert_array_equal(coordinates, grids.reshape(-1, 3).T)
+        np.testing.assert_array_equal(coordinates, grids[index].reshape(-1, 3).T)
         assert target.shape == expected_target.shape
         assert target.strides == expected_target.strides
         assert target.ctypes.data == expected_target.ctypes.data
@@ -293,10 +304,13 @@ def test_slice_volume_writes_flat_interpolation_into_tiff_destination(channels, 
         return map_coordinates(data, coordinates, **kwargs)
 
     try:
+        monkeypatch.setattr(slice_module, "spline_filter", observe_filter)
         monkeypatch.setattr(slice_module, "map_coordinates", observe_map)
         actual = slice_volume_from_grids(volume, box, grids, width=3, height=2, output=destination)
         assert actual is destination
-        assert len(writes) == (channels or 1)
+        assert len(writes) == len(grids) * (channels or 1)
+        assert len(coefficients) == (channels or 1)
+        assert all(workspace is coefficients[0] for workspace in coefficients)
         mapping.flush()
     finally:
         mapping._mmap.close()

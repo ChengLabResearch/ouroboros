@@ -1,4 +1,5 @@
 import heapq
+from bisect import bisect_left
 from collections.abc import Callable
 
 import numpy as np
@@ -445,10 +446,10 @@ def _box_from_extents(lower: np.ndarray, upper: np.ndarray) -> BoundingBox:
     ))
 
 
-def _spatially_smaller(left: BoundingBox, right: BoundingBox, parent_volume: int) -> bool:
-    # Require a five-percent reduction in both children, using exact integer
+def _spatially_smaller(child: BoundingBox, parent_volume: int) -> bool:
+    # Require a five-percent reduction in each child, using exact integer
     # arithmetic at the inclusive voxel boundary.
-    return 20 * max(int(left.calculate_volume()), int(right.calculate_volume())) <= 19 * parent_volume
+    return 20 * int(child.calculate_volume()) <= 19 * parent_volume
 
 
 def _path_partition(
@@ -457,7 +458,7 @@ def _path_partition(
     parent_volume: int,
     task_payload: _TaskPayload,
 ) -> tuple[_PartitionNode, _PartitionNode] | None:
-    """Choose the minimax path cut among spatially valid cuts in one scan."""
+    """Choose the minimax path cut within the spatially admissible interval."""
     lower = np.min(current_rects, axis=1)
     upper = np.max(current_rects, axis=1)
     prefix_lower = np.minimum.accumulate(lower, axis=0)
@@ -465,13 +466,20 @@ def _path_partition(
     suffix_lower = np.minimum.accumulate(lower[::-1], axis=0)[::-1]
     suffix_upper = np.maximum.accumulate(upper[::-1], axis=0)[::-1]
     gaps = np.concatenate(([0], np.cumsum(_slice_index_discontinuities(indices))))
+    # Prefix boxes only grow and suffix boxes only shrink. Locate the interval
+    # passing the canonical volume rule before constructing/scoring every cut.
+    # Payloads need not be monotone; all admissible cuts retain their old order.
+    stop = 1 + bisect_left(range(1, len(indices)), True, key=lambda cut: not _spatially_smaller(
+        _box_from_extents(prefix_lower[cut - 1], prefix_upper[cut - 1]), parent_volume,
+    ))
+    start = 1 + bisect_left(range(1, stop), True, key=lambda cut: _spatially_smaller(
+        _box_from_extents(suffix_lower[cut], suffix_upper[cut]), parent_volume,
+    ))
     best = None
     best_score = None
-    for cut in range(1, len(indices)):
+    for cut in range(start, stop):
         left = _box_from_extents(prefix_lower[cut - 1], prefix_upper[cut - 1])
         right = _box_from_extents(suffix_lower[cut], suffix_upper[cut])
-        if not _spatially_smaller(left, right, parent_volume):
-            continue
         left_payload = int(task_payload(left, cut, bool(gaps[cut - 1] == 0)))
         right_payload = int(task_payload(
             right, len(indices) - cut, bool(gaps[-1] == gaps[cut])
@@ -520,7 +528,7 @@ def _best_partition(
             continue
         left = BoundingBox.from_rects(rects[left_indices])
         right = BoundingBox.from_rects(rects[right_indices])
-        if not _spatially_smaller(left, right, parent_volume):
+        if not (_spatially_smaller(left, parent_volume) and _spatially_smaller(right, parent_volume)):
             continue
         left_payload = int(task_payload(
             left, len(left_indices), slice_indices_are_contiguous(left_indices)

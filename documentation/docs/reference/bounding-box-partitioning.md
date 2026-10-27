@@ -74,6 +74,15 @@ payload among valid cuts. Both children must be nonempty, and each child's
 integer volume must be at most 95% of the parent's. Child bounds always come
 from the full rectangle corners.
 
+The path-cut search first computes prefix and suffix corner bounds. As a cut
+moves forward, the prefix box can only grow and the suffix box can only shrink.
+Two binary searches locate the interval where both children meet the spatial
+rule, using `BoundingBox`'s inclusive volume calculation. Only cuts in that
+interval are scored. Every admissible cut is evaluated in its original order,
+preserving tie-breaking and payload-callback inputs. This avoids constructing
+boxes for every rejected cut without introducing a separate vectorized volume
+formula or assuming that task payload is monotone along the path.
+
 Candidates are compared by their largest child payload, with deterministic
 tie-breaking. The tree is limited by `max_depth` and by the availability of a
 valid split. Different payload thresholds select different leaves from that

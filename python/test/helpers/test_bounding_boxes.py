@@ -476,15 +476,57 @@ def test_coincident_centers_with_distinct_orientations_can_split():
     assert_assignment(rects, *result)
 
 
-def test_valid_path_cut_survives_an_invalid_unrestricted_minimum():
-    rects = yz_planes([15, 17, 14, 14, 24, 11])
+@pytest.mark.parametrize("positions, indices", [
+    ([15, 17, 14, 14, 24, 11], [0, 1, 2, 3, 4, 5]),
+    ([0, 18, 19], [0, 1, 2]),  # Child at exactly 95% of the inclusive volume.
+    ([0, 19, 18], [0, 1, 2]),  # Invalid cuts at the end of the path.
+    ([0, 0, 19, 19], [0, 1, 2, 3]),  # One valid cut between invalid ends.
+    ([-3.8, -2.1, -0.4, 1.6], [0, 2, 3, 7]),  # Fractional bounds and index gaps.
+    ([-0.1, -0.1, 17.0, 18], [0, 1, 2, 3]),
+    ([-0.1, -0.1, 17.1, 18], [0, 1, 2, 3]),  # Ceil removes a boundary-valid cut.
+    ([0, 2, 4], [0, 1, 2]),  # Equal scores retain the first cut.
+    ([0, 19, 0], [0, 1, 2]),  # No cut satisfies both child constraints.
+    ([0, 0, 0], [0, 1, 2]),
+    ([0, 19], [0, 1]),
+])
+def test_valid_path_cut_survives_an_invalid_unrestricted_minimum(positions, indices):
+    rects = yz_planes(positions)
+    indices = np.asarray(indices)
     box = BoundingBox.from_rects(rects)
     model = lambda child, count, contiguous: int(child.calculate_volume()) + 20 * count
-    children = _path_partition(np.arange(len(rects)), rects, int(box.calculate_volume()), model)
+    # Exhaustive candidates derive extents from actual corners, independently of
+    # the prefix/suffix search. Observe callback arguments as well as the winner.
+    expected_calls, candidates = [], []
+    for cut in range(1, len(rects)):
+        left, right = BoundingBox.from_rects(rects[:cut]), BoundingBox.from_rects(rects[cut:])
+        volumes = [int(child.calculate_volume()) for child in (left, right)]
+        if 20 * max(volumes) > 19 * int(box.calculate_volume()):
+            continue
+        costs = []
+        for child, assigned in ((left, indices[:cut]), (right, indices[cut:])):
+            contiguous = slice_indices_are_contiguous(assigned)
+            expected_calls.append((child.to_dict(), len(assigned), contiguous))
+            costs.append(model(child, len(assigned), contiguous))
+        candidates.append(((max(costs), sum(volumes)), cut, left, right))
+    calls = []
+
+    def observed(child, count, contiguous):
+        calls.append((child.to_dict(), count, contiguous))
+        return model(child, count, contiguous)
+
+    children = _path_partition(indices, rects, int(box.calculate_volume()), observed)
+    assert calls == expected_calls
+    if not candidates:
+        assert children is None
+        return
+    _, cut, left, right = min(candidates, key=lambda candidate: candidate[0])
+    assert [child.box.to_dict() for child in children] == [left.to_dict(), right.to_dict()]
+    np.testing.assert_array_equal(children[0].indices, indices[:cut])
+    np.testing.assert_array_equal(children[1].indices, indices[cut:])
     # The unrestricted minimax cut after slice 4 leaves a child equal to the
     # parent extent. The valid cut after slice 5 must still be considered.
-    assert children is not None
-    assert [len(child.indices) for child in children] == [5, 1]
+    if positions == [15, 17, 14, 14, 24, 11]:
+        assert [len(child.indices) for child in children] == [5, 1]
     assert max(child.box.calculate_volume() for child in children) <= 0.95 * box.calculate_volume()
 
 

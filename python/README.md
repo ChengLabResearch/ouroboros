@@ -22,8 +22,8 @@ Project the straightened slices back into the space of the original volume.
 configured outputs. Reports are named
 `<output_file_name>-<operation>-<run_id>-statistics.json`, so repeated runs retain
 separate records. They include operation and pipeline timings, volume/storage
-metrics, effective configuration, and explicit success/failure/interruption
-status. RAM accounting is deferred to issue #139. Without the flag, detailed
+metrics, sampled process-tree memory, effective configuration, and explicit
+success/failure/interruption status. Without the flag, detailed
 collection and report writes are disabled; progress remains available.
 
 Server reporting is enabled by default; pass `reporting_enabled=false` when

@@ -7,10 +7,6 @@ step (see ``SLICE_STEP_NAME`` in
 list in one Python module and exposing it through the API means a rename on
 either side surfaces immediately instead of silently blanking the progress
 UI.
-
-Follow-up: the renderer should consume ``/step-names`` at runtime in
-development builds to warn on drift. Tracked as
-https://github.com/ChengLabResearch/ouroboros/issues/107.
 """
 
 from enum import Enum

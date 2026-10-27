@@ -1,7 +1,6 @@
 """Small native IPC regressions, including creator-exits-before-receiver-opens.
 
-These test allocation lifetime, not numerical performance. Real-data Windows
-validation belongs to the RAM-reporting branch after it is rebased onto #145.
+These test allocation lifetime, not numerical performance.
 """
 
 import gc

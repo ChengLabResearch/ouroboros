@@ -75,7 +75,7 @@ existing request lifecycle rather than accumulating past failures.
 
 Undismissed errors retain the existing provider lifetime and can still be seen on
 returning to a page. A dismissed error cannot reappear on navigation because it was
-cleared at its owner. No navigation/reload storage is added. Each deletion request is
+cleared at its owner. Persistence is limited to the provider's lifetime. Each deletion request is
 identified by its actual task-specific URL (`/delete/?task_id=…`), so one workflow cannot
 display another workflow's deletion failure. The saved task response remains the source
 of that task ID until the existing deletion/submission lifecycle replaces it.

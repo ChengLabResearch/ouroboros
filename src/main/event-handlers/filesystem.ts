@@ -429,7 +429,7 @@ export const addFSEventHandlers = (ipcMain: IpcMain, getMainWindow: () => Browse
 		if (!subPath) return
 
 		if (currentRoot && subPath === currentRoot) {
-			// Guard against nonsensical collapse-of-root - see design in #110.
+			// The root watcher remains active until the root changes or the app closes.
 			console.debug('collapse-folder called on root; ignoring', subPath)
 			return
 		}

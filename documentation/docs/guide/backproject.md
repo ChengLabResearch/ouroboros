@@ -40,7 +40,7 @@ Ouroboros checks the plugin output before backprojection:
 - Dtype must be a mask-friendly integer or boolean type: `bool`, `uint8`, or `uint16`.
 - Compressed plugin TIFFs are accepted when tifffile can read them; Ouroboros rewrites compressed or non-memmappable inputs to an uncompressed temporary stack before processing.
 
-Shape mismatches, dtype mismatches, and missing slice configuration now report separate errors so plugin output problems do not require manual reshaping to diagnose.
+Shape mismatches, dtype mismatches, and missing slice configuration report separate errors so plugin output problems do not require manual reshaping to diagnose.
 
 ### Slicing Options
 
@@ -58,7 +58,7 @@ Shape mismatches, dtype mismatches, and missing slice configuration now report s
 - `Output Min Bounding Box` - Save only the minimum volume needed to contain the backprojected slices. The offset will be stored in the `-configuration.json` file under `backprojection_offset`. This value is the (x_min, y_min, z_min).
 - `Binary Backprojection` - Whether or not to binarize all the values of the backprojection. Enable this to backproject a segmentation.
 - `Offset in Filename` - Whether or not to include the (x_min, y_min, z_min) offset for min bounding box in the output file name. Only applies if `Output Min Bounding Box` is true.
-- `Process Count` - Number of parallel processes to use during the backprojection process.  Reducing count will slow process but decrease memory usage; at default chunk size each process tends to approximate 0.5 GB in usage.
+- `Process Count` - Number of parallel processes to use during the backprojection process. Reducing the count trades parallel throughput for lower memory usage. Inspect memory use on the intended workload when choosing a count.
 - `Chunk Size` - Size of each dimension (x/y/z) of the processing chunk.  Increasing will increase memory usage; performance is a more complex tradeoff and making it too large will negatively affect performance.
 
 ### How Does Backprojection Work?

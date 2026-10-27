@@ -36,7 +36,7 @@ In Docker Desktop, enable the WSL 2 engine and **Settings → Resources → WSL 
 
 ## Electron uninstall after npm ci
 
-With the Electron 43.7.8 / electron-vite 5 combination tested for #141, Electron's binary was downloaded on demand, while electron-vite read Electron's `path.txt` directly. Thus an otherwise successful dependency installation could still end with `Error: Electron uninstall` at launch.
+Electron's binary must be installed before electron-vite reads Electron's `path.txt`. An otherwise successful dependency installation can end with `Error: Electron uninstall` at launch if that file is missing.
 
 Run the explicit `install-electron` step in the README. It uses [Electron's bundled installer](https://www.electronjs.org/docs/latest/tutorial/installation#binary-download-step); no custom downloader is needed. Check the installed executable with:
 
@@ -54,7 +54,7 @@ Use **File → Open Folder**, choose the containing folder, then drag the JSON f
 
 ### Conditional X11 file-picker workaround
 
-In the session recorded in [#141](https://github.com/ChengLabResearch/ouroboros/issues/141), the app used a forwarded X11 display (`DISPLAY=localhost:10.0`), but the desktop portal lacked a usable X11 display. Portal logs reported `Failed to open X11 display` and failure to associate the dialog with its parent. The user saw a nonfunctional window with `[WARN:COPY MODE]` in its title; that title alone is not a diagnosis.
+A forwarded X11 session can leave the desktop portal without a usable display. Check the portal logs for `Failed to open X11 display` and failure to associate the dialog with its parent. A nonfunctional window's title alone does not establish the cause.
 
 For this portal/X11 mismatch, close the development app and launch with:
 
@@ -62,7 +62,7 @@ For this portal/X11 mismatch, close the development app and launch with:
 GDK_BACKEND=x11 npm run dev -- -- --xdg-portal-required-version=999
 ```
 
-Both `--` separators are intentional: npm consumes the first, and electron-vite forwards the arguments after the second to Electron. The [portal-version switch](https://www.electronjs.org/docs/latest/api/command-line-switches#--xdg-portal-required-versionversion) selects the native GTK dialog when the portal does not meet that version requirement; `GDK_BACKEND=x11` uses the app's X11 display. An actual Electron 43.7.8 folder dialog was verified with this launch. This is conditional troubleshooting, not a requirement for every WSL installation, and it does not establish that WebGL works.
+Both `--` separators are intentional: npm consumes the first, and electron-vite forwards the arguments after the second to Electron. The [portal-version switch](https://www.electronjs.org/docs/latest/api/command-line-switches#--xdg-portal-required-versionversion) selects the native GTK dialog when the portal does not meet that version requirement; `GDK_BACKEND=x11` uses the app's X11 display. This workaround applies to a portal/X11 mismatch; verify the file picker and WebGL preview separately.
 
 ## WebGL preview failures
 
@@ -78,13 +78,11 @@ The app does not explicitly disable hardware acceleration and currently provides
 
 ### Capture the failing launch
 
-- Record the launch command, Electron version, and `DISPLAY`, `WAYLAND_DISPLAY`, and `XDG_SESSION_TYPE` from its shell. Distinguish a WSLg session from forwarded X11; the observed `localhost:10.0` was forwarded X11. Check [Microsoft's WSL GUI/OpenGL prerequisites](https://learn.microsoft.com/en-us/windows/wsl/tutorials/gui-apps) for WSLg.
+- Record the launch command, Electron version, and `DISPLAY`, `WAYLAND_DISPLAY`, and `XDG_SESSION_TYPE` from its shell. Distinguish a WSLg session from forwarded X11. Check [Microsoft's WSL GUI/OpenGL prerequisites](https://learn.microsoft.com/en-us/windows/wsl/tutorials/gui-apps) for WSLg.
 - Capture the preview error from the renderer's DevTools console (**F12** in development) and GPU messages from the launch terminal. For Chromium logging and a main-process debugger, add `--inspect` before electron-vite's `--` and `--enable-logging` after it: `npm run dev -- --inspect -- --enable-logging`. Retain any display settings and other Electron switches from the failing launch. Attach a Node debugger to the inspector address printed in the terminal (electron-vite 5 defaults to port 5858).
 - In that **main-process** debugger, collect Electron's [`app.getGPUFeatureStatus()`](https://www.electronjs.org/docs/latest/api/app#appgetgpufeaturestatus) after GPU initialization (`gpu-info-update`), and [`app.getGPUInfo('complete')`](https://www.electronjs.org/docs/latest/api/app#appgetgpuinfoinfotype), including any rejection. These APIs belong to `app` from `electron`, not the renderer's console. Use diagnostics from the actual failing app; an isolated probe alone does not establish its GPU state.
 
-An isolated Electron 43.7.8 check on the same forwarded display reproduced `WebGL2 blocklisted` / `unavailable_off`. The exact blocklist cause and trigger for repeated preview renders remain unconfirmed; forwarded X11 is diagnostic context, not a proven cause.
-
-### Verified software-rendering launch
+### Software-rendering launch
 
 For the affected environment, close the development app and retain the working file-picker configuration while selecting the bundled SwiftShader driver:
 
@@ -97,9 +95,7 @@ GDK_BACKEND=x11 npm run dev -- -- \
 
 These [Chromium driver switches](https://chromium.googlesource.com/chromium/src/+/main/docs/gpu/swiftshader.md) render on the CPU and may be slower than hardware acceleration. They apply to this launch and require no source changes. Do not use `--disable-gpu` or `--no-sandbox` as the standard fix.
 
-The isolated Electron 43.7.8 check created WebGL2 with an ANGLE/SwiftShader renderer and returned the expected pixel `[255,128,0,255]`. The owner subsequently confirmed that the same command worked in the actual development app. This was **not warning-free**: the app still printed an automatic SwiftShader fallback deprecation warning despite the explicit driver switches. The probe also logged a GPU stall from its synchronous `readPixels` check. The tested launch needed neither `--enable-unsafe-swiftshader` nor `--no-sandbox`; do not add the unsafe opt-in merely to suppress the warning.
-
-The earlier eight successful Docker operations and delivered statistics verified backend/output delivery; the later owner confirmation verified the preview separately. These observations are recorded in [#141](https://github.com/ChengLabResearch/ouroboros/issues/141), not a claim of new GUI testing for this documentation change. A graceful preview fallback or logging change is a separate application task.
+Verify the preview in the development app and retain any graphics warnings in the diagnostic report. Do not add `--enable-unsafe-swiftshader` merely to suppress a fallback warning.
 
 ## Other build paths
 

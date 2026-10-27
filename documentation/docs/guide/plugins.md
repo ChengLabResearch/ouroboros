@@ -80,7 +80,6 @@ window.addEventListener('message', (event) => {
     if (event.data?.type !== 'send-directory-contents-response') return
     const { path, nodes, requestId, error } = event.data.data
     // `nodes` is a path-keyed nested map of { name, path, children? }
-    // matching the shape the pre-#106 broadcast used.
     // `error` is present only when the request could not be fully served:
     //   - code: 'denied'     path outside the current root, or no root open
     //   - code: 'not-found'  path does not exist / is not a directory

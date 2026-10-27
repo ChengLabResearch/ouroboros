@@ -77,7 +77,7 @@ npm ci
 npm exec --no -- install-electron
 ```
 
-The second command uses Electron's bundled binary installer. With the Electron 43.7.8 / electron-vite 5 combination tested in [#141](https://github.com/ChengLabResearch/ouroboros/issues/141), skipping it left electron-vite unable to find the executable (`Error: Electron uninstall`). See [Electron installation troubleshooting](documentation/docs/development/docker-builds.md#electron-uninstall-after-npm-ci).
+The second command uses Electron's bundled binary installer to make the executable available to electron-vite. If launch fails with `Error: Electron uninstall`, see [Electron installation troubleshooting](documentation/docs/development/docker-builds.md#electron-uninstall-after-npm-ci).
 
 ## 3. Start the development app
 

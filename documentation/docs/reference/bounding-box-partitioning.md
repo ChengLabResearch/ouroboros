@@ -101,6 +101,39 @@ period when other workers are idle, even if accumulated worker time decreases.
 Worker durations overlap and must not be added to, or equated with, the
 coordinator's elapsed time.
 
+## Internal box ordering
+
+The slicing step normally submits downloads in partition order. Python callers
+can opt into alternating slice-count order when constructing the step:
+
+```python
+from ouroboros.pipeline import SliceParallelPipelineStep
+
+step = SliceParallelPipelineStep(alternate_slice_count_order=True)
+```
+
+The keyword defaults to `False` and is internal to the Python pipeline; it is
+not a CLI, UI, or serialized `SliceOptions` setting. The enabled order sorts
+boxes by descending assigned slice count, breaking ties by original box index,
+then takes the first, last, next first, next last, and so on. With equal counts,
+the largest end takes the lower box index and the smallest end takes the higher
+box index. An odd middle box is submitted once.
+
+This changes download submission order. Slicing still starts as downloads
+complete, so concurrent tasks need not start or finish in submission order.
+`VolumeCache` remains the owner of boxes and slice assignments; the flag changes
+neither the partition nor the download/slicing pool sizes, in-flight limit, or
+box-release lifecycle. Run-statistics `execution.workers` records `box_order`
+as `partition` or `alternating_slice_count` for the slicing step.
+
+Alternating large and small slice counts can change task overlap, resource
+contention, and the final period with idle workers. It does not guarantee faster
+execution or lower peak memory, and slice count is not a measure of source-box
+volume. Full-path comparisons on three real datasets found no consistent speed
+benefit; the largest sampled memory peak was lower with alternating order in
+each dataset, with incomplete sampling coverage. Keep the default unless a
+comparison on the intended workload supports changing it.
+
 ## Options, compatibility, and limits
 
 `target_slices_per_box` controls the count-based reference and therefore the

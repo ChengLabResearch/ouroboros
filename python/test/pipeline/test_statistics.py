@@ -20,6 +20,8 @@ from scipy.ndimage import map_coordinates
 import scipy.ndimage._interpolation as scipy_interpolation
 
 from ouroboros.common.pipelines import geometry_pipeline
+from ouroboros.common.run_statistics import RunStatistics
+from ouroboros.common.server_types import SliceTask
 from ouroboros.helpers import slice as interpolation
 from ouroboros.helpers import files as files_module
 from ouroboros.helpers import volume_cache as cache_module
@@ -656,20 +658,21 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
 
 
 @pytest.mark.parametrize("single", [False, True])
+@pytest.mark.parametrize("alternate", [False, True])
 @pytest.mark.parametrize("fail, normalize, zero_guard", [
     (False, False, False), (False, False, True),
     (False, True, False), (False, True, True), (True, True, True),
 ])
 def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
-    tmp_path, monkeypatch, single, fail, normalize, zero_guard
+    tmp_path, monkeypatch, single, alternate, fail, normalize, zero_guard
 ):
     options = slice_options(tmp_path).model_copy(update={
         "make_single_file": single, "slice_height": 3, "slice_width": 5,
         "normalize_output": normalize, "zeroguard_output": zero_guard,
     })
     rects = np.repeat(np.array([[[0.4, 0.25, 0.6], [7.6, 0.25, 0.6],
-                                [7.6, 6.75, 0.6], [0.4, 6.75, 0.6]]]), 3, axis=0)
-    rects[:, :, 2] = np.array([0.6, 2.4, 5.2])[:, None]
+                                [7.6, 6.75, 0.6], [0.4, 6.75, 0.6]]]), 12, axis=0)
+    rects[:, :, 2] = np.tile([0.6, 2.4, 5.2], 4)[:, None]
     x, y, z = np.indices((9, 8, 7))
     volume = np.where((x >= 2) & (x <= 3), (y + 1) * 100 + z * 31, 0).astype(np.uint16)
     box = BoundingBox(BoundingBox.bounds_to_rect(0, 9, 0, 8, 0, 7))
@@ -684,17 +687,18 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
         target_dtype=volume.dtype, source=plane, normalize=normalize, zero_guard=zero_guard,
         preset_min=reference.min(), preset_max=reference.max(),
     ) for plane in reference])
-    cache = Mock(spec=cache_module.VolumeCache)
-    cache.has_color_channels.return_value = False
-    cache.get_resolution_um.return_value = np.ones(3)
-    cache.get_volume_dtype.return_value = volume.dtype
-    cache.volumes = [None]
-    cache.bounding_boxes = [box]
-    cache.cv, cache.mip = object(), 0
-    cache.use_shared = cache.cache_volume = False
-    cache.get_slice_indices.return_value = [0, 1, 2]
-    step = slice_module.SliceParallelPipelineStep()
-    observed, mapped_shapes = [], []
+    # Five boxes exceed the initial four-download window; tied counts also
+    # exercise deterministic ordering. All use the same controlled source field.
+    counts = [2, 4, 1, 3, 2]
+    mapping = np.repeat(np.arange(len(counts)), counts).tolist()
+    cv = SimpleNamespace(dtype=volume.dtype, has_color_channels=False,
+                         get_resolution_um=lambda mip: np.ones(3))
+    cache = cache_module.VolumeCache([box] * len(counts), mapping, cv, mip=0)
+    monkeypatch.setattr(cache, "connect_shm", lambda *args: None)
+    step = (slice_module.SliceParallelPipelineStep(alternate_slice_count_order=True)
+            if alternate else slice_module.SliceParallelPipelineStep())
+    expected_order = [1, 2, 3, 4, 0] if alternate else [0, 1, 2, 3, 4]
+    observed, mapped_shapes, downloaded, sliced = [], [], [], []
 
     def interpolate_observed(*args, output=None, **kwargs):
         assert isinstance(output, np.memmap), "Final pixels must come from the mapped worker path"
@@ -712,8 +716,15 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
             future = concurrent.futures.Future()
             if getattr(func, "func", None) is slice_module.download_volume:
                 assert step.get_status()["stage"] == "downloading_and_slicing"
-                future.set_result((volume, box, 0.25, 0))
+                index = kwargs["volume_index"]
+                downloaded.append(index)
+                assert kwargs["bounding_box"] is cache.bounding_boxes[index]
+                future.set_result((volume, box, 0.25, index))
             else:
+                if getattr(func, "func", None) is slice_module.process_worker_save_parallel:
+                    index = kwargs["volume_index"]
+                    sliced.append(index)
+                    assert kwargs["slice_indices"] == cache.get_slice_indices(index)
                 future.set_result(func(**kwargs))
             return future
 
@@ -737,9 +748,16 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
     monkeypatch.setattr(slice_module, "slice_volume_from_grids", interpolate_observed)
     monkeypatch.setattr(slice_module, rewrite_name, rewrite_observed)
     data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
-    _, error = Pipeline([step]).process(data)
+    pipeline = Pipeline([step])
+    _, error = pipeline.process(data)
     assert len(observed) == len(rects)
-    assert mapped_shapes == [expected.shape]
+    assert downloaded == sliced == expected_order
+    assert mapped_shapes == [(counts[index], *expected.shape[1:]) for index in expected_order]
+    assert cache.link_rects == mapping and cache.bounding_boxes == [box] * len(counts)
+    assert step.execution_resources["box_order"] == ("alternating_slice_count" if alternate else "partition")
+    task = SliceTask(task_id="ordering", options="unused", pipeline=pipeline, pipeline_input=data)
+    record = RunStatistics(task).to_record()
+    assert record["execution"]["workers"] == [{"step": step.step_name, **step.execution_resources}]
     assert observed[0]["stage"] == "normalizing_and_writing"
     assert observed[0]["status"] == "running" and observed[0]["progress"] is None
     if fail:

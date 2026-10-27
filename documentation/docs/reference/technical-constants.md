@@ -13,10 +13,8 @@ file, alongside the shared teardown delay in
 per-directory non-recursive watchers with lazy expansion that back the
 File Explorer panel in the Electron app.
 
-Starting with [#110][pr-110], the file explorer no longer opens a single
-recursive watcher on the selected root. Instead, the main process keeps
-one non-recursive watcher per directory the user has currently expanded,
-plus one for the root. Expanding a subfolder starts a new watcher for it;
+The main process keeps one non-recursive watcher per directory the user has
+currently expanded, plus one for the root. Expanding a subfolder starts a new watcher for it;
 collapsing schedules teardown after
 [`COLLAPSE_TEARDOWN_DELAY_MS`](#watcher-teardown-delay-after-collapse),
 so quick collapse-then-reopen costs nothing.
@@ -31,17 +29,14 @@ so quick collapse-then-reopen costs nothing.
 **Why it exists.** Every watcher mirrors its discovered paths into
 renderer state. Even with lazy expansion, an aggressive user could open a
 handful of dense subfolders in sequence and still exhaust memory. One
-hundred thousand visible paths is the ceiling picked in [#104][pr-104] as
-a balance between usefulness for typical scan/output folders and keeping
-the renderer well under its default 4 GB heap.
+hundred thousand visible paths balances usefulness for typical scan/output
+folders and renderer memory use.
 
-**Role change from #110.** Before #110 this was the underlying `watcher`
-package's per-watcher `limit`. Under the lazy model it is instead an
-aggregate session budget summed across every currently open watcher; a
-watcher's contribution is reclaimed when its folder is collapsed and torn
-down.
+**Watcher budget.** The limit is an aggregate session budget summed across every
+currently open watcher; a watcher's contribution is reclaimed when its folder is
+collapsed and torn down.
 
-**Second role from #111.** The same constant caps the plugin-facing
+**Plugin enumeration budget.** The same constant caps the plugin-facing
 `get-folder-contents` one-shot enumeration used by the
 `request-directory-contents` iframe message (see the [plugins
 guide](../guide/plugins.md#requesting-directory-contents)). A plugin's
@@ -98,11 +93,10 @@ that re-opening a folder after a long detour repopulates it visibly.
 - Value: `500`
 - Source: [`src/main/event-handlers/filesystem.ts`][filesystem-ts] line 10
 
-**Why it exists.** [#105][pr-105] introduced batching so that a large
-initial folder scan no longer produces one IPC message and one React
-state update per discovered path. Five hundred events per batch amortizes
-the IPC round-trip and lets the renderer apply the whole batch inside a
-single `setNodes` call.
+**Why it exists.** Batching groups events from a large initial folder scan
+into fewer IPC messages and React state updates. Five hundred events per batch
+amortizes the IPC round-trip and lets the renderer apply the whole batch inside
+a single `setNodes` call.
 
 **User-visible behavior when reached.** As soon as five hundred watcher
 events have accumulated in the main process, the pending queue is flushed
@@ -142,25 +136,20 @@ throughput.
   [`src/renderer/src/contexts/IFrameContext.tsx`][iframe-context]
   (`broadcastDirectoryContext`)
 
-**Why it exists.** Before [#106][pr-106], every directory context change
-posted the full recursive `nodes` tree into each plugin iframe. For the
-same large folders that motivated [#51][issue-51] this cloned the entire
-file tree on every update and stacked on top of the watcher and renderer
-costs above.
+**Why it exists.** Sending only directory context avoids cloning a full
+recursive file tree into every plugin iframe on every directory update.
 
 **User-visible behavior.** Plugins still receive the selected directory
 path and name through the existing `send-directory-contents` message.
 The `nodes` field is present for shape compatibility but is always an
 empty object. Plugins that need to browse the directory tree use the
 `request-directory-contents` / `send-directory-contents-response`
-message pair added in [#111][issue-111] (see the [plugins
+message pair (see the [plugins
 guide](../guide/plugins.md#requesting-directory-contents)) rather than
 depending on this broadcast payload.
 
-**When to reconsider.** Do not restore the full-tree broadcast without
-first landing a memory-safe, on-demand alternative. The on-demand API
-from #111 is that alternative; prefer extending it over resurrecting
-the broadcast.
+**When to reconsider.** Extend the on-demand directory API when plugins
+need additional directory information, keeping the broadcast limited to context.
 
 ## Main process (Electron)
 
@@ -185,7 +174,7 @@ assets. There is no automatic fallback beyond the env override.
 **When to reconsider.** Set `OUROBOROS_PLUGIN_FILE_SERVER_PORT` when 3000
 conflicts with a different local service. The renderer discovers the URL
 through `getPluginFileServerURL()`, so the port change is picked up
-without touching any user-facing setting. Landed in [PR #109][pr-109].
+without touching any user-facing setting.
 
 ### Docker volume server port
 
@@ -213,7 +202,7 @@ conflicts locally. Keep the Python-side default in sync
 [`python/ouroboros/common/volume_server_interface.py`][volume-server-interface-py]);
 the Python side is still hard-coded to `3001` because the container
 reaches the host over `host.docker.internal` where the port is
-independent of any host-side conflict. Landed in [PR #109][pr-109].
+independent of any host-side conflict.
 
 ### Docker volume name
 
@@ -288,12 +277,10 @@ values. Plugin content is served locally through the plugin file server
 3000), so all legitimate origins are loopback. Any port on those hosts
 is accepted; the port itself is env-configurable.
 
-**Security note.** The previous implementation used
-`text.startsWith(item)`, which would accept attacker-controlled hosts
-such as `http://localhost.evil.example`. The current implementation
-parses `event.origin` with `new URL(...)` and compares `hostname` for
-exact equality; malformed origins fall through to a deny. Landed in
-[PR #109][pr-109].
+**Security note.** The implementation parses `event.origin` with
+`new URL(...)` and compares `hostname` for exact equality; malformed
+origins fall through to a deny. Prefix matching would incorrectly accept
+attacker-controlled hosts such as `http://localhost.evil.example`.
 
 **User-visible behavior.** Any plugin iframe served from a non-loopback
 origin is silently ignored: its messages never trigger file reads,
@@ -353,7 +340,7 @@ compose port mapping without updating the renderer breaks the client.
 **When to reconsider.** Set the env overrides if you need to expose the
 desktop server to another machine (rare) or if 8000 conflicts with
 another service. Update `DEFAULT_SERVER_URL` in the renderer and the
-compose port mapping in the same commit. Landed in [PR #109][pr-109].
+compose port mapping in the same commit.
 
 ### Volume server URL (Python side)
 
@@ -401,9 +388,8 @@ Electron-side `VOLUME_SERVER_PORT` in
   These are worker budgets, not CPU affinity or quota controls.
 - API discovery: `GET /options-schema` returns JSON schemas directly from both
   options models, allowing clients to detect support before submitting jobs.
-- Slicing reads its budget from `SliceOptions.process_count` during execution;
-  the former step constructor count and `with_processes()` override were removed.
-  Callers must set the options field instead. Slicing uses one-quarter download
+- Slicing reads its budget from `SliceOptions.process_count` during execution.
+  Callers must set that options field. Slicing uses one-quarter download
   and three-quarters slicing workers; backprojection keeps its existing split.
 
 **Why it exists.** `chunk_size` is the per-dimension size of the
@@ -491,7 +477,7 @@ runtime (compose reads the same variable via `${OUROBOROS_SERVER_SHM_SIZE:-64gb}
 substitution in both `python/compose.yml` and `python/compose.dev.yml`).
 Lower it on constrained hosts where you know the pipelines you run stay
 well under the limit; raise it only if you routinely see shared-memory
-`ENOMEM` errors from the server. Landed in [PR #109][pr-109].
+`ENOMEM` errors from the server.
 
 ### Server image reference defaults
 
@@ -572,7 +558,6 @@ plugin authors can rely on it.
 
 [filesystem-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts
 [shared-constants-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/shared/constants.ts
-[pr-110]: https://github.com/ChengLabResearch/ouroboros/pull/110
 [iframe-context]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/IFrameContext.tsx
 [file-server-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/file-server.ts
 [file-server-script]: https://github.com/ChengLabResearch/ouroboros/blob/main/resources/processes/file-server-script.mjs

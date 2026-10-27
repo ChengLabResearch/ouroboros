@@ -22,9 +22,7 @@ nav:
     - Docker Builds: 'development/docker-builds.md'
     - Registry Server Images: 'development/registry-server-images.md'
     - Production Package Flavors: 'development/production-package-flavors.md'
-    - Benchmarks:
-      - Guide and Historical Evidence: 'development/benchmarks/index.md'
-      - RAM Collector Campaign (#163): 'development/benchmarks/results/issue-163/index.md'
+    - Benchmarking: 'development/benchmarks/index.md'
   - Releases: 'https://github.com/ChengLabResearch/ouroboros/releases'
   - Repository: https://github.com/ChengLabResearch/ouroboros
 

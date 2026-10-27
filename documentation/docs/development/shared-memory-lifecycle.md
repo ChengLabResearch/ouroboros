@@ -11,9 +11,8 @@ there are no consumers of those facilities here.
 
 The manager server's `shared_memory_context` is the sole registry of managed
 allocations. Each entry contains a live `SharedMemory` handle and the allocation's
-release policy. The prior global termed-name list and its proxy are removed.
-The standard library's names-only tracker is replaced, not maintained alongside
-the owning registry. `list_segments` derives its answer from that registry.
+release policy. `list_segments` derives its answer from that registry, which
+implements the standard library's shared-memory tracker interface.
 
 `SharedNPArray()` and `TermedNPArray()` allocate through the same server RPC.
 The server establishes ownership before returning a name. The client opens a
@@ -143,7 +142,7 @@ that cap still requires dependency and platform validation.
 
 ## RAM-reporting integration
 
-PR #144 derives memory observations directly from `_OwnedSharedMemoryTracker`'s
+Memory reporting derives observations directly from `_OwnedSharedMemoryTracker`'s
 `_segments`, the sole registry of live handles and release policy. Allocation,
 registration and release publish a snapshot under the owner's lock: segment
 names and sizes, plus the manager's mapping addresses on macOS. These temporary
@@ -155,25 +154,24 @@ overlapping operations in the same backend. Manager startup passes its context
 through the existing initializer seam, before any caller initializer. Worker
 pools, `SharedNPArray` attachments, serialization and TIFF mappings have no
 reporting hooks. Disabled reporting publishes no observations. Existing owner
-handles, handoff guarantees, per-volume release and owner-death cleanup are
-unchanged. The slicing pool still starts before downloads can create shared
-buffers, preventing fork workers from retaining released download allocations.
+handles govern handoff, per-volume release and owner-death cleanup. The slicing
+pool starts before downloads can create shared buffers, preventing fork workers
+from retaining released download allocations.
 
 Linux subtracts `Pss_Shmem` from process PSS, then queries each live managed
 segment's residency once with `mincore`. This includes resident queued buffers
 whose producer has closed even if no remaining process has accessed their pages.
 macOS adds the same managed residency to `libproc` private residency, excluding
 the owner's segment ranges to avoid counting a sole-mapper segment twice. Its
-reader and controller are tested in native CI; pipeline load remains unmeasured.
-POSIX residency queries use a
+reader and controller are tested in native CI. POSIX residency queries use a
 temporary read-only mapping without faulting in the data or taking unlink
 authority.
 
 Windows adds manager-owned allocation sizes to the native private working-set
 counter. This is explicitly an allocated managed-buffer term, not a claim that
-all those bytes are resident. The collector no longer enumerates every Windows
-working-set page. None of the platforms adds a separate resident TIFF-cache term;
-ordinary mapped-file pages can still contribute through their process counters.
+all those bytes are resident. None of the platforms adds a separate resident
+TIFF-cache term; ordinary mapped-file pages can still contribute through their
+process counters.
 See [memory measurements](../reference/run-statistics.md#memory-measurements) for
 metric names, platform requirements and remaining semantic differences.
 
@@ -186,7 +184,5 @@ release, shutdown and inherited `ShareableList` registration, along with missing
 or duplicated managed-buffer accounting. The native CI matrix runs ownership
 and collector tests on Python 3.11/3.12.
 
-The earlier real-data batches in the [benchmark guide](benchmarks/index.md) measured the prior
-collector. Their Windows working-set enumeration overhead is historical evidence
-for this simplification, not a result for the replacement. Focused tests do not
-establish a pipeline overhead bound or replace native macOS validation.
+Focused tests do not establish a pipeline overhead bound or replace validation
+on the intended platform and workload.

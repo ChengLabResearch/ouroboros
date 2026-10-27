@@ -30,11 +30,7 @@ const SLICE_STREAM = '/slice_status_stream/'
 
 // Must match `StepName.SLICE_PARALLEL` in
 // `python/ouroboros/common/step_names.py`. The Python server exposes the
-// canonical list at `GET /step-names`; consuming it here at runtime would
-// need a new context wrapper because ServerContext does not currently expose
-// the base URL to non-fetch-hook callers. Follow-up tracked at
-// https://github.com/ChengLabResearch/ouroboros/issues/107.
-// TODO(#107): fetch /step-names in dev mode and warn on drift.
+// canonical list at `GET /step-names`.
 const SLICE_STEP_NAME = 'SliceParallelPipelineStep'
 
 function SlicesPage(): JSX.Element {

@@ -11,7 +11,6 @@ from ouroboros.helpers.slice import (
     slice_volume_from_grids
 )
 from ouroboros.helpers.mem import SharedNPManager
-from ouroboros.helpers.bounding_boxes import slice_indices_are_contiguous
 from ouroboros.helpers.volume_cache import VolumeCache, download_volume
 from ouroboros.helpers.files import (
     format_slice_output_file,
@@ -347,37 +346,44 @@ def process_worker_save_parallel(
     durations = {}
     durations["initial_load"] = [time.perf_counter() - start_total]
 
-    # Fill the final grid through the shared coordinate-generation facility.
+    # Refill one coordinate plane through the shared generation facility.
     start = time.perf_counter()
-
     grid_call = partial(coordinate_grid, shape=(config.slice_height, config.slice_width), floor=bounding_box.get_integer_origin())
-    grids = np.empty((len(slice_indices), config.slice_height, config.slice_width, 3), dtype=np.float32)
-    for grid, slice_index in zip(grids, slice_indices):
-        grid_call(slice_rects[slice_index], output=grid)
+    grid = np.empty((config.slice_height, config.slice_width, 3), dtype=np.float32)
     durations["generate_grid"] = [time.perf_counter() - start]
+    grid_seconds = 0.0
 
-    # Slice the volume using the grids
+    def grid_at(index):
+        nonlocal grid_seconds
+        started = time.perf_counter()
+        grid_call(slice_rects[index], output=grid)
+        grid_seconds += time.perf_counter() - started
+        return grid
+
+    # Index the mapping one plane at a time, including noncontiguous assignments.
     start = time.perf_counter()
-    contiguous = slice_indices_are_contiguous(slice_indices)
-    mmap = memmap(temporary_path) if contiguous else None
-    slices = slice_volume_from_grids(
-        volume_data, bounding_box, grids, config.slice_width, config.slice_height,
-        output=mmap[slice_indices[0]:slice_indices[-1] + 1] if contiguous else None,
+    mmap = memmap(temporary_path)
+    slice_volume_from_grids(
+        volume_data, grid_at, output=mmap, slice_indices=slice_indices,
     )
-    durations["slice_volume"] = [time.perf_counter() - start]
+    durations["slice_volume"] = [time.perf_counter() - start - grid_seconds]
+    durations["generate_grid"][0] += grid_seconds
 
     start = time.perf_counter()
-    # Save the slices to a previously created tiff file
-    if mmap is None:
-        mmap = memmap(temporary_path)
-        mmap[slice_indices] = slices
     mmap.flush()
-    del mmap
-
     durations["memmap_write"] = [time.perf_counter() - start]
     durations["total_process"] = [time.perf_counter() - start_total]
 
-    return volume_index, durations, np.min(slices), np.max(slices)
+    # Keep extrema outside the existing worker timers, as in the box-level path.
+    minimum, maximum = np.float32(np.inf), np.float32(-np.inf)
+    for index in slice_indices:
+        plane = mmap[index]
+        minimum = np.minimum(minimum, np.min(plane))
+        maximum = np.maximum(maximum, np.max(plane))
+    del plane
+    del mmap
+
+    return volume_index, durations, minimum, maximum
 
 
 def memmap_normalized(source: np.memmap, target: np.memmap, convert: callable, index: int):

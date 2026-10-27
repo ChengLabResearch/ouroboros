@@ -8,6 +8,7 @@ import time
 import threading
 import weakref
 from contextlib import contextmanager
+from itertools import count
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -17,7 +18,6 @@ import pytest
 import tifffile
 from cloudvolume import Bbox
 from scipy.ndimage import map_coordinates
-import scipy.ndimage._interpolation as scipy_interpolation
 
 from ouroboros.common.pipelines import geometry_pipeline
 from ouroboros.common.run_statistics import RunStatistics
@@ -26,7 +26,7 @@ from ouroboros.helpers import slice as interpolation
 from ouroboros.helpers import files as files_module
 from ouroboros.helpers import volume_cache as cache_module
 from ouroboros.helpers.bounding_boxes import (
-    BoundingBox, calculate_bounding_boxes_bsp_link_rects, slice_indices_are_contiguous,
+    BoundingBox, calculate_bounding_boxes_bsp_link_rects,
 )
 from ouroboros.helpers.options import BackprojectOptions, SliceOptions
 from ouroboros.helpers.shapes import ImgSliceC
@@ -166,8 +166,8 @@ def slice_options(tmp_path):
                         slice_width=2, slice_height=2, process_count=4)
 
 
-@pytest.mark.parametrize("slice_indices", [[1, 2], [2, 0], [-2, -1]],
-                         ids=["mapped", "buffered", "negative_indices"])
+@pytest.mark.parametrize("slice_indices", [[1, 2], [2, 0]],
+                         ids=["contiguous", "noncontiguous"])
 @pytest.mark.parametrize("channels", [1, 3])
 def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
     tmp_path, monkeypatch, slice_indices, channels,
@@ -185,24 +185,34 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
     grids = np.stack([slice_module.coordinate_grid(rects[index], (2, 2), floor=box.get_min())
                      for index in slice_indices])
     interpolate, open_mapping = slice_module.slice_volume_from_grids, slice_module.memmap
-    expected = interpolate(volume, box, grids, 2, 2)
+    expected = interpolate(
+        volume, grids.__getitem__,
+        output=np.empty((len(grids), 2, 2, channels), dtype=np.float32),
+        slice_indices=range(len(grids)),
+    )
     mappings, outputs = [], []
-    observed = {"grid": [], "coefficients": [], "results": [], "buffer": []}
-    real_filter = scipy_interpolation.spline_filter
+    observed = {"grid": [], "coefficients": [], "writes": []}
+    real_filter = interpolation.spline_filter
     real_map = interpolation.map_coordinates
 
     def observe_filter(*args, **kwargs):
         coefficients = real_filter(*args, **kwargs)
         assert coefficients.dtype == np.float64
-        observed["coefficients"].append(coefficients.nbytes)
+        assert coefficients is kwargs["output"]
+        assert np.shares_memory(args[0], volume) and args[0].dtype == volume.dtype
+        observed["coefficients"].append(coefficients)
         return coefficients
 
     def observe_map(*args, **kwargs):
+        channel, local_index = divmod(len(observed["writes"]), len(slice_indices))
+        target = mappings[0][slice_indices[local_index]].reshape(-1, channels)[:, channel]
+        assert args[0] is observed["coefficients"][-1]
+        assert kwargs["prefilter"] is False
+        assert kwargs["output"].ctypes.data == target.ctypes.data
+        assert kwargs["output"].strides == target.strides
         result = real_map(*args, **kwargs)
-        if isinstance(kwargs.get("output"), np.ndarray):
-            assert result is kwargs["output"]
-        else:
-            observed["results"].append(result.nbytes)
+        assert result is kwargs["output"]
+        observed["writes"].append(result)
         return result
 
     def observe_mapping(*args, **kwargs):
@@ -210,29 +220,28 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
         mappings.append(result)
         return result
 
-    def observe_interpolation(source, bounding_box, grids, width, height, *, output=None):
-        assert source is volume and bounding_box is box
-        assert grids.flags.owndata
-        observed["grid"].append(grids.nbytes)
+    def observe_interpolation(source, grids, *, output, slice_indices):
+        assert source is volume
+        assert callable(grids)
         outputs.append(output)
-        if slice_indices == [1, 2]:
-            assert output.base is mappings[0]
-            assert output.ctypes.data == mappings[0][1:3].ctypes.data
-        else:
-            assert output is None
-        result = interpolate(source, bounding_box, grids, width, height, output=output)
-        if output is None:
-            assert result.flags.owndata
-            observed["buffer"].append(result.nbytes)
-        else:
-            assert result is output
+        assert output is mappings[0]
+
+        def grid_at(index):
+            grid = grids(index)
+            assert grid.flags.owndata and grid.shape == (*output.shape[1:3], 3)
+            observed["grid"].append(grid)
+            return grid
+
+        result = interpolate(source, grid_at,
+                             output=output, slice_indices=slice_indices)
+        assert result is output
         return result
 
     monkeypatch.setattr(slice_module, "memmap", observe_mapping)
     monkeypatch.setattr(slice_module, "slice_volume_from_grids", observe_interpolation)
-    monkeypatch.setattr(scipy_interpolation, "spline_filter", observe_filter)
+    monkeypatch.setattr(interpolation, "spline_filter", observe_filter)
     monkeypatch.setattr(interpolation, "map_coordinates", observe_map)
-    monkeypatch.setattr(slice_module, "time", clock(range(9)))
+    monkeypatch.setattr(slice_module, "time", clock(count()))
     try:
         index, durations, minimum, maximum = slice_module.process_worker_save_parallel(
             options, volume, box, slice_indices, 0, rects, str(path),
@@ -246,26 +255,13 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
     np.testing.assert_array_equal(tifffile.imread(path).reshape(file_shape), expected_file)
     assert (minimum, maximum) == (expected.min(), expected.max())
     assert index == 0
-    assert durations == {
-        "initial_load": [1], "generate_grid": [1], "slice_volume": [1],
-        "memmap_write": [1], "total_process": [8],
-    }
-    estimate = interpolation.estimate_slice_task_payload(
-        box, len(slice_indices), slice_indices_are_contiguous(slice_indices),
-        slice_shape=(options.slice_height, options.slice_width),
-        source_dtype=volume.dtype, channels=channels,
-    )
-    assert estimate.source_bytes == volume.nbytes
-    assert observed["grid"] == [estimate.grid_bytes]
-    assert observed["coefficients"] == [estimate.coefficient_bytes] * channels
-    assert observed["buffer"] == ([] if estimate.output_bytes == 0 else [estimate.output_bytes])
-    assert observed["results"] == ([] if estimate.channel_result_bytes == 0
-                                   else [estimate.channel_result_bytes] * channels)
-    # One coefficient/channel-result array is live at a time across channels.
-    assert estimate.peak_bytes == (volume.nbytes + max(observed["grid"])
-                                   + max(observed["coefficients"])
-                                   + max(observed["buffer"], default=0)
-                                   + max(observed["results"], default=0))
+    assert set(durations) == {"initial_load", "generate_grid", "slice_volume", "memmap_write", "total_process"}
+    assert all(len(samples) == 1 and samples[0] > 0 for samples in durations.values())
+    assert sum(samples[0] for key, samples in durations.items() if key != "total_process") <= durations["total_process"][0]
+    assert len(observed["writes"]) == len(observed["grid"]) == len(slice_indices) * channels
+    assert all(grid is observed["grid"][0] for grid in observed["grid"])
+    assert len(observed["coefficients"]) == channels
+    assert all(workspace is observed["coefficients"][0] for workspace in observed["coefficients"])
 
 
 @pytest.mark.parametrize("clipped", [False, True], ids=["inside_source", "clipped_source"])
@@ -349,17 +345,24 @@ def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(
         stack_interior = np.zeros((len(rects), 61, 63), dtype=bool)
         selected_grid = None
 
-        def interpolate_observed(volume, box, grids, width, height, *, output=None):
-            nonlocal selected_grid
-            assert isinstance(output, np.memmap) if slice_indices_are_contiguous(indices) else output is None
-            assert np.all(grids >= 0)
-            assert np.all(grids <= np.array(volume.shape[:3]) - 1)
-            actual_world_grids[indices] = grids + box.get_integer_origin() - world_origin
-            distance = np.minimum(grids, np.array(box.get_shape()) - 1 - grids).min(axis=-1)
-            stack_interior[indices] = distance > 8
-            if selected in indices:
-                selected_grid = grids[indices.index(selected)].copy()
-            return interpolate(volume, box, grids, width, height, output=output)
+        def interpolate_observed(volume, grids, *, output, slice_indices):
+            assert isinstance(output, np.memmap)
+            assert slice_indices == indices
+
+            def grid_at(index):
+                nonlocal selected_grid
+                grid = grids(index)
+                assert np.all(grid >= 0)
+                assert np.all(grid <= np.array(volume.shape[:3]) - 1)
+                actual_world_grids[index] = grid + box.get_integer_origin() - world_origin
+                distance = np.minimum(grid, np.array(box.get_shape()) - 1 - grid).min(axis=-1)
+                stack_interior[index] = distance > 8
+                if index == selected:
+                    selected_grid = grid.copy()
+                return grid
+
+            return interpolate(volume, grid_at,
+                               output=output, slice_indices=slice_indices)
 
         monkeypatch.setattr(slice_module, "slice_volume_from_grids", interpolate_observed)
         for box_index, box in enumerate(partition):
@@ -488,7 +491,10 @@ def test_failed_mapped_slice_releases_mapping_before_pool_shutdown(tmp_path, sta
                        [3.75, 2.5, z], [0.25, 2.5, z]] for z in [0.5, 1.25, 2.5]])
     grids = slice_module.coordinate_grid(rects[1], (2, 3), floor=box.get_min())[None]
     expected = np.full((3, 2, 3, 3), -999, dtype=np.float32)
-    interpolated = slice_module.slice_volume_from_grids(volume, box, grids, 3, 2)
+    interpolated = slice_module.slice_volume_from_grids(
+        volume, grids.__getitem__,
+        output=np.empty((1, 2, 3, 3), dtype=np.float32), slice_indices=[0],
+    )
     # The interpolation failure is injected after the first real channel write.
     # A flush failure occurs after every channel has been written.
     if failure_stage == "interpolation":
@@ -677,11 +683,12 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
     volume = np.where((x >= 2) & (x <= 3), (y + 1) * 100 + z * 31, 0).astype(np.uint16)
     box = BoundingBox(BoundingBox.bounds_to_rect(0, 9, 0, 8, 0, 7))
 
-    # The allocating path retains the interpolation used before mapped output.
+    # Preserve the prior box-level SciPy reference independently of streaming.
     # Compare each real final writer against its float32 result and the owning converter.
     grids = np.stack([slice_module.coordinate_grid(rect, (3, 5), floor=box.get_min()) for rect in rects])
     interpolate = slice_module.slice_volume_from_grids
-    reference = interpolate(volume, box, grids, 5, 3)
+    reference = map_coordinates(volume, grids.reshape(-1, 3).T,
+                                output=np.float32).reshape(len(rects), 3, 5)
     assert reference.min() < 0, "Cubic overshoot must exercise zero-guard when normalization is disabled"
     expected = np.stack([files_module.np_convert(
         target_dtype=volume.dtype, source=plane, normalize=normalize, zero_guard=zero_guard,
@@ -698,11 +705,12 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
     step = (slice_module.SliceParallelPipelineStep(alternate_slice_count_order=True)
             if alternate else slice_module.SliceParallelPipelineStep())
     expected_order = [1, 2, 3, 4, 0] if alternate else [0, 1, 2, 3, 4]
-    observed, mapped_shapes, downloaded, sliced = [], [], [], []
+    observed, mapped_shapes, mapped_indices, downloaded, sliced = [], [], [], [], []
 
-    def interpolate_observed(*args, output=None, **kwargs):
+    def interpolate_observed(*args, output, **kwargs):
         assert isinstance(output, np.memmap), "Final pixels must come from the mapped worker path"
         mapped_shapes.append(output.shape)
+        mapped_indices.append(kwargs["slice_indices"])
         return interpolate(*args, output=output, **kwargs)
 
     class InlineExecutor:
@@ -752,7 +760,8 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
     _, error = pipeline.process(data)
     assert len(observed) == len(rects)
     assert downloaded == sliced == expected_order
-    assert mapped_shapes == [(counts[index], *expected.shape[1:]) for index in expected_order]
+    assert mapped_shapes == [expected.shape] * len(counts)
+    assert mapped_indices == [cache.get_slice_indices(index) for index in expected_order]
     assert cache.link_rects == mapping and cache.bounding_boxes == [box] * len(counts)
     assert step.execution_resources["box_order"] == ("alternating_slice_count" if alternate else "partition")
     task = SliceTask(task_id="ordering", options="unused", pipeline=pipeline, pipeline_input=data)

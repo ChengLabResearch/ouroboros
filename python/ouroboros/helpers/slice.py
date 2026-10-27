@@ -1,9 +1,10 @@
 from dataclasses import dataclass, asdict, fields, astuple
 from functools import partial
+from collections.abc import Callable, Sequence
 
 from cloudvolume import VolumeCutout
 import numpy as np
-from scipy.ndimage import map_coordinates
+from scipy.ndimage import map_coordinates, spline_filter
 
 from .bounding_boxes import BoundingBox
 from .spline import Spline
@@ -178,63 +179,53 @@ def coordinate_grid(rect: np.ndarray, shape: tuple[int, int] | FrontProj,
 
 
 def slice_volume_from_grids(
-    volume: VolumeCutout, bounding_box: BoundingBox, grids: np.ndarray, width, height,
-    *, output: np.ndarray | None = None,
+    volume: VolumeCutout, grids: Callable[[int], np.ndarray],
+    *, output: np.ndarray, slice_indices: Sequence[int]
 ) -> np.ndarray:
-    """
-    Slice a volume based on a grid of coordinates.
+    """Interpolate planes with cubic splines, reusing one coefficient buffer.
 
-    Parameters:
+    Each source channel is filtered once, then sampled at the supplied grids.
+
+    Parameters
     ----------
-        volume (VolumeCutout): The volume of shape (x, y, z, c) to slice.
-        bounding_box (BoundingBox): The bounding box of the volume.
-        grids (numpy.ndarray): The grids of coordinates to slice the volume (n, width, height, 3).
-        width (int): The width of the grid.
-        height (int): The height of the grid.
-        output (ndarray): Optional writable C-contiguous float32 destination.
+    volume : ndarray
+        Source voxels with shape (x, y, z) or (x, y, z, channels).
+    grids : callable
+        Takes a slice index and returns one (height, width, 3) grid of
+        box-local coordinates. May reuse its array; called for each channel.
+    output : ndarray
+        Writable C-contiguous float32 stack with shape (n, height, width),
+        plus a trailing channel axis for a 4-D source. The destination stack
+        length n includes any unassigned planes.
+    slice_indices : sequence of int
+        Destination plane indices passed to the grid callable.
 
-    Returns:
+    Returns
     -------
-        numpy.ndarray: The slice of the volume as a 2D array.
+    ndarray
+        The supplied output object. Only selected planes are modified.
     """
-    # Reshape the grids to be (3, n * width * height)
-    normalized_grid = grids.reshape(-1, 3).T
-
-    # Check if volume has color channels
     has_color_channels, num_channels = detect_color_channels(volume)
-    target_shape = (len(grids), height, width)
-    if output is not None:
-        output_shape = target_shape + ((num_channels,) if has_color_channels else ())
-        if (output.shape != output_shape or output.dtype != np.float32
-                or not output.flags.c_contiguous or not output.flags.writeable):
-            raise ValueError(f"output must be a writable C-contiguous float32 array of shape {output_shape}")
+    if output.dtype != np.float32 or not output.flags.c_contiguous or not output.flags.writeable:
+        raise ValueError(f"output must be a writable C-contiguous float32 array.")
+    if not len(slice_indices):
+        return output
 
-    if has_color_channels:
-        # Initialize an empty array to store slices from each channel
-        channel_slices = (np.empty(target_shape + (num_channels, ), dtype=np.float32)
-                          if output is None else output)
-
-        # Iterate over each color channel
-        for channel in range(num_channels):
-            # Extract the current channel
-            cur_channel = np.s_[..., channel]
-
-            # Map the grid coordinates to the current channel volume
-            if output is None:
-                channel_slices[cur_channel] = map_coordinates(
-                    volume[cur_channel], normalized_grid, output=np.float32
-                ).reshape(target_shape)
-            else:
-                # Flatten the contiguous slab before selecting the strided channel.
-                map_coordinates(volume[cur_channel], normalized_grid,
-                                output=output.reshape(-1, num_channels)[:, channel])
-
-        return channel_slices
-    else:
-        # If no color channels, process as before
-        slice_points = map_coordinates(volume, normalized_grid,
-                                       output=np.float32 if output is None else output.reshape(-1))
-        return slice_points.reshape(target_shape) if output is None else output
+    # Reuse the workspace across channels: allocating on each iteration would
+    # briefly retain both the previous and next channel's coefficient arrays.
+    coefficients = np.empty(volume.shape[:3], dtype=np.float64)
+    for channel in range(num_channels):
+        source = volume[..., channel] if has_color_channels else volume
+        spline_filter(source, order=3, output=coefficients, mode="constant")
+        for index in slice_indices:
+            grid = grids(index)
+            plane = output[index]
+            destination = (plane.reshape(-1, num_channels)[:, channel]
+                           if has_color_channels else plane.reshape(-1))
+            map_coordinates(coefficients, grid.reshape(-1, 3).T,
+                            output=destination, order=3, mode="constant", cval=0,
+                            prefilter=False)
+    return output
 
 
 def _apply_weights(values, weights, corner):

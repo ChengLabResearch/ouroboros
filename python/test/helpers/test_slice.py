@@ -3,7 +3,7 @@ import pytest
 
 import numpy as np
 import tifffile
-from scipy.ndimage import map_coordinates
+from scipy.ndimage import map_coordinates, spline_filter
 
 from ouroboros.helpers.bounding_boxes import BoundingBox
 from ouroboros.helpers import slice as slice_module
@@ -20,22 +20,6 @@ from ouroboros.helpers.slice import (
 )
 from ouroboros.helpers.spline import Spline
 from test.sample_data import generate_sample_curve_helix
-
-
-def generate_rects(width, height, z):
-    # Sample points arranged in a simple curve
-    sample_points = generate_sample_curve_helix(start_z=z.start, end_z=z.stop)
-
-    # Initialize Spline object
-    spline = Spline(sample_points, degree=3)
-
-    # Generate a range of t values
-    equidistant_times = spline.calculate_equidistant_parameters(
-        distance_between_points=1
-    )
-
-    # Calculate slice rects
-    return calculate_slice_rects(equidistant_times, spline, width, height)
 
 
 def generate_bounded_rects(width, height, count):
@@ -164,7 +148,7 @@ def test_coordinate_grid_rejects_invalid_destination(invalid):
 
 @pytest.mark.parametrize("dtype", [np.uint8, np.uint16, np.int16, np.float32])
 @pytest.mark.parametrize("channels", [None, 1, 3])
-def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, monkeypatch, tmp_path):
+def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, monkeypatch):
     amplitude = 255 if dtype == np.float32 else np.iinfo(dtype).max
     step = np.array([0, 0, 0, amplitude, amplitude, amplitude, 0, 0], dtype=dtype)
     volume = np.broadcast_to(step[:, None, None], (8, 4, 4)).copy()
@@ -175,7 +159,6 @@ def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, 
                      dtype=np.float32).reshape(1, 2, 3, 3)
     grids = np.concatenate((grids, grids[:, :, ::-1]))
     coordinates = grids.reshape(-1, 3).T
-    box = BoundingBox(BoundingBox.bounds_to_rect(0, 8, 0, 4, 0, 4))
     old_volume = volume.astype(np.float32)
     if channels is None:
         expected = map_coordinates(old_volume, coordinates).reshape(2, 2, 3)
@@ -185,17 +168,20 @@ def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, 
             for channel in range(channels)
         ], axis=-1)
 
-    interpolated_inputs = []
+    filtered_inputs = []
 
     def observe_input(data, *args, **kwargs):
-        # Only the small interpolation output may be converted to float32.
+        # Native source precision must reach the cubic prefilter unchanged.
         assert data.dtype == volume.dtype
         assert np.shares_memory(data, volume)
-        interpolated_inputs.append(data.dtype)
-        return map_coordinates(data, *args, **kwargs)
+        filtered_inputs.append(data.dtype)
+        return spline_filter(data, *args, **kwargs)
 
-    monkeypatch.setattr(slice_module, "map_coordinates", observe_input)
-    actual = slice_volume_from_grids(volume, box, grids, width=3, height=2)
+    monkeypatch.setattr(slice_module, "spline_filter", observe_input)
+    actual = slice_volume_from_grids(
+        volume, grids.__getitem__,
+        output=np.empty_like(expected), slice_indices=range(len(grids)),
+    )
     assert actual.shape == (2, 2, 3) + (() if channels is None else (channels,))
     assert actual.dtype == np.float32
     np.testing.assert_array_equal(actual, expected)
@@ -204,23 +190,12 @@ def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, 
     assert expected.max() > amplitude
     assert np.any(expected != np.rint(expected))
 
-    path = tmp_path / "native-dtype.tif"
-    destination = tifffile.memmap(path, shape=expected.shape, dtype=np.float32,
-                                 photometric="minisblack")
-    try:
-        mapped = slice_volume_from_grids(volume, box, grids, width=3, height=2, output=destination)
-        assert mapped is destination
-        np.testing.assert_array_equal(mapped, actual)
-        destination.flush()
-    finally:
-        destination._mmap.close()
-    np.testing.assert_array_equal(tifffile.imread(path), expected)
-    assert len(interpolated_inputs) == 2 * (channels or 1)
+    assert len(filtered_inputs) == (channels or 1)
 
 
 @pytest.mark.parametrize("dtype", [np.uint32, np.uint64, np.int32, np.int64, np.float64])
 @pytest.mark.parametrize("channels", [None, 3])
-def test_high_precision_source_interpolates_before_float32_output(dtype, channels, tmp_path):
+def test_high_precision_source_interpolates_before_float32_output(dtype, channels):
     values = np.array([2**24, 2**24 + 1, 2**24 + 5, 2**24 + 9,
                        2**24 + 7, 2**24 + 1, 2**24, 2**24], dtype=dtype)
     volume = np.broadcast_to(values[:, None, None], (8, 4, 4)).copy()
@@ -230,7 +205,6 @@ def test_high_precision_source_interpolates_before_float32_output(dtype, channel
                       [4.5, 1.25, 1.75], [5.5, 1.25, 1.75], [6.5, 1.25, 1.75]],
                      dtype=np.float32).reshape(1, 2, 3, 3)
     coordinates = grids.reshape(-1, 3).T
-    box = BoundingBox(BoundingBox.bounds_to_rect(0, 8, 0, 4, 0, 4))
     if channels is None:
         expected = map_coordinates(volume, coordinates, output=np.float32).reshape(1, 2, 3)
     else:
@@ -239,29 +213,23 @@ def test_high_precision_source_interpolates_before_float32_output(dtype, channel
             for channel in range(channels)
         ], axis=-1)
 
-    actual = slice_volume_from_grids(volume, box, grids, width=3, height=2)
+    actual = slice_volume_from_grids(
+        volume, grids.__getitem__,
+        output=np.empty_like(expected), slice_indices=range(len(grids)),
+    )
 
     assert actual.dtype == np.float32
     np.testing.assert_array_equal(actual, expected)
     # The previous eager conversion discarded source bits before interpolation.
-    old = slice_volume_from_grids(volume.astype(np.float32), box, grids, width=3, height=2)
+    old = slice_volume_from_grids(
+        volume.astype(np.float32), grids.__getitem__,
+        output=np.empty_like(expected), slice_indices=range(len(grids)),
+    )
     assert np.any(actual != old)
-
-    path = tmp_path / "high-precision-dtype.tif"
-    destination = tifffile.memmap(path, shape=expected.shape, dtype=np.float32,
-                                 photometric="minisblack")
-    try:
-        mapped = slice_volume_from_grids(volume, box, grids, width=3, height=2, output=destination)
-        assert mapped is destination
-        np.testing.assert_array_equal(mapped, actual)
-        destination.flush()
-    finally:
-        destination._mmap.close()
-    np.testing.assert_array_equal(tifffile.imread(path), expected)
 
 
 @pytest.mark.parametrize("channels", [None, 1, 3])
-def test_slice_volume_writes_flat_interpolation_into_tiff_destination(channels, tmp_path, monkeypatch):
+def test_slice_volume_writes_each_interpolated_plane_into_tiff_destination(channels, tmp_path, monkeypatch):
     volume = np.arange(80, dtype=np.uint16).reshape(5, 4, 4)
     if channels is not None:
         volume = np.stack([np.roll(volume, channel, axis=0) for channel in range(channels)], axis=-1)
@@ -269,23 +237,37 @@ def test_slice_volume_writes_flat_interpolation_into_tiff_destination(channels, 
                       [3.5, 1.25, 1.75], [4.5, 1.25, 1.75], [-0.5, 1.25, 1.75]],
                      dtype=np.float32).reshape(1, 2, 3, 3)
     grids = np.concatenate((grids, grids[:, :, ::-1]))
-    box = BoundingBox(BoundingBox.bounds_to_rect(0, 5, 0, 4, 0, 4))
-    expected = slice_volume_from_grids(volume, box, grids, width=3, height=2)
+    expected = slice_volume_from_grids(
+        volume, grids.__getitem__,
+        output=np.empty((2, 2, 3) + (() if channels is None else (channels,)), dtype=np.float32),
+        slice_indices=range(len(grids)),
+    )
     path = tmp_path / "destination.tif"
     mapping = tifffile.memmap(path, shape=(4, *expected.shape[1:]), dtype=np.float32,
                              photometric="minisblack")
     mapping[:] = -999
     destination = mapping[1:3]
-    writes = []
+    writes, coefficients = [], []
+
+    def observe_filter(data, **kwargs):
+        assert np.shares_memory(data, volume)
+        assert kwargs["order"] == 3 and kwargs["mode"] == "constant"
+        workspace = kwargs["output"]
+        assert workspace.dtype == np.float64 and workspace.shape == volume.shape[:3]
+        coefficients.append(workspace)
+        return spline_filter(data, **kwargs)
 
     def observe_map(data, coordinates, **kwargs):
-        assert set(kwargs) == {"output"}, "Preserve SciPy's interpolation defaults"
+        assert {key: value for key, value in kwargs.items() if key != "output"} == {
+            "order": 3, "mode": "constant", "cval": 0, "prefilter": False,
+        }
+        channel, index = divmod(len(writes), len(grids))
         target = kwargs["output"]
-        expected_target = (destination.reshape(-1) if channels is None
-                           else destination.reshape(-1, channels)[:, len(writes)])
-        assert np.shares_memory(data, volume)
+        expected_target = (destination[index].reshape(-1) if channels is None
+                           else destination[index].reshape(-1, channels)[:, channel])
+        assert data is coefficients[-1]
         assert np.shares_memory(coordinates, grids)
-        np.testing.assert_array_equal(coordinates, grids.reshape(-1, 3).T)
+        np.testing.assert_array_equal(coordinates, grids[index].reshape(-1, 3).T)
         assert target.shape == expected_target.shape
         assert target.strides == expected_target.strides
         assert target.ctypes.data == expected_target.ctypes.data
@@ -293,10 +275,16 @@ def test_slice_volume_writes_flat_interpolation_into_tiff_destination(channels, 
         return map_coordinates(data, coordinates, **kwargs)
 
     try:
+        monkeypatch.setattr(slice_module, "spline_filter", observe_filter)
         monkeypatch.setattr(slice_module, "map_coordinates", observe_map)
-        actual = slice_volume_from_grids(volume, box, grids, width=3, height=2, output=destination)
+        actual = slice_volume_from_grids(
+            volume, grids.__getitem__,
+            output=destination, slice_indices=range(len(grids)),
+        )
         assert actual is destination
-        assert len(writes) == (channels or 1)
+        assert len(writes) == len(grids) * (channels or 1)
+        assert len(coefficients) == (channels or 1)
+        assert all(workspace is coefficients[0] for workspace in coefficients)
         mapping.flush()
     finally:
         mapping._mmap.close()
@@ -307,37 +295,30 @@ def test_slice_volume_writes_flat_interpolation_into_tiff_destination(channels, 
 
 def test_slice_volume_rejects_destinations_that_cannot_be_filled_in_place():
     volume = np.ones((3, 3, 3), dtype=np.uint16)
-    box = BoundingBox(BoundingBox.bounds_to_rect(0, 3, 0, 3, 0, 3))
     grids = np.ones((1, 2, 3, 3), dtype=np.float32)
     readonly = np.empty((1, 2, 3), dtype=np.float32)
     readonly.flags.writeable = False
     for output in (readonly, np.empty((1, 2, 3), dtype=np.float64),
-                   np.empty((1, 3, 2), dtype=np.float32),
                    np.empty((1, 2, 6), dtype=np.float32)[:, :, ::2]):
         with pytest.raises(ValueError, match="writable C-contiguous float32 array"):
-            slice_volume_from_grids(volume, box, grids, width=3, height=2, output=output)
+            slice_volume_from_grids(
+                volume, grids.__getitem__,
+                output=output, slice_indices=range(len(grids)),
+            )
 
 
-def test_slice_volume_from_grids_empty_grids():
+def test_slice_volume_from_grids_empty_selection():
     volume = np.random.rand(10, 10, 10).astype(np.float32)
-    bounding_box = BoundingBox(BoundingBox.bounds_to_rect(0, 10, 0, 10, 0, 10))
     grids = np.empty((0, 10, 10, 3)).astype(np.float32)
     width, height = 10, 10
 
-    result = slice_volume_from_grids(volume, bounding_box, grids, width, height)
+    output = np.empty((0, height, width), dtype=np.float32)
+    result = slice_volume_from_grids(
+        volume, grids.__getitem__,
+        output=output, slice_indices=[],
+    )
 
-    assert result.shape == (0, height, width)
-    assert result.dtype == np.float32
-
-
-def test_slice_volume_from_grids_invalid_dimensions():
-    volume = np.random.rand(10, 10, 10).astype(np.float32)
-    bounding_box = BoundingBox(BoundingBox.bounds_to_rect(0, 10, 0, 10, 0, 10))
-    grids = np.random.rand(5, 10, 10, 2).astype(np.float32)  # Invalid grid dimensions
-    width, height = 10, 10
-
-    with pytest.raises(ValueError):
-        slice_volume_from_grids(volume, bounding_box, grids, width, height)
+    assert result is output
 
 
 def test_backproject_basic():

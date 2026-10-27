@@ -72,10 +72,73 @@ Extend the native lifecycle matrix to those versions and verify handoff, early
 release, and owner-death cleanup on all three operating systems before changing
 the supported-version contract.
 
-The supported Python range is `>=3.11,<3.13`. Component-level lifecycle tests
-do not establish full application compatibility with a newer Python release;
-raising that cap requires dependency, platform, scientific-pipeline, and
-RAM-reporting validation.
+## Compatibility audit (2026-10-17)
+
+The three manager interfaces remain compatible in the inspected CPython releases
+below. No production-code change was needed. The audit compared the official
+release sources and ran the expanded lifecycle suite on Linux x86-64 using
+isolated, standard GIL-enabled CPython builds.
+
+| CPython source and runtime | NumPy in isolated probe | Linux lifecycle result |
+| --- | --- | --- |
+| [3.11.17](https://github.com/python/cpython/blob/v3.11.17/Lib/multiprocessing/managers.py) | 1.26.4 | 34 passed |
+| [3.12.15](https://github.com/python/cpython/blob/v3.12.15/Lib/multiprocessing/managers.py) | 1.26.4 | 34 passed |
+| [3.13.16](https://github.com/python/cpython/blob/v3.13.16/Lib/multiprocessing/managers.py) | 2.5.4 | 34 passed |
+| [3.14.8](https://github.com/python/cpython/blob/v3.14.8/Lib/multiprocessing/managers.py) | 2.5.4 | 34 passed |
+| [3.15.0](https://github.com/python/cpython/blob/v3.15.0/Lib/multiprocessing/managers.py) | 2.5.4 | 34 passed |
+
+Findings at each audited interface:
+
+- **Startup/finalization:** `BaseManager.start`, `_run_server`, and
+  `_finalize_manager` have unchanged parsed implementations across these releases.
+  The initializer signature, address-pipe handshake, and installed shutdown
+  finalizer still match the override. The parent-process sentinel remains usable
+  with `fork`, `spawn`, and `forkserver`; the tests now cover initializer forwarding,
+  producer exit before attachment, and owner-death cleanup under every available
+  start method. CPython 3.13 moves child finalization out of `_bootstrap` into the
+  launcher/exit paths; the manager finalizer and server shutdown contract remain
+  intact.
+- **RPC dispatch:** the request tuple, return protocol, and conversion of a
+  server-raised exception to `RemoteError` are unchanged. From 3.13, `dispatch`
+  deletes its result reference in a `finally` block to break a reference cycle.
+  This does not change the release-result adapter. Live probes verify both an
+  allocation error arriving as `RemoteError` and rejected removal preserving the
+  public `FileNotFoundError` behavior.
+- **Server tracker:** `SharedMemoryServer` still consumes `register_segment`,
+  `destroy_segment`, `unlink`, and `segment_names` from `shared_memory_context`.
+  Registration, listing, explicit release, and shutdown therefore still use the
+  replacement owning registry. CPython's original tracker changes its mutable
+  default list to `None` in 3.13; this does not affect our replacement.
+
+Two adjacent changes matter for future upgrades:
+
+- [Python 3.13 adds `SharedMemory(track=...)`](https://docs.python.org/3.13/library/multiprocessing.shared_memory.html).
+  Its default remains `True`, preserving the current resource-tracker behavior
+  for this multiprocessing family. Windows ignores this option. The audit does
+  not change that policy or claim support for unrelated standalone attachers.
+- [Python 3.14 changes the Linux default to `forkserver`](https://docs.python.org/3.14/library/multiprocessing.html#contexts-and-start-methods).
+  The former spawn-only lifecycle tests would not have covered that default.
+  Handoff, initializer/RPC behavior, and owner-death tests now exercise all
+  available start methods explicitly. Linux probes confirmed `fork` as the
+  default through 3.13 and `forkserver` in 3.14/3.15.
+
+Each isolated probe used psutil 7.1.3, pytest 9.1.1, click 8.5.0, and
+typing-extensions 4.16.0. The command, from `python/`, was
+`python -m pytest test/test_shared_memory_lifecycle.py -q -W error::ResourceWarning`,
+with BLAS/OpenMP thread counts set to one. All five runs had empty stderr and no
+pytest warning summary. The native CI matrix retains Python 3.11/3.12 on Linux,
+Windows, and macOS and runs the same expanded tests. The
+[audit CI run](https://github.com/ChengLabResearch/ouroboros/actions/runs/39046361979)
+passed on both supported versions: 34 tests on each Linux/macOS job, and 17 passed
+plus the POSIX-only skip on each Windows job. No warnings appeared in those test
+summaries. The full local supported-environment suite passed 270 tests with 99%
+helper coverage.
+
+These results audit the shared-memory component, not the full application on
+new Python releases. Python 3.13–3.15 Windows/macOS runs, free-threaded builds,
+the production dependency set, scientific pipelines, and RAM-reporting integration
+were not validated by these probes. The project remains `>=3.11,<3.13`; raising
+that cap still requires dependency and platform validation.
 
 ## RAM-reporting integration
 

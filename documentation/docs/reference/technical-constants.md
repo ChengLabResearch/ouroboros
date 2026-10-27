@@ -400,8 +400,13 @@ in [`python/ouroboros/pipeline/backproject_pipeline.py`][backproject-pipeline]).
 executor and writer processes are derived as fractions of it
 (`process_count // 4 * 2` or `// 4 * 3`).
 
-**Chunk sizing.** Backprojection operations use flattened chunks. Large chunks
-can require wider indices, increasing memory usage and slowing processing.
+**Why 160 specifically.** The primary purpose of the chunk sizing is to
+enable clean backprojection - specifically clean backprojection of the
+flattened xyz stack. `160` is the judgment-call result for the best
+combination of memory and speed on standard pieces of data.  Additionally,
+as for efficiency operations are performed on a flattened chunk, large
+values can cause significant slowdown and memory explsion due to change
+in the index bit size.
 
 **User-visible behavior.** Large `chunk_size` reduces per-chunk
 overhead but raises peak memory per worker and can cause disproportionate

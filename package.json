@@ -1,7 +1,7 @@
 {
 	"name": "ouroboros",
 	"productName": "Ouroboros",
-	"version": "1.5.6-beta.1",
+	"version": "1.6.0-beta.1",
 	"description": "Quickly extract ROIs from cloud-hosted medical scans.",
 	"main": "./out/main/index.js",
 	"author": "Weaver Goldman <we.goldm@gmail.com> and David Northover <david.northover@psu.edu>",

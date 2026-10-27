@@ -180,8 +180,8 @@ def coordinate_grid(rect: np.ndarray, shape: tuple[int, int] | FrontProj,
 
 def slice_volume_from_grids(
     volume: VolumeCutout, bounding_box: BoundingBox,
-    grids: np.ndarray | Callable[[int], np.ndarray], width, height,
-    *, output: np.ndarray | None = None, slice_indices: Sequence[int] | None = None,
+    grids: Callable[[int], np.ndarray], width, height,
+    *, output: np.ndarray, slice_indices: Sequence[int],
 ) -> np.ndarray:
     """Interpolate planes with cubic splines, reusing one coefficient buffer.
 
@@ -193,45 +193,27 @@ def slice_volume_from_grids(
         Source voxels with shape (x, y, z) or (x, y, z, channels).
     bounding_box : BoundingBox
         Retained for call compatibility; not used in the calculation.
-    grids : ndarray or callable
-        Box-local coordinates with shape (n, height, width, 3), or a callable
-        taking a slice index and returning one (height, width, 3) grid. The
-        callable may reuse its array and is revisited for each channel.
+    grids : callable
+        Takes a slice index and returns one (height, width, 3) grid of
+        box-local coordinates. May reuse its array; called for each channel.
     width, height : int
         Output plane dimensions in pixels.
-    output : ndarray, optional
+    output : ndarray
         Writable C-contiguous float32 stack with shape (n, height, width),
-        plus a trailing channel axis for a 4-D source. Required for callable
-        grids; otherwise allocated when omitted. For callable grids, n is
-        the destination stack length, including any unassigned planes.
-    slice_indices : sequence of int, optional
-        Destination plane indices passed to the grid callable. Required for
-        callable grids; omit for array grids, which fill every output plane.
+        plus a trailing channel axis for a 4-D source. The destination stack
+        length n includes any unassigned planes.
+    slice_indices : sequence of int
+        Destination plane indices passed to the grid callable.
 
     Returns
     -------
     ndarray
-        The supplied output object, or a newly allocated float32 stack.
-        Only selected planes are modified when slice_indices is supplied.
+        The supplied output object. Only selected planes are modified.
     """
     has_color_channels, num_channels = detect_color_channels(volume)
-    if callable(grids):
-        if output is None or slice_indices is None:
-            raise ValueError("streamed grids require output and slice_indices")
-        grid_at = grids
-        count = len(output)
-    else:
-        if slice_indices is not None:
-            raise ValueError("slice_indices requires a grid callable")
-        count = len(grids)
-        grid_at = grids.reshape(count, height, width, 3).__getitem__
-        slice_indices = range(count)
-
-    output_shape = (count, height, width) + ((num_channels,) if has_color_channels else ())
-    if output is None:
-        output = np.empty(output_shape, dtype=np.float32)
-    elif (output.shape != output_shape or output.dtype != np.float32
-          or not output.flags.c_contiguous or not output.flags.writeable):
+    output_shape = (len(output), height, width) + ((num_channels,) if has_color_channels else ())
+    if (output.shape != output_shape or output.dtype != np.float32
+        or not output.flags.c_contiguous or not output.flags.writeable):
         raise ValueError(f"output must be a writable C-contiguous float32 array of shape {output_shape}")
     if not len(slice_indices):
         return output
@@ -243,7 +225,7 @@ def slice_volume_from_grids(
         source = volume[..., channel] if has_color_channels else volume
         spline_filter(source, order=3, output=coefficients, mode="constant")
         for index in slice_indices:
-            grid = grid_at(index)
+            grid = grids(index)
             plane = output[index]
             destination = (plane.reshape(-1, num_channels)[:, channel]
                            if has_color_channels else plane.reshape(-1))

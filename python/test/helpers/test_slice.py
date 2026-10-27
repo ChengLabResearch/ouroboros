@@ -195,7 +195,10 @@ def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, 
         return spline_filter(data, *args, **kwargs)
 
     monkeypatch.setattr(slice_module, "spline_filter", observe_input)
-    actual = slice_volume_from_grids(volume, box, grids, width=3, height=2)
+    actual = slice_volume_from_grids(
+        volume, box, grids.__getitem__, width=3, height=2,
+        output=np.empty_like(expected), slice_indices=range(len(grids)),
+    )
     assert actual.shape == (2, 2, 3) + (() if channels is None else (channels,))
     assert actual.dtype == np.float32
     np.testing.assert_array_equal(actual, expected)
@@ -208,7 +211,10 @@ def test_native_dtype_interpolation_preserves_float32_baseline(dtype, channels, 
     destination = tifffile.memmap(path, shape=expected.shape, dtype=np.float32,
                                  photometric="minisblack")
     try:
-        mapped = slice_volume_from_grids(volume, box, grids, width=3, height=2, output=destination)
+        mapped = slice_volume_from_grids(
+            volume, box, grids.__getitem__, width=3, height=2,
+            output=destination, slice_indices=range(len(grids)),
+        )
         assert mapped is destination
         np.testing.assert_array_equal(mapped, actual)
         destination.flush()
@@ -239,19 +245,28 @@ def test_high_precision_source_interpolates_before_float32_output(dtype, channel
             for channel in range(channels)
         ], axis=-1)
 
-    actual = slice_volume_from_grids(volume, box, grids, width=3, height=2)
+    actual = slice_volume_from_grids(
+        volume, box, grids.__getitem__, width=3, height=2,
+        output=np.empty_like(expected), slice_indices=range(len(grids)),
+    )
 
     assert actual.dtype == np.float32
     np.testing.assert_array_equal(actual, expected)
     # The previous eager conversion discarded source bits before interpolation.
-    old = slice_volume_from_grids(volume.astype(np.float32), box, grids, width=3, height=2)
+    old = slice_volume_from_grids(
+        volume.astype(np.float32), box, grids.__getitem__, width=3, height=2,
+        output=np.empty_like(expected), slice_indices=range(len(grids)),
+    )
     assert np.any(actual != old)
 
     path = tmp_path / "high-precision-dtype.tif"
     destination = tifffile.memmap(path, shape=expected.shape, dtype=np.float32,
                                  photometric="minisblack")
     try:
-        mapped = slice_volume_from_grids(volume, box, grids, width=3, height=2, output=destination)
+        mapped = slice_volume_from_grids(
+            volume, box, grids.__getitem__, width=3, height=2,
+            output=destination, slice_indices=range(len(grids)),
+        )
         assert mapped is destination
         np.testing.assert_array_equal(mapped, actual)
         destination.flush()
@@ -270,7 +285,11 @@ def test_slice_volume_writes_each_interpolated_plane_into_tiff_destination(chann
                      dtype=np.float32).reshape(1, 2, 3, 3)
     grids = np.concatenate((grids, grids[:, :, ::-1]))
     box = BoundingBox(BoundingBox.bounds_to_rect(0, 5, 0, 4, 0, 4))
-    expected = slice_volume_from_grids(volume, box, grids, width=3, height=2)
+    expected = slice_volume_from_grids(
+        volume, box, grids.__getitem__, width=3, height=2,
+        output=np.empty((2, 2, 3) + (() if channels is None else (channels,)), dtype=np.float32),
+        slice_indices=range(len(grids)),
+    )
     path = tmp_path / "destination.tif"
     mapping = tifffile.memmap(path, shape=(4, *expected.shape[1:]), dtype=np.float32,
                              photometric="minisblack")
@@ -306,7 +325,10 @@ def test_slice_volume_writes_each_interpolated_plane_into_tiff_destination(chann
     try:
         monkeypatch.setattr(slice_module, "spline_filter", observe_filter)
         monkeypatch.setattr(slice_module, "map_coordinates", observe_map)
-        actual = slice_volume_from_grids(volume, box, grids, width=3, height=2, output=destination)
+        actual = slice_volume_from_grids(
+            volume, box, grids.__getitem__, width=3, height=2,
+            output=destination, slice_indices=range(len(grids)),
+        )
         assert actual is destination
         assert len(writes) == len(grids) * (channels or 1)
         assert len(coefficients) == (channels or 1)
@@ -329,17 +351,25 @@ def test_slice_volume_rejects_destinations_that_cannot_be_filled_in_place():
                    np.empty((1, 3, 2), dtype=np.float32),
                    np.empty((1, 2, 6), dtype=np.float32)[:, :, ::2]):
         with pytest.raises(ValueError, match="writable C-contiguous float32 array"):
-            slice_volume_from_grids(volume, box, grids, width=3, height=2, output=output)
+            slice_volume_from_grids(
+                volume, box, grids.__getitem__, width=3, height=2,
+                output=output, slice_indices=range(len(grids)),
+            )
 
 
-def test_slice_volume_from_grids_empty_grids():
+def test_slice_volume_from_grids_empty_selection():
     volume = np.random.rand(10, 10, 10).astype(np.float32)
     bounding_box = BoundingBox(BoundingBox.bounds_to_rect(0, 10, 0, 10, 0, 10))
     grids = np.empty((0, 10, 10, 3)).astype(np.float32)
     width, height = 10, 10
 
-    result = slice_volume_from_grids(volume, bounding_box, grids, width, height)
+    output = np.empty((0, height, width), dtype=np.float32)
+    result = slice_volume_from_grids(
+        volume, bounding_box, grids.__getitem__, width, height,
+        output=output, slice_indices=[],
+    )
 
+    assert result is output
     assert result.shape == (0, height, width)
     assert result.dtype == np.float32
 
@@ -351,7 +381,11 @@ def test_slice_volume_from_grids_invalid_dimensions():
     width, height = 10, 10
 
     with pytest.raises(ValueError):
-        slice_volume_from_grids(volume, bounding_box, grids, width, height)
+        slice_volume_from_grids(
+            volume, bounding_box, grids.__getitem__, width, height,
+            output=np.empty((len(grids), height, width), dtype=np.float32),
+            slice_indices=range(len(grids)),
+        )
 
 
 def test_backproject_basic():

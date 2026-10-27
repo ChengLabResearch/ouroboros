@@ -185,7 +185,11 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
     grids = np.stack([slice_module.coordinate_grid(rects[index], (2, 2), floor=box.get_min())
                      for index in slice_indices])
     interpolate, open_mapping = slice_module.slice_volume_from_grids, slice_module.memmap
-    expected = interpolate(volume, box, grids, 2, 2)
+    expected = interpolate(
+        volume, box, grids.__getitem__, 2, 2,
+        output=np.empty((len(grids), 2, 2, channels), dtype=np.float32),
+        slice_indices=range(len(grids)),
+    )
     mappings, outputs = [], []
     observed = {"grid": [], "coefficients": [], "writes": []}
     real_filter = interpolation.spline_filter
@@ -216,7 +220,7 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
         mappings.append(result)
         return result
 
-    def observe_interpolation(source, bounding_box, grids, width, height, *, output=None, slice_indices=None):
+    def observe_interpolation(source, bounding_box, grids, width, height, *, output, slice_indices):
         assert source is volume and bounding_box is box
         assert callable(grids)
         outputs.append(output)
@@ -357,7 +361,7 @@ def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(
         stack_interior = np.zeros((len(rects), 61, 63), dtype=bool)
         selected_grid = None
 
-        def interpolate_observed(volume, box, grids, width, height, *, output=None, slice_indices=None):
+        def interpolate_observed(volume, box, grids, width, height, *, output, slice_indices):
             assert isinstance(output, np.memmap)
             assert slice_indices == indices
 
@@ -503,7 +507,10 @@ def test_failed_mapped_slice_releases_mapping_before_pool_shutdown(tmp_path, sta
                        [3.75, 2.5, z], [0.25, 2.5, z]] for z in [0.5, 1.25, 2.5]])
     grids = slice_module.coordinate_grid(rects[1], (2, 3), floor=box.get_min())[None]
     expected = np.full((3, 2, 3, 3), -999, dtype=np.float32)
-    interpolated = slice_module.slice_volume_from_grids(volume, box, grids, 3, 2)
+    interpolated = slice_module.slice_volume_from_grids(
+        volume, box, grids.__getitem__, 3, 2,
+        output=np.empty((1, 2, 3, 3), dtype=np.float32), slice_indices=[0],
+    )
     # The interpolation failure is injected after the first real channel write.
     # A flush failure occurs after every channel has been written.
     if failure_stage == "interpolation":
@@ -716,7 +723,7 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
     expected_order = [1, 2, 3, 4, 0] if alternate else [0, 1, 2, 3, 4]
     observed, mapped_shapes, mapped_indices, downloaded, sliced = [], [], [], [], []
 
-    def interpolate_observed(*args, output=None, **kwargs):
+    def interpolate_observed(*args, output, **kwargs):
         assert isinstance(output, np.memmap), "Final pixels must come from the mapped worker path"
         mapped_shapes.append(output.shape)
         mapped_indices.append(kwargs["slice_indices"])

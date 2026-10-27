@@ -399,11 +399,7 @@
     
         
         
-            
-            
-            <span class="
-        
-    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Benchmarks</span>
+            <a class="terminal-mkdocs-side-nav-item" href="../benchmarks/">Benchmarking</a>
         
     
     </li>
@@ -471,7 +467,7 @@ connect: no such file or directory
 </code></pre>
 <p>In Docker Desktop, enable the WSL 2 engine and <strong>Settings → Resources → WSL Integration</strong> for the specific distribution running development, then apply the changes. If integration settings are absent, check that Docker Desktop is using Linux containers. Retry <code>docker info</code> in the same WSL shell you use for <code>npm run dev</code>; it must return server information. Docker Desktop being open, or a container running elsewhere, does not verify this connection. See <a href="https://docs.docker.com/desktop/features/wsl/#enable-docker-in-a-wsl-2-distribution">Docker's WSL integration instructions</a>.</p>
 <h2 id="electron-uninstall-after-npm-ci">Electron uninstall after npm ci</h2>
-<p>With the Electron 43.7.8 / electron-vite 5 combination tested for #141, Electron's binary was downloaded on demand, while electron-vite read Electron's <code>path.txt</code> directly. Thus an otherwise successful dependency installation could still end with <code>Error: Electron uninstall</code> at launch.</p>
+<p>Electron's binary must be installed before electron-vite reads Electron's <code>path.txt</code>. An otherwise successful dependency installation can end with <code>Error: Electron uninstall</code> at launch if that file is missing.</p>
 <p>Run the explicit <code>install-electron</code> step in the README. It uses <a href="https://www.electronjs.org/docs/latest/tutorial/installation#binary-download-step">Electron's bundled installer</a>; no custom downloader is needed. Check the installed executable with:</p>
 <pre><code class="language-bash">npm exec --no -- electron --version
 </code></pre>
@@ -480,11 +476,11 @@ connect: no such file or directory
 <p>Paths must be valid for the operating system running Electron. <strong>Linux Electron inside WSL</strong> needs <code>/mnt/c/...</code> or <code>/mnt/wsl/...</code>, not <code>C:\...</code> or <code>\\wsl$\Ubuntu\...</code>. Native Windows Electron uses Windows paths.</p>
 <p>Use <strong>File → Open Folder</strong>, choose the containing folder, then drag the JSON from the app's file explorer into <strong>Neuroglancer JSON</strong>. The slicing page currently ignores JSON changes before a working folder has been selected, even when the typed absolute path is valid. In the GTK folder picker, <strong>Ctrl+L</strong> lets you enter an absolute folder path.</p>
 <h3 id="conditional-x11-file-picker-workaround">Conditional X11 file-picker workaround</h3>
-<p>In the session recorded in <a href="https://github.com/ChengLabResearch/ouroboros/issues/141">#141</a>, the app used a forwarded X11 display (<code>DISPLAY=localhost:10.0</code>), but the desktop portal lacked a usable X11 display. Portal logs reported <code>Failed to open X11 display</code> and failure to associate the dialog with its parent. The user saw a nonfunctional window with <code>[WARN:COPY MODE]</code> in its title; that title alone is not a diagnosis.</p>
+<p>A forwarded X11 session can leave the desktop portal without a usable display. Check the portal logs for <code>Failed to open X11 display</code> and failure to associate the dialog with its parent. A nonfunctional window's title alone does not establish the cause.</p>
 <p>For this portal/X11 mismatch, close the development app and launch with:</p>
 <pre><code class="language-bash">GDK_BACKEND=x11 npm run dev -- -- --xdg-portal-required-version=999
 </code></pre>
-<p>Both <code>--</code> separators are intentional: npm consumes the first, and electron-vite forwards the arguments after the second to Electron. The <a href="https://www.electronjs.org/docs/latest/api/command-line-switches#--xdg-portal-required-versionversion">portal-version switch</a> selects the native GTK dialog when the portal does not meet that version requirement; <code>GDK_BACKEND=x11</code> uses the app's X11 display. An actual Electron 43.7.8 folder dialog was verified with this launch. This is conditional troubleshooting, not a requirement for every WSL installation, and it does not establish that WebGL works.</p>
+<p>Both <code>--</code> separators are intentional: npm consumes the first, and electron-vite forwards the arguments after the second to Electron. The <a href="https://www.electronjs.org/docs/latest/api/command-line-switches#--xdg-portal-required-versionversion">portal-version switch</a> selects the native GTK dialog when the portal does not meet that version requirement; <code>GDK_BACKEND=x11</code> uses the app's X11 display. This workaround applies to a portal/X11 mismatch; verify the file picker and WebGL preview separately.</p>
 <h2 id="webgl-preview-failures">WebGL preview failures</h2>
 <p>The slicing page's React Three Fiber <code>Canvas</code> in <code>VisualizeSlicing.tsx</code> draws the 3D slice/bounding-box preview. These repeated messages indicate that its WebGL context could not be created:</p>
 <pre><code class="language-text">THREE.WebGLRenderer: A WebGL context could not be created.
@@ -494,12 +490,11 @@ ErrorMessage = BindToCurrentSequence failed
 <p>The app does not explicitly disable hardware acceleration and currently provides no preview fallback for context creation failure. A functioning file picker and successful backend processing are separate from a functioning preview.</p>
 <h3 id="capture-the-failing-launch">Capture the failing launch</h3>
 <ul>
-<li>Record the launch command, Electron version, and <code>DISPLAY</code>, <code>WAYLAND_DISPLAY</code>, and <code>XDG_SESSION_TYPE</code> from its shell. Distinguish a WSLg session from forwarded X11; the observed <code>localhost:10.0</code> was forwarded X11. Check <a href="https://learn.microsoft.com/en-us/windows/wsl/tutorials/gui-apps">Microsoft's WSL GUI/OpenGL prerequisites</a> for WSLg.</li>
+<li>Record the launch command, Electron version, and <code>DISPLAY</code>, <code>WAYLAND_DISPLAY</code>, and <code>XDG_SESSION_TYPE</code> from its shell. Distinguish a WSLg session from forwarded X11. Check <a href="https://learn.microsoft.com/en-us/windows/wsl/tutorials/gui-apps">Microsoft's WSL GUI/OpenGL prerequisites</a> for WSLg.</li>
 <li>Capture the preview error from the renderer's DevTools console (<strong>F12</strong> in development) and GPU messages from the launch terminal. For Chromium logging and a main-process debugger, add <code>--inspect</code> before electron-vite's <code>--</code> and <code>--enable-logging</code> after it: <code>npm run dev -- --inspect -- --enable-logging</code>. Retain any display settings and other Electron switches from the failing launch. Attach a Node debugger to the inspector address printed in the terminal (electron-vite 5 defaults to port 5858).</li>
 <li>In that <strong>main-process</strong> debugger, collect Electron's <a href="https://www.electronjs.org/docs/latest/api/app#appgetgpufeaturestatus"><code>app.getGPUFeatureStatus()</code></a> after GPU initialization (<code>gpu-info-update</code>), and <a href="https://www.electronjs.org/docs/latest/api/app#appgetgpuinfoinfotype"><code>app.getGPUInfo('complete')</code></a>, including any rejection. These APIs belong to <code>app</code> from <code>electron</code>, not the renderer's console. Use diagnostics from the actual failing app; an isolated probe alone does not establish its GPU state.</li>
 </ul>
-<p>An isolated Electron 43.7.8 check on the same forwarded display reproduced <code>WebGL2 blocklisted</code> / <code>unavailable_off</code>. The exact blocklist cause and trigger for repeated preview renders remain unconfirmed; forwarded X11 is diagnostic context, not a proven cause.</p>
-<h3 id="verified-software-rendering-launch">Verified software-rendering launch</h3>
+<h3 id="software-rendering-launch">Software-rendering launch</h3>
 <p>For the affected environment, close the development app and retain the working file-picker configuration while selecting the bundled SwiftShader driver:</p>
 <pre><code class="language-bash">GDK_BACKEND=x11 npm run dev -- -- \
   --xdg-portal-required-version=999 \
@@ -507,8 +502,7 @@ ErrorMessage = BindToCurrentSequence failed
   --use-angle=swiftshader
 </code></pre>
 <p>These <a href="https://chromium.googlesource.com/chromium/src/+/main/docs/gpu/swiftshader.md">Chromium driver switches</a> render on the CPU and may be slower than hardware acceleration. They apply to this launch and require no source changes. Do not use <code>--disable-gpu</code> or <code>--no-sandbox</code> as the standard fix.</p>
-<p>The isolated Electron 43.7.8 check created WebGL2 with an ANGLE/SwiftShader renderer and returned the expected pixel <code>[255,128,0,255]</code>. The owner subsequently confirmed that the same command worked in the actual development app. This was <strong>not warning-free</strong>: the app still printed an automatic SwiftShader fallback deprecation warning despite the explicit driver switches. The probe also logged a GPU stall from its synchronous <code>readPixels</code> check. The tested launch needed neither <code>--enable-unsafe-swiftshader</code> nor <code>--no-sandbox</code>; do not add the unsafe opt-in merely to suppress the warning.</p>
-<p>The earlier eight successful Docker operations and delivered statistics verified backend/output delivery; the later owner confirmation verified the preview separately. These observations are recorded in <a href="https://github.com/ChengLabResearch/ouroboros/issues/141">#141</a>, not a claim of new GUI testing for this documentation change. A graceful preview fallback or logging change is a separate application task.</p>
+<p>Verify the preview in the development app and retain any graphics warnings in the diagnostic report. Do not add <code>--enable-unsafe-swiftshader</code> merely to suppress a fallback warning.</p>
 <h2 id="other-build-paths">Other build paths</h2>
 <ul>
 <li>Installed apps use the server image pinned by digest in the <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/release/release-lock.json">release lock</a>. Docker pulls a missing image; the installed app does not build a server wheel or image.</li>

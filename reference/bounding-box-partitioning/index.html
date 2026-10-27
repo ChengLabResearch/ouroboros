@@ -399,11 +399,7 @@
     
         
         
-            
-            
-            <span class="
-        
-    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Benchmarks</span>
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/benchmarks/">Benchmarking</a>
         
     
     </li>
@@ -592,10 +588,8 @@ as <code>partition</code> or <code>alternating_slice_count</code> for the slicin
 <p>Alternating large and small slice counts can change task overlap, resource
 contention, and the final period with idle workers. It does not guarantee faster
 execution or lower peak memory, and slice count is not a measure of source-box
-volume. Full-path comparisons on three real datasets found no consistent speed
-benefit; the largest sampled memory peak was lower with alternating order in
-each dataset, with incomplete sampling coverage. Keep the default unless a
-comparison on the intended workload supports changing it.</p>
+volume. Keep the default unless a comparison on the intended workload supports
+changing it.</p>
 <h2 id="options-compatibility-and-limits">Options, compatibility, and limits</h2>
 <p><code>target_slices_per_box</code> controls the count-based reference and therefore the
 production work allowance. It is not a maximum number of slices in a selected

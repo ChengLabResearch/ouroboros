@@ -399,11 +399,7 @@
     
         
         
-            
-            
-            <span class="
-        
-    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Benchmarks</span>
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/benchmarks/">Benchmarking</a>
         
     
     </li>
@@ -478,7 +474,7 @@
 <li>Dtype must be a mask-friendly integer or boolean type: <code>bool</code>, <code>uint8</code>, or <code>uint16</code>.</li>
 <li>Compressed plugin TIFFs are accepted when tifffile can read them; Ouroboros rewrites compressed or non-memmappable inputs to an uncompressed temporary stack before processing.</li>
 </ul>
-<p>Shape mismatches, dtype mismatches, and missing slice configuration now report separate errors so plugin output problems do not require manual reshaping to diagnose.</p>
+<p>Shape mismatches, dtype mismatches, and missing slice configuration report separate errors so plugin output problems do not require manual reshaping to diagnose.</p>
 <h3 id="slicing-options">Slicing Options</h3>
 <p>📁 - Drag and drop files from File Explorer panel into this option.</p>
 <ul>
@@ -494,7 +490,7 @@
 <li><code>Output Min Bounding Box</code> - Save only the minimum volume needed to contain the backprojected slices. The offset will be stored in the <code>-configuration.json</code> file under <code>backprojection_offset</code>. This value is the (x_min, y_min, z_min).</li>
 <li><code>Binary Backprojection</code> - Whether or not to binarize all the values of the backprojection. Enable this to backproject a segmentation.</li>
 <li><code>Offset in Filename</code> - Whether or not to include the (x_min, y_min, z_min) offset for min bounding box in the output file name. Only applies if <code>Output Min Bounding Box</code> is true.</li>
-<li><code>Process Count</code> - Number of parallel processes to use during the backprojection process.  Reducing count will slow process but decrease memory usage; at default chunk size each process tends to approximate 0.5 GB in usage.</li>
+<li><code>Process Count</code> - Number of parallel processes to use during the backprojection process. Reducing the count trades parallel throughput for lower memory usage. Inspect memory use on the intended workload when choosing a count.</li>
 <li><code>Chunk Size</code> - Size of each dimension (x/y/z) of the processing chunk.  Increasing will increase memory usage; performance is a more complex tradeoff and making it too large will negatively affect performance.</li>
 </ul>
 <h3 id="how-does-backprojection-work">How Does Backprojection Work?</h3>

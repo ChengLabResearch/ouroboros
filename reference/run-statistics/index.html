@@ -399,11 +399,7 @@
     
         
         
-            
-            
-            <span class="
-        
-    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Benchmarks</span>
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/benchmarks/">Benchmarking</a>
         
     
     </li>
@@ -445,7 +441,7 @@
 <nav>
     <ul>
         <li><a href="#pipeline-run-statistics">Pipeline run statistics</a></li>
-        <li><a href="#server-and-docker">Server and Docker</a></li><li><a href="#desktop-status-presentation">Desktop status presentation</a></li><li><a href="#schema-version-1">Schema version 1</a></li><li><a href="#timing-definitions">Timing definitions</a></li><li><a href="#volume-and-storage-definitions">Volume and storage definitions</a></li><li><a href="#verification-and-ownership">Verification and ownership</a></li><li><a href="#memory-measurements">Memory measurements</a></li>
+        <li><a href="#server-and-docker">Server and Docker</a></li><li><a href="#desktop-status-presentation">Desktop status presentation</a></li><li><a href="#schema-version-1">Schema version 1</a></li><li><a href="#timing-definitions">Timing definitions</a></li><li><a href="#volume-and-storage-definitions">Volume and storage definitions</a></li><li><a href="#ownership">Ownership</a></li><li><a href="#memory-measurements">Memory measurements</a></li>
     </ul>
 </nav>
 </aside>
@@ -540,7 +536,7 @@ restarted or dropped the task, which does not establish scientific failure.
 This exact legacy response is recognized at the stream boundary; other scientific
 errors retain their normal presentation and the API contract is unchanged.</p>
 <p>The short desktop regression tests run through <code>npm run test:release</code>, using the
-existing Node test runner and TypeScript compiler without new dependencies. For
+Node test runner and TypeScript compiler. For
 individual case output, run <code>node scripts/tests/task-status.test.mjs</code>. They feed
 HTTP-shaped status bodies and simulated SSE events through the production parser,
 stream handler, and React progress panel; they do not exercise a full Electron GUI
@@ -675,8 +671,8 @@ writing. These sums are neither CPU time nor a partition that adds to operation
 wall time. They can exceed it. Phase wall spans are explicitly unavailable
 because the workers currently return durations, not start/end intervals.</p>
 <p>Backprojection intermediate payload bytes are in <code>steps[].byte_counts</code>, never
-in timing summaries. System-available-memory samples have been removed from
-timing statistics.</p>
+in timing summaries. Timing statistics do not include system-available-memory
+samples.</p>
 <h2 id="volume-and-storage-definitions">Volume and storage definitions</h2>
 <p><code>volumes.source</code> distinguishes full-resolution metadata (mip 0, when available)
 from the mip used by the operation. Source axes are XYZ; dimensions exclude the
@@ -720,7 +716,7 @@ used-mip-source, and bounding-box-relative comparisons are separately named;
 they measure logical storage, not compression or equal information content.
 GB means decimal gigabytes and GiB means binary gibibytes; the structured
 measurements use bytes directly.</p>
-<h2 id="verification-and-ownership">Verification and ownership</h2>
+<h2 id="ownership">Ownership</h2>
 <p><code>Task</code> owns operation identity and outcome; <code>RunStatistics</code> owns operation timing
 and report publication. It references the existing options and pipeline owners.
 <code>Pipeline</code> and <code>PipelineStep</code> own all pipeline/worker timing samples and progress.
@@ -735,17 +731,7 @@ serialization boundary before cleanup, never an input to scientific execution.
 Output naming, atomic file publication, Docker export, and recovery extend the
 existing file/volume facilities. The memory collector extends this same lifecycle.</p>
 <p>The fixed-local-source benchmark and reproducible commands are documented in
-<a href="../../development/benchmarks/">the benchmark guide</a>.
-The owner-approved 1% combined in-operation engineering target applies to longer
-runs, assessed alongside inter-run variability and fixed startup/shutdown costs.
-For the recorded #139 real-data evidence, acceptance is scoped to the long
-Salivary Duct path; short-path costs remain reported and are not a general 1%
-guarantee. RAM collection shares the budget with timing and volume reporting.
-The real-data comparison uses the canonical data-step duration, retaining worker/
-manager startup and shutdown inside that step. Earlier preparation, sampler
-startup/shutdown and final reporting are excluded. These measurements do not
-isolate every cause of a timing difference; negative changes reflect variation,
-not free instrumentation. Two pairs do not establish a statistical upper bound.</p>
+<a href="../../development/benchmarks/">the benchmark guide</a>.</p>
 <h2 id="memory-measurements">Memory measurements</h2>
 <p>The collector belongs to <code>RunStatistics</code> and runs only around <code>Pipeline.process</code>.
 It stops before volume inspection, output transfer, cleanup and report delivery.
@@ -791,13 +777,13 @@ bytes</strong>: unused, paged-out or otherwise nonresident parts of live allocat
 remain included. The metric name makes this distinction explicit. The counter
 requires 64-bit Python and Windows 10 or 11 version 22H2 with the September 2023
 update or later. Missing counter support makes the metric unavailable; it does
-not silently fall back to the old working-set scan.</p>
+not silently fall back to a working-set page scan.</p>
 <p>macOS retains a <code>libproc</code> region walk for private residency. A segment can appear
 private when the manager is its only mapper, so the manager's ranges are excluded
 before managed residency is added. Compressed/swapped pages are not included.
-Native CI exercises the macOS reader and short collector lifecycle. Native
-macOS slice/backprojection performance and macOS-host Docker delivery are deferred
-on #139; focused CI does not replace those workflow checks.</p>
+Native CI exercises the macOS reader and short collector lifecycle. These tests
+do not establish slice/backprojection performance or Docker delivery on a macOS
+host.</p>
 <p>There is no separate TIFF or resident file-cache accounting. Ordinary mapped-file
 pages may still contribute to the native process counter; cached pages absent
 from process mappings are not added separately. The platform metrics differ in
@@ -872,23 +858,9 @@ polling and completion of an in-flight sweep discarded at stop;
 <code>max_sweep_seconds</code> includes discarded sweeps too. These costs diagnose the
 observer; only an external pipeline timer measures in-operation overhead.</p>
 <p>The native CI matrix covers Linux, Windows and Apple Silicon macOS on Python
-3.11 and 3.12. The current simplification is checked with focused ownership,
-accounting and reporting tests; it has not repeated the long real-data benchmark
-campaign. Historical Linux and Windows pipeline results, component diagnostics,
-and Docker/frozen-executable checks are retained in
-<a href="../../development/benchmarks/">the benchmark guide</a>.
-Those results describe earlier collectors. In particular, the earlier Windows
-long-path overhead finding applies to the removed working-set enumeration and
-mapping-tracking implementation, not a measurement of this replacement.</p>
-<p>Focused tests do not establish a 1% overhead bound or native macOS pipeline
-acceptance. No cross-platform 1% guarantee is claimed.</p>
-<p>The clock-dependent identity defect in
-<a href="https://github.com/ChengLabResearch/ouroboros/issues/162">#162</a> invalidates the
-affected RAM results; fixing identity does not retroactively repair those
-reports. Fresh long-run overhead acceptance is tracked separately in
-<a href="https://github.com/ChengLabResearch/ouroboros/issues/163">#163</a>, and replacement
-publication measurements remain with the publication. The native macOS
-pipeline and macOS-host Docker deferrals on #139 remain unchanged.</p>
+3.11 and 3.12 with focused ownership, accounting and reporting tests. These tests
+do not establish a pipeline overhead bound or substitute for performance and
+delivery checks on the intended platform and workload.</p>
 </section>
 
             </main>

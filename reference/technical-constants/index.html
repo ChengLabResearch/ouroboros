@@ -399,11 +399,7 @@
     
         
         
-            
-            
-            <span class="
-        
-    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Benchmarks</span>
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/benchmarks/">Benchmarking</a>
         
     
     </li>
@@ -462,10 +458,8 @@ file, alongside the shared teardown delay in
 <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/shared/constants.ts"><code>src/shared/constants.ts</code></a>. They apply to the
 per-directory non-recursive watchers with lazy expansion that back the
 File Explorer panel in the Electron app.</p>
-<p>Starting with <a href="https://github.com/ChengLabResearch/ouroboros/pull/110">#110</a>, the file explorer no longer opens a single
-recursive watcher on the selected root. Instead, the main process keeps
-one non-recursive watcher per directory the user has currently expanded,
-plus one for the root. Expanding a subfolder starts a new watcher for it;
+<p>The main process keeps one non-recursive watcher per directory the user has
+currently expanded, plus one for the root. Expanding a subfolder starts a new watcher for it;
 collapsing schedules teardown after
 <a href="#watcher-teardown-delay-after-collapse"><code>COLLAPSE_TEARDOWN_DELAY_MS</code></a>,
 so quick collapse-then-reopen costs nothing.</p>
@@ -479,15 +473,12 @@ so quick collapse-then-reopen costs nothing.</p>
 <p><strong>Why it exists.</strong> Every watcher mirrors its discovered paths into
 renderer state. Even with lazy expansion, an aggressive user could open a
 handful of dense subfolders in sequence and still exhaust memory. One
-hundred thousand visible paths is the ceiling picked in [#104][pr-104] as
-a balance between usefulness for typical scan/output folders and keeping
-the renderer well under its default 4 GB heap.</p>
-<p><strong>Role change from #110.</strong> Before #110 this was the underlying <code>watcher</code>
-package's per-watcher <code>limit</code>. Under the lazy model it is instead an
-aggregate session budget summed across every currently open watcher; a
-watcher's contribution is reclaimed when its folder is collapsed and torn
-down.</p>
-<p><strong>Second role from #111.</strong> The same constant caps the plugin-facing
+hundred thousand visible paths balances usefulness for typical scan/output
+folders and renderer memory use.</p>
+<p><strong>Watcher budget.</strong> The limit is an aggregate session budget summed across every
+currently open watcher; a watcher's contribution is reclaimed when its folder is
+collapsed and torn down.</p>
+<p><strong>Plugin enumeration budget.</strong> The same constant caps the plugin-facing
 <code>get-folder-contents</code> one-shot enumeration used by the
 <code>request-directory-contents</code> iframe message (see the <a href="../../guide/plugins/#requesting-directory-contents">plugins
 guide</a>). A plugin's
@@ -538,11 +529,10 @@ that re-opening a folder after a long detour repopulates it visibly.</p>
 <li>Value: <code>500</code></li>
 <li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a> line 10</li>
 </ul>
-<p><strong>Why it exists.</strong> [#105][pr-105] introduced batching so that a large
-initial folder scan no longer produces one IPC message and one React
-state update per discovered path. Five hundred events per batch amortizes
-the IPC round-trip and lets the renderer apply the whole batch inside a
-single <code>setNodes</code> call.</p>
+<p><strong>Why it exists.</strong> Batching groups events from a large initial folder scan
+into fewer IPC messages and React state updates. Five hundred events per batch
+amortizes the IPC round-trip and lets the renderer apply the whole batch inside
+a single <code>setNodes</code> call.</p>
 <p><strong>User-visible behavior when reached.</strong> As soon as five hundred watcher
 events have accumulated in the main process, the pending queue is flushed
 immediately over the <code>folder-contents-update-batch</code> IPC channel instead
@@ -576,23 +566,18 @@ throughput.</p>
   <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/IFrameContext.tsx"><code>src/renderer/src/contexts/IFrameContext.tsx</code></a>
   (<code>broadcastDirectoryContext</code>)</li>
 </ul>
-<p><strong>Why it exists.</strong> Before [#106][pr-106], every directory context change
-posted the full recursive <code>nodes</code> tree into each plugin iframe. For the
-same large folders that motivated [#51][issue-51] this cloned the entire
-file tree on every update and stacked on top of the watcher and renderer
-costs above.</p>
+<p><strong>Why it exists.</strong> Sending only directory context avoids cloning a full
+recursive file tree into every plugin iframe on every directory update.</p>
 <p><strong>User-visible behavior.</strong> Plugins still receive the selected directory
 path and name through the existing <code>send-directory-contents</code> message.
 The <code>nodes</code> field is present for shape compatibility but is always an
 empty object. Plugins that need to browse the directory tree use the
 <code>request-directory-contents</code> / <code>send-directory-contents-response</code>
-message pair added in [#111][issue-111] (see the <a href="../../guide/plugins/#requesting-directory-contents">plugins
+message pair (see the <a href="../../guide/plugins/#requesting-directory-contents">plugins
 guide</a>) rather than
 depending on this broadcast payload.</p>
-<p><strong>When to reconsider.</strong> Do not restore the full-tree broadcast without
-first landing a memory-safe, on-demand alternative. The on-demand API
-from #111 is that alternative; prefer extending it over resurrecting
-the broadcast.</p>
+<p><strong>When to reconsider.</strong> Extend the on-demand directory API when plugins
+need additional directory information, keeping the broadcast limited to context.</p>
 <h2 id="main-process-electron">Main process (Electron)</h2>
 <h3 id="plugin-file-server-port">Plugin file server port</h3>
 <ul>
@@ -613,7 +598,7 @@ assets. There is no automatic fallback beyond the env override.</p>
 <p><strong>When to reconsider.</strong> Set <code>OUROBOROS_PLUGIN_FILE_SERVER_PORT</code> when 3000
 conflicts with a different local service. The renderer discovers the URL
 through <code>getPluginFileServerURL()</code>, so the port change is picked up
-without touching any user-facing setting. Landed in [PR #109][pr-109].</p>
+without touching any user-facing setting.</p>
 <h3 id="docker-volume-server-port">Docker volume server port</h3>
 <ul>
 <li>Symbol: <code>VOLUME_SERVER_PORT</code></li>
@@ -638,7 +623,7 @@ conflicts locally. Keep the Python-side default in sync
 <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/common/volume_server_interface.py"><code>python/ouroboros/common/volume_server_interface.py</code></a>);
 the Python side is still hard-coded to <code>3001</code> because the container
 reaches the host over <code>host.docker.internal</code> where the port is
-independent of any host-side conflict. Landed in [PR #109][pr-109].</p>
+independent of any host-side conflict.</p>
 <h3 id="docker-volume-name">Docker volume name</h3>
 <ul>
 <li>Symbol: <code>VOLUME</code></li>
@@ -705,12 +690,10 @@ values. Plugin content is served locally through the plugin file server
 (see <a href="#plugin-file-server-port"><code>PLUGIN_FILE_SERVER_PORT</code></a>, default port
 3000), so all legitimate origins are loopback. Any port on those hosts
 is accepted; the port itself is env-configurable.</p>
-<p><strong>Security note.</strong> The previous implementation used
-<code>text.startsWith(item)</code>, which would accept attacker-controlled hosts
-such as <code>http://localhost.evil.example</code>. The current implementation
-parses <code>event.origin</code> with <code>new URL(...)</code> and compares <code>hostname</code> for
-exact equality; malformed origins fall through to a deny. Landed in
-[PR #109][pr-109].</p>
+<p><strong>Security note.</strong> The implementation parses <code>event.origin</code> with
+<code>new URL(...)</code> and compares <code>hostname</code> for exact equality; malformed
+origins fall through to a deny. Prefix matching would incorrectly accept
+attacker-controlled hosts such as <code>http://localhost.evil.example</code>.</p>
 <p><strong>User-visible behavior.</strong> Any plugin iframe served from a non-loopback
 origin is silently ignored: its messages never trigger file reads,
 writes, or registration.</p>
@@ -765,7 +748,7 @@ compose port mapping without updating the renderer breaks the client.</p>
 <p><strong>When to reconsider.</strong> Set the env overrides if you need to expose the
 desktop server to another machine (rare) or if 8000 conflicts with
 another service. Update <code>DEFAULT_SERVER_URL</code> in the renderer and the
-compose port mapping in the same commit. Landed in [PR #109][pr-109].</p>
+compose port mapping in the same commit.</p>
 <h3 id="volume-server-url-python-side">Volume server URL (Python side)</h3>
 <ul>
 <li>Symbols: <code>VOLUME_SERVER_URL</code>, <code>PLUGIN_NAME</code></li>
@@ -812,9 +795,8 @@ Electron-side <code>VOLUME_SERVER_PORT</code> in
   These are worker budgets, not CPU affinity or quota controls.</li>
 <li>API discovery: <code>GET /options-schema</code> returns JSON schemas directly from both
   options models, allowing clients to detect support before submitting jobs.</li>
-<li>Slicing reads its budget from <code>SliceOptions.process_count</code> during execution;
-  the former step constructor count and <code>with_processes()</code> override were removed.
-  Callers must set the options field instead. Slicing uses one-quarter download
+<li>Slicing reads its budget from <code>SliceOptions.process_count</code> during execution.
+  Callers must set that options field. Slicing uses one-quarter download
   and three-quarters slicing workers; backprojection keeps its existing split.</li>
 </ul>
 <p><strong>Why it exists.</strong> <code>chunk_size</code> is the per-dimension size of the
@@ -892,7 +874,7 @@ runtime (compose reads the same variable via <code>${OUROBOROS_SERVER_SHM_SIZE:-
 substitution in both <code>python/compose.yml</code> and <code>python/compose.dev.yml</code>).
 Lower it on constrained hosts where you know the pipelines you run stay
 well under the limit; raise it only if you routinely see shared-memory
-<code>ENOMEM</code> errors from the server. Landed in [PR #109][pr-109].</p>
+<code>ENOMEM</code> errors from the server.</p>
 <h3 id="server-image-reference-defaults">Server image reference defaults</h3>
 <ul>
 <li>Symbols: <code>imageRepository</code>, <code>imageTag</code></li>

@@ -1,0 +1,242 @@
+[
+  {
+    "case": "daphnia_antennae-current-largest",
+    "slices": 146,
+    "layout": "contiguous",
+    "floats_exact": true,
+    "extrema_exact": true,
+    "grids_exact": true,
+    "source_bounds_unchanged": true,
+    "output_sha256": "db8156444af643754b99a6984cc9ef7cb98a7fd2d408dacc4438edd07c84042e",
+    "baseline_grid_bytes": [
+      17520000
+    ],
+    "candidate_grid_bytes": [
+      120000
+    ],
+    "baseline_allocations": [
+      {
+        "owner": "ouroboros/pipeline/slice_parallel_pipeline.py",
+        "function": "process_worker_save_parallel",
+        "shape": [
+          146,
+          100,
+          100,
+          3
+        ],
+        "dtype": "float32",
+        "bytes": 17520000
+      }
+    ],
+    "candidate_allocations": [
+      {
+        "owner": "ouroboros/pipeline/slice_parallel_pipeline.py",
+        "function": "process_worker_save_parallel",
+        "shape": [
+          100,
+          100,
+          3
+        ],
+        "dtype": "float32",
+        "bytes": 120000
+      },
+      {
+        "owner": "ouroboros/helpers/slice.py",
+        "function": "slice_volume_from_grids",
+        "shape": [
+          141,
+          145,
+          167
+        ],
+        "dtype": "float64",
+        "bytes": 27314520
+      }
+    ],
+    "candidate_filter_count": 1,
+    "candidate_direct_mapped_planes": 146,
+    "unchanged_unassigned_planes": 4
+  },
+  {
+    "case": "octopus_posterior_salivary_duct-current-largest",
+    "slices": 71,
+    "layout": "contiguous",
+    "floats_exact": true,
+    "extrema_exact": true,
+    "grids_exact": true,
+    "source_bounds_unchanged": true,
+    "output_sha256": "dbb6ec0effef655f7c19635434ba30cfdcbbb8cdb27c8034d934ab5d3e4d8429",
+    "baseline_grid_bytes": [
+      34080000
+    ],
+    "candidate_grid_bytes": [
+      480000
+    ],
+    "baseline_allocations": [
+      {
+        "owner": "ouroboros/pipeline/slice_parallel_pipeline.py",
+        "function": "process_worker_save_parallel",
+        "shape": [
+          71,
+          200,
+          200,
+          3
+        ],
+        "dtype": "float32",
+        "bytes": 34080000
+      }
+    ],
+    "candidate_allocations": [
+      {
+        "owner": "ouroboros/pipeline/slice_parallel_pipeline.py",
+        "function": "process_worker_save_parallel",
+        "shape": [
+          200,
+          200,
+          3
+        ],
+        "dtype": "float32",
+        "bytes": 480000
+      },
+      {
+        "owner": "ouroboros/helpers/slice.py",
+        "function": "slice_volume_from_grids",
+        "shape": [
+          291,
+          146,
+          287
+        ],
+        "dtype": "float64",
+        "bytes": 97547856
+      }
+    ],
+    "candidate_filter_count": 1,
+    "candidate_direct_mapped_planes": 71,
+    "unchanged_unassigned_planes": 4
+  },
+  {
+    "case": "octopus_nerve_cords-current-largest",
+    "slices": 91,
+    "layout": "contiguous",
+    "floats_exact": true,
+    "extrema_exact": true,
+    "grids_exact": true,
+    "source_bounds_unchanged": true,
+    "output_sha256": "486d9587392a06248115a0659c0aa0b75b0372cc723b12e66dadbdd5b2711f43",
+    "baseline_grid_bytes": [
+      174720000
+    ],
+    "candidate_grid_bytes": [
+      1920000
+    ],
+    "baseline_allocations": [
+      {
+        "owner": "ouroboros/pipeline/slice_parallel_pipeline.py",
+        "function": "process_worker_save_parallel",
+        "shape": [
+          91,
+          400,
+          400,
+          3
+        ],
+        "dtype": "float32",
+        "bytes": 174720000
+      }
+    ],
+    "candidate_allocations": [
+      {
+        "owner": "ouroboros/pipeline/slice_parallel_pipeline.py",
+        "function": "process_worker_save_parallel",
+        "shape": [
+          400,
+          400,
+          3
+        ],
+        "dtype": "float32",
+        "bytes": 1920000
+      },
+      {
+        "owner": "ouroboros/helpers/slice.py",
+        "function": "slice_volume_from_grids",
+        "shape": [
+          497,
+          540,
+          321
+        ],
+        "dtype": "float64",
+        "bytes": 689199840
+      }
+    ],
+    "candidate_filter_count": 1,
+    "candidate_direct_mapped_planes": 91,
+    "unchanged_unassigned_planes": 2
+  },
+  {
+    "case": "octopus_nerve_cords-recorded-gapped",
+    "slices": 523,
+    "layout": "noncontiguous",
+    "floats_exact": true,
+    "extrema_exact": true,
+    "grids_exact": true,
+    "source_bounds_unchanged": true,
+    "output_sha256": "a5e613fa1026f50e2c8c9d85b5f096601551c07fa22b88b77196a6d3119c6b70",
+    "baseline_grid_bytes": [
+      1004160000
+    ],
+    "candidate_grid_bytes": [
+      1920000
+    ],
+    "baseline_allocations": [
+      {
+        "owner": "ouroboros/pipeline/slice_parallel_pipeline.py",
+        "function": "process_worker_save_parallel",
+        "shape": [
+          523,
+          400,
+          400,
+          3
+        ],
+        "dtype": "float32",
+        "bytes": 1004160000
+      },
+      {
+        "owner": "ouroboros/helpers/slice.py",
+        "function": "slice_volume_from_grids",
+        "shape": [
+          523,
+          400,
+          400,
+          1
+        ],
+        "dtype": "float32",
+        "bytes": 334720000
+      }
+    ],
+    "candidate_allocations": [
+      {
+        "owner": "ouroboros/pipeline/slice_parallel_pipeline.py",
+        "function": "process_worker_save_parallel",
+        "shape": [
+          400,
+          400,
+          3
+        ],
+        "dtype": "float32",
+        "bytes": 1920000
+      },
+      {
+        "owner": "ouroboros/helpers/slice.py",
+        "function": "slice_volume_from_grids",
+        "shape": [
+          515,
+          540,
+          539
+        ],
+        "dtype": "float64",
+        "bytes": 1199167200
+      }
+    ],
+    "candidate_filter_count": 1,
+    "candidate_direct_mapped_planes": 523,
+    "unchanged_unassigned_planes": 9
+  }
+]

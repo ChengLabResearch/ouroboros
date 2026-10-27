@@ -4,6 +4,13 @@ Benchmark reports and raw evidence live in this documentation directory. The
 runnable benchmark scripts remain in `python/benchmarks/`; reproduction commands
 below run from the repository's `python/` directory.
 
+## Per-slice execution (#184)
+
+The [per-slice report](results/issue-184/index.md) compares streamed coordinates
+with box-level interpolation on the three complete recorded specimen paths,
+using both box orders and unchanged partitions. It also records fixed-box
+numerical equivalence and observed allocation reductions.
+
 ## Bounding-box partitioning
 
 The [bounding-box reference](../../reference/bounding-box-partitioning.md)

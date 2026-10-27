@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="generator" content="mkdocs-1.6.1, mkdocs-terminal-4.8.0">
+    
+    <meta name="description" content="Quickly extract long ROIs (e.g. blood vessels, nerves) from cloud-hosted medical scans."> 
+    
+    <meta name="author" content="Weaver Goldman and David Northover"> 
+    
+    <link rel="canonical" href="https://wegold.me/ouroboros/reference/bounding-box-partitioning/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="../../img/android-chrome-512x512.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="../../img/apple-touch-icon.png" />
+<link rel="shortcut icon" type="image/png" sizes="48x48" href="../../img/favicon.ico" />
+<link rel="icon" type="image/png" sizes="16x16" href="../../img/favicon-16x16.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="../../img/favicon-32x32.png" />
+
+
+    
+ 
+<title>Bounding Box Partitioning - Ouroboros Documentation</title>
+
+
+<link href="../../css/fontawesome/css/fontawesome.min.css" rel="stylesheet">
+<link href="../../css/fontawesome/css/solid.min.css" rel="stylesheet">
+<link href="../../css/normalize.css" rel="stylesheet">
+<link href="../../css/terminal.css" rel="stylesheet">
+<link href="../../css/theme.css" rel="stylesheet">
+<link href="../../css/theme.tile_grid.css" rel="stylesheet">
+<link href="../../css/theme.footer.css" rel="stylesheet">
+<!-- dark color palette -->
+<link href="../../css/palettes/dark.css" rel="stylesheet">
+
+<!-- page layout -->
+<style>
+/* initially set page layout to a one column grid */
+.terminal-mkdocs-main-grid {
+    display: grid;
+    grid-column-gap: 1.4em;
+    grid-template-columns: auto;
+    grid-template-rows: auto;
+}
+
+/*  
+*   when side navigation is not hidden, use a two column grid.  
+*   if the screen is too narrow, fall back to the initial one column grid layout.
+*   in this case the main content will be placed under the navigation panel. 
+*/
+@media only screen and (min-width: 70em) {
+    .terminal-mkdocs-main-grid {
+        grid-template-columns: 4fr 9fr;
+    }
+}</style>
+
+
+
+     
+    
+    
+
+    
+    <!-- search css support -->
+<link href="../../css/search/bootstrap-modal.css" rel="stylesheet">
+<!-- search scripts -->
+<script>
+    var base_url = "../..",
+    shortcuts = "{}";
+</script>
+<script src="../../js/jquery/jquery-1.10.1.min.js" defer></script>
+<script src="../../js/bootstrap/bootstrap.min.js" defer></script>
+<script src="../../js/mkdocs/base.js" defer></script>
+    
+    
+    
+    
+    <script src="../../search/main.js"></script>
+    
+
+    
+</head>
+
+<body class="terminal"><div class="container">
+    <div class="terminal-nav">
+        <header class="terminal-logo">
+            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://wegold.me/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
+        </header>
+        
+        <nav class="terminal-menu">
+            
+            <ul vocab="https://schema.org/" typeof="BreadcrumbList">
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="../.." class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Home</span>
+                    </a>
+                    <meta property="position" content="0">
+                </li>
+                
+                
+                
+                
+                
+                
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="https://github.com/ChengLabResearch/ouroboros/releases" class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Releases</span>
+                    </a>
+                    <meta property="position" content="1">
+                </li>
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="https://github.com/ChengLabResearch/ouroboros" class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Repository</span>
+                    </a>
+                    <meta property="position" content="2">
+                </li>
+                
+                    
+                    
+
+
+<li property="itemListElement" typeof="ListItem">
+    <a href="#" class="menu-item" data-toggle="modal" data-target="#mkdocs_search_modal" property="item" typeof="SearchAction">
+        <i aria-hidden="true" class="fa fa-search"></i> <span property="name">Search</span>
+    </a>
+    <meta property="position" content="3">
+</li>
+                    
+            </ul>
+            
+        </nav>
+    </div>
+</div>
+        
+    <div class="container">
+        <div class="terminal-mkdocs-main-grid"><aside id="terminal-mkdocs-side-panel"><nav>
+    <ul class="terminal-mkdocs-side-nav-items">
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../..">Home</a>
+        
+    
+    
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Usage Guide</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/downloading/">Download Ouroboros</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/slicing/">Slicing</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/backproject/">Backprojection</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/plugins/">Plugins</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        <span class="
+        
+    terminal-mkdocs-side-nav-item--active terminal-mkdocs-side-nav-section-no-index">Reference</span>
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../technical-constants/">Technical Constants</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        <span class="terminal-mkdocs-side-nav-item--active">Bounding Box Partitioning</span>
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../run-statistics/">Pipeline Run Statistics</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Development</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/README.md">App</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/README.md">Python</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md">Plugins</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/docker-builds/">Docker Builds</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/registry-server-images/">Registry Server Images</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/production-package-flavors/">Production Package Flavors</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Benchmarks</span>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/releases">Releases</a>
+        
+    
+    
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros">Repository</a>
+        
+    
+    
+    
+       </li>
+        
+    </ul>
+</nav><hr>
+<nav>
+    <ul>
+        <li><a href="#bounding-box-partitioning">Bounding box partitioning</a></li>
+        <li><a href="#geometry-and-assignment">Geometry and assignment</a></li><li><a href="#slicing-task-payload-model">Slicing-task payload model</a></li><li><a href="#partition-selection">Partition selection</a></li><li><a href="#internal-box-ordering">Internal box ordering</a></li><li><a href="#options-compatibility-and-limits">Options, compatibility, and limits</a></li><li><a href="#interpolation-and-comparison">Interpolation and comparison</a></li><li><a href="#reproducing-geometry-comparisons">Reproducing geometry comparisons</a></li>
+    </ul>
+</nav>
+</aside>
+            <main id="terminal-mkdocs-main-content">
+<section id="mkdocs-terminal-content">
+    <h1 id="bounding-box-partitioning">Bounding box partitioning</h1>
+<p>The slicing pipeline groups slice rectangles into source-volume requests. Its
+partitioner seeks to reduce the largest estimated slicing-task payload without
+increasing the cumulative requested source volume relative to the reference
+partition for the same options. It does not inspect available RAM, schedule
+workers by memory usage, or impose a hard task-memory limit.</p>
+<h2 id="geometry-and-assignment">Geometry and assignment</h2>
+<p>Every slice is assigned to exactly one box. A box's bounds enclose all four
+corners of every assigned rectangle; centers are used to propose splits, not to
+decide how much source data to retain. The requested integer extent runs from
+<code>floor(min)</code> through <code>ceil(max)</code>, inclusive on each axis. Downloads, slice grids,
+and backprojection use the same integer origin. Requested regions outside the
+source remain zero-filled.</p>
+<p><code>BoundingBox</code> owns these integer extents. <code>download_volume_geometry</code> converts
+them to the half-open requests expected by CloudVolume and computes source
+clipping. The cost model uses the full allocated extent, including any
+zero-filled region, because the slicing worker receives that full array.</p>
+<h2 id="slicing-task-payload-model">Slicing-task payload model</h2>
+<p>For a box, define:</p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>V</code></td>
+<td>Number of spatial voxels in the box's inclusive integer extent</td>
+</tr>
+<tr>
+<td><code>n</code></td>
+<td>Number of slices assigned to the box</td>
+</tr>
+<tr>
+<td><code>H</code>, <code>W</code></td>
+<td>Output height and width from <code>SliceOptions</code></td>
+</tr>
+<tr>
+<td><code>C</code></td>
+<td>Source channel count from <code>CloudVolumeInterface</code></td>
+</tr>
+<tr>
+<td><code>s</code></td>
+<td>Source dtype item size in bytes</td>
+</tr>
+<tr>
+<td><code>Q = nHW</code></td>
+<td>Number of output positions, excluding channels</td>
+</tr>
+<tr>
+<td><code>B = sVC</code></td>
+<td>Bytes in the allocated source array</td>
+</tr>
+</tbody>
+</table>
+<p>The production download array has a channel axis, including when <code>C = 1</code>.
+The dominant array payload during slicing is estimated as:</p>
+<pre><code class="language-text">one consecutive run of slice indices: P = B + 12Q + 8V
+multiple runs of slice indices:       P = B + 12Q + 8V + 4QC + 4Q
+</code></pre>
+<p>The <code>12Q</code> term is the float32 XYZ coordinate grid. Cubic interpolation processes
+one channel at a time and creates a float64 prefilter array, contributing <code>8V</code>.
+A consecutive run writes directly into the temporary TIFF mapping. A box whose
+slices occupy multiple runs needs a float32 output array (<code>4QC</code>) and one
+temporary channel result (<code>4Q</code>) before copying to that mapping.</p>
+<p>The model describes dominant arrays for one slicing task. Process overhead,
+small temporary arrays, download buffers, concurrently active tasks, and
+resident TIFF or filesystem-cache pages also affect observed memory use. A
+payload estimate must not be interpreted as process RSS or total run memory.</p>
+<p>The source interface is initialized before partitioning and reused by the
+resulting <code>VolumeCache</code>. Its channel count and dtype supply the cost calculation;
+the output dimensions come directly from <code>SliceOptions</code>, not from inferred
+rectangle edge lengths.</p>
+<h2 id="partition-selection">Partition selection</h2>
+<p>The reference partition uses the existing slice-count policy with the requested
+<code>target_slices_per_box</code> and <code>max_depth</code>. Its cumulative allocated source bytes,
+<code>sum(B)</code>, establish the work allowance. The production policy permits <strong>0%
+increase</strong> over that reference. Overlapping requests count repeatedly, and
+zero-filled parts of requested boxes count toward the allowance. This quantity
+differs from source-clipped bytes, compressed storage size, and network traffic.</p>
+<p>The candidate tree is built once. At each node, proposed splits include center
+medians and the largest gaps between centers on each spatial axis, a gap in the
+assigned slice indices, and a path-order cut minimizing the larger child
+payload among valid cuts. Both children must be nonempty, and each child's
+integer volume must be at most 95% of the parent's. Child bounds always come
+from the full rectangle corners.</p>
+<p>The path-cut search first computes prefix and suffix corner bounds. As a cut
+moves forward, the prefix box can only grow and the suffix box can only shrink.
+Two binary searches locate the interval where both children meet the spatial
+rule, using <code>BoundingBox</code>'s inclusive volume calculation. Only cuts in that
+interval are scored. Every admissible cut is evaluated in its original order,
+preserving tie-breaking and payload-callback inputs. This avoids constructing
+boxes for every rejected cut without introducing a separate vectorized volume
+formula or assuming that task payload is monotone along the path.</p>
+<p>Candidates are compared by their largest child payload, with deterministic
+tie-breaking. The tree is limited by <code>max_depth</code> and by the availability of a
+valid split. Different payload thresholds select different leaves from that
+same tree. Selection examines thresholds at actual node payloads and the fully
+expanded frontier, then chooses the smallest maximum task payload within the
+reference work allowance. If the candidates cannot improve that maximum within
+the allowance, the reference partition is retained.</p>
+<p>The requested-volume allowance is checked for a complete partition. It is not
+charged independently at each split: an intermediate pair of boxes may contain
+overlap that later subdivisions remove.</p>
+<p>Planning evaluates more cuts than the count-based reference and can take
+longer, especially for long paths. The tree's geometry and task costs are
+reused across the threshold search. Reducing the estimated largest task does
+not guarantee faster slicing or a proportional decrease in process-tree RAM.</p>
+<p>Planning runs in <code>VolumeCachePipelineStep</code>. The later
+<code>SliceParallelPipelineStep</code> downloads and interpolates the selected boxes,
+then normalizes and writes the output. Changing the partition can therefore
+change that later stage's elapsed time without moving planning into it.
+The payload model does not optimize task execution order or completion time.
+With a fixed worker count, a large task dispatched late can extend the final
+period when other workers are idle, even if accumulated worker time decreases.
+Worker durations overlap and must not be added to, or equated with, the
+coordinator's elapsed time.</p>
+<h2 id="internal-box-ordering">Internal box ordering</h2>
+<p>The slicing step normally submits downloads in partition order. Python callers
+can opt into alternating slice-count order when constructing the step:</p>
+<pre><code class="language-python">from ouroboros.pipeline import SliceParallelPipelineStep
+
+step = SliceParallelPipelineStep(alternate_slice_count_order=True)
+</code></pre>
+<p>The keyword defaults to <code>False</code> and is internal to the Python pipeline; it is
+not a CLI, UI, or serialized <code>SliceOptions</code> setting. The enabled order sorts
+boxes by descending assigned slice count, breaking ties by original box index,
+then takes the first, last, next first, next last, and so on. With equal counts,
+the largest end takes the lower box index and the smallest end takes the higher
+box index. An odd middle box is submitted once.</p>
+<p>This changes download submission order. Slicing still starts as downloads
+complete, so concurrent tasks need not start or finish in submission order.
+<code>VolumeCache</code> remains the owner of boxes and slice assignments; the flag changes
+neither the partition nor the download/slicing pool sizes, in-flight limit, or
+box-release lifecycle. Run-statistics <code>execution.workers</code> records <code>box_order</code>
+as <code>partition</code> or <code>alternating_slice_count</code> for the slicing step.</p>
+<p>Alternating large and small slice counts can change task overlap, resource
+contention, and the final period with idle workers. It does not guarantee faster
+execution or lower peak memory, and slice count is not a measure of source-box
+volume. Full-path comparisons on three real datasets found no consistent speed
+benefit; the largest sampled memory peak was lower with alternating order in
+each dataset, with incomplete sampling coverage. Keep the default unless a
+comparison on the intended workload supports changing it.</p>
+<h2 id="options-compatibility-and-limits">Options, compatibility, and limits</h2>
+<p><code>target_slices_per_box</code> controls the count-based reference and therefore the
+production work allowance. It is not a maximum number of slices in a selected
+box. Changing it can change both the reference and the selected partition;
+lowering it does not guarantee lower task payload or lower observed RAM.</p>
+<p><code>max_depth</code> remains the maximum subdivision depth. Raising it allows additional
+candidate splits but cannot overcome the spatial-reduction requirement or the
+size of an indivisible slice. A single oblique rectangle can require a large
+axis-aligned source volume. Identical rectangles and other nodes without a
+valid spatial reduction can also remain together with a large payload.</p>
+<p>The public <code>calculate_bounding_boxes_bsp_link_rects</code> helper retains its existing
+positional arguments and <code>(bounding_boxes, rect_to_box_map)</code> return shape.
+Geometry-only callers that omit the optional <code>task_payload</code> callback retain the
+slice-count policy. The slicing pipeline supplies that callback to enable the
+payload policy. The serialized <code>BoundingBoxParams</code> fields remain
+<code>target_slices_per_box</code> and <code>max_depth</code>; their continued presence does not make
+the production slice-count target a hard cap.</p>
+<h2 id="interpolation-and-comparison">Interpolation and comparison</h2>
+<p>Partition changes preserve the slice rectangles, raster dimensions, and
+interpolation settings. They can still change sampled values. Cubic
+prefiltering sees each cutout's boundaries, and float32 grid arithmetic can
+round differently for different integer origins. Prefilter effects decay with
+distance but have no universal eight-voxel, or other fixed-distance, cutoff.
+Their magnitude depends on the source values and local variation.</p>
+<p>A reference sampled from an individual slice's tight box has its own boundary
+effects. It is not automatically an exact reference for a larger box. Output
+comparisons should check world-coordinate agreement separately from filtering
+residuals and use the same source data and interpolation coordinates when
+isolating the filtering effect. Compare floating-point samples before final
+normalization as well as written outputs: normalization uses global extrema
+and can propagate a local sampling difference across the output.</p>
+<p>The <a href="../run-statistics/">run-statistics reference</a> describes cumulative allocated
+and source-clipped download bytes and measured memory statistics. Those describe
+different costs and should be reported separately when evaluating a partition.</p>
+<h2 id="reproducing-geometry-comparisons">Reproducing geometry comparisons</h2>
+<p>Keep real specimen annotation states outside the repository. Automated tests
+extend the existing generated-geometry and simulated-volume fixtures; real
+specimen comparisons are separate benchmark observations. To regenerate
+recorded paths through the normal geometry pipeline without downloading
+specimen voxels, supply an external input directory. From <code>python/</code> in the
+project environment, run:</p>
+<pre><code class="language-sh">python benchmarks/benchmark_partitioning.py --fixtures /path/to/local-inputs --repeats 2 --output /tmp/partitioning.json
+</code></pre>
+<p>The directory contains local annotation states and <code>manifest.json</code>. Its
+<code>specimens</code> object maps each chosen name to <code>annotations_file</code> (a path relative
+to the directory), <code>slice_options</code> (the existing <code>SliceOptions</code> geometry and
+bounding-box settings), <code>source_dtype</code>, <code>channels</code>, and <code>source_scale</code> (the
+source metadata's <code>size</code>, <code>voxel_offset</code>, and <code>chunk_sizes</code>). Each entry also
+has <code>provenance.reduced_state_sha256</code> for the annotation file and
+<code>provenance.saved_rectangles_sha256</code> for the original rectangle array's bytes.
+These hashes detect changed inputs and report exact geometry reproduction.
+Annotation and output mip levels must match for offline regeneration.</p>
+<p>The report includes allocation components, slice-count distributions, index
+runs, repeated chunk coverage, deterministic repeated output, and planning
+time. Its geometry estimates are separate from the elapsed time and measured
+memory of a real slicing run.</p>
+</section>
+
+            </main>
+        </div>
+        <hr><footer>
+    <div class="terminal-mkdocs-footer-grid">
+        <div id="terminal-mkdocs-footer-copyright-info">
+            
+            <p class="text-center text-muted">Copyright 2024=2025 Weaver Goldman and David Northover, All rights reserved</p>
+             Site built with <a href="http://www.mkdocs.org">MkDocs</a> and <a href="https://github.com/ntno/mkdocs-terminal">Terminal for MkDocs</a>.
+        </div>
+        <div id="terminal-mkdocs-footer-prev-next">
+            <nav class="btn-group">
+                <a href="../technical-constants/" title="Technical Constants">Previous</a>
+                |
+                <a href="../run-statistics/" title="Pipeline Run Statistics">Next</a>
+            </nav>
+        </div>
+    </div>
+</footer>
+    </div>
+
+    
+    <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="searchModalLabel">
+    <div class="modal-dialog modal-lg" role="search">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="searchModalLabel">Search</h5>
+                <button type="button" class="close btn btn-default btn-ghost" data-dismiss="modal" aria-label="Close">x</button>
+            </div>
+            <div class="modal-body">
+                <p id="searchInputLabel">Type to start searching</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" aria-labelledby="searchInputLabel" placeholder="" id="mkdocs-search-query" title="Please enter search terms here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No document matches found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+    
+    
+</body>
+
+</html>

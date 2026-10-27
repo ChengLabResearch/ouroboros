@@ -275,6 +275,19 @@
     
         
         
+            <a class="terminal-mkdocs-side-nav-item" href="../../reference/bounding-box-partitioning/">Bounding Box Partitioning</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
             <a class="terminal-mkdocs-side-nav-item" href="../../reference/run-statistics/">Pipeline Run Statistics</a>
         
     
@@ -430,7 +443,7 @@
 <nav>
     <ul>
         <li><a href="#run-statistics-overhead-benchmark">Run-statistics overhead benchmark</a></li>
-        <li><a href="#docker-cost-and-coverage-after-the-identity-fix-163">Docker cost and coverage after the identity fix (#163)</a></li><li><a href="#historical-native-reference-measurements-and-metric-semantics-139">Historical native reference measurements and metric semantics (#139)</a></li><li><a href="#139-a-separate-native-linux-host-docker-run-was-not-performed-the-windowswsl2">139. A separate native-Linux-host Docker run was not performed; the Windows/WSL2</a></li>
+        <li><a href="#bounding-box-partitioning">Bounding-box partitioning</a></li><li><a href="#docker-cost-and-coverage-after-the-identity-fix-163">Docker cost and coverage after the identity fix (#163)</a></li><li><a href="#historical-native-reference-measurements-and-metric-semantics-139">Historical native reference measurements and metric semantics (#139)</a></li><li><a href="#139-a-separate-native-linux-host-docker-run-was-not-performed-the-windowswsl2">139. A separate native-Linux-host Docker run was not performed; the Windows/WSL2</a></li>
         <li><a href="#reproducing-the-benchmark">Reproducing the benchmark</a></li><li><a href="#historical-evidence">Historical evidence</a></li>
     </ul>
 </nav>
@@ -441,6 +454,13 @@
 <p>Benchmark reports and raw evidence live in this documentation directory. The
 runnable benchmark scripts remain in <code>python/benchmarks/</code>; reproduction commands
 below run from the repository's <code>python/</code> directory.</p>
+<h2 id="bounding-box-partitioning">Bounding-box partitioning</h2>
+<p>The <a href="../../reference/bounding-box-partitioning/">bounding-box reference</a>
+describes the implementation and geometry comparison using external annotation
+inputs. The earlier reduced-workload runtime report has been withdrawn; it did
+not establish performance on the complete recorded paths. Full-path runtime
+comparisons use the original source datasets and retain raw evidence outside the
+repository.</p>
 <h2 id="docker-cost-and-coverage-after-the-identity-fix-163">Docker cost and coverage after the identity fix (#163)</h2>
 <p>The <a href="results/issue-163/">#163 campaign report</a> records Linux Docker on
 Windows/WSL2 at merged #162 revision <code>e81c4d4</code>, including all paired timings,

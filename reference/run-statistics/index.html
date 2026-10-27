@@ -270,6 +270,19 @@
                 <li class="terminal-mkdocs-side-nav-li-ul-li">
     
         
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../bounding-box-partitioning/">Bounding Box Partitioning</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
         <span class="terminal-mkdocs-side-nav-item--active">Pipeline Run Statistics</span>
     
     </li>
@@ -599,6 +612,10 @@ execution OS describes the Python backend. A Docker host's OS is not inferred
 from the Linux container. Thread environment variables are included only when
 set; actual executor counts are recorded separately. Cache warmth covers local,
 OS, and remote caches and remains unknown without observation.</p>
+<p>The slicing entry in <code>execution.workers</code> also records <code>box_order</code>: <code>partition</code>
+for the default download submission order, or <code>alternating_slice_count</code> for the
+<a href="../bounding-box-partitioning/#internal-box-ordering">internal ordering flag</a>.
+This describes submission policy, not concurrent worker start or finish order.</p>
 <p>The schema defines timing boundaries, units, axis conventions, and unavailable
 values here rather than repeating explanatory text in every record. The
 effective slicing configuration is included separately for backprojection; a
@@ -885,7 +902,7 @@ pipeline and macOS-host Docker deferrals on #139 remain unchanged.</p>
         </div>
         <div id="terminal-mkdocs-footer-prev-next">
             <nav class="btn-group">
-                <a href="../technical-constants/" title="Technical Constants">Previous</a>
+                <a href="../bounding-box-partitioning/" title="Bounding Box Partitioning">Previous</a>
                 |
                 <a href="../../development/docker-builds/" title="Docker Builds">Next</a>
             </nav>

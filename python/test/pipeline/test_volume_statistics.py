@@ -13,7 +13,8 @@ from ouroboros.helpers.files import generate_tiff_write
 from ouroboros.helpers.options import BackprojectOptions, SliceOptions
 from ouroboros.helpers.volume_cache import CloudVolumeInterface, VolumeCache
 from ouroboros.pipeline.pipeline_input import PipelineInput
-from ouroboros.pipeline import volume_statistics
+from ouroboros.pipeline import volume_statistics, volume_cache_pipeline
+from ouroboros.helpers.slice import estimate_slice_task_payload
 
 
 def _cache(channels=1, dtype=np.uint16, mip=1, kind="image", available_mips=(0, 1)):
@@ -266,3 +267,40 @@ def test_invalid_output_header_is_unavailable_without_hiding_programming_errors(
     monkeypatch.setattr(volume_statistics, "inspect_straightened_volume", bug)
     with pytest.raises(RuntimeError, match="unexpected defect"):
         volume_statistics.collect_volume_statistics(data, "slice")
+
+
+@pytest.mark.parametrize("channels", [1, 3])
+def test_partition_planning_uses_configured_raster_and_reuses_source_interface(tmp_path, monkeypatch, channels):
+    source = _cache(channels=channels).cv
+    data = _input(tmp_path)
+    config = data.slice_options
+    rects = np.array([[[0, 0, 0], [100, 0, 0], [100, 200, 0], [0, 200, 0]]])
+    box = BoundingBox.from_rects(rects)
+    events = []
+
+    def interface(url):
+        assert url == data.source_url
+        events.append("metadata")
+        return source
+
+    def partition(received, *, target_slices_per_box, max_depth, task_payload):
+        events.append("partition")
+        assert received is rects
+        assert target_slices_per_box == config.bounding_box_params.target_slices_per_box
+        assert max_depth == config.bounding_box_params.max_depth
+        # Rectangle edge lengths differ from the configured 3x4 raster.
+        assert task_payload(box, 1, True) == estimate_slice_task_payload(
+            box, 1, True, slice_shape=(3, 4), source_dtype=source.dtype,
+            channels=source.num_channels,
+        ).peak_bytes
+        return [box], [0]
+
+    monkeypatch.setattr(volume_cache_pipeline, "CloudVolumeInterface", interface)
+    monkeypatch.setattr(volume_cache_pipeline, "calculate_bounding_boxes_bsp_link_rects", partition)
+    assert volume_cache_pipeline.VolumeCachePipelineStep()._process(
+        (config, rects, data.source_url, data)
+    ) is None
+    assert events == ["metadata", "partition"]
+    assert data.volume_cache.cv is source
+    assert data.volume_cache.bounding_boxes[0] is box
+    assert data.volume_cache.link_rects == [0]

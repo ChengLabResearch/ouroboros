@@ -11,6 +11,7 @@ from ouroboros.helpers.slice import (
     slice_volume_from_grids
 )
 from ouroboros.helpers.mem import SharedNPManager
+from ouroboros.helpers.bounding_boxes import slice_indices_are_contiguous
 from ouroboros.helpers.volume_cache import VolumeCache, download_volume
 from ouroboros.helpers.files import (
     format_slice_output_file,
@@ -64,11 +65,13 @@ class SliceParallelPipelineStep(PipelineStep):
         threads=1,
         *,
         delete_intermediate=False,
+        alternate_slice_count_order: bool = False,
     ) -> None:
         super().__init__(inputs=("slice_options", "volume_cache", "slice_rects"))
 
         self.num_threads = threads
         self.delete_intermediate = delete_intermediate
+        self.alternate_slice_count_order = alternate_slice_count_order
 
     def with_delete_intermediate(self) -> "SliceParallelPipelineStep":
         self.delete_intermediate = True
@@ -147,6 +150,7 @@ class SliceParallelPipelineStep(PipelineStep):
             "slice_processes": config.process_count * 3 // 4,
             "rewrite_threads": config.process_count,
             "download_threads_per_process": self.num_threads,
+            "box_order": ("alternating_slice_count" if self.alternate_slice_count_order else "partition"),
         }
 
         # Start the download volumes process and process downloaded volumes as they become available in the queue
@@ -165,6 +169,20 @@ class SliceParallelPipelineStep(PipelineStep):
                 volume_cache.connect_shm(shm_host.address, authkey)
 
                 vol_range = list(reversed(range(len(volume_cache.volumes))))
+                if self.alternate_slice_count_order:
+                    by_count = sorted(
+                        range(len(volume_cache.volumes)),
+                        key=lambda index: (-len(volume_cache.get_slice_indices(index)), index),
+                    )
+                    dispatch_order = []
+                    low, high = 0, len(by_count) - 1
+                    while low <= high:
+                        dispatch_order.append(by_count[low])
+                        low += 1
+                        if low <= high:
+                            dispatch_order.append(by_count[high])
+                            high -= 1
+                    vol_range = list(reversed(dispatch_order))
 
                 # Process the data in a separate process
                 # Note: If the maximum number of processes is reached, this will enqueue the arguments
@@ -340,9 +358,7 @@ def process_worker_save_parallel(
 
     # Slice the volume using the grids
     start = time.perf_counter()
-    contiguous = len(slice_indices) > 0 and slice_indices[0] >= 0 and all(
-        index == slice_indices[0] + offset for offset, index in enumerate(slice_indices)
-    )
+    contiguous = slice_indices_are_contiguous(slice_indices)
     mmap = memmap(temporary_path) if contiguous else None
     slices = slice_volume_from_grids(
         volume_data, bounding_box, grids, config.slice_width, config.slice_height,

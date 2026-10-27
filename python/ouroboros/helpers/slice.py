@@ -15,6 +15,49 @@ NO_COLOR_CHANNELS_DIMENSIONS = 3
 COLOR_CHANNELS_DIMENSIONS = NO_COLOR_CHANNELS_DIMENSIONS + 1
 
 
+@dataclass(frozen=True)
+class SliceTaskPayload:
+    """Major simultaneously live arrays in the 4-D slicing worker, in bytes.
+
+    This is a planning estimate, not resident memory. Mapped output pages,
+    downloads/decompression, other workers and small temporaries are excluded.
+    Keep this model alongside the allocations in ``slice_volume_from_grids``.
+    """
+
+    source_bytes: int
+    grid_bytes: int
+    coefficient_bytes: int
+    output_bytes: int
+    channel_result_bytes: int
+
+    @property
+    def peak_bytes(self) -> int:
+        # The interpolation phase retains the grid and dominates grid creation.
+        return (self.source_bytes + self.grid_bytes + self.coefficient_bytes
+                + self.output_bytes + self.channel_result_bytes)
+
+
+def estimate_slice_task_payload(
+    box: BoundingBox, slice_count: int, contiguous: bool, *,
+    slice_shape: tuple[int, int], source_dtype, channels: int,
+) -> SliceTaskPayload:
+    """Estimate the production 4-D channel path from its owning geometry/metadata.
+
+    ``slice_shape`` is the configured raster shape, independent of rectangle
+    edge lengths. Channels run sequentially; only one channel's coefficients
+    and (for buffered output) interpolation result are live at a time.
+    """
+    voxels = int(box.calculate_volume())
+    samples = int(slice_count) * int(slice_shape[0]) * int(slice_shape[1])
+    return SliceTaskPayload(
+        source_bytes=voxels * int(channels) * np.dtype(source_dtype).itemsize,
+        grid_bytes=3 * np.dtype(np.float32).itemsize * samples,
+        coefficient_bytes=np.dtype(np.float64).itemsize * voxels,
+        output_bytes=0 if contiguous else np.dtype(np.float32).itemsize * samples * int(channels),
+        channel_result_bytes=0 if contiguous else np.dtype(np.float32).itemsize * samples,
+    )
+
+
 @dataclass
 class FrontProj(DataShape): V: int; U: int      # noqa: E701,E702
 @dataclass

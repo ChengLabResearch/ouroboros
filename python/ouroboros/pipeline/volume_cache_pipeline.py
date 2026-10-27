@@ -3,6 +3,7 @@ import numpy as np
 from ouroboros.helpers.bounding_boxes import calculate_bounding_boxes_bsp_link_rects
 from ouroboros.helpers.volume_cache import CloudVolumeInterface, VolumeCache
 from ouroboros.helpers.options import SliceOptions
+from ouroboros.helpers.slice import estimate_slice_task_payload
 from .pipeline import PipelineStep
 
 
@@ -21,15 +22,24 @@ class VolumeCachePipelineStep(PipelineStep):
         if not isinstance(slice_rects, np.ndarray):
             return "Input data must contain an array of slice rects."
 
+        cloud_volume_interface = CloudVolumeInterface(source_url)
+
+        def task_payload(box, slice_count, contiguous):
+            return estimate_slice_task_payload(
+                box, slice_count, contiguous,
+                slice_shape=(config.slice_height, config.slice_width),
+                source_dtype=cloud_volume_interface.dtype,
+                channels=cloud_volume_interface.num_channels,
+            ).peak_bytes
+
         bounding_boxes, link_rects = calculate_bounding_boxes_bsp_link_rects(
             slice_rects,
             target_slices_per_box=config.bounding_box_params.target_slices_per_box,
             max_depth=config.bounding_box_params.max_depth,
+            task_payload=task_payload,
         )
 
         self.update_progress(0.5)
-
-        cloud_volume_interface = CloudVolumeInterface(source_url)
 
         volume_cache = VolumeCache(
             bounding_boxes,

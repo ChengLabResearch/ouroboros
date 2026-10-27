@@ -1,3 +1,7 @@
+import heapq
+from bisect import bisect_left
+from collections.abc import Callable
+
 import numpy as np
 
 from cloudvolume import Bbox
@@ -321,7 +325,7 @@ def boxes_dim_range(boxes: list[BoundingBox], dim="z"):
         return np.arange(0)
 
 
-def calculate_bounding_boxes_bsp_link_rects(
+def _calculate_bounding_boxes_count(
     rects: np.ndarray,
     target_slices_per_box: int = DEFAULT_TARGET_SLICES_PER_BOX,
     max_depth: int = DEFAULT_MAX_DEPTH,
@@ -408,3 +412,266 @@ def calculate_bounding_boxes_bsp_link_rects(
             )
 
     return bounding_boxes, rect_to_box_map
+
+
+def _slice_index_discontinuities(indices: np.ndarray) -> np.ndarray:
+    return np.diff(indices) != 1
+
+
+def slice_indices_are_contiguous(indices: np.ndarray) -> bool:
+    """Whether indices identify a nonempty, consecutive output interval."""
+    return bool(
+        len(indices) > 0
+        and indices[0] >= 0
+        and not np.any(_slice_index_discontinuities(indices))
+    )
+
+
+@dataclass
+class _PartitionNode:
+    box: BoundingBox
+    indices: np.ndarray
+    payload: int
+    children: tuple[int, int] | None = None
+
+
+_TaskPayload = Callable[[BoundingBox, int, bool], int]
+
+
+def _box_from_extents(lower: np.ndarray, upper: np.ndarray) -> BoundingBox:
+    # Extrema are temporary scan results. BoundingBox remains responsible for
+    # converting these floating corner bounds into inclusive integer extents.
+    return BoundingBox(BoundingBox.bounds_to_rect(
+        lower[0], upper[0], lower[1], upper[1], lower[2], upper[2]
+    ))
+
+
+def _spatially_smaller(child: BoundingBox, parent_volume: int) -> bool:
+    # Require a five-percent reduction in each child, using exact integer
+    # arithmetic at the inclusive voxel boundary.
+    return 20 * int(child.calculate_volume()) <= 19 * parent_volume
+
+
+def _path_partition(
+    indices: np.ndarray,
+    current_rects: np.ndarray,
+    parent_volume: int,
+    task_payload: _TaskPayload,
+) -> tuple[_PartitionNode, _PartitionNode] | None:
+    """Choose the minimax path cut within the spatially admissible interval."""
+    lower = np.min(current_rects, axis=1)
+    upper = np.max(current_rects, axis=1)
+    prefix_lower = np.minimum.accumulate(lower, axis=0)
+    prefix_upper = np.maximum.accumulate(upper, axis=0)
+    suffix_lower = np.minimum.accumulate(lower[::-1], axis=0)[::-1]
+    suffix_upper = np.maximum.accumulate(upper[::-1], axis=0)[::-1]
+    gaps = np.concatenate(([0], np.cumsum(_slice_index_discontinuities(indices))))
+    # Prefix boxes only grow and suffix boxes only shrink. Locate the interval
+    # passing the canonical volume rule before constructing/scoring every cut.
+    # Payloads need not be monotone; all admissible cuts retain their old order.
+    stop = 1 + bisect_left(range(1, len(indices)), True, key=lambda cut: not _spatially_smaller(
+        _box_from_extents(prefix_lower[cut - 1], prefix_upper[cut - 1]), parent_volume,
+    ))
+    start = 1 + bisect_left(range(1, stop), True, key=lambda cut: _spatially_smaller(
+        _box_from_extents(suffix_lower[cut], suffix_upper[cut]), parent_volume,
+    ))
+    best = None
+    best_score = None
+    for cut in range(start, stop):
+        left = _box_from_extents(prefix_lower[cut - 1], prefix_upper[cut - 1])
+        right = _box_from_extents(suffix_lower[cut], suffix_upper[cut])
+        left_payload = int(task_payload(left, cut, bool(gaps[cut - 1] == 0)))
+        right_payload = int(task_payload(
+            right, len(indices) - cut, bool(gaps[-1] == gaps[cut])
+        ))
+        score = (
+            max(left_payload, right_payload),
+            int(left.calculate_volume()) + int(right.calculate_volume()),
+        )
+        if best_score is None or score < best_score:
+            best_score = score
+            best = (
+                _PartitionNode(left, indices[:cut], left_payload),
+                _PartitionNode(right, indices[cut:], right_payload),
+            )
+    return best
+
+
+def _best_partition(
+    node: _PartitionNode, rects: np.ndarray, task_payload: _TaskPayload
+) -> tuple[_PartitionNode, _PartitionNode] | None:
+    indices = node.indices
+    current_rects = rects[indices]
+    centers = current_rects.mean(axis=1)
+    parent_volume = int(node.box.calculate_volume())
+    candidates = []
+    # Fixed order resolves exact ties: axis medians, axis gaps, index gap,
+    # then the best valid path cut. Every child retains sorted slice indices.
+    for axis in range(3):
+        mask = centers[:, axis] < np.median(centers[:, axis])
+        candidates.append((indices[mask], indices[~mask]))
+    for axis in range(3):
+        order = np.argsort(centers[:, axis], kind="stable")
+        gaps = np.diff(centers[order, axis])
+        cut = int(np.argmax(gaps)) + 1
+        if gaps[cut - 1] > 0:
+            candidates.append((np.sort(indices[order[:cut]]), np.sort(indices[order[cut:]])))
+    index_gaps = np.diff(indices)
+    if np.any(index_gaps > 1):
+        cut = int(np.argmax(index_gaps)) + 1
+        candidates.append((indices[:cut], indices[cut:]))
+
+    best = None
+    best_score = None
+    for left_indices, right_indices in candidates:
+        if len(left_indices) == 0 or len(right_indices) == 0:
+            continue
+        left = BoundingBox.from_rects(rects[left_indices])
+        right = BoundingBox.from_rects(rects[right_indices])
+        if not (_spatially_smaller(left, parent_volume) and _spatially_smaller(right, parent_volume)):
+            continue
+        left_payload = int(task_payload(
+            left, len(left_indices), slice_indices_are_contiguous(left_indices)
+        ))
+        right_payload = int(task_payload(
+            right, len(right_indices), slice_indices_are_contiguous(right_indices)
+        ))
+        score = (
+            max(left_payload, right_payload),
+            int(left.calculate_volume()) + int(right.calculate_volume()),
+        )
+        if best_score is None or score < best_score:
+            best_score = score
+            best = (
+                _PartitionNode(left, left_indices, left_payload),
+                _PartitionNode(right, right_indices, right_payload),
+            )
+    path = _path_partition(indices, current_rects, parent_volume, task_payload)
+    if path is not None:
+        score = (
+            max(child.payload for child in path),
+            sum(int(child.box.calculate_volume()) for child in path),
+        )
+        if best_score is None or score < best_score:
+            best = path
+    return best
+
+
+def _partition_tree(
+    rects: np.ndarray, max_depth: int, task_payload: _TaskPayload
+) -> list[_PartitionNode]:
+    root_box = BoundingBox.from_rects(rects)
+    nodes = [_PartitionNode(
+        root_box, np.arange(len(rects)), int(task_payload(root_box, len(rects), True))
+    )]
+    stack = [(0, max_depth)]
+    while stack:
+        index, depth = stack.pop()
+        node = nodes[index]
+        if depth == 0 or len(node.indices) <= 1:
+            continue
+        children = _best_partition(node, rects, task_payload)
+        if children is not None:
+            node.children = (len(nodes), len(nodes) + 1)
+            nodes.extend(children)
+            stack.extend((child, depth - 1) for child in node.children)
+    return nodes
+
+
+def _select_partition_threshold(
+    nodes: list[_PartitionNode], reference_peak: int, reference_volume: int
+) -> int | None:
+    """Evaluate every distinct tree threshold and the fully expanded frontier.
+
+    Descending thresholds only expand leaves. Cumulative requested volume can
+    increase or decrease, so every resulting frontier is checked. The heaps
+    track expansion events and actual peak payload in O(nodes log nodes).
+    """
+    active = np.zeros(len(nodes), dtype=bool)
+    active[0] = True
+    expandable = [(-nodes[0].payload, 0)] if nodes[0].children is not None else []
+    payloads = [(-nodes[0].payload, 0)]
+    volume = int(nodes[0].box.calculate_volume())
+    count = 1
+    best_score = None
+    best_threshold = None
+    thresholds = sorted({node.payload for node in nodes}, reverse=True)
+    # A pure payload callback need not be monotone under subdivision. If an
+    # expandable node has the smallest score, reaching that score still keeps
+    # it intact. Cross the final boundary to consider its children as well.
+    thresholds.append(thresholds[-1] - 1)
+    for threshold in thresholds:
+        while expandable and -expandable[0][0] > threshold:
+            _, index = heapq.heappop(expandable)
+            node = nodes[index]
+            active[index] = False
+            volume -= int(node.box.calculate_volume())
+            count -= 1
+            for child_index in node.children:
+                child = nodes[child_index]
+                active[child_index] = True
+                volume += int(child.box.calculate_volume())
+                count += 1
+                heapq.heappush(payloads, (-child.payload, child_index))
+                if child.children is not None:
+                    heapq.heappush(expandable, (-child.payload, child_index))
+        while not active[payloads[0][1]]:
+            heapq.heappop(payloads)
+        peak = -payloads[0][0]
+        score = (peak, volume, count)
+        if peak < reference_peak and volume <= reference_volume:
+            if best_score is None or score < best_score:
+                best_score = score
+                best_threshold = threshold
+    return best_threshold
+
+
+def calculate_bounding_boxes_bsp_link_rects(
+    rects: np.ndarray,
+    target_slices_per_box: int = DEFAULT_TARGET_SLICES_PER_BOX,
+    max_depth: int = DEFAULT_MAX_DEPTH,
+    *,
+    task_payload: _TaskPayload | None = None,
+) -> tuple[list[BoundingBox], list[int]]:
+    """Partition slice rectangles with a bounded, optional task-payload model.
+
+    Existing calls retain the count-based partition. With ``task_payload``, a
+    deterministic candidate tree is evaluated at all of its payload thresholds.
+    The callback receives the canonical bounding box, slice count, and whether
+    the assigned indices form one contiguous run. It must be a pure function.
+
+    A candidate is returned only if its actual largest task payload is smaller
+    than the count-based reference and its total inclusive source volume does
+    not increase. Otherwise the reference is returned unchanged. The target
+    count defines that reference; candidate leaves may fall on either side of
+    it. Depth and the five-percent spatial-shrink rule remain safety limits,
+    so a threshold is a selection parameter, not a hard memory guarantee.
+    """
+    reference = _calculate_bounding_boxes_count(rects, target_slices_per_box, max_depth)
+    if task_payload is None or len(rects) == 0:
+        return reference
+    reference_boxes, reference_mapping = reference
+    groups = [[] for _ in reference_boxes]
+    for index, box_index in enumerate(reference_mapping):
+        groups[box_index].append(index)
+    reference_peak = max(
+        int(task_payload(box, len(indices), slice_indices_are_contiguous(np.asarray(indices))))
+        for box, indices in zip(reference_boxes, groups)
+    )
+    reference_volume = sum(int(box.calculate_volume()) for box in reference_boxes)
+    nodes = _partition_tree(rects, max_depth, task_payload)
+    threshold = _select_partition_threshold(nodes, reference_peak, reference_volume)
+    if threshold is None:
+        return reference
+    boxes = []
+    mapping = [None] * len(rects)
+    stack = [0]
+    while stack:
+        node = nodes[stack.pop()]
+        if node.payload > threshold and node.children is not None:
+            stack.extend(node.children)
+            continue
+        for index in node.indices:
+            mapping[index] = len(boxes)
+        boxes.append(node.box)
+    return boxes, mapping

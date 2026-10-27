@@ -139,6 +139,11 @@ from the Linux container. Thread environment variables are included only when
 set; actual executor counts are recorded separately. Cache warmth covers local,
 OS, and remote caches and remains unknown without observation.
 
+The slicing entry in `execution.workers` also records `box_order`: `partition`
+for the default download submission order, or `alternating_slice_count` for the
+[internal ordering flag](bounding-box-partitioning.md#internal-box-ordering).
+This describes submission policy, not concurrent worker start or finish order.
+
 The schema defines timing boundaries, units, axis conventions, and unavailable
 values here rather than repeating explanatory text in every record. The
 effective slicing configuration is included separately for backprojection; a

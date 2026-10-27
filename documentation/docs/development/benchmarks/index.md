@@ -4,6 +4,15 @@ Benchmark reports and raw evidence live in this documentation directory. The
 runnable benchmark scripts remain in `python/benchmarks/`; reproduction commands
 below run from the repository's `python/` directory.
 
+## Bounding-box partitioning
+
+The [partitioning measurements](results/bounding-box-partitioning.json) record
+geometry-derived payloads, cached-specimen runtime and memory, sampling
+comparisons, and task traces explaining the observed scheduling tail. Their
+measurement scopes and limitations are retained in the report. The
+[bounding-box reference](../../reference/bounding-box-partitioning.md) describes
+the implementation and reproduction using external annotation inputs.
+
 ## Docker cost and coverage after the identity fix (#163)
 
 The [#163 campaign report](results/issue-163/index.md) records Linux Docker on

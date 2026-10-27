@@ -21,10 +21,11 @@ def mock_cloud_volume():
         mock_cv.available_mips = [0, 1, 2]
         mock_cv.dtype = "uint8"
         mock_cv.shape = (100, 100, 100, 3)
+        mock_cv.num_channels = 3
         mock_cv.cache.flush = MagicMock()
         mock_cv.mip_volume_size = lambda mip: (100, 100, 100)
         mock_cv.bounds = Bbox((0, 0, 0), (100, 100, 100))
-        mock_cv.download.return_value = np.zeros((0, 10, 0, 1))
+        mock_cv.download.side_effect = lambda box, **kwargs: np.zeros((*box.size3(), 3), dtype=np.uint8)
         yield mock_cv
 
 
@@ -294,10 +295,10 @@ def test_boxes_dim_range(volume_cache):
 
     remaining = volume_cache.bounding_boxes.copy()
 
-    assert np.all(boxes_dim_range(remaining) == np.arange(10, 22, dtype=int))
+    assert np.all(boxes_dim_range(remaining) == np.arange(10, 21, dtype=int))
     assert np.all(boxes_dim_range([BoundingBox(BoundingBox.bounds_to_rect(0, 0, 0, 10, 10, 10))])
-                  == np.array([10, 11], dtype=int))
-    assert np.all(boxes_dim_range(remaining, dim="x") == np.arange(0, 12, dtype=int))
+                  == np.array([10], dtype=int))
+    assert np.all(boxes_dim_range(remaining, dim="x") == np.arange(0, 11, dtype=int))
 
     with pytest.raises(ValueError) as _:
         boxes_dim_range(remaining, dim='q')
@@ -313,8 +314,8 @@ def test_update_writeable_boxes(volume_cache):
     writeable = np.empty(0, dtype=int)
     writeable = update_writable_boxes(volume_cache, writeable, remaining, 0)
 
-    assert np.all(boxes_dim_range(remaining) == np.array([20, 21], dtype=int))
-    assert np.all(writeable == np.array([10, 11], dtype=int))
+    assert np.all(boxes_dim_range(remaining) == np.array([20], dtype=int))
+    assert np.all(writeable == np.array([10], dtype=int))
 
 
 def generate_chunked_rects(start, stop, step):
@@ -370,3 +371,12 @@ def test_update_writeable_rects(volume_cache):
 
     assert np.all(writeable)
     assert np.all(writeable[0:2] == 2)
+
+
+def test_update_writable_rects_stops_at_integer_maximum_page():
+    rects = np.array([BoundingBox.bounds_to_rect(1, 2, 1, 2, z, z) for z in (3, 1.5)])
+    box = BoundingBox.from_rects(rects)
+    writeable = np.zeros(box.get_shape()[2], dtype=int)
+    processed = np.array([[[True]], [[False]]])
+    update_writable_rects(processed, rects, box.get_integer_origin()[2], writeable, 1)
+    np.testing.assert_array_equal(writeable, [0, 0, 1])

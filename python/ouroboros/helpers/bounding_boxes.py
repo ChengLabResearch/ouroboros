@@ -202,6 +202,10 @@ class BoundingBox:
         x_min, x_max, y_min, y_max, z_min, z_max = self.approx_bounds()
         return (x_max - x_min + 1 - tight * 2, y_max - y_min + 1 - tight * 2, z_max - z_min + 1 - tight * 2)
 
+    def get_integer_origin(self) -> np.ndarray:
+        """World coordinate of voxel zero in the inclusive integer extent."""
+        return np.array(self.approx_bounds()[::2], dtype=np.int64)
+
     def intersects(self, other) -> bool:
         x_min, x_max, y_min, y_max, z_min, z_max = self.approx_bounds()
         other_x_min, other_x_max, other_y_min, other_y_max, other_z_min, other_z_max = (
@@ -309,9 +313,10 @@ def boxes_dim_range(boxes: list[BoundingBox], dim="z"):
     if dim not in ["x", "y", "z"]:
         raise ValueError("Dim parameter must be one of 'x', 'y' or 'z'")
     if len(boxes):
-        return np.arange(np.min(np.floor([getattr(box, f"{dim}_min") for box in boxes]).astype(int)),
-                         np.max(np.floor([getattr(box, f"{dim}_max") for box in boxes]).astype(int)) + 2,
-                         dtype=int)
+        envelope = BoundingBox.bound_boxes(boxes)
+        axis = "xyz".index(dim)
+        origin = envelope.get_integer_origin()[axis]
+        return np.arange(origin, origin + envelope.get_shape()[axis], dtype=int)
     else:
         return np.arange(0)
 

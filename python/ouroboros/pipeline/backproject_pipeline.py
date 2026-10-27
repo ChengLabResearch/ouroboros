@@ -141,7 +141,7 @@ class BackprojectPipelineStep(PipelineStep):
         write_shape = np.flip(full_bounding_box.get_shape()).tolist()
 
         pipeline_input.output_file_path = (f"{config.output_file_name}_"
-                                           f"{'_'.join(map(str, full_bounding_box.get_min(np.uint32)))}")
+                                           f"{'_'.join(map(str, full_bounding_box.get_integer_origin()))}")
         folder_path = Path(config.output_file_folder, pipeline_input.output_file_path)
         folder_path.mkdir(exist_ok=True, parents=True)
 
@@ -211,7 +211,7 @@ class BackprojectPipelineStep(PipelineStep):
                     ))
 
                 # Track what's written.
-                min_dim = full_bounding_box.get_min(int)[2]
+                min_dim = full_bounding_box.get_integer_origin()[2]
                 num_pages = full_bounding_box.get_shape()[2]
                 writeable = np.zeros(num_pages)
                 pages_written = 0
@@ -366,7 +366,7 @@ def process_chunk(
         start = time.perf_counter()
 
         z_vals, yx_vals = np.divmod(lookup, np.prod(bounding_box.get_shape()[:2], dtype=np.uint32))
-        offset = np.flip(bounding_box.get_min(np.int64) - full_bounding_box.get_min(np.int64)).astype(np.uint32)
+        offset = np.flip(bounding_box.get_integer_origin() - full_bounding_box.get_integer_origin()).astype(np.uint32)
 
         offset_dict = {
             # Columns are Y, Rows are X;  Offset is ZYX; Bounding Box Shapes are XYZ

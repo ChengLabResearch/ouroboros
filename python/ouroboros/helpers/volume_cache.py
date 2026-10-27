@@ -209,11 +209,13 @@ class CloudVolumeInterface:
 def download_volume_geometry(cv: CloudVolumeInterface, bounding_box: BoundingBox) -> tuple[Bbox, Bbox, NGOrder]:
     """Own the exact requested, clipped, and allocated geometry used by downloads.
 
-    CloudVolume's integer half-open extent differs from BoundingBox.get_shape().
-    Keep the conversion here so reporting cannot independently reinterpret it.
+    Adapt BoundingBox's inclusive integer extent to CloudVolume's half-open
+    request. Reporting uses this same conversion and source clipping.
     """
-    bbox = bounding_box.to_cloudvolume_bbox().astype(int)
-    return bbox, Bbox.intersection(cv.cv.bounds, bbox), NGOrder(*bbox.size3(), cv.cv.num_channels)
+    origin = bounding_box.get_integer_origin()
+    shape = bounding_box.get_shape()
+    bbox = Bbox(origin, origin + shape)
+    return bbox, Bbox.intersection(cv.cv.bounds, bbox), NGOrder(*shape, cv.cv.num_channels)
 
 
 def download_volume(

@@ -16,10 +16,12 @@ import psutil
 import pytest
 import tifffile
 from cloudvolume import Bbox
+from scipy.ndimage import map_coordinates
 
+from ouroboros.common.pipelines import geometry_pipeline
 from ouroboros.helpers import files as files_module
 from ouroboros.helpers import volume_cache as cache_module
-from ouroboros.helpers.bounding_boxes import BoundingBox
+from ouroboros.helpers.bounding_boxes import BoundingBox, calculate_bounding_boxes_bsp_link_rects
 from ouroboros.helpers.options import BackprojectOptions, SliceOptions
 from ouroboros.helpers.shapes import ImgSliceC
 from ouroboros.pipeline import backproject_pipeline as backproject_module
@@ -27,6 +29,7 @@ from ouroboros.pipeline import pipeline as pipeline_module
 from ouroboros.pipeline import slice_parallel_pipeline as slice_module
 from ouroboros.pipeline.pipeline import Pipeline, PipelineStep
 from ouroboros.pipeline.pipeline_input import BasePipelineInput, PipelineInput
+from test.sample_data import generate_sample_curve_helix
 
 
 class FunctionStep(PipelineStep):
@@ -207,6 +210,135 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(tmp_path
         "initial_load": [1], "generate_grid": [1], "slice_volume": [1],
         "memmap_write": [1], "total_process": [8],
     }
+
+
+@pytest.mark.parametrize("clipped", [False, True], ids=["inside_source", "clipped_source"])
+def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(tmp_path, monkeypatch, clipped):
+    # A positive coordinate-encoding field makes the old fractional-origin shift
+    # visible. Clipping changes the real source bounds, not the requested box.
+    world_origin = np.full(3, 960)
+    x, y, z = np.ogrid[:192, :192, :192]
+    world = (128 + 0.5 * x + 0.25 * y + 0.125 * z).astype(np.float32)
+    source_origin = np.array([1030, 960, 960]) if clipped else world_origin
+    world[:source_origin[0] - world_origin[0]] = 0
+    source_bounds = Bbox(source_origin, world_origin + world.shape)
+
+    def download(bbox, **kwargs):
+        assert source_bounds.contains_bbox(bbox)
+        start, stop = bbox.minpt - world_origin, bbox.maxpt - world_origin
+        return world[tuple(slice(int(low), int(high)) for low, high in zip(start, stop))][..., None]
+
+    cv = SimpleNamespace(cv=SimpleNamespace(bounds=source_bounds, num_channels=1, download=download),
+                         dtype=world.dtype)
+    # Generate an annotated path, then use production geometry and partitioning
+    # to obtain both boxes. No hand-built rectangles or fractional box bounds.
+    points = generate_sample_curve_helix(start_z=0, end_z=12, radius=3, num_points=30) + 1040
+    annotations = tmp_path / "path.json"
+    annotations.write_text(json.dumps({"layers": [
+        {"type": "annotation", "name": "path", "annotations": [
+            {"type": "point", "point": point.tolist()} for point in points]},
+        {"type": "image", "name": "source", "source": "precomputed://unused"},
+    ]}))
+    options = slice_options(tmp_path).model_copy(update={
+        "slice_height": 61, "slice_width": 63, "neuroglancer_json": str(annotations),
+        "neuroglancer_annotation_layer": "path", "neuroglancer_image_layer": "source",
+    })
+    pipeline, data = geometry_pipeline(options)
+    _, error = pipeline.process(data)
+    assert error is None
+    rects = data.slice_rects
+    selected = len(rects) // 2
+    rect = rects[selected]
+    boxes = []
+    for target in (1, len(rects)):
+        partitions, links = calculate_bounding_boxes_bsp_link_rects(rects, target_slices_per_box=target)
+        boxes.append(partitions[links[selected]])
+    assert np.any(boxes[0].get_min() % 1 != boxes[1].get_min() % 1)
+    # Evaluate the exact plane independently in float64: the common reference
+    # must not inherit production coordinate-grid arithmetic or its rounding.
+    horizontal = np.linspace(0, 1, 63)[None, :, None]
+    vertical = np.linspace(0, 1, 61)[:, None, None]
+    world_grid = (rect[0] + (rect[1] - rect[0])*horizontal +
+                  (rect[3] - rect[0])*vertical - world_origin)
+    reference = map_coordinates(world, world_grid.reshape(-1, 3).T,
+                                order=3, mode="constant", output=np.float32).reshape(61, 63)
+    interpolate = slice_module.slice_volume_from_grids
+    observed_grids = []
+
+    def interpolate_observed(volume, box, grids, width, height, *, output=None):
+        assert isinstance(output, np.memmap)
+        assert np.all(grids >= 0)
+        assert np.all(grids <= np.array(volume.shape[:3]) - 1)
+        observed_grids.append(grids.copy())
+        return interpolate(volume, box, grids, width, height, output=output)
+
+    monkeypatch.setattr(slice_module, "slice_volume_from_grids", interpolate_observed)
+    results, coordinate_references = [], []
+    for index, box in enumerate(boxes):
+        volume, returned_box, _ = cache_module.download_volume(cv, box, mip=0)
+        assert returned_box is box
+        assert volume.shape[:3] == box.get_shape()
+        if clipped:
+            missing = source_origin[0] - box.get_integer_origin()[0]
+            assert missing > 0 and np.all(volume[:missing] == 0)
+            assert np.all(volume[missing:] > 0)
+        path = tmp_path / f"box-{index}.tif"
+        tifffile.imwrite(path, np.full((1, 61, 63, 1), -999, dtype=np.float32), photometric="minisblack")
+        slice_module.process_worker_save_parallel(options, volume, box, [0], index, rect[None], str(path))
+        sampled = tifffile.imread(path).reshape(61, 63)
+        if not clipped:
+            assert np.all(sampled > 0), "Contained corners must not become constant-fill zero edges"
+        results.append(sampled)
+        actual_world_grid = observed_grids[-1][0] + box.get_integer_origin() - world_origin
+        # The existing float32 grid arithmetic can round differently when an
+        # integer origin crosses a power-of-two boundary. In this fixture the two
+        # rounded endpoint arrays contribute at most one world-coordinate ULP,
+        # their absolute-coordinate sum one, and the rounded rect[0]+origin one.
+        # Also compare interpolation at those exact production coordinates.
+        np.testing.assert_allclose(actual_world_grid, world_grid, rtol=0,
+                                   atol=3*np.spacing(np.float32(rect.max())))
+        coordinate_references.append(map_coordinates(
+            world, actual_world_grid.reshape(-1, 3).T, order=3, mode="constant", output=np.float32,
+        ).reshape(61, 63))
+        if not clipped:
+            # Backproject the sampled output through each production-derived box.
+            # Trilinear splatting preserves the sample count and world-position
+            # centroid; a fractional-origin shift fails this independent check.
+            lookup, totals, weights = backproject_module.backproject_box(box, rect[None], sampled[None])
+            positions = np.array(np.unravel_index(lookup, box.get_shape()[::-1])).T[:, ::-1]
+            positions += box.get_integer_origin()
+            np.testing.assert_allclose(weights.sum(), sampled.size, rtol=1e-6)
+            np.testing.assert_allclose(totals.sum(), sampled.sum(), rtol=1e-6)
+            np.testing.assert_allclose(weights @ positions / weights.sum(),
+                                       (world_grid + world_origin).mean(axis=(0, 1)), rtol=0,
+                                       atol=3*np.spacing(np.float32(rect.max())))
+
+    # Cubic prefilter boundaries decay rather than having finite support. For
+    # this linear float32 fixture, >8 voxels from both cutouts' last voxel
+    # centers limits filtering residual to one ULP at identical coordinates.
+    # Bound existing grid quantization separately from the filtering residual.
+    # No extra padding or interpolation setting change is used.
+    interior = np.ones((61, 63), dtype=bool)
+    for box, grids in zip(boxes, observed_grids):
+        distance = np.minimum(grids[0], np.array(box.get_shape()) - 1 - grids[0]).min(axis=-1)
+        interior &= distance > 8
+    assert interior.sum() > 100
+    # At the clipped source edge, the field jumps to zero. There, grid
+    # round-off is amplified by the cubic interpolant's gradient, and intensity
+    # ULPs near zero are not a useful bound. Allow twice the source value range
+    # per voxel for that transition, separately from the filtering residual.
+    coordinate_tolerance = 3 * np.spacing(np.float32(rect.max()))
+    edge_tolerance = coordinate_tolerance * 2 * world.max()
+    for sampled, coordinate_reference in zip(results, coordinate_references):
+        np.testing.assert_array_max_ulp(sampled[interior], coordinate_reference[interior], maxulp=1)
+        if clipped:
+            np.testing.assert_allclose(sampled[interior], reference[interior], rtol=0, atol=edge_tolerance)
+        else:
+            np.testing.assert_array_max_ulp(sampled[interior], reference[interior], maxulp=32)
+    if clipped:
+        np.testing.assert_allclose(results[0][interior], results[1][interior], rtol=0, atol=2*edge_tolerance)
+    else:
+        np.testing.assert_array_max_ulp(results[0][interior], results[1][interior], maxulp=16)
 
 
 def _fail_mapped_slice_worker(failure_stage, **worker_args):

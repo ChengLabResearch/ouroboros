@@ -72,14 +72,14 @@ bottom_left = point - width_vector - height_vector
 
 Then, for each point, a 2D grid is generated with given dimensions (slice width and height). Each point in the 2D grid is a 3D point which is calculated by interpolating between the four corner points.
 
-**Volumes and Trilinear Interpolation**
+**Volumes and Cubic Interpolation**
 
 At this point, Ouroboros has a full grid of 3D points associated with each slice, but has yet to download any data from the cloud-hosted volume.
 
 To avoid downloading unnecessary data, Ouroboros employs binary space partitioning to divide the minimum bounding box of the ROI recursively until each volume contains few enough slices to fit into available RAM.
 
-Ouroboros then downloads the data for each of these bounding boxes from the cloud-hosted volume. As each download completes, a new process is spawned to handle calculations. 
+Ouroboros downloads each bounding box from the integer voxel at `floor(min)` through `ceil(max)`, inclusive on every axis. Slice coordinates and backprojection use this same integer origin. Regions outside the source volume remain zero-filled.
 
-For each volume, `scipy.ndimage.map_coordinates` is used to extract the values at the coordinates of the slice grids from the 3D volume using trilinear interpolation. 
+For each volume, `scipy.ndimage.map_coordinates` extracts values at the slice grid coordinates using cubic interpolation with its default prefilter. Sampling near a bounding-box face can still differ from sampling the full volume because the prefilter sees a cutout boundary; no extra padding is downloaded to reduce this effect.
 
 Each of these slices are saved as local tiff images and are later combined into a single output tiff.

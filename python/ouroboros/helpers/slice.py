@@ -220,7 +220,7 @@ def backproject_box(bounding_box: BoundingBox, slice_rects: np.ndarray, slices: 
     channels = 1 if len(slices.shape) < 4 else slices.shape[-1]
 
     # Plot the backprojected X/Y/Z coordinates for each of the slice rects in this chunk.
-    grid_call = partial(coordinate_grid, shape=slices[0].shape[:2], floor=bounding_box.get_min(), flip=True)
+    grid_call = partial(coordinate_grid, shape=slices[0].shape[:2], floor=bounding_box.get_integer_origin(), flip=True)
     precise_points = np.concatenate(list(map(grid_call, slice_rects)))
 
     # Flatten values to 1-Dimension Array for Efficient Allocation.

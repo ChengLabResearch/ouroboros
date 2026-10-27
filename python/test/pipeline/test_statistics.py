@@ -27,6 +27,7 @@ from ouroboros.helpers import files as files_module
 from ouroboros.helpers import volume_cache as cache_module
 from ouroboros.helpers.bounding_boxes import (
     BoundingBox, calculate_bounding_boxes_bsp_link_rects,
+    slice_indices_are_contiguous,
 )
 from ouroboros.helpers.options import BackprojectOptions, SliceOptions
 from ouroboros.helpers.shapes import ImgSliceC
@@ -166,11 +167,12 @@ def slice_options(tmp_path):
                         slice_width=2, slice_height=2, process_count=4)
 
 
-@pytest.mark.parametrize("slice_indices", [[1, 2], [2, 0]],
-                         ids=["contiguous", "noncontiguous"])
+@pytest.mark.parametrize("slice_indices", [[1], [1, 2], [2, 0]],
+                         ids=["single", "contiguous", "noncontiguous"])
 @pytest.mark.parametrize("channels", [1, 3])
-def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
-    tmp_path, monkeypatch, slice_indices, channels,
+@pytest.mark.parametrize("source_dtype", [np.uint16, np.float64])
+def test_slice_worker_payload_matches_owned_arrays_and_reports_nested_timings(
+    tmp_path, monkeypatch, slice_indices, channels, source_dtype,
 ):
     rects = np.repeat(make_rects(), 3, axis=0)
     rects[:, :, 2] = np.array([0.5, 1.0, 1.5])[:, None]
@@ -180,7 +182,7 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
     file_shape = (3, 2, 2, channels)
     tifffile.imwrite(path, np.full(file_shape, -999, dtype=np.float32),
                      photometric="rgb" if channels == 3 else "minisblack")
-    volume = np.arange(np.prod(box.get_shape()) * channels, dtype=np.uint16).reshape(
+    volume = np.arange(np.prod(box.get_shape()) * channels, dtype=source_dtype).reshape(
         *box.get_shape(), channels)
     grids = np.stack([slice_module.coordinate_grid(rects[index], (2, 2), floor=box.get_min())
                      for index in slice_indices])
@@ -207,6 +209,7 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
         channel, local_index = divmod(len(observed["writes"]), len(slice_indices))
         target = mappings[0][slice_indices[local_index]].reshape(-1, channels)[:, channel]
         assert args[0] is observed["coefficients"][-1]
+        assert np.shares_memory(args[1], observed["grid"][-1])
         assert kwargs["prefilter"] is False
         assert kwargs["output"].ctypes.data == target.ctypes.data
         assert kwargs["output"].strides == target.strides
@@ -229,6 +232,7 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
         def grid_at(index):
             grid = grids(index)
             assert grid.flags.owndata and grid.shape == (*output.shape[1:3], 3)
+            assert grid.dtype == np.float32
             observed["grid"].append(grid)
             return grid
 
@@ -262,6 +266,27 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
     assert all(grid is observed["grid"][0] for grid in observed["grid"])
     assert len(observed["coefficients"]) == channels
     assert all(workspace is observed["coefficients"][0] for workspace in observed["coefficients"])
+
+    # Compare planning bytes with the worker's observed reusable allocations.
+    # The map calls above write directly into the TIFF, including gapped and
+    # multichannel selections; those destinations add no private result buffer.
+    payload = interpolation.estimate_slice_task_payload(
+        box, len(slice_indices), slice_indices_are_contiguous(slice_indices),
+        slice_shape=(options.slice_height, options.slice_width),
+        source_dtype=volume.dtype, channels=channels,
+    )
+    assert payload.source_bytes == volume.nbytes
+    assert payload.grid_bytes == observed["grid"][0].nbytes
+    assert payload.coefficient_bytes == observed["coefficients"][0].nbytes
+    assert payload.output_bytes == payload.channel_result_bytes == 0
+    assert payload.peak_bytes == sum((volume.nbytes, observed["grid"][0].nbytes,
+                                      observed["coefficients"][0].nbytes))
+    for slice_count, contiguous in ((1, True), (len(rects), True), (len(rects), False)):
+        assert interpolation.estimate_slice_task_payload(
+            box, slice_count, contiguous,
+            slice_shape=(options.slice_height, options.slice_width),
+            source_dtype=volume.dtype, channels=channels,
+        ) == payload
 
 
 @pytest.mark.parametrize("clipped", [False, True], ids=["inside_source", "clipped_source"])

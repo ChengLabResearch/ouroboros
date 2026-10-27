@@ -13,6 +13,12 @@ not establish performance on the complete recorded paths. Full-path runtime
 comparisons use the original source datasets and retain raw evidence outside the
 repository.
 
+Geometry reports use the production payload estimator, `sVC + 8V + 12HW`,
+which counts the native source, one float64 coefficient workspace, and one
+reused float32 coordinate plane. Direct TIFF writes contribute zero heap output
+bytes for every assignment. These estimates and chunk-coverage metrics are
+separate from measured slicing RAM and timing.
+
 ## Docker cost and coverage after the identity fix (#163)
 
 The [#163 campaign report](results/issue-163/index.md) records Linux Docker on

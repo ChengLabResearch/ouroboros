@@ -22,7 +22,8 @@ class SliceTaskPayload:
 
     This is a planning estimate, not resident memory. Mapped output pages,
     downloads/decompression, other workers and small temporaries are excluded.
-    Keep this model alongside the allocations in ``slice_volume_from_grids``.
+    Keep this model aligned with the worker's reused coordinate plane and
+    ``slice_volume_from_grids``' reused coefficient workspace/direct output.
     """
 
     source_bytes: int
@@ -42,20 +43,23 @@ def estimate_slice_task_payload(
     box: BoundingBox, slice_count: int, contiguous: bool, *,
     slice_shape: tuple[int, int], source_dtype, channels: int,
 ) -> SliceTaskPayload:
-    """Estimate the production 4-D channel path from its owning geometry/metadata.
+    """Estimate a nonempty production task from its owning geometry/metadata.
 
     ``slice_shape`` is the configured raster shape, independent of rectangle
-    edge lengths. Channels run sequentially; only one channel's coefficients
-    and (for buffered output) interpolation result are live at a time.
+    edge lengths. The worker reuses one float32 XYZ plane and one float64
+    coefficient workspace across sequential channels, writing into TIFF views.
+    ``slice_count`` and ``contiguous`` remain callback-compatible inputs but do
+    not affect retained array sizes, including for gapped assignments. Heap
+    output components are always zero.
     """
     voxels = int(box.calculate_volume())
-    samples = int(slice_count) * int(slice_shape[0]) * int(slice_shape[1])
+    samples = int(slice_shape[0]) * int(slice_shape[1])
     return SliceTaskPayload(
         source_bytes=voxels * int(channels) * np.dtype(source_dtype).itemsize,
         grid_bytes=3 * np.dtype(np.float32).itemsize * samples,
         coefficient_bytes=np.dtype(np.float64).itemsize * voxels,
-        output_bytes=0 if contiguous else np.dtype(np.float32).itemsize * samples * int(channels),
-        channel_result_bytes=0 if contiguous else np.dtype(np.float32).itemsize * samples,
+        output_bytes=0,
+        channel_result_bytes=0,
     )
 
 

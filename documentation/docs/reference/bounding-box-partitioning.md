@@ -22,34 +22,39 @@ zero-filled region, because the slicing worker receives that full array.
 
 ## Slicing-task payload model
 
-For a box, define:
+For a nonempty slicing task, define:
 
 | Symbol | Meaning |
 | --- | --- |
 | `V` | Number of spatial voxels in the box's inclusive integer extent |
-| `n` | Number of slices assigned to the box |
 | `H`, `W` | Output height and width from `SliceOptions` |
 | `C` | Source channel count from `CloudVolumeInterface` |
 | `s` | Source dtype item size in bytes |
-| `Q = nHW` | Number of output positions, excluding channels |
 | `B = sVC` | Bytes in the allocated source array |
 
 The production download array has a channel axis, including when `C = 1`.
 The dominant array payload during slicing is estimated as:
 
 ```text
-one consecutive run of slice indices: P = B + 12Q + 8V
-multiple runs of slice indices:       P = B + 12Q + 8V + 4QC + 4Q
+P = B + 8V + 12HW = sVC + 8V + 12HW
 ```
 
-The `12Q` term is the float32 XYZ coordinate grid. Cubic interpolation processes
-one channel at a time and creates a float64 prefilter array, contributing `8V`.
-A consecutive run writes directly into the temporary TIFF mapping. A box whose
-slices occupy multiple runs needs a float32 output array (`4QC`) and one
-temporary channel result (`4Q`) before copying to that mapping.
+The `12HW` term is one float32 XYZ coordinate plane reused for every assigned
+slice and channel. Cubic interpolation processes one channel at a time and
+reuses one float64 coefficient workspace, contributing `8V`. Every assignment,
+including gapped slice indices, writes directly into temporary TIFF views.
+There is no accumulated heap output array or per-channel interpolation-result
+array. For fixed source geometry, raster, dtype, and channels, the estimate is
+independent of slice count and contiguity.
+
+`estimate_slice_task_payload()` and `SliceTaskPayload` own this estimate for
+both production partition selection and benchmark reporting. The
+`output_bytes` and `channel_result_bytes` components are always zero.
+Mapped TIFF writes/pages and the final normalization rewrite remain outside
+this estimate.
 
 The model describes dominant arrays for one slicing task. Process overhead,
-small temporary arrays, download buffers, concurrently active tasks, and
+small temporary arrays, download/decode buffers, concurrently active tasks, and
 resident TIFF or filesystem-cache pages also affect observed memory use. A
 payload estimate must not be interpreted as process RSS or total run memory.
 

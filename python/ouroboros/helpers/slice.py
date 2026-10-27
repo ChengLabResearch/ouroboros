@@ -183,16 +183,36 @@ def slice_volume_from_grids(
     grids: np.ndarray | Callable[[int], np.ndarray], width, height,
     *, output: np.ndarray | None = None, slice_indices: Sequence[int] | None = None,
 ) -> np.ndarray:
-    """Interpolate planes using one cubic coefficient workspace per source box.
+    """Interpolate planes with cubic splines, reusing one coefficient buffer.
 
-    Array grids are adapted to the same plane loop as streamed grids. A callable
-    receives each index in ``slice_indices`` and may reuse its coordinate storage;
-    the corresponding ``output[index]`` must be a caller-owned float32 plane.
-    The callable is revisited for each channel, so only one channel's float64
-    coefficients are live. Coordinates already use the source box's local origin.
+    Each source channel is filtered once, then sampled at the supplied grids.
 
-    Return the supplied output unchanged, or an allocated stack for array grids
-    without a destination. Streaming requires a destination and explicit indices.
+    Parameters
+    ----------
+    volume : ndarray
+        Source voxels with shape (x, y, z) or (x, y, z, channels).
+    bounding_box : BoundingBox
+        Retained for call compatibility; not used in the calculation.
+    grids : ndarray or callable
+        Box-local coordinates with shape (n, height, width, 3), or a callable
+        taking a slice index and returning one (height, width, 3) grid. The
+        callable may reuse its array and is revisited for each channel.
+    width, height : int
+        Output plane dimensions in pixels.
+    output : ndarray, optional
+        Writable C-contiguous float32 stack with shape (n, height, width),
+        plus a trailing channel axis for a 4-D source. Required for callable
+        grids; otherwise allocated when omitted. For callable grids, n is
+        the destination stack length, including any unassigned planes.
+    slice_indices : sequence of int, optional
+        Destination plane indices passed to the grid callable. Required for
+        callable grids; omit for array grids, which fill every output plane.
+
+    Returns
+    -------
+    ndarray
+        The supplied output object, or a newly allocated float32 stack.
+        Only selected planes are modified when slice_indices is supplied.
     """
     has_color_channels, num_channels = detect_color_channels(volume)
     if callable(grids):

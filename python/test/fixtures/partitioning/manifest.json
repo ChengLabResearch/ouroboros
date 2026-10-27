@@ -1,0 +1,245 @@
+{
+  "schema_version": 1,
+  "description": "Real annotation geometry only. Selected image and annotation layers are reduced from the recorded Neuroglancer states; point values and order are unchanged. Geometry is regenerated offline with geometry_pipeline because annotation and output mip levels are equal. No specimen voxels are included or fetched.",
+  "recorded_generation_revision": "fbf4297ba991bfa34a435970c9cb4b3efb9e5e10",
+  "recorded_versions": {
+    "numpy": "1.26.4",
+    "scipy": "1.11.2",
+    "cloud-volume": "12.7.0",
+    "cloud-files": "5.8.2"
+  },
+  "source_bundle": "slicing-allocation-audit-20261026",
+  "specimens": {
+    "daphnia_antennae": {
+      "annotations_file": "daphnia_antennae.json",
+      "slice_options": {
+        "slice_width": 100,
+        "slice_height": 100,
+        "output_mip_level": 0,
+        "annotation_mip_level": 0,
+        "neuroglancer_image_layer": "AAA399_8bit_hypercrop_stright_final_lzw_precomputed_sharded_local",
+        "neuroglancer_annotation_layer": "fullpath",
+        "slicing_params": {
+          "dist_between_slices": 1,
+          "use_adaptive_slicing": true,
+          "adaptive_slicing_ratio": 0.5
+        },
+        "bounding_box_params": {
+          "max_depth": 12,
+          "target_slices_per_box": 128
+        },
+        "connect_start_and_end": false
+      },
+      "annotation_count": 52,
+      "slice_count": 2656,
+      "source_dtype": "uint8",
+      "channels": 1,
+      "source_scale": {
+        "chunk_sizes": [
+          [
+            96,
+            96,
+            96
+          ]
+        ],
+        "encoding": "raw",
+        "key": "700_700_700",
+        "resolution": [
+          700,
+          700,
+          700
+        ],
+        "sharding": {
+          "@type": "neuroglancer_uint64_sharded_v1",
+          "data_encoding": "gzip",
+          "hash": "identity",
+          "minishard_bits": 2,
+          "minishard_index_encoding": "gzip",
+          "preshift_bits": 11,
+          "shard_bits": 3
+        },
+        "size": [
+          2445,
+          4516,
+          2517
+        ],
+        "voxel_offset": [
+          0,
+          0,
+          0
+        ]
+      },
+      "provenance": {
+        "source_state": "table1-48cpu-20261026/reports/daphnia_antennae/state.json",
+        "source_state_sha256": "9847f93443ae8f1537e56a0d5f2ef62f3700a16b5f52936e84211c12e5b3816d",
+        "source_options": "table1-48cpu-20261026/reports/daphnia_antennae/initial/slice-options.json",
+        "source_options_sha256": "d086a9dded0331ad40adf1e09f89703d795677ecca51c0d2a724db8204f4c970",
+        "source_metadata_sha256": "ea7f17efdf043ae3dcd731aeaee8a1740afe591dad9ea74c27c5036d5722e66a",
+        "saved_geometry_archive": "daphnia_antennae-geometry.npz",
+        "saved_geometry_archive_sha256": "7ebeb576f2dc572a0cde48e0fb06d3e6fa18b5b281de125fd592bf899621c8c0",
+        "saved_rectangles_sha256": "9a3746ef3bf37d3ff77be7b6f37bc2caed28b609448333a9762d15c5c5401a6f",
+        "rectangles_dtype": "float64",
+        "rectangles_shape": [
+          2656,
+          4,
+          3
+        ],
+        "reduced_state_sha256": "61039d862f6d8c902505a1ecb45ad321322e11c1372cf8e298f519208728d97d"
+      }
+    },
+    "octopus_posterior_salivary_duct": {
+      "annotations_file": "octopus_posterior_salivary_duct.json",
+      "slice_options": {
+        "slice_width": 200,
+        "slice_height": 200,
+        "output_mip_level": 0,
+        "annotation_mip_level": 0,
+        "neuroglancer_image_layer": "CephTeam 16bit S1p4s2p2 sharded1",
+        "neuroglancer_annotation_layer": "Posterior Salivary Duct",
+        "slicing_params": {
+          "dist_between_slices": 1,
+          "use_adaptive_slicing": true,
+          "adaptive_slicing_ratio": 0.5
+        },
+        "bounding_box_params": {
+          "max_depth": 12,
+          "target_slices_per_box": 128
+        },
+        "connect_start_and_end": false
+      },
+      "annotation_count": 50,
+      "slice_count": 4901,
+      "source_dtype": "uint16",
+      "channels": 1,
+      "source_scale": {
+        "chunk_sizes": [
+          [
+            96,
+            96,
+            96
+          ]
+        ],
+        "encoding": "compresso",
+        "key": "700_700_700",
+        "resolution": [
+          700,
+          700,
+          700
+        ],
+        "sharding": {
+          "@type": "neuroglancer_uint64_sharded_v1",
+          "data_encoding": "gzip",
+          "hash": "identity",
+          "minishard_bits": 1,
+          "minishard_index_encoding": "gzip",
+          "preshift_bits": 11,
+          "shard_bits": 9
+        },
+        "size": [
+          12200,
+          12200,
+          9349
+        ],
+        "voxel_offset": [
+          0,
+          0,
+          0
+        ]
+      },
+      "provenance": {
+        "source_state": "table1-48cpu-20261026/reports/octopus_posterior_salivary_duct/state.json",
+        "source_state_sha256": "6ce3eed3fd3c5389628cf44af9a362c909e3547a596de35707f22703fe7e2ab3",
+        "source_options": "table1-48cpu-20261026/reports/octopus_posterior_salivary_duct/initial/slice-options.json",
+        "source_options_sha256": "9e4f9c181a79b9457b990a5f268dd9bfaa7a2770980250726a217e9debcc2ae7",
+        "source_metadata_sha256": "33270aba055b3c59e31dd4c8b4dcc1933114c1ed64a2fde3e4a4d07446903410",
+        "saved_geometry_archive": "octopus_posterior_salivary_duct-geometry.npz",
+        "saved_geometry_archive_sha256": "0d814bc2b747ecad74dc4ee361d7912d95c67c8d35990911e0ee82cf17993643",
+        "saved_rectangles_sha256": "a6f339742184b7148c1644ffbd8832e16e8334ce5676149785731884dfa4fee0",
+        "rectangles_dtype": "float64",
+        "rectangles_shape": [
+          4901,
+          4,
+          3
+        ],
+        "reduced_state_sha256": "0afc614fdaf85122bcb699ea01e91ee9cb5766ce045d7a02f6700324722111cc"
+      }
+    },
+    "octopus_nerve_cords": {
+      "annotations_file": "octopus_nerve_cords.json",
+      "slice_options": {
+        "slice_width": 400,
+        "slice_height": 400,
+        "output_mip_level": 0,
+        "annotation_mip_level": 0,
+        "neuroglancer_image_layer": "CephTeam 16bit S1p4s2p2 sharded1",
+        "neuroglancer_annotation_layer": "Long Nerve Trace",
+        "slicing_params": {
+          "dist_between_slices": 1,
+          "use_adaptive_slicing": true,
+          "adaptive_slicing_ratio": 0.5
+        },
+        "bounding_box_params": {
+          "max_depth": 12,
+          "target_slices_per_box": 128
+        },
+        "connect_start_and_end": false
+      },
+      "annotation_count": 59,
+      "slice_count": 10386,
+      "source_dtype": "uint16",
+      "channels": 1,
+      "source_scale": {
+        "chunk_sizes": [
+          [
+            96,
+            96,
+            96
+          ]
+        ],
+        "encoding": "compresso",
+        "key": "700_700_700",
+        "resolution": [
+          700,
+          700,
+          700
+        ],
+        "sharding": {
+          "@type": "neuroglancer_uint64_sharded_v1",
+          "data_encoding": "gzip",
+          "hash": "identity",
+          "minishard_bits": 1,
+          "minishard_index_encoding": "gzip",
+          "preshift_bits": 11,
+          "shard_bits": 9
+        },
+        "size": [
+          12200,
+          12200,
+          9349
+        ],
+        "voxel_offset": [
+          0,
+          0,
+          0
+        ]
+      },
+      "provenance": {
+        "source_state": "table1-48cpu-20261026/reports/octopus_nerve_cords/state.json",
+        "source_state_sha256": "977299ad5ca21a7ad4feea2d7b8fb266b20202038b780368c41de67f533f2a6d",
+        "source_options": "table1-48cpu-20261026/reports/octopus_nerve_cords/initial/slice-options.json",
+        "source_options_sha256": "1feb01146b0b02a5712dc80658c33767788c13852b19747efbd8bdb91d10cdad",
+        "source_metadata_sha256": "33270aba055b3c59e31dd4c8b4dcc1933114c1ed64a2fde3e4a4d07446903410",
+        "saved_geometry_archive": "octopus_nerve_cords-geometry.npz",
+        "saved_geometry_archive_sha256": "389506a3e2ce843310869ddc0c575c1bb6ca14dc9d34a702f847cd7b9f117030",
+        "saved_rectangles_sha256": "fca85a1496136b1c4f40f0bfc5becee6ee696e010204768f203c7a19d1c87dd8",
+        "rectangles_dtype": "float64",
+        "rectangles_shape": [
+          10386,
+          4,
+          3
+        ],
+        "reduced_state_sha256": "9801cf6c219e855d22b828828b7fb88327f4564837fba43a75d9d5dd56d5ee2a"
+      }
+    }
+  }
+}

@@ -1,0 +1,2023 @@
+{
+  "schema_version": 1,
+  "description": "Recorded validation of bounded source-volume partitioning; geometry predictions and native process measurements are separate.",
+  "geometry": {
+    "schema_version": 1,
+    "scope": "Geometry-only evidence from real recorded annotations. No voxel downloads, interpolation, slicing throughput, or measured worker/process-tree RAM. Payload excludes mappings, CloudVolume internals, Python overhead, and concurrency.",
+    "reference": "Unchanged count-based partitioner evaluated with the current inclusive integer download extent.",
+    "payload_estimator": "ouroboros.helpers.slice.estimate_slice_task_payload",
+    "requested_byte_basis": "Allocated inclusive source extent including padding and repeated box overlap; not source-clipped bytes.",
+    "runtime": {
+      "software": {
+        "version": "1.5.0",
+        "revision": "ccd1f9dcd7802ade8f236803f3c98565e311c234",
+        "working_tree_dirty": true,
+        "build": null
+      },
+      "environment": {
+        "python": "3.11.13",
+        "os": "Linux",
+        "os_release": "6.18.54.1-microsoft-standard-WSL2",
+        "architecture": "x86_64",
+        "logical_cpu_count": 12,
+        "thread_environment": {}
+      }
+    },
+    "implementation_sha256": {
+      "ouroboros/helpers/bounding_boxes.py": "66b59ecd6ebce4205075bc165afb79fcdbe5288475b769d96936747432af3f9c",
+      "ouroboros/helpers/slice.py": "9c1cba1b029374fd9b079e18b744267e02e9f9aa3bce676d7ea5d8785abaeb0b",
+      "ouroboros/pipeline/volume_cache_pipeline.py": "82397509c75913ef688c692e6d6528bb655b3cdf4d29114c6365f3343c6bac16",
+      "ouroboros/pipeline/slice_parallel_pipeline.py": "11666cfd5302ec8d224157c93d03eb522aa52221f61ef57011c6ff86a59d5cc5"
+    },
+    "versions": {
+      "numpy": "1.26.4",
+      "scipy": "1.11.2",
+      "cloud-volume": "12.7.0"
+    },
+    "fixture_manifest_sha256": "0a931509dca8bc79cdac478a3f39892c4fa3d783406e5a28602baba3f8ad90f4",
+    "specimens": [
+      {
+        "specimen": "daphnia_antennae",
+        "generated_rectangles_sha256": "9a3746ef3bf37d3ff77be7b6f37bc2caed28b609448333a9762d15c5c5401a6f",
+        "matches_recorded_rectangles": true,
+        "cumulative_requested_byte_cap_ratio": 1.0,
+        "requested_byte_ratio": 0.9944852744689253,
+        "max_payload_ratio": 0.9229237883353542,
+        "input_rectangles_unchanged": true,
+        "results": {
+          "count_reference": {
+            "boxes": 32,
+            "slices": 2656,
+            "slice_count_distribution": {
+              "min": 60,
+              "median": 79.5,
+              "p95": 108.29999999999998,
+              "max": 121,
+              "boxes_over_target": 0,
+              "histogram": {
+                "60": 1,
+                "62": 1,
+                "67": 1,
+                "68": 2,
+                "70": 1,
+                "71": 1,
+                "73": 1,
+                "74": 1,
+                "75": 1,
+                "76": 1,
+                "78": 1,
+                "79": 4,
+                "80": 2,
+                "82": 2,
+                "87": 2,
+                "90": 2,
+                "93": 1,
+                "94": 1,
+                "95": 1,
+                "98": 1,
+                "101": 1,
+                "102": 1,
+                "116": 1,
+                "121": 1
+              }
+            },
+            "max_payload_bytes": 52278244,
+            "cumulative_requested_source_bytes": 105436435,
+            "component_maxima_bytes": {
+              "source_bytes": 4618768,
+              "grid_bytes": 14520000,
+              "coefficient_bytes": 36950144,
+              "output_bytes": 4640000,
+              "channel_result_bytes": 4640000
+            },
+            "largest_payload_box": {
+              "box": 23,
+              "slice_count": 116,
+              "runs": 2,
+              "first_slice": 1172,
+              "last_slice": 1355,
+              "shape": [
+                139,
+                156,
+                149
+              ],
+              "bounds": {
+                "x_min": 842.4333128666618,
+                "x_max": 979.951919806966,
+                "y_min": 838.6606344586909,
+                "y_max": 992.539495671128,
+                "z_min": 1395.3849421751218,
+                "z_max": 1542.6500834789936
+              },
+              "payload_components_bytes": {
+                "source_bytes": 3230916,
+                "grid_bytes": 13920000,
+                "coefficient_bytes": 25847328,
+                "output_bytes": 4640000,
+                "channel_result_bytes": 4640000
+              },
+              "peak_bytes": 52278244
+            },
+            "noncontiguous_boxes": 2,
+            "maximum_runs_per_box": 2,
+            "total_runs": 34,
+            "exactly_once_assignment_and_tight_corner_bounds": true,
+            "mapping_sha256": "bb925b2ee2c3f4214b853be16af68e01f308707c719ad11e23326d1e9b0b722e",
+            "chunk_coverage": {
+              "basis": "Source-clipped chunk geometry; repeated references are counted before cache reuse. Decoded logical bytes are not measured network traffic or RAM.",
+              "chunk_shape": [
+                96,
+                96,
+                96
+              ],
+              "source_clipped_requested_bytes": 105436435,
+              "chunk_references": 534,
+              "unique_chunks": 223,
+              "repeat_references": 311,
+              "decoded_logical_bytes_with_repeats": 472449024,
+              "unique_decoded_logical_bytes": 197296128,
+              "max_chunks_per_box": 27,
+              "max_decoded_logical_bytes_per_box": 23887872
+            },
+            "partition_elapsed_seconds": {
+              "samples": [
+                0.0055435929680243134
+              ],
+              "median": 0.0055435929680243134,
+              "scope": "Partitioner call only; excludes geometry generation and report construction. Includes reference construction inside the payload partitioner."
+            }
+          },
+          "payload_partition": {
+            "boxes": 30,
+            "slices": 2656,
+            "slice_count_distribution": {
+              "min": 54,
+              "median": 85.5,
+              "p95": 125.39999999999998,
+              "max": 146,
+              "boxes_over_target": 2,
+              "histogram": {
+                "54": 1,
+                "60": 1,
+                "63": 1,
+                "66": 1,
+                "70": 1,
+                "71": 1,
+                "73": 2,
+                "74": 1,
+                "75": 1,
+                "76": 1,
+                "84": 2,
+                "85": 2,
+                "86": 1,
+                "87": 1,
+                "89": 1,
+                "90": 1,
+                "92": 3,
+                "100": 1,
+                "102": 1,
+                "107": 1,
+                "111": 1,
+                "119": 1,
+                "121": 1,
+                "129": 1,
+                "146": 1
+              }
+            },
+            "max_payload_bytes": 48248835,
+            "cumulative_requested_source_bytes": 104854982,
+            "component_maxima_bytes": {
+              "source_bytes": 4027800,
+              "grid_bytes": 17520000,
+              "coefficient_bytes": 32222400,
+              "output_bytes": 0,
+              "channel_result_bytes": 0
+            },
+            "largest_payload_box": {
+              "box": 5,
+              "slice_count": 146,
+              "runs": 1,
+              "first_slice": 1338,
+              "last_slice": 1483,
+              "shape": [
+                141,
+                145,
+                167
+              ],
+              "bounds": {
+                "x_min": 832.8130743432451,
+                "x_max": 971.767799182482,
+                "y_min": 849.2229015034499,
+                "y_max": 992.539495671128,
+                "z_min": 1434.3480094411902,
+                "z_max": 1599.201317362796
+              },
+              "payload_components_bytes": {
+                "source_bytes": 3414315,
+                "grid_bytes": 17520000,
+                "coefficient_bytes": 27314520,
+                "output_bytes": 0,
+                "channel_result_bytes": 0
+              },
+              "peak_bytes": 48248835
+            },
+            "noncontiguous_boxes": 0,
+            "maximum_runs_per_box": 1,
+            "total_runs": 30,
+            "exactly_once_assignment_and_tight_corner_bounds": true,
+            "mapping_sha256": "8b6a87e320db54636b4882742d81f39377ae128a3cc5e47bec17295b60d3df9e",
+            "chunk_coverage": {
+              "basis": "Source-clipped chunk geometry; repeated references are counted before cache reuse. Decoded logical bytes are not measured network traffic or RAM.",
+              "chunk_shape": [
+                96,
+                96,
+                96
+              ],
+              "source_clipped_requested_bytes": 104854982,
+              "chunk_references": 503,
+              "unique_chunks": 218,
+              "repeat_references": 285,
+              "decoded_logical_bytes_with_repeats": 445022208,
+              "unique_decoded_logical_bytes": 192872448,
+              "max_chunks_per_box": 27,
+              "max_decoded_logical_bytes_per_box": 23887872
+            },
+            "partition_elapsed_seconds": {
+              "samples": [
+                2.856493544008117
+              ],
+              "median": 2.856493544008117,
+              "scope": "Partitioner call only; excludes geometry generation and report construction. Includes reference construction inside the payload partitioner."
+            }
+          }
+        }
+      },
+      {
+        "specimen": "octopus_posterior_salivary_duct",
+        "generated_rectangles_sha256": "a6f339742184b7148c1644ffbd8832e16e8334ce5676149785731884dfa4fee0",
+        "matches_recorded_rectangles": true,
+        "cumulative_requested_byte_cap_ratio": 1.0,
+        "requested_byte_ratio": 0.9965442095506808,
+        "max_payload_ratio": 0.5238257647028961,
+        "input_rectangles_unchanged": true,
+        "results": {
+          "count_reference": {
+            "boxes": 80,
+            "slices": 4901,
+            "slice_count_distribution": {
+              "min": 1,
+              "median": 68.5,
+              "p95": 125.19999999999999,
+              "max": 254,
+              "boxes_over_target": 4,
+              "histogram": {
+                "1": 5,
+                "2": 5,
+                "3": 4,
+                "4": 2,
+                "5": 2,
+                "7": 1,
+                "14": 1,
+                "15": 1,
+                "18": 1,
+                "23": 1,
+                "25": 1,
+                "37": 1,
+                "39": 1,
+                "42": 1,
+                "45": 1,
+                "47": 1,
+                "50": 1,
+                "55": 1,
+                "56": 1,
+                "58": 2,
+                "59": 1,
+                "60": 1,
+                "61": 1,
+                "63": 1,
+                "68": 2,
+                "69": 2,
+                "71": 1,
+                "72": 1,
+                "73": 2,
+                "75": 2,
+                "76": 1,
+                "79": 2,
+                "80": 2,
+                "81": 1,
+                "82": 1,
+                "83": 2,
+                "84": 4,
+                "86": 1,
+                "87": 1,
+                "88": 2,
+                "92": 3,
+                "95": 1,
+                "96": 1,
+                "109": 1,
+                "112": 1,
+                "117": 1,
+                "121": 1,
+                "122": 1,
+                "125": 1,
+                "129": 1,
+                "170": 1,
+                "177": 1,
+                "254": 1
+              }
+            },
+            "max_payload_bytes": 297837240,
+            "cumulative_requested_source_bytes": 1680184052,
+            "component_maxima_bytes": {
+              "source_bytes": 37847288,
+              "grid_bytes": 121920000,
+              "coefficient_bytes": 151389152,
+              "output_bytes": 4000000,
+              "channel_result_bytes": 4000000
+            },
+            "largest_payload_box": {
+              "box": 77,
+              "slice_count": 254,
+              "runs": 1,
+              "first_slice": 4647,
+              "last_slice": 4900,
+              "shape": [
+                282,
+                281,
+                222
+              ],
+              "bounds": {
+                "x_min": 5941.767001512578,
+                "x_max": 6221.00506171827,
+                "y_min": 6246.196259289122,
+                "y_max": 6525.634438300272,
+                "z_min": 2893.855187773465,
+                "z_max": 3113.411356251105
+              },
+              "payload_components_bytes": {
+                "source_bytes": 35183448,
+                "grid_bytes": 121920000,
+                "coefficient_bytes": 140733792,
+                "output_bytes": 0,
+                "channel_result_bytes": 0
+              },
+              "peak_bytes": 297837240
+            },
+            "noncontiguous_boxes": 6,
+            "maximum_runs_per_box": 2,
+            "total_runs": 86,
+            "exactly_once_assignment_and_tight_corner_bounds": true,
+            "mapping_sha256": "28ff0d606e23e22792b0f9064f586a76989ecbddfab87ad152135af39cac9bf3",
+            "chunk_coverage": {
+              "basis": "Source-clipped chunk geometry; repeated references are counted before cache reuse. Decoded logical bytes are not measured network traffic or RAM.",
+              "chunk_shape": [
+                96,
+                96,
+                96
+              ],
+              "source_clipped_requested_bytes": 1680184052,
+              "chunk_references": 2898,
+              "unique_chunks": 882,
+              "repeat_references": 2016,
+              "decoded_logical_bytes_with_repeats": 5127929856,
+              "unique_decoded_logical_bytes": 1560674304,
+              "max_chunks_per_box": 64,
+              "max_decoded_logical_bytes_per_box": 113246208
+            },
+            "partition_elapsed_seconds": {
+              "samples": [
+                0.014136900019366294
+              ],
+              "median": 0.014136900019366294,
+              "scope": "Partitioner call only; excludes geometry generation and report construction. Includes reference construction inside the payload partitioner."
+            }
+          },
+          "payload_partition": {
+            "boxes": 82,
+            "slices": 4901,
+            "slice_count_distribution": {
+              "min": 29,
+              "median": 60.0,
+              "p95": 86.95,
+              "max": 116,
+              "boxes_over_target": 0,
+              "histogram": {
+                "29": 1,
+                "30": 4,
+                "31": 2,
+                "32": 1,
+                "34": 3,
+                "38": 2,
+                "39": 1,
+                "40": 2,
+                "42": 1,
+                "43": 2,
+                "44": 2,
+                "46": 1,
+                "50": 1,
+                "51": 1,
+                "53": 1,
+                "54": 1,
+                "55": 4,
+                "56": 2,
+                "57": 1,
+                "58": 3,
+                "59": 3,
+                "60": 3,
+                "61": 3,
+                "62": 4,
+                "63": 1,
+                "64": 1,
+                "66": 4,
+                "67": 2,
+                "68": 1,
+                "69": 3,
+                "70": 1,
+                "71": 1,
+                "72": 2,
+                "73": 2,
+                "74": 2,
+                "75": 1,
+                "76": 1,
+                "77": 2,
+                "79": 1,
+                "83": 2,
+                "86": 1,
+                "87": 1,
+                "98": 1,
+                "111": 1,
+                "113": 1,
+                "116": 1
+              }
+            },
+            "max_payload_bytes": 156014820,
+            "cumulative_requested_source_bytes": 1674377688,
+            "component_maxima_bytes": {
+              "source_bytes": 26656336,
+              "grid_bytes": 55680000,
+              "coefficient_bytes": 106625344,
+              "output_bytes": 0,
+              "channel_result_bytes": 0
+            },
+            "largest_payload_box": {
+              "box": 43,
+              "slice_count": 71,
+              "runs": 1,
+              "first_slice": 2325,
+              "last_slice": 2395,
+              "shape": [
+                291,
+                146,
+                287
+              ],
+              "bounds": {
+                "x_min": 6030.752250170265,
+                "x_max": 6319.054909165926,
+                "y_min": 6030.787214756028,
+                "y_max": 6174.621485774293,
+                "z_min": 5015.18730680248,
+                "z_max": 5300.698329878864
+              },
+              "payload_components_bytes": {
+                "source_bytes": 24386964,
+                "grid_bytes": 34080000,
+                "coefficient_bytes": 97547856,
+                "output_bytes": 0,
+                "channel_result_bytes": 0
+              },
+              "peak_bytes": 156014820
+            },
+            "noncontiguous_boxes": 0,
+            "maximum_runs_per_box": 1,
+            "total_runs": 82,
+            "exactly_once_assignment_and_tight_corner_bounds": true,
+            "mapping_sha256": "67d39162b6bbdb85a98df28c7b66724f10fd315058b77112b37799b02cbcbcbf",
+            "chunk_coverage": {
+              "basis": "Source-clipped chunk geometry; repeated references are counted before cache reuse. Decoded logical bytes are not measured network traffic or RAM.",
+              "chunk_shape": [
+                96,
+                96,
+                96
+              ],
+              "source_clipped_requested_bytes": 1674377688,
+              "chunk_references": 2963,
+              "unique_chunks": 877,
+              "repeat_references": 2086,
+              "decoded_logical_bytes_with_repeats": 5242945536,
+              "unique_decoded_logical_bytes": 1551826944,
+              "max_chunks_per_box": 48,
+              "max_decoded_logical_bytes_per_box": 84934656
+            },
+            "partition_elapsed_seconds": {
+              "samples": [
+                4.8614525370066985
+              ],
+              "median": 4.8614525370066985,
+              "scope": "Partitioner call only; excludes geometry generation and report construction. Includes reference construction inside the payload partitioner."
+            }
+          }
+        }
+      },
+      {
+        "specimen": "octopus_nerve_cords",
+        "generated_rectangles_sha256": "fca85a1496136b1c4f40f0bfc5becee6ee696e010204768f203c7a19d1c87dd8",
+        "matches_recorded_rectangles": true,
+        "cumulative_requested_byte_cap_ratio": 1.0,
+        "requested_byte_ratio": 0.9967831462649045,
+        "max_payload_ratio": 0.32661955222897354,
+        "input_rectangles_unchanged": true,
+        "results": {
+          "count_reference": {
+            "boxes": 161,
+            "slices": 10386,
+            "slice_count_distribution": {
+              "min": 1,
+              "median": 68,
+              "p95": 127.0,
+              "max": 523,
+              "boxes_over_target": 8,
+              "histogram": {
+                "1": 14,
+                "2": 7,
+                "3": 5,
+                "4": 2,
+                "5": 4,
+                "6": 1,
+                "7": 2,
+                "8": 3,
+                "9": 1,
+                "10": 4,
+                "13": 3,
+                "18": 2,
+                "19": 3,
+                "22": 2,
+                "26": 1,
+                "27": 1,
+                "32": 1,
+                "33": 1,
+                "34": 1,
+                "38": 2,
+                "39": 1,
+                "40": 1,
+                "42": 1,
+                "43": 1,
+                "45": 1,
+                "46": 1,
+                "47": 1,
+                "50": 1,
+                "52": 2,
+                "53": 1,
+                "60": 2,
+                "62": 2,
+                "64": 1,
+                "65": 2,
+                "67": 2,
+                "68": 1,
+                "69": 2,
+                "70": 1,
+                "71": 1,
+                "73": 3,
+                "74": 3,
+                "75": 2,
+                "78": 1,
+                "80": 3,
+                "81": 3,
+                "82": 6,
+                "83": 1,
+                "84": 2,
+                "85": 1,
+                "88": 2,
+                "89": 3,
+                "90": 4,
+                "91": 3,
+                "92": 2,
+                "93": 3,
+                "94": 2,
+                "95": 1,
+                "98": 1,
+                "100": 1,
+                "101": 2,
+                "103": 1,
+                "105": 1,
+                "106": 1,
+                "107": 1,
+                "109": 1,
+                "110": 1,
+                "111": 1,
+                "113": 1,
+                "114": 1,
+                "116": 1,
+                "117": 2,
+                "119": 2,
+                "120": 1,
+                "121": 2,
+                "127": 2,
+                "133": 1,
+                "137": 1,
+                "165": 1,
+                "206": 1,
+                "209": 1,
+                "238": 1,
+                "395": 1,
+                "523": 1
+              }
+            },
+            "max_payload_bytes": 3172559000,
+            "cumulative_requested_source_bytes": 24005524764,
+            "component_maxima_bytes": {
+              "source_bytes": 299791800,
+              "grid_bytes": 1004160000,
+              "coefficient_bytes": 1199167200,
+              "output_bytes": 334720000,
+              "channel_result_bytes": 334720000
+            },
+            "largest_payload_box": {
+              "box": 160,
+              "slice_count": 523,
+              "runs": 2,
+              "first_slice": 9856,
+              "last_slice": 10385,
+              "shape": [
+                515,
+                540,
+                539
+              ],
+              "bounds": {
+                "x_min": 3530.49994731788,
+                "x_max": 4043.135771167401,
+                "y_min": 4699.4954647939685,
+                "y_max": 5237.889920006333,
+                "z_min": 2959.862117808307,
+                "z_max": 3496.245545398421
+              },
+              "payload_components_bytes": {
+                "source_bytes": 299791800,
+                "grid_bytes": 1004160000,
+                "coefficient_bytes": 1199167200,
+                "output_bytes": 334720000,
+                "channel_result_bytes": 334720000
+              },
+              "peak_bytes": 3172559000
+            },
+            "noncontiguous_boxes": 14,
+            "maximum_runs_per_box": 2,
+            "total_runs": 175,
+            "exactly_once_assignment_and_tight_corner_bounds": true,
+            "mapping_sha256": "06bf1a0545b9fe6afaf0b84003e95296435472665d049694aecffd29bb634943",
+            "chunk_coverage": {
+              "basis": "Source-clipped chunk geometry; repeated references are counted before cache reuse. Decoded logical bytes are not measured network traffic or RAM.",
+              "chunk_shape": [
+                96,
+                96,
+                96
+              ],
+              "source_clipped_requested_bytes": 24005524764,
+              "chunk_references": 25426,
+              "unique_chunks": 4793,
+              "repeat_references": 20633,
+              "decoded_logical_bytes_with_repeats": 44990595072,
+              "unique_decoded_logical_bytes": 8481079296,
+              "max_chunks_per_box": 343,
+              "max_decoded_logical_bytes_per_box": 606928896
+            },
+            "partition_elapsed_seconds": {
+              "samples": [
+                0.028612812981009483
+              ],
+              "median": 0.028612812981009483,
+              "scope": "Partitioner call only; excludes geometry generation and report construction. Includes reference construction inside the payload partitioner."
+            }
+          },
+          "payload_partition": {
+            "boxes": 158,
+            "slices": 10386,
+            "slice_count_distribution": {
+              "min": 16,
+              "median": 55.5,
+              "p95": 146.60000000000002,
+              "max": 187,
+              "boxes_over_target": 12,
+              "histogram": {
+                "16": 1,
+                "20": 1,
+                "23": 3,
+                "24": 1,
+                "26": 3,
+                "27": 1,
+                "28": 2,
+                "29": 1,
+                "30": 1,
+                "31": 1,
+                "32": 1,
+                "33": 2,
+                "34": 2,
+                "35": 1,
+                "36": 2,
+                "37": 3,
+                "40": 3,
+                "41": 1,
+                "42": 1,
+                "43": 2,
+                "44": 6,
+                "45": 4,
+                "46": 10,
+                "47": 8,
+                "48": 5,
+                "49": 3,
+                "50": 1,
+                "52": 1,
+                "53": 1,
+                "54": 4,
+                "55": 3,
+                "56": 3,
+                "57": 2,
+                "58": 5,
+                "59": 3,
+                "60": 2,
+                "61": 2,
+                "62": 2,
+                "63": 1,
+                "65": 1,
+                "66": 4,
+                "67": 3,
+                "68": 1,
+                "69": 2,
+                "70": 2,
+                "71": 2,
+                "72": 1,
+                "73": 3,
+                "75": 2,
+                "76": 1,
+                "78": 1,
+                "83": 1,
+                "85": 1,
+                "86": 1,
+                "87": 1,
+                "91": 2,
+                "93": 3,
+                "96": 1,
+                "97": 1,
+                "100": 1,
+                "103": 1,
+                "105": 1,
+                "113": 2,
+                "115": 1,
+                "119": 1,
+                "120": 4,
+                "121": 1,
+                "123": 1,
+                "130": 1,
+                "142": 1,
+                "143": 1,
+                "146": 1,
+                "150": 1,
+                "152": 1,
+                "153": 2,
+                "154": 1,
+                "159": 1,
+                "183": 1,
+                "187": 1
+              }
+            },
+            "max_payload_bytes": 1036219800,
+            "cumulative_requested_source_bytes": 23928302502,
+            "component_maxima_bytes": {
+              "source_bytes": 195173732,
+              "grid_bytes": 359040000,
+              "coefficient_bytes": 780694928,
+              "output_bytes": 0,
+              "channel_result_bytes": 0
+            },
+            "largest_payload_box": {
+              "box": 0,
+              "slice_count": 91,
+              "runs": 1,
+              "first_slice": 10295,
+              "last_slice": 10385,
+              "shape": [
+                497,
+                540,
+                321
+              ],
+              "bounds": {
+                "x_min": 3530.49994731788,
+                "x_max": 4025.8875736784407,
+                "y_min": 4699.753402065999,
+                "y_max": 5237.606932200593,
+                "z_min": 3050.3044234522504,
+                "z_max": 3369.3337063351346
+              },
+              "payload_components_bytes": {
+                "source_bytes": 172299960,
+                "grid_bytes": 174720000,
+                "coefficient_bytes": 689199840,
+                "output_bytes": 0,
+                "channel_result_bytes": 0
+              },
+              "peak_bytes": 1036219800
+            },
+            "noncontiguous_boxes": 0,
+            "maximum_runs_per_box": 1,
+            "total_runs": 158,
+            "exactly_once_assignment_and_tight_corner_bounds": true,
+            "mapping_sha256": "b8479df14200068470a6c0578b413fa87fac4e6688fe16e57847189b34ae48af",
+            "chunk_coverage": {
+              "basis": "Source-clipped chunk geometry; repeated references are counted before cache reuse. Decoded logical bytes are not measured network traffic or RAM.",
+              "chunk_shape": [
+                96,
+                96,
+                96
+              ],
+              "source_clipped_requested_bytes": 23928302502,
+              "chunk_references": 24902,
+              "unique_chunks": 4718,
+              "repeat_references": 20184,
+              "decoded_logical_bytes_with_repeats": 44063391744,
+              "unique_decoded_logical_bytes": 8348368896,
+              "max_chunks_per_box": 245,
+              "max_decoded_logical_bytes_per_box": 433520640
+            },
+            "partition_elapsed_seconds": {
+              "samples": [
+                8.325887594022788
+              ],
+              "median": 8.325887594022788,
+              "scope": "Partitioner call only; excludes geometry generation and report construction. Includes reference construction inside the payload partitioner."
+            }
+          }
+        }
+      }
+    ]
+  },
+  "cached_specimen_runtime": {
+    "scope": "Linux native complete slicing pipeline on a cached 480^3 real specimen crop; 392 slices of 400x400, one uint16 channel, process_count=4. Source clipping zero-fills outside this crop. This is not a complete nerve-cord runtime/RAM measurement.",
+    "method": "Existing benchmarks/benchmark_run_statistics.py child harness and production run-statistics memory collector. Four observations in reference/candidate/candidate/reference order; no dedicated warmup. Exploratory timing, not a throughput guarantee.",
+    "reference_revision": "ccd1f9dcd7802ade8f236803f3c98565e311c234",
+    "geometry_and_worker_settings": {
+      "slice_width": 400,
+      "slice_height": 400,
+      "target_slices_per_box": 128,
+      "max_depth": 12,
+      "process_count": 4,
+      "normalize_output": true,
+      "zeroguard_output": true,
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1"
+    },
+    "source_fixture": {
+      "source_url": "https://neuroglancer.hpc.psu.edu/assets/precomputed_repository/10mm/2BM/A3/Octo9_Merge_Pass4_Pass2_cleaned_16bit_precomputed_sharded_2",
+      "annotation_path": "Posterior Salivary Duct 2",
+      "original_point_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "source_shape": [
+        480,
+        480,
+        480,
+        1
+      ],
+      "source_dtype": "uint16",
+      "source_voxel_bytes": 221184000,
+      "source_pixel_sha256": "17386ace828220e8ef92368b15edd28239b7df1472ac3bb2f71ac7e3d9cd1725",
+      "crop_min": [
+        5760,
+        6240,
+        2688
+      ],
+      "crop_max": [
+        6240,
+        6720,
+        3168
+      ],
+      "annotation_original_sha256": "415049492ae667e2467ac575cc28d51a6254e699c4631e233971e46d4b7a001e"
+    },
+    "summary": {
+      "reference": {
+        "median_pipeline_seconds": 43.70537262401194,
+        "median_sampled_process_tree_peak_bytes": 5903991808.0
+      },
+      "candidate": {
+        "median_pipeline_seconds": 48.696760253515095,
+        "median_sampled_process_tree_peak_bytes": 5016557056.0
+      }
+    },
+    "runs": [
+      {
+        "policy": "reference",
+        "label": "reference-0",
+        "pipeline_elapsed_seconds": 46.61810925602913,
+        "step_elapsed_seconds": {
+          "ParseJSONPipelineStep": 0.0003212229930795729,
+          "SlicesGeometryPipelineStep": 0.030559174017980695,
+          "VolumeCachePipelineStep": 0.014209410990588367,
+          "SliceParallelPipelineStep": 46.57270742603578
+        },
+        "memory": {
+          "status": "sampled",
+          "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+          "unit": "bytes",
+          "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+          "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+          "sampled_peak_bytes": 5907811328,
+          "last_complete_sample_bytes": 2117049344,
+          "sampling": {
+            "requested_interval_seconds": 1.0,
+            "observed_interval_seconds": {
+              "min": 1.000238248030655,
+              "max": 1.000934685987886
+            },
+            "complete_samples": 47,
+            "incomplete_samples": 0,
+            "discarded_samples": 0,
+            "max_process_count": 7,
+            "max_sweep_seconds": 0.27131873898906633,
+            "collector_cpu_seconds": 5.6349311,
+            "window_seconds": 46.618414078024216,
+            "first_sample_start_seconds": 0.010260829993057996,
+            "last_sample_end_seconds": 46.08983473904664
+          },
+          "errors": []
+        },
+        "output_header": {
+          "files": 1,
+          "pages_in_first_file": 392,
+          "page_shape": [
+            400,
+            400
+          ],
+          "dtype": "uint16",
+          "storage_bytes": 125509002
+        }
+      },
+      {
+        "policy": "candidate",
+        "label": "candidate-0",
+        "pipeline_elapsed_seconds": 49.460446812037844,
+        "step_elapsed_seconds": {
+          "ParseJSONPipelineStep": 0.0006980500183999538,
+          "SlicesGeometryPipelineStep": 0.044485610036645085,
+          "VolumeCachePipelineStep": 0.40558466501533985,
+          "SliceParallelPipelineStep": 49.009425168973394
+        },
+        "memory": {
+          "status": "sampled",
+          "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+          "unit": "bytes",
+          "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+          "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+          "sampled_peak_bytes": 5017236480,
+          "last_complete_sample_bytes": 2010792960,
+          "sampling": {
+            "requested_interval_seconds": 1.0,
+            "observed_interval_seconds": {
+              "min": 1.0001045879907906,
+              "max": 1.0004827650263906
+            },
+            "complete_samples": 50,
+            "incomplete_samples": 0,
+            "discarded_samples": 0,
+            "max_process_count": 7,
+            "max_sweep_seconds": 0.15519560704706237,
+            "collector_cpu_seconds": 4.1773335000000005,
+            "window_seconds": 49.46084684098605,
+            "first_sample_start_seconds": 0.003503052983433008,
+            "last_sample_end_seconds": 49.07180759101175
+          },
+          "errors": []
+        },
+        "output_header": {
+          "files": 1,
+          "pages_in_first_file": 392,
+          "page_shape": [
+            400,
+            400
+          ],
+          "dtype": "uint16",
+          "storage_bytes": 125509002
+        }
+      },
+      {
+        "policy": "candidate",
+        "label": "candidate-1",
+        "pipeline_elapsed_seconds": 47.933073694992345,
+        "step_elapsed_seconds": {
+          "ParseJSONPipelineStep": 0.00043943198397755623,
+          "SlicesGeometryPipelineStep": 0.028914102993439883,
+          "VolumeCachePipelineStep": 0.310718503955286,
+          "SliceParallelPipelineStep": 47.59278374002315
+        },
+        "memory": {
+          "status": "sampled",
+          "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+          "unit": "bytes",
+          "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+          "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+          "sampled_peak_bytes": 5015877632,
+          "last_complete_sample_bytes": 2006338560,
+          "sampling": {
+            "requested_interval_seconds": 1.0,
+            "observed_interval_seconds": {
+              "min": 1.0000194850144908,
+              "max": 1.0004885059897788
+            },
+            "complete_samples": 48,
+            "incomplete_samples": 0,
+            "discarded_samples": 0,
+            "max_process_count": 7,
+            "max_sweep_seconds": 0.16154376999475062,
+            "collector_cpu_seconds": 4.146647799999999,
+            "window_seconds": 47.93338251701789,
+            "first_sample_start_seconds": 0.003609462990425527,
+            "last_sample_end_seconds": 47.07309854502091
+          },
+          "errors": []
+        },
+        "output_header": {
+          "files": 1,
+          "pages_in_first_file": 392,
+          "page_shape": [
+            400,
+            400
+          ],
+          "dtype": "uint16",
+          "storage_bytes": 125509002
+        }
+      },
+      {
+        "policy": "reference",
+        "label": "reference-1",
+        "pipeline_elapsed_seconds": 40.79263599199476,
+        "step_elapsed_seconds": {
+          "ParseJSONPipelineStep": 0.00026141799753531814,
+          "SlicesGeometryPipelineStep": 0.030834717967081815,
+          "VolumeCachePipelineStep": 0.007929245010018349,
+          "SliceParallelPipelineStep": 40.75339389703004
+        },
+        "memory": {
+          "status": "partial",
+          "metric": "process_tree_nonshmem_pss_plus_managed_resident_bytes",
+          "unit": "bytes",
+          "method": "smaps_rollup Pss - Pss_Shmem + managed segment mincore",
+          "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
+          "sampled_peak_bytes": 5900172288,
+          "last_complete_sample_bytes": 2111767552,
+          "sampling": {
+            "requested_interval_seconds": 1.0,
+            "observed_interval_seconds": {
+              "min": 1.0002262899652123,
+              "max": 1.0003913850523531
+            },
+            "complete_samples": 40,
+            "incomplete_samples": 1,
+            "discarded_samples": 0,
+            "max_process_count": 7,
+            "max_sweep_seconds": 0.1923957199905999,
+            "collector_cpu_seconds": 4.9223345,
+            "window_seconds": 40.79297561600106,
+            "first_sample_start_seconds": 0.0015982089680619538,
+            "last_sample_end_seconds": 40.060741290973965
+          },
+          "errors": [
+            {
+              "kind": "OSError",
+              "count": 1,
+              "example": "Manager observations changed during memory sweep"
+            }
+          ]
+        },
+        "output_header": {
+          "files": 1,
+          "pages_in_first_file": 392,
+          "page_shape": [
+            400,
+            400
+          ],
+          "dtype": "uint16",
+          "storage_bytes": 125509002
+        }
+      }
+    ]
+  },
+  "cached_specimen_sampling": {
+    "scope": "Actual cached uint16 specimen crop; cubic production interpolation before normalization/zeroguard. Common ROI reference samples the identical local source and zero padding at each policy's actual float32-generated world coordinates. No intensity acceptance tolerance is imposed.",
+    "source_url": "file:///home/dnorthover/ChengCode/ouroboros-173-measurements/representative/source",
+    "source_info_sha256": "be650effbc328cf62e1601752b195c437bf681e4e14534120d777be44cf4ec57",
+    "annotations_sha256": "b7cc952c11c495336bd5442d1b9141f19355bbf97aa1c490e88b06a868477096",
+    "options": {
+      "neuroglancer_json": "/tmp/ouroboros-partition-validation/annotations.json",
+      "neuroglancer_image_layer": "local",
+      "neuroglancer_annotation_layer": "Posterior Salivary Duct 2",
+      "slice_width": 400,
+      "slice_height": 400,
+      "output_file_folder": "/tmp/ouroboros-partition-validation",
+      "output_file_name": "slice",
+      "annotation_mip_level": 0,
+      "output_mip_level": 0,
+      "slicing_params": {
+        "dist_between_slices": 1,
+        "use_adaptive_slicing": true,
+        "adaptive_slicing_ratio": 0.5
+      },
+      "make_single_file": true,
+      "connect_start_and_end": false,
+      "normalize_output": true,
+      "zeroguard_output": true,
+      "flush_cache": false,
+      "bounding_box_params": {
+        "max_depth": 12,
+        "target_slices_per_box": 128
+      },
+      "process_count": 4
+    },
+    "script_sha256": "5a7fab11671fe1e91a6382752ae0f875d13d3a0d8e144c7780db9f6162d96740",
+    "production_sha256": {
+      "python/ouroboros/helpers/bounding_boxes.py": "66b59ecd6ebce4205075bc165afb79fcdbe5288475b769d96936747432af3f9c",
+      "python/ouroboros/helpers/slice.py": "9c1cba1b029374fd9b079e18b744267e02e9f9aa3bce676d7ea5d8785abaeb0b",
+      "python/ouroboros/helpers/volume_cache.py": "e21c9dea29e5b478fcc2f37b0b80db098412f9d78ad8e77c4f788568b8b9b805"
+    },
+    "versions": {
+      "numpy": "1.26.4",
+      "scipy": "1.11.2",
+      "cloud-volume": "12.7.0"
+    },
+    "rectangles_sha256": "0131d37c19f97b76e237beafe69dd05c1d28ee5ff4a322c57bfc4e71c2634f71",
+    "slices": 392,
+    "changed_slices": 392,
+    "selection": "First, middle, last changed slice adjacent to a partition boundary",
+    "selected_slices": [
+      49,
+      187,
+      340
+    ],
+    "common_roi": {
+      "bounds": {
+        "x_min": 5672,
+        "x_max": 6315,
+        "y_min": 6121,
+        "y_max": 6779,
+        "z_min": 2585,
+        "z_max": 3295
+      },
+      "shape": [
+        644,
+        659,
+        711
+      ],
+      "zero_padded_source_range": [
+        0,
+        59735
+      ],
+      "source_array_sha256": "840003d3f37cc20b4c08be9207754f88918ec8465916f04627b7b0b2d553b367"
+    },
+    "estimated_max_simultaneous_major_array_bytes": 4100520348,
+    "measured_process_tree_ram": null,
+    "observations": [
+      {
+        "slice": 49,
+        "independent_world_grid": "Float64 rect0 + u*(rect1-rect0) + v*(rect3-rect0), u,v in [0,1]",
+        "policies": {
+          "reference": {
+            "box_index": 1,
+            "box_bounds": {
+              "x_min": 5685.550898532975,
+              "x_max": 6314.205368717014,
+              "y_min": 6122.414313628586,
+              "y_max": 6771.132038265417,
+              "z_min": 2840.079815645174,
+              "z_max": 3076.139979809539
+            },
+            "box_shape": [
+              631,
+              651,
+              238
+            ],
+            "max_coordinate_quantization_voxels": 0.001322565080045024,
+            "coordinate_quantization_by_axis": [
+              0.0010113551834365353,
+              0.001322565080045024,
+              0.000569515729239356
+            ],
+            "production_vs_common_at_same_world": {
+              "count": 160000,
+              "max_abs": 0.0,
+              "mean_abs": 0.0,
+              "rms": 0.0,
+              "p95_abs": 0.0
+            },
+            "production_vs_common_by_distance_to_assigned_box_face": {
+              "outside": {
+                "count": 0,
+                "max_abs": 0.0,
+                "mean_abs": null,
+                "rms": null,
+                "p95_abs": null
+              },
+              "0_to_2": {
+                "count": 5,
+                "max_abs": 0.0,
+                "mean_abs": 0.0,
+                "rms": 0.0,
+                "p95_abs": 0.0
+              },
+              "2_to_4": {
+                "count": 15,
+                "max_abs": 0.0,
+                "mean_abs": 0.0,
+                "rms": 0.0,
+                "p95_abs": 0.0
+              },
+              "4_to_8": {
+                "count": 60,
+                "max_abs": 0.0,
+                "mean_abs": 0.0,
+                "rms": 0.0,
+                "p95_abs": 0.0
+              },
+              "8_to_16": {
+                "count": 328,
+                "max_abs": 0.0,
+                "mean_abs": 0.0,
+                "rms": 0.0,
+                "p95_abs": 0.0
+              },
+              "16_plus": {
+                "count": 159592,
+                "max_abs": 0.0,
+                "mean_abs": 0.0,
+                "rms": 0.0,
+                "p95_abs": 0.0
+              }
+            },
+            "common_actual_world_vs_common_float64_world": {
+              "count": 160000,
+              "max_abs": 46.375,
+              "mean_abs": 0.93436482787826,
+              "rms": 1.5601771134820388,
+              "p95_abs": 2.921875
+            },
+            "output_range": [
+              -4926.77197265625,
+              53693.2734375
+            ]
+          },
+          "candidate": {
+            "box_index": 4,
+            "box_bounds": {
+              "x_min": 5765.662794557607,
+              "x_max": 6314.205368717014,
+              "y_min": 6121.724243632678,
+              "y_max": 6676.112975523234,
+              "z_min": 2623.78748673063,
+              "z_max": 3091.948611660754
+            },
+            "box_shape": [
+              551,
+              557,
+              470
+            ],
+            "max_coordinate_quantization_voxels": 0.001322565080045024,
+            "coordinate_quantization_by_axis": [
+              0.0010113551834365353,
+              0.001322565080045024,
+              0.000569515729239356
+            ],
+            "production_vs_common_at_same_world": {
+              "count": 160000,
+              "max_abs": 74.349609375,
+              "mean_abs": 0.001736322021484375,
+              "rms": 0.2538167795326798,
+              "p95_abs": 0.0
+            },
+            "production_vs_common_by_distance_to_assigned_box_face": {
+              "outside": {
+                "count": 0,
+                "max_abs": 0.0,
+                "mean_abs": null,
+                "rms": null,
+                "p95_abs": null
+              },
+              "0_to_2": {
+                "count": 6,
+                "max_abs": 74.349609375,
+                "mean_abs": 22.279459635416668,
+                "rms": 36.29137989825804,
+                "p95_abs": 67.77978515625
+              },
+              "2_to_4": {
+                "count": 32,
+                "max_abs": 33.947265625,
+                "mean_abs": 3.9144287109375,
+                "rms": 8.634280802281602,
+                "p95_abs": 22.56982421875
+              },
+              "4_to_8": {
+                "count": 146,
+                "max_abs": 2.291015625,
+                "mean_abs": 0.1281403842037671,
+                "rms": 0.36696663921044564,
+                "p95_abs": 0.7021484375
+              },
+              "8_to_16": {
+                "count": 716,
+                "max_abs": 0.01171875,
+                "mean_abs": 0.00022981952688547487,
+                "rms": 0.001123544889729584,
+                "p95_abs": 0.0009765625
+              },
+              "16_plus": {
+                "count": 159100,
+                "max_abs": 0.0,
+                "mean_abs": 0.0,
+                "rms": 0.0,
+                "p95_abs": 0.0
+              }
+            },
+            "common_actual_world_vs_common_float64_world": {
+              "count": 160000,
+              "max_abs": 46.375,
+              "mean_abs": 0.93436482787826,
+              "rms": 1.5601771134820388,
+              "p95_abs": 2.921875
+            },
+            "output_range": [
+              -4926.77197265625,
+              53693.2734375
+            ]
+          }
+        },
+        "candidate_vs_reference": {
+          "max_world_coordinate_difference_voxels": 0.0,
+          "production_difference": {
+            "count": 160000,
+            "max_abs": 74.349609375,
+            "mean_abs": 0.001736322021484375,
+            "rms": 0.2538167795326798,
+            "p95_abs": 0.0
+          },
+          "common_roi_difference_from_coordinate_quantization": {
+            "count": 160000,
+            "max_abs": 0.0,
+            "mean_abs": 0.0,
+            "rms": 0.0,
+            "p95_abs": 0.0
+          },
+          "production_difference_by_distance_to_nearest_either_box_face": {
+            "outside": {
+              "count": 0,
+              "max_abs": 0.0,
+              "mean_abs": null,
+              "rms": null,
+              "p95_abs": null
+            },
+            "0_to_2": {
+              "count": 9,
+              "max_abs": 74.349609375,
+              "mean_abs": 14.852973090277779,
+              "rms": 29.631787604076898,
+              "p95_abs": 63.83789062499999
+            },
+            "2_to_4": {
+              "count": 37,
+              "max_abs": 33.947265625,
+              "mean_abs": 3.385451858108108,
+              "rms": 8.029718044130606,
+              "p95_abs": 21.99609374999999
+            },
+            "4_to_8": {
+              "count": 156,
+              "max_abs": 2.291015625,
+              "mean_abs": 0.11992625701121795,
+              "rms": 0.3550101035654837,
+              "p95_abs": 0.6884765625
+            },
+            "8_to_16": {
+              "count": 732,
+              "max_abs": 0.01171875,
+              "mean_abs": 0.00022479614924863389,
+              "rms": 0.0011111978677673176,
+              "p95_abs": 0.0009765625
+            },
+            "16_plus": {
+              "count": 159066,
+              "max_abs": 0.0,
+              "mean_abs": 0.0,
+              "rms": 0.0,
+              "p95_abs": 0.0
+            }
+          },
+          "difference_after_subtracting_common_coordinate_effect_by_distance": {
+            "outside": {
+              "count": 0,
+              "max_abs": 0.0,
+              "mean_abs": null,
+              "rms": null,
+              "p95_abs": null
+            },
+            "0_to_2": {
+              "count": 9,
+              "max_abs": 74.349609375,
+              "mean_abs": 14.852973090277779,
+              "rms": 29.631787604076898,
+              "p95_abs": 63.83789062499999
+            },
+            "2_to_4": {
+              "count": 37,
+              "max_abs": 33.947265625,
+              "mean_abs": 3.385451858108108,
+              "rms": 8.029718044130606,
+              "p95_abs": 21.99609374999999
+            },
+            "4_to_8": {
+              "count": 156,
+              "max_abs": 2.291015625,
+              "mean_abs": 0.11992625701121795,
+              "rms": 0.3550101035654837,
+              "p95_abs": 0.6884765625
+            },
+            "8_to_16": {
+              "count": 732,
+              "max_abs": 0.01171875,
+              "mean_abs": 0.00022479614924863389,
+              "rms": 0.0011111978677673176,
+              "p95_abs": 0.0009765625
+            },
+            "16_plus": {
+              "count": 159066,
+              "max_abs": 0.0,
+              "mean_abs": 0.0,
+              "rms": 0.0,
+              "p95_abs": 0.0
+            }
+          }
+        }
+      },
+      {
+        "slice": 187,
+        "independent_world_grid": "Float64 rect0 + u*(rect1-rect0) + v*(rect3-rect0), u,v in [0,1]",
+        "policies": {
+          "reference": {
+            "box_index": 2,
+            "box_bounds": {
+              "x_min": 5672.479739216631,
+              "x_max": 6234.510931833884,
+              "y_min": 6224.553584612534,
+              "y_max": 6763.531220422079,
+              "z_min": 2600.5925059557853,
+              "z_max": 3107.206471776332
+            },
+            "box_shape": [
+              564,
+              541,
+              509
+            ],
+            "max_coordinate_quantization_voxels": 0.001188773869216675,
+            "coordinate_quantization_by_axis": [
+              0.001188773869216675,
+              0.0010858415107577457,
+              0.0005032309341004293
+            ],
+            "production_vs_common_at_same_world": {
+              "count": 160000,
+              "max_abs": 37.033203125,
+              "mean_abs": 0.0006376953125,
+              "rms": 0.1123275552040853,
+              "p95_abs": 0.0
+            },
+            "production_vs_common_by_distance_to_assigned_box_face": {
+              "outside": {
+                "count": 0,
+                "max_abs": 0.0,
+                "mean_abs": null,
+                "rms": null,
+                "p95_abs": null
+              },
+              "0_to_2": {
+                "count": 10,
+                "max_abs": 37.033203125,
+                "mean_abs": 6.912109375,
+                "rms": 13.92926124010417,
+                "p95_abs": 30.443164062499985
+              },
+              "2_to_4": {
+                "count": 34,
+                "max_abs": 5.86328125,
+                "mean_abs": 0.7299517463235294,
+                "rms": 1.4760106299376492,
+                "p95_abs": 3.3279296874999966
+              },
+              "4_to_8": {
+                "count": 135,
+                "max_abs": 1.388671875,
+                "mean_abs": 0.05936053240740741,
+                "rms": 0.18217948246942345,
+                "p95_abs": 0.258203125
+              },
+              "8_to_16": {
+                "count": 544,
+                "max_abs": 0.01171875,
+                "mean_abs": 0.00014361213235294118,
+                "rms": 0.0007944230633007428,
+                "p95_abs": 0.0
+              },
+              "16_plus": {
+                "count": 159277,
+                "max_abs": 0.0,
+                "mean_abs": 0.0,
+                "rms": 0.0,
+                "p95_abs": 0.0
+              }
+            },
+            "common_actual_world_vs_common_float64_world": {
+              "count": 160000,
+              "max_abs": 32.21875,
+              "mean_abs": 0.8845728843356461,
+              "rms": 1.309452101328063,
+              "p95_abs": 2.7109375
+            },
+            "output_range": [
+              -4100.892578125,
+              51165.10546875
+            ]
+          },
+          "candidate": {
+            "box_index": 2,
+            "box_bounds": {
+              "x_min": 5680.105345152717,
+              "x_max": 6230.292162120799,
+              "y_min": 6257.154949940214,
+              "y_max": 6680.827731757508,
+              "z_min": 2598.3222260597904,
+              "z_max": 3108.4258496327384
+            },
+            "box_shape": [
+              552,
+              425,
+              512
+            ],
+            "max_coordinate_quantization_voxels": 0.001188773869216675,
+            "coordinate_quantization_by_axis": [
+              0.001188773869216675,
+              0.0010858415107577457,
+              0.0005032309341004293
+            ],
+            "production_vs_common_at_same_world": {
+              "count": 160000,
+              "max_abs": 35.298828125,
+              "mean_abs": 0.00075306396484375,
+              "rms": 0.11831391371070285,
+              "p95_abs": 0.0
+            },
+            "production_vs_common_by_distance_to_assigned_box_face": {
+              "outside": {
+                "count": 0,
+                "max_abs": 0.0,
+                "mean_abs": null,
+                "rms": null,
+                "p95_abs": null
+              },
+              "0_to_2": {
+                "count": 1,
+                "max_abs": 35.298828125,
+                "mean_abs": 35.298828125,
+                "rms": 35.298828125,
+                "p95_abs": 35.298828125
+              },
+              "2_to_4": {
+                "count": 17,
+                "max_abs": 22.798828125,
+                "mean_abs": 4.151769301470588,
+                "rms": 7.544767547073258,
+                "p95_abs": 14.959765624999992
+              },
+              "4_to_8": {
+                "count": 101,
+                "max_abs": 3.765625,
+                "mean_abs": 0.14400912747524752,
+                "rms": 0.5073889355367048,
+                "p95_abs": 0.701171875
+              },
+              "8_to_16": {
+                "count": 474,
+                "max_abs": 0.0078125,
+                "mean_abs": 0.00014009757383966244,
+                "rms": 0.0007820736691797401,
+                "p95_abs": 0.0
+              },
+              "16_plus": {
+                "count": 159407,
+                "max_abs": 0.0,
+                "mean_abs": 0.0,
+                "rms": 0.0,
+                "p95_abs": 0.0
+              }
+            },
+            "common_actual_world_vs_common_float64_world": {
+              "count": 160000,
+              "max_abs": 32.21875,
+              "mean_abs": 0.8845728843356461,
+              "rms": 1.309452101328063,
+              "p95_abs": 2.7109375
+            },
+            "output_range": [
+              -4100.892578125,
+              51165.10546875
+            ]
+          }
+        },
+        "candidate_vs_reference": {
+          "max_world_coordinate_difference_voxels": 0.0,
+          "production_difference": {
+            "count": 160000,
+            "max_abs": 18.341796875,
+            "mean_abs": 0.00050860595703125,
+            "rms": 0.06828935500866658,
+            "p95_abs": 0.0
+          },
+          "common_roi_difference_from_coordinate_quantization": {
+            "count": 160000,
+            "max_abs": 0.0,
+            "mean_abs": 0.0,
+            "rms": 0.0,
+            "p95_abs": 0.0
+          },
+          "production_difference_by_distance_to_nearest_either_box_face": {
+            "outside": {
+              "count": 0,
+              "max_abs": 0.0,
+              "mean_abs": null,
+              "rms": null,
+              "p95_abs": null
+            },
+            "0_to_2": {
+              "count": 10,
+              "max_abs": 13.857421875,
+              "mean_abs": 2.7353515625,
+              "rms": 5.692647863720132,
+              "p95_abs": 12.729785156249998
+            },
+            "2_to_4": {
+              "count": 34,
+              "max_abs": 18.341796875,
+              "mean_abs": 1.3594898897058822,
+              "rms": 3.503181005721711,
+              "p95_abs": 4.095605468749999
+            },
+            "4_to_8": {
+              "count": 135,
+              "max_abs": 1.423828125,
+              "mean_abs": 0.05719039351851852,
+              "rms": 0.18914204008182992,
+              "p95_abs": 0.26308593749999987
+            },
+            "8_to_16": {
+              "count": 544,
+              "max_abs": 0.01171875,
+              "mean_abs": 0.0001472024356617647,
+              "rms": 0.0008075549126556497,
+              "p95_abs": 0.0
+            },
+            "16_plus": {
+              "count": 159277,
+              "max_abs": 0.0,
+              "mean_abs": 0.0,
+              "rms": 0.0,
+              "p95_abs": 0.0
+            }
+          },
+          "difference_after_subtracting_common_coordinate_effect_by_distance": {
+            "outside": {
+              "count": 0,
+              "max_abs": 0.0,
+              "mean_abs": null,
+              "rms": null,
+              "p95_abs": null
+            },
+            "0_to_2": {
+              "count": 10,
+              "max_abs": 13.857421875,
+              "mean_abs": 2.7353515625,
+              "rms": 5.692647863720132,
+              "p95_abs": 12.729785156249998
+            },
+            "2_to_4": {
+              "count": 34,
+              "max_abs": 18.341796875,
+              "mean_abs": 1.3594898897058822,
+              "rms": 3.503181005721711,
+              "p95_abs": 4.095605468749999
+            },
+            "4_to_8": {
+              "count": 135,
+              "max_abs": 1.423828125,
+              "mean_abs": 0.05719039351851852,
+              "rms": 0.18914204008182992,
+              "p95_abs": 0.26308593749999987
+            },
+            "8_to_16": {
+              "count": 544,
+              "max_abs": 0.01171875,
+              "mean_abs": 0.0001472024356617647,
+              "rms": 0.0008075549126556497,
+              "p95_abs": 0.0
+            },
+            "16_plus": {
+              "count": 159277,
+              "max_abs": 0.0,
+              "mean_abs": 0.0,
+              "rms": 0.0,
+              "p95_abs": 0.0
+            }
+          }
+        }
+      },
+      {
+        "slice": 340,
+        "independent_world_grid": "Float64 rect0 + u*(rect1-rect0) + v*(rect3-rect0), u,v in [0,1]",
+        "policies": {
+          "reference": {
+            "box_index": 0,
+            "box_bounds": {
+              "x_min": 5692.268833513508,
+              "x_max": 6260.1610044988065,
+              "y_min": 6229.693155681852,
+              "y_max": 6778.489490939642,
+              "z_min": 2759.975590795997,
+              "z_max": 3294.02120612604
+            },
+            "box_shape": [
+              570,
+              551,
+              537
+            ],
+            "max_coordinate_quantization_voxels": 0.0012331322923273547,
+            "coordinate_quantization_by_axis": [
+              0.0011417001242080005,
+              0.0012331322923273547,
+              0.0007199192582447722
+            ],
+            "production_vs_common_at_same_world": {
+              "count": 160000,
+              "max_abs": 1.3869794202037156e-11,
+              "mean_abs": 2.1049828546892967e-16,
+              "rms": 3.984776623071637e-14,
+              "p95_abs": 0.0
+            },
+            "production_vs_common_by_distance_to_assigned_box_face": {
+              "outside": {
+                "count": 0,
+                "max_abs": 0.0,
+                "mean_abs": null,
+                "rms": null,
+                "p95_abs": null
+              },
+              "0_to_2": {
+                "count": 0,
+                "max_abs": 0.0,
+                "mean_abs": null,
+                "rms": null,
+                "p95_abs": null
+              },
+              "2_to_4": {
+                "count": 0,
+                "max_abs": 0.0,
+                "mean_abs": null,
+                "rms": null,
+                "p95_abs": null
+              },
+              "4_to_8": {
+                "count": 31,
+                "max_abs": 1.3869794202037156e-11,
+                "mean_abs": 1.0864427637106048e-12,
+                "rms": 2.862748035584054e-12,
+                "p95_abs": 4.149569576838985e-12
+              },
+              "8_to_16": {
+                "count": 343,
+                "max_abs": 0.0,
+                "mean_abs": 0.0,
+                "rms": 0.0,
+                "p95_abs": 0.0
+              },
+              "16_plus": {
+                "count": 159626,
+                "max_abs": 0.0,
+                "mean_abs": 0.0,
+                "rms": 0.0,
+                "p95_abs": 0.0
+              }
+            },
+            "common_actual_world_vs_common_float64_world": {
+              "count": 160000,
+              "max_abs": 37.71875,
+              "mean_abs": 0.9652062733853065,
+              "rms": 1.4241049491834001,
+              "p95_abs": 2.8496582031249886
+            },
+            "output_range": [
+              -4336.22265625,
+              51639.81640625
+            ]
+          },
+          "candidate": {
+            "box_index": 0,
+            "box_bounds": {
+              "x_min": 5699.492893614146,
+              "x_max": 6260.1610044988065,
+              "y_min": 6268.951436276256,
+              "y_max": 6773.130331611569,
+              "z_min": 2759.975590795997,
+              "z_max": 3294.02120612604
+            },
+            "box_shape": [
+              563,
+              507,
+              537
+            ],
+            "max_coordinate_quantization_voxels": 0.0012331322923273547,
+            "coordinate_quantization_by_axis": [
+              0.0011417001242080005,
+              0.0012331322923273547,
+              0.0007199192582447722
+            ],
+            "production_vs_common_at_same_world": {
+              "count": 160000,
+              "max_abs": 38.1796875,
+              "mean_abs": 0.0012743164062502105,
+              "rms": 0.15678149578888034,
+              "p95_abs": 0.0
+            },
+            "production_vs_common_by_distance_to_assigned_box_face": {
+              "outside": {
+                "count": 0,
+                "max_abs": 0.0,
+                "mean_abs": null,
+                "rms": null,
+                "p95_abs": null
+              },
+              "0_to_2": {
+                "count": 7,
+                "max_abs": 38.1796875,
+                "mean_abs": 12.135044642857142,
+                "rms": 19.34259715761814,
+                "p95_abs": 35.486718749999994
+              },
+              "2_to_4": {
+                "count": 36,
+                "max_abs": 23.171875,
+                "mean_abs": 2.7442491319444446,
+                "rms": 5.989111415681966,
+                "p95_abs": 12.703125
+              },
+              "4_to_8": {
+                "count": 178,
+                "max_abs": 2.44140625,
+                "mean_abs": 0.1119096734552454,
+                "rms": 0.35643552720041616,
+                "p95_abs": 0.7375000000000003
+              },
+              "8_to_16": {
+                "count": 798,
+                "max_abs": 0.025390625,
+                "mean_abs": 0.00029125548245614033,
+                "rms": 0.0019048004337706749,
+                "p95_abs": 0.0
+              },
+              "16_plus": {
+                "count": 158981,
+                "max_abs": 0.0,
+                "mean_abs": 0.0,
+                "rms": 0.0,
+                "p95_abs": 0.0
+              }
+            },
+            "common_actual_world_vs_common_float64_world": {
+              "count": 160000,
+              "max_abs": 37.71875,
+              "mean_abs": 0.9652062733853065,
+              "rms": 1.4241049491834001,
+              "p95_abs": 2.8496582031249886
+            },
+            "output_range": [
+              -4336.22265625,
+              51639.81640625
+            ]
+          }
+        },
+        "candidate_vs_reference": {
+          "max_world_coordinate_difference_voxels": 0.0,
+          "production_difference": {
+            "count": 160000,
+            "max_abs": 38.1796875,
+            "mean_abs": 0.00127431640625,
+            "rms": 0.15678149578888034,
+            "p95_abs": 0.0
+          },
+          "common_roi_difference_from_coordinate_quantization": {
+            "count": 160000,
+            "max_abs": 0.0,
+            "mean_abs": 0.0,
+            "rms": 0.0,
+            "p95_abs": 0.0
+          },
+          "production_difference_by_distance_to_nearest_either_box_face": {
+            "outside": {
+              "count": 0,
+              "max_abs": 0.0,
+              "mean_abs": null,
+              "rms": null,
+              "p95_abs": null
+            },
+            "0_to_2": {
+              "count": 7,
+              "max_abs": 38.1796875,
+              "mean_abs": 12.135044642857142,
+              "rms": 19.34259715761814,
+              "p95_abs": 35.486718749999994
+            },
+            "2_to_4": {
+              "count": 36,
+              "max_abs": 23.171875,
+              "mean_abs": 2.7442491319444446,
+              "rms": 5.989111415681966,
+              "p95_abs": 12.703125
+            },
+            "4_to_8": {
+              "count": 178,
+              "max_abs": 2.44140625,
+              "mean_abs": 0.11190967345505617,
+              "rms": 0.35643552720041616,
+              "p95_abs": 0.7375000000000003
+            },
+            "8_to_16": {
+              "count": 798,
+              "max_abs": 0.025390625,
+              "mean_abs": 0.00029125548245614033,
+              "rms": 0.0019048004337706749,
+              "p95_abs": 0.0
+            },
+            "16_plus": {
+              "count": 158981,
+              "max_abs": 0.0,
+              "mean_abs": 0.0,
+              "rms": 0.0,
+              "p95_abs": 0.0
+            }
+          },
+          "difference_after_subtracting_common_coordinate_effect_by_distance": {
+            "outside": {
+              "count": 0,
+              "max_abs": 0.0,
+              "mean_abs": null,
+              "rms": null,
+              "p95_abs": null
+            },
+            "0_to_2": {
+              "count": 7,
+              "max_abs": 38.1796875,
+              "mean_abs": 12.135044642857142,
+              "rms": 19.34259715761814,
+              "p95_abs": 35.486718749999994
+            },
+            "2_to_4": {
+              "count": 36,
+              "max_abs": 23.171875,
+              "mean_abs": 2.7442491319444446,
+              "rms": 5.989111415681966,
+              "p95_abs": 12.703125
+            },
+            "4_to_8": {
+              "count": 178,
+              "max_abs": 2.44140625,
+              "mean_abs": 0.11190967345505617,
+              "rms": 0.35643552720041616,
+              "p95_abs": 0.7375000000000003
+            },
+            "8_to_16": {
+              "count": 798,
+              "max_abs": 0.025390625,
+              "mean_abs": 0.00029125548245614033,
+              "rms": 0.0019048004337706749,
+              "p95_abs": 0.0
+            },
+            "16_plus": {
+              "count": 158981,
+              "max_abs": 0.0,
+              "mean_abs": 0.0,
+              "rms": 0.0,
+              "p95_abs": 0.0
+            }
+          }
+        }
+      }
+    ],
+    "elapsed_seconds": 89.70633375103353,
+    "method": "One-off recorded diagnostic using the production geometry pipeline, both partition policies, download_volume, coordinate_grid and slice_volume_from_grids. Select the first, middle and last changed slice adjacent to either partition boundary. Prefilter one common ROI with scipy.ndimage.spline_filter(order=3, mode=constant), sample it at each production world grid with map_coordinates(prefilter=False, output=float32), and compare separately against an independent float64 world grid. Bin residuals by distance to the nearest assigned integer box face. Original diagnostic script hash retained for provenance; this diagnostic requires the local cached specimen crop and is not the downloadable geometry benchmark.",
+    "interpretation": "The three sampled planes use identical production world coordinates under both policies. Changed crop boundaries produce localized intensity differences before normalization. Residuals remain in the 8\u201316 voxel band; exact equality beyond 16 voxels in these samples is an observation, not a universal distance guarantee or acceptance tolerance. Normalized full-stack output equivalence was not asserted."
+  }
+}

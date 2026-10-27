@@ -11,6 +11,7 @@ from ouroboros.helpers.slice import (
     slice_volume_from_grids
 )
 from ouroboros.helpers.mem import SharedNPManager
+from ouroboros.helpers.bounding_boxes import slice_indices_are_contiguous
 from ouroboros.helpers.volume_cache import VolumeCache, download_volume
 from ouroboros.helpers.files import (
     format_slice_output_file,
@@ -340,9 +341,7 @@ def process_worker_save_parallel(
 
     # Slice the volume using the grids
     start = time.perf_counter()
-    contiguous = len(slice_indices) > 0 and slice_indices[0] >= 0 and all(
-        index == slice_indices[0] + offset for offset, index in enumerate(slice_indices)
-    )
+    contiguous = slice_indices_are_contiguous(slice_indices)
     mmap = memmap(temporary_path) if contiguous else None
     slices = slice_volume_from_grids(
         volume_data, bounding_box, grids, config.slice_width, config.slice_height,

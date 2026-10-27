@@ -364,8 +364,7 @@ def process_worker_save_parallel(
     start = time.perf_counter()
     mmap = memmap(temporary_path)
     slice_volume_from_grids(
-        volume_data, bounding_box, grid_at, config.slice_width, config.slice_height,
-        output=mmap, slice_indices=slice_indices,
+        volume_data, grid_at, output=mmap, slice_indices=slice_indices,
     )
     durations["slice_volume"] = [time.perf_counter() - start - grid_seconds]
     durations["generate_grid"][0] += grid_seconds

@@ -50,13 +50,6 @@ def test_straightened_tiff_metadata_includes_annotation_points_in_xyz_order():
     assert metadata["unit"] == "um"
     assert metadata["annotation_points"] == ANNOTATION_POINTS_XYZ.tolist()
 
-    first_x, first_y, first_z = metadata["annotation_points"][0]
-    assert first_x == 4.5
-    assert first_y == 8.25
-    assert first_z == 0.0
-
-    assert all(len(row) == 3 for row in metadata["annotation_points"])
-
 
 def test_straightened_tiff_metadata_preserves_existing_tiff_kwargs_shape():
     kwargs = straightened_metadata_kwargs()

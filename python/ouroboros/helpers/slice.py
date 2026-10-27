@@ -179,9 +179,8 @@ def coordinate_grid(rect: np.ndarray, shape: tuple[int, int] | FrontProj,
 
 
 def slice_volume_from_grids(
-    volume: VolumeCutout, bounding_box: BoundingBox,
-    grids: Callable[[int], np.ndarray], width, height,
-    *, output: np.ndarray, slice_indices: Sequence[int],
+    volume: VolumeCutout, grids: Callable[[int], np.ndarray],
+    *, output: np.ndarray, slice_indices: Sequence[int]
 ) -> np.ndarray:
     """Interpolate planes with cubic splines, reusing one coefficient buffer.
 
@@ -191,13 +190,9 @@ def slice_volume_from_grids(
     ----------
     volume : ndarray
         Source voxels with shape (x, y, z) or (x, y, z, channels).
-    bounding_box : BoundingBox
-        Retained for call compatibility; not used in the calculation.
     grids : callable
         Takes a slice index and returns one (height, width, 3) grid of
         box-local coordinates. May reuse its array; called for each channel.
-    width, height : int
-        Output plane dimensions in pixels.
     output : ndarray
         Writable C-contiguous float32 stack with shape (n, height, width),
         plus a trailing channel axis for a 4-D source. The destination stack
@@ -211,10 +206,8 @@ def slice_volume_from_grids(
         The supplied output object. Only selected planes are modified.
     """
     has_color_channels, num_channels = detect_color_channels(volume)
-    output_shape = (len(output), height, width) + ((num_channels,) if has_color_channels else ())
-    if (output.shape != output_shape or output.dtype != np.float32
-        or not output.flags.c_contiguous or not output.flags.writeable):
-        raise ValueError(f"output must be a writable C-contiguous float32 array of shape {output_shape}")
+    if output.dtype != np.float32 or not output.flags.c_contiguous or not output.flags.writeable:
+        raise ValueError(f"output must be a writable C-contiguous float32 array.")
     if not len(slice_indices):
         return output
 

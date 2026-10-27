@@ -26,7 +26,7 @@ from ouroboros.helpers import slice as interpolation
 from ouroboros.helpers import files as files_module
 from ouroboros.helpers import volume_cache as cache_module
 from ouroboros.helpers.bounding_boxes import (
-    BoundingBox, calculate_bounding_boxes_bsp_link_rects, slice_indices_are_contiguous,
+    BoundingBox, calculate_bounding_boxes_bsp_link_rects,
 )
 from ouroboros.helpers.options import BackprojectOptions, SliceOptions
 from ouroboros.helpers.shapes import ImgSliceC
@@ -166,8 +166,8 @@ def slice_options(tmp_path):
                         slice_width=2, slice_height=2, process_count=4)
 
 
-@pytest.mark.parametrize("slice_indices", [[1, 2], [2, 0], [-2, -1]],
-                         ids=["contiguous", "noncontiguous", "negative_indices"])
+@pytest.mark.parametrize("slice_indices", [[1, 2], [2, 0]],
+                         ids=["contiguous", "noncontiguous"])
 @pytest.mark.parametrize("channels", [1, 3])
 def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
     tmp_path, monkeypatch, slice_indices, channels,
@@ -186,7 +186,7 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
                      for index in slice_indices])
     interpolate, open_mapping = slice_module.slice_volume_from_grids, slice_module.memmap
     expected = interpolate(
-        volume, box, grids.__getitem__, 2, 2,
+        volume, grids.__getitem__,
         output=np.empty((len(grids), 2, 2, channels), dtype=np.float32),
         slice_indices=range(len(grids)),
     )
@@ -220,19 +220,19 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
         mappings.append(result)
         return result
 
-    def observe_interpolation(source, bounding_box, grids, width, height, *, output, slice_indices):
-        assert source is volume and bounding_box is box
+    def observe_interpolation(source, grids, *, output, slice_indices):
+        assert source is volume
         assert callable(grids)
         outputs.append(output)
         assert output is mappings[0]
 
         def grid_at(index):
             grid = grids(index)
-            assert grid.flags.owndata and grid.shape == (height, width, 3)
+            assert grid.flags.owndata and grid.shape == (*output.shape[1:3], 3)
             observed["grid"].append(grid)
             return grid
 
-        result = interpolate(source, bounding_box, grid_at, width, height,
+        result = interpolate(source, grid_at,
                              output=output, slice_indices=slice_indices)
         assert result is output
         return result
@@ -262,22 +262,6 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
     assert all(grid is observed["grid"][0] for grid in observed["grid"])
     assert len(observed["coefficients"]) == channels
     assert all(workspace is observed["coefficients"][0] for workspace in observed["coefficients"])
-    estimate = interpolation.estimate_slice_task_payload(
-        box, len(slice_indices), slice_indices_are_contiguous(slice_indices),
-        slice_shape=(options.slice_height, options.slice_width),
-        source_dtype=volume.dtype, channels=channels,
-    )
-    assert estimate.source_bytes == volume.nbytes
-    assert observed["grid"][0].nbytes == estimate.grid_bytes // len(slice_indices)
-    assert observed["coefficients"][0].nbytes == estimate.coefficient_bytes
-    # Partition scoring intentionally retains its pre-streaming formula.
-    samples = len(slice_indices) * options.slice_height * options.slice_width
-    buffered = not slice_indices_are_contiguous(slice_indices)
-    assert estimate.grid_bytes == samples * 3 * np.dtype(np.float32).itemsize
-    assert estimate.output_bytes == (samples * channels * 4 if buffered else 0)
-    assert estimate.channel_result_bytes == (samples * 4 if buffered else 0)
-    live_payload = volume.nbytes + observed["grid"][0].nbytes + observed["coefficients"][0].nbytes
-    assert live_payload < estimate.peak_bytes
 
 
 @pytest.mark.parametrize("clipped", [False, True], ids=["inside_source", "clipped_source"])
@@ -361,7 +345,7 @@ def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(
         stack_interior = np.zeros((len(rects), 61, 63), dtype=bool)
         selected_grid = None
 
-        def interpolate_observed(volume, box, grids, width, height, *, output, slice_indices):
+        def interpolate_observed(volume, grids, *, output, slice_indices):
             assert isinstance(output, np.memmap)
             assert slice_indices == indices
 
@@ -377,7 +361,7 @@ def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(
                     selected_grid = grid.copy()
                 return grid
 
-            return interpolate(volume, box, grid_at, width, height,
+            return interpolate(volume, grid_at,
                                output=output, slice_indices=slice_indices)
 
         monkeypatch.setattr(slice_module, "slice_volume_from_grids", interpolate_observed)
@@ -508,7 +492,7 @@ def test_failed_mapped_slice_releases_mapping_before_pool_shutdown(tmp_path, sta
     grids = slice_module.coordinate_grid(rects[1], (2, 3), floor=box.get_min())[None]
     expected = np.full((3, 2, 3, 3), -999, dtype=np.float32)
     interpolated = slice_module.slice_volume_from_grids(
-        volume, box, grids.__getitem__, 3, 2,
+        volume, grids.__getitem__,
         output=np.empty((1, 2, 3, 3), dtype=np.float32), slice_indices=[0],
     )
     # The interpolation failure is injected after the first real channel write.

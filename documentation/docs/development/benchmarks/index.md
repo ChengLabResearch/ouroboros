@@ -6,12 +6,12 @@ below run from the repository's `python/` directory.
 
 ## Bounding-box partitioning
 
-The [partitioning measurements](results/bounding-box-partitioning.json) record
-geometry-derived payloads, cached-specimen runtime and memory, sampling
-comparisons, and task traces explaining the observed scheduling tail. Their
-measurement scopes and limitations are retained in the report. The
-[bounding-box reference](../../reference/bounding-box-partitioning.md) describes
-the implementation and reproduction using external annotation inputs.
+The [bounding-box reference](../../reference/bounding-box-partitioning.md)
+describes the implementation and geometry comparison using external annotation
+inputs. The earlier reduced-workload runtime report has been withdrawn; it did
+not establish performance on the complete recorded paths. Full-path runtime
+comparisons use the original source datasets and retain raw evidence outside the
+repository.
 
 ## Docker cost and coverage after the identity fix (#163)
 

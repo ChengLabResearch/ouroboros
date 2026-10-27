@@ -17,11 +17,15 @@ import pytest
 import tifffile
 from cloudvolume import Bbox
 from scipy.ndimage import map_coordinates
+import scipy.ndimage._interpolation as scipy_interpolation
 
 from ouroboros.common.pipelines import geometry_pipeline
+from ouroboros.helpers import slice as interpolation
 from ouroboros.helpers import files as files_module
 from ouroboros.helpers import volume_cache as cache_module
-from ouroboros.helpers.bounding_boxes import BoundingBox, calculate_bounding_boxes_bsp_link_rects
+from ouroboros.helpers.bounding_boxes import (
+    BoundingBox, calculate_bounding_boxes_bsp_link_rects, slice_indices_are_contiguous,
+)
 from ouroboros.helpers.options import BackprojectOptions, SliceOptions
 from ouroboros.helpers.shapes import ImgSliceC
 from ouroboros.pipeline import backproject_pipeline as backproject_module
@@ -162,36 +166,70 @@ def slice_options(tmp_path):
 
 @pytest.mark.parametrize("slice_indices", [[1, 2], [2, 0], [-2, -1]],
                          ids=["mapped", "buffered", "negative_indices"])
-def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(tmp_path, monkeypatch, slice_indices):
+@pytest.mark.parametrize("channels", [1, 3])
+def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(
+    tmp_path, monkeypatch, slice_indices, channels,
+):
     rects = np.repeat(make_rects(), 3, axis=0)
     rects[:, :, 2] = np.array([0.5, 1.0, 1.5])[:, None]
     box = BoundingBox(BoundingBox.bounds_to_rect(0, 3, 0, 3, 0, 3))
     options = slice_options(tmp_path)
     path = tmp_path / "slices.tif"
-    tifffile.imwrite(path, np.full((3, 2, 2), -999, dtype=np.float32), photometric="minisblack")
-    volume = np.arange(27).reshape(3, 3, 3)
+    file_shape = (3, 2, 2, channels)
+    tifffile.imwrite(path, np.full(file_shape, -999, dtype=np.float32),
+                     photometric="rgb" if channels == 3 else "minisblack")
+    volume = np.arange(np.prod(box.get_shape()) * channels, dtype=np.uint16).reshape(
+        *box.get_shape(), channels)
     grids = np.stack([slice_module.coordinate_grid(rects[index], (2, 2), floor=box.get_min())
                      for index in slice_indices])
     interpolate, open_mapping = slice_module.slice_volume_from_grids, slice_module.memmap
     expected = interpolate(volume, box, grids, 2, 2)
     mappings, outputs = [], []
+    observed = {"grid": [], "coefficients": [], "results": [], "buffer": []}
+    real_filter = scipy_interpolation.spline_filter
+    real_map = interpolation.map_coordinates
+
+    def observe_filter(*args, **kwargs):
+        coefficients = real_filter(*args, **kwargs)
+        assert coefficients.dtype == np.float64
+        observed["coefficients"].append(coefficients.nbytes)
+        return coefficients
+
+    def observe_map(*args, **kwargs):
+        result = real_map(*args, **kwargs)
+        if isinstance(kwargs.get("output"), np.ndarray):
+            assert result is kwargs["output"]
+        else:
+            observed["results"].append(result.nbytes)
+        return result
 
     def observe_mapping(*args, **kwargs):
         result = open_mapping(*args, **kwargs)
         mappings.append(result)
         return result
 
-    def observe_interpolation(volume, bounding_box, grids, width, height, *, output=None):
+    def observe_interpolation(source, bounding_box, grids, width, height, *, output=None):
+        assert source is volume and bounding_box is box
+        assert grids.flags.owndata
+        observed["grid"].append(grids.nbytes)
         outputs.append(output)
         if slice_indices == [1, 2]:
             assert output.base is mappings[0]
             assert output.ctypes.data == mappings[0][1:3].ctypes.data
         else:
             assert output is None
-        return interpolate(volume, bounding_box, grids, width, height, output=output)
+        result = interpolate(source, bounding_box, grids, width, height, output=output)
+        if output is None:
+            assert result.flags.owndata
+            observed["buffer"].append(result.nbytes)
+        else:
+            assert result is output
+        return result
 
     monkeypatch.setattr(slice_module, "memmap", observe_mapping)
     monkeypatch.setattr(slice_module, "slice_volume_from_grids", observe_interpolation)
+    monkeypatch.setattr(scipy_interpolation, "spline_filter", observe_filter)
+    monkeypatch.setattr(interpolation, "map_coordinates", observe_map)
     monkeypatch.setattr(slice_module, "time", clock(range(9)))
     try:
         index, durations, minimum, maximum = slice_module.process_worker_save_parallel(
@@ -201,21 +239,40 @@ def test_slice_worker_returns_nested_timing_samples_for_the_owning_step(tmp_path
         for mapping in mappings:
             mapping._mmap.close()
     assert len(mappings) == len(outputs) == 1
-    expected_file = np.full((3, 2, 2), -999, dtype=np.float32)
+    expected_file = np.full(file_shape, -999, dtype=np.float32)
     expected_file[slice_indices] = expected
-    np.testing.assert_array_equal(tifffile.imread(path), expected_file)
+    np.testing.assert_array_equal(tifffile.imread(path).reshape(file_shape), expected_file)
     assert (minimum, maximum) == (expected.min(), expected.max())
     assert index == 0
     assert durations == {
         "initial_load": [1], "generate_grid": [1], "slice_volume": [1],
         "memmap_write": [1], "total_process": [8],
     }
+    estimate = interpolation.estimate_slice_task_payload(
+        box, len(slice_indices), slice_indices_are_contiguous(slice_indices),
+        slice_shape=(options.slice_height, options.slice_width),
+        source_dtype=volume.dtype, channels=channels,
+    )
+    assert estimate.source_bytes == volume.nbytes
+    assert observed["grid"] == [estimate.grid_bytes]
+    assert observed["coefficients"] == [estimate.coefficient_bytes] * channels
+    assert observed["buffer"] == ([] if estimate.output_bytes == 0 else [estimate.output_bytes])
+    assert observed["results"] == ([] if estimate.channel_result_bytes == 0
+                                   else [estimate.channel_result_bytes] * channels)
+    # One coefficient/channel-result array is live at a time across channels.
+    assert estimate.peak_bytes == (volume.nbytes + max(observed["grid"])
+                                   + max(observed["coefficients"])
+                                   + max(observed["buffer"], default=0)
+                                   + max(observed["results"], default=0))
 
 
 @pytest.mark.parametrize("clipped", [False, True], ids=["inside_source", "clipped_source"])
-def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(tmp_path, monkeypatch, clipped):
-    # A positive coordinate-encoding field makes the old fractional-origin shift
-    # visible. Clipping changes the real source bounds, not the requested box.
+@pytest.mark.parametrize("comparison", ["count_extents", "payload_partition"])
+def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(
+    tmp_path, monkeypatch, clipped, comparison,
+):
+    # A generated coordinate-encoding field exposes shifted samples. Exercise
+    # both the original tight/whole-path bounds and changed payload assignments.
     world_origin = np.full(3, 960)
     x, y, z = np.ogrid[:192, :192, :192]
     world = (128 + 0.5 * x + 0.25 * y + 0.125 * z).astype(np.float32)
@@ -230,8 +287,6 @@ def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(tmp_pat
 
     cv = SimpleNamespace(cv=SimpleNamespace(bounds=source_bounds, num_channels=1, download=download),
                          dtype=world.dtype)
-    # Generate an annotated path, then use production geometry and partitioning
-    # to obtain both boxes. No hand-built rectangles or fractional box bounds.
     points = generate_sample_curve_helix(start_z=0, end_z=12, radius=3, num_points=30) + 1040
     annotations = tmp_path / "path.json"
     annotations.write_text(json.dumps({"layers": [
@@ -247,63 +302,103 @@ def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(tmp_pat
     _, error = pipeline.process(data)
     assert error is None
     rects = data.slice_rects
+    original = rects.copy()
     selected = len(rects) // 2
     rect = rects[selected]
-    boxes = []
-    for target in (1, len(rects)):
-        partitions, links = calculate_bounding_boxes_bsp_link_rects(rects, target_slices_per_box=target)
-        boxes.append(partitions[links[selected]])
-    assert np.any(boxes[0].get_min() % 1 != boxes[1].get_min() % 1)
-    # Evaluate the exact plane independently in float64: the common reference
-    # must not inherit production coordinate-grid arithmetic or its rounding.
-    horizontal = np.linspace(0, 1, 63)[None, :, None]
-    vertical = np.linspace(0, 1, 61)[:, None, None]
-    world_grid = (rect[0] + (rect[1] - rect[0])*horizontal +
-                  (rect[3] - rect[0])*vertical - world_origin)
+
+    def payload(box, count, contiguous):
+        return interpolation.estimate_slice_task_payload(
+            box, count, contiguous, slice_shape=(61, 63),
+            source_dtype=world.dtype, channels=1,
+        ).peak_bytes
+
+    choices = ((1, None), (len(rects), None)) if comparison == "count_extents" else ((4, None), (4, payload))
+    partitions = [calculate_bounding_boxes_bsp_link_rects(
+        rects, target_slices_per_box=target, task_payload=model,
+    ) for target, model in choices]
+    groups = [sorted(tuple(np.flatnonzero(np.asarray(links) == i)) for i in range(len(boxes)))
+              for boxes, links in partitions]
+    assert groups[0] != groups[1], "Compare actual memberships, not just renumbered boxes"
+    np.testing.assert_array_equal(rects, original)
+    boxes = [partition[links[selected]] for partition, links in partitions]
+    if comparison == "count_extents":
+        assert np.any(boxes[0].get_min() % 1 != boxes[1].get_min() % 1)
+
+    # Independent float64 coordinates for every original output plane.
+    horizontal = np.linspace(0, 1, 63)[None, None, :, None]
+    vertical = np.linspace(0, 1, 61)[None, :, None, None]
+    world_grids = (rects[:, 0, None, None] + (rects[:, 1] - rects[:, 0])[:, None, None] * horizontal
+                   + (rects[:, 3] - rects[:, 0])[:, None, None] * vertical - world_origin)
+    world_grid = world_grids[selected]
     reference = map_coordinates(world, world_grid.reshape(-1, 3).T,
                                 order=3, mode="constant", output=np.float32).reshape(61, 63)
+    if not clipped:
+        stack_reference = map_coordinates(
+            world, world_grids.reshape(-1, 3).T, output=np.float32,
+        ).reshape(len(rects), 61, 63)
     interpolate = slice_module.slice_volume_from_grids
-    observed_grids = []
+    results, coordinate_references, observed_grids = [], [], []
 
-    def interpolate_observed(volume, box, grids, width, height, *, output=None):
-        assert isinstance(output, np.memmap)
-        assert np.all(grids >= 0)
-        assert np.all(grids <= np.array(volume.shape[:3]) - 1)
-        observed_grids.append(grids.copy())
-        return interpolate(volume, box, grids, width, height, output=output)
+    for index, (partition, links) in enumerate(partitions):
+        path = tmp_path / f"partition-{index}.tif"
+        tifffile.imwrite(path, np.full((len(rects), 61, 63, 1), -999, dtype=np.float32),
+                         photometric="minisblack")
+        actual_world_grids = np.full(world_grids.shape, np.nan)
+        stack_interior = np.zeros((len(rects), 61, 63), dtype=bool)
+        selected_grid = None
 
-    monkeypatch.setattr(slice_module, "slice_volume_from_grids", interpolate_observed)
-    results, coordinate_references = [], []
-    for index, box in enumerate(boxes):
-        volume, returned_box, _ = cache_module.download_volume(cv, box, mip=0)
-        assert returned_box is box
-        assert volume.shape[:3] == box.get_shape()
-        if clipped:
-            missing = source_origin[0] - box.get_integer_origin()[0]
-            assert missing > 0 and np.all(volume[:missing] == 0)
-            assert np.all(volume[missing:] > 0)
-        path = tmp_path / f"box-{index}.tif"
-        tifffile.imwrite(path, np.full((1, 61, 63, 1), -999, dtype=np.float32), photometric="minisblack")
-        slice_module.process_worker_save_parallel(options, volume, box, [0], index, rect[None], str(path))
-        sampled = tifffile.imread(path).reshape(61, 63)
+        def interpolate_observed(volume, box, grids, width, height, *, output=None):
+            nonlocal selected_grid
+            assert isinstance(output, np.memmap) if slice_indices_are_contiguous(indices) else output is None
+            assert np.all(grids >= 0)
+            assert np.all(grids <= np.array(volume.shape[:3]) - 1)
+            actual_world_grids[indices] = grids + box.get_integer_origin() - world_origin
+            distance = np.minimum(grids, np.array(box.get_shape()) - 1 - grids).min(axis=-1)
+            stack_interior[indices] = distance > 8
+            if selected in indices:
+                selected_grid = grids[indices.index(selected)].copy()
+            return interpolate(volume, box, grids, width, height, output=output)
+
+        monkeypatch.setattr(slice_module, "slice_volume_from_grids", interpolate_observed)
+        for box_index, box in enumerate(partition):
+            indices = np.flatnonzero(np.asarray(links) == box_index).tolist()
+            volume, returned_box, _ = cache_module.download_volume(cv, box, mip=0)
+            assert returned_box is box
+            assert volume.shape[:3] == box.get_shape()
+            if clipped:
+                missing = max(0, source_origin[0] - box.get_integer_origin()[0])
+                assert np.all(volume[:missing] == 0)
+                assert np.all(volume[missing:] > 0)
+            slice_module.process_worker_save_parallel(options, volume, box, indices, box_index, rects, str(path))
+        stack = tifffile.imread(path).reshape(len(rects), 61, 63)
         if not clipped:
-            assert np.all(sampled > 0), "Contained corners must not become constant-fill zero edges"
+            assert np.all(stack > 0), "Every assigned slice must be written without constant-fill zero edges"
+        assert np.all(np.isfinite(actual_world_grids))
+        # Bound the existing float32 grid arithmetic separately from filtering.
+        np.testing.assert_allclose(actual_world_grids, world_grids, rtol=0,
+                                   atol=3*np.spacing(np.float32(rects.max())))
+        if not clipped:
+            # Retain the removed partition test's stack-wide numerical and
+            # TIFF assignment checks using this existing smooth-field fixture.
+            at_actual_coordinates = map_coordinates(
+                world, actual_world_grids.reshape(-1, 3).T, output=np.float32,
+            ).reshape(len(rects), 61, 63)
+            assert stack_interior.sum() > 100
+            np.testing.assert_array_max_ulp(
+                stack[stack_interior], at_actual_coordinates[stack_interior], maxulp=1,
+            )
+            np.testing.assert_array_max_ulp(
+                stack[stack_interior], stack_reference[stack_interior], maxulp=32,
+            )
+        sampled = stack[selected]
         results.append(sampled)
-        actual_world_grid = observed_grids[-1][0] + box.get_integer_origin() - world_origin
-        # The existing float32 grid arithmetic can round differently when an
-        # integer origin crosses a power-of-two boundary. In this fixture the two
-        # rounded endpoint arrays contribute at most one world-coordinate ULP,
-        # their absolute-coordinate sum one, and the rounded rect[0]+origin one.
-        # Also compare interpolation at those exact production coordinates.
-        np.testing.assert_allclose(actual_world_grid, world_grid, rtol=0,
-                                   atol=3*np.spacing(np.float32(rect.max())))
+        observed_grids.append(selected_grid)
         coordinate_references.append(map_coordinates(
-            world, actual_world_grid.reshape(-1, 3).T, order=3, mode="constant", output=np.float32,
+            world, actual_world_grids[selected].reshape(-1, 3).T,
+            order=3, mode="constant", output=np.float32,
         ).reshape(61, 63))
         if not clipped:
-            # Backproject the sampled output through each production-derived box.
-            # Trilinear splatting preserves the sample count and world-position
-            # centroid; a fractional-origin shift fails this independent check.
+            box = boxes[index]
             lookup, totals, weights = backproject_module.backproject_box(box, rect[None], sampled[None])
             positions = np.array(np.unravel_index(lookup, box.get_shape()[::-1])).T[:, ::-1]
             positions += box.get_integer_origin()
@@ -313,20 +408,13 @@ def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(tmp_pat
                                        (world_grid + world_origin).mean(axis=(0, 1)), rtol=0,
                                        atol=3*np.spacing(np.float32(rect.max())))
 
-    # Cubic prefilter boundaries decay rather than having finite support. For
-    # this linear float32 fixture, >8 voxels from both cutouts' last voxel
-    # centers limits filtering residual to one ULP at identical coordinates.
-    # Bound existing grid quantization separately from the filtering residual.
-    # No extra padding or interpolation setting change is used.
+    # Preserve the established middle-plane bounds for this smooth field.
+    # >8 voxels is a fixture-specific residual check, not a universal cutoff.
     interior = np.ones((61, 63), dtype=bool)
-    for box, grids in zip(boxes, observed_grids):
-        distance = np.minimum(grids[0], np.array(box.get_shape()) - 1 - grids[0]).min(axis=-1)
+    for box, grid in zip(boxes, observed_grids):
+        distance = np.minimum(grid, np.array(box.get_shape()) - 1 - grid).min(axis=-1)
         interior &= distance > 8
     assert interior.sum() > 100
-    # At the clipped source edge, the field jumps to zero. There, grid
-    # round-off is amplified by the cubic interpolant's gradient, and intensity
-    # ULPs near zero are not a useful bound. Allow twice the source value range
-    # per voxel for that transition, separately from the filtering residual.
     coordinate_tolerance = 3 * np.spacing(np.float32(rect.max()))
     edge_tolerance = coordinate_tolerance * 2 * world.max()
     for sampled, coordinate_reference in zip(results, coordinate_references):

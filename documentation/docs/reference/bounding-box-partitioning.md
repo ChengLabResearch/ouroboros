@@ -91,6 +91,16 @@ longer, especially for long paths. The tree's geometry and task costs are
 reused across the threshold search. Reducing the estimated largest task does
 not guarantee faster slicing or a proportional decrease in process-tree RAM.
 
+Planning runs in `VolumeCachePipelineStep`. The later
+`SliceParallelPipelineStep` downloads and interpolates the selected boxes,
+then normalizes and writes the output. Changing the partition can therefore
+change that later stage's elapsed time without moving planning into it.
+The payload model does not optimize task execution order or completion time.
+With a fixed worker count, a large task dispatched late can extend the final
+period when other workers are idle, even if accumulated worker time decreases.
+Worker durations overlap and must not be added to, or equated with, the
+coordinator's elapsed time.
+
 ## Options, compatibility, and limits
 
 `target_slices_per_box` controls the count-based reference and therefore the
@@ -135,14 +145,26 @@ different costs and should be reported separately when evaluating a partition.
 
 ## Reproducing geometry comparisons
 
-The repository includes reduced, recorded specimen annotation states in
-`python/test/fixtures/partitioning`. They regenerate full paths through the
-normal geometry pipeline without downloading specimen voxels. From `python/`
-in the project environment, run:
+Keep real specimen annotation states outside the repository. Automated tests
+extend the existing generated-geometry and simulated-volume fixtures; real
+specimen comparisons are separate benchmark observations. To regenerate
+recorded paths through the normal geometry pipeline without downloading
+specimen voxels, supply an external input directory. From `python/` in the
+project environment, run:
 
 ```sh
-python benchmarks/benchmark_partitioning.py --repeats 2 --output /tmp/partitioning.json
+python benchmarks/benchmark_partitioning.py --fixtures /path/to/local-inputs --repeats 2 --output /tmp/partitioning.json
 ```
+
+The directory contains local annotation states and `manifest.json`. Its
+`specimens` object maps each chosen name to `annotations_file` (a path relative
+to the directory), `slice_options` (the existing `SliceOptions` geometry and
+bounding-box settings), `source_dtype`, `channels`, and `source_scale` (the
+source metadata's `size`, `voxel_offset`, and `chunk_sizes`). Each entry also
+has `provenance.reduced_state_sha256` for the annotation file and
+`provenance.saved_rectangles_sha256` for the original rectangle array's bytes.
+These hashes detect changed inputs and report exact geometry reproduction.
+Annotation and output mip levels must match for offline regeneration.
 
 The report includes allocation components, slice-count distributions, index
 runs, repeated chunk coverage, deterministic repeated output, and planning

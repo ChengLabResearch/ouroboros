@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "description": "Recorded validation of bounded source-volume partitioning; geometry predictions and native process measurements are separate.",
+  "description": "Recorded validation of bounded source-volume partitioning; geometry predictions and native process measurements are separate. Real annotation inputs are external and are not included as test fixtures.",
   "geometry": {
     "schema_version": 1,
     "scope": "Geometry-only evidence from real recorded annotations. No voxel downloads, interpolation, slicing throughput, or measured worker/process-tree RAM. Payload excludes mappings, CloudVolume internals, Python overhead, and concurrency.",
@@ -2019,5 +2019,884 @@
     "elapsed_seconds": 89.70633375103353,
     "method": "One-off recorded diagnostic using the production geometry pipeline, both partition policies, download_volume, coordinate_grid and slice_volume_from_grids. Select the first, middle and last changed slice adjacent to either partition boundary. Prefilter one common ROI with scipy.ndimage.spline_filter(order=3, mode=constant), sample it at each production world grid with map_coordinates(prefilter=False, output=float32), and compare separately against an independent float64 world grid. Bin residuals by distance to the nearest assigned integer box face. Original diagnostic script hash retained for provenance; this diagnostic requires the local cached specimen crop and is not the downloadable geometry benchmark.",
     "interpretation": "The three sampled planes use identical production world coordinates under both policies. Changed crop boundaries produce localized intensity differences before normalization. Residuals remain in the 8\u201316 voxel band; exact equality beyond 16 voxels in these samples is an observation, not a universal distance guarantee or acceptance tolerance. Normalized full-stack output equivalence was not asserted."
+  },
+  "parallel_stage_investigation": {
+    "scope": "Same cached crop and settings as cached_specimen_runtime. No annotation state or voxel data is included. Follow-up traces are separate observations, not replacements for the original timing table.",
+    "method": "Existing benchmark_run_statistics.run_once and child_run harness, with temporary wrappers recording start/end around production download_volume and process_worker_save_parallel; returned production worker durations retained. Both policies use current worker code; only the partition callback switches to the private count reference. Four observations in reference/candidate/candidate/reference order, without a dedicated warmup. Trace JSON is written once per completed task. No production instrumentation or scheduling change.",
+    "task_time_origin": "First download start in each run; excludes pool setup and final rewrite. Events overlap and must not be summed as pipeline elapsed time.",
+    "resources": {
+      "download_processes": 1,
+      "slice_processes": 3,
+      "process_count": 4
+    },
+    "original_custom_timings": [
+      {
+        "label": "reference-0",
+        "step_elapsed_seconds": 46.57270742603578,
+        "accumulated_worker_elapsed_seconds": {
+          "Download Time": 15.9574271250749,
+          "initial_load": 0.0012494799448177218,
+          "generate_grid": 1.8188637970597483,
+          "slice_volume": 96.81928689091,
+          "memmap_write": 0.43122324493015185,
+          "total_process": 99.0707166219945
+        },
+        "coordinator_rewrite_seconds": 0.13145488494774327
+      },
+      {
+        "label": "candidate-0",
+        "step_elapsed_seconds": 49.009425168973394,
+        "accumulated_worker_elapsed_seconds": {
+          "Download Time": 17.10329666105099,
+          "initial_load": 0.0010531749576330185,
+          "generate_grid": 1.498677226016298,
+          "slice_volume": 83.31118553003762,
+          "memmap_write": 0.47886370006017387,
+          "total_process": 85.28986953600543
+        },
+        "coordinator_rewrite_seconds": 0.10322504298528656
+      },
+      {
+        "label": "candidate-1",
+        "step_elapsed_seconds": 47.59278374002315,
+        "accumulated_worker_elapsed_seconds": {
+          "Download Time": 14.875238371954765,
+          "initial_load": 0.0008360599749721587,
+          "generate_grid": 1.4539437550120056,
+          "slice_volume": 82.15590921998955,
+          "memmap_write": 0.49631709995446727,
+          "total_process": 84.10711844294565
+        },
+        "coordinator_rewrite_seconds": 0.09848035202594474
+      },
+      {
+        "label": "reference-1",
+        "step_elapsed_seconds": 40.75339389703004,
+        "accumulated_worker_elapsed_seconds": {
+          "Download Time": 13.81097613502061,
+          "initial_load": 0.0008798629860393703,
+          "generate_grid": 1.5162598650204018,
+          "slice_volume": 84.60791639302624,
+          "memmap_write": 0.44259780301945284,
+          "total_process": 86.56780993600842
+        },
+        "coordinator_rewrite_seconds": 0.11294077901402488
+      }
+    ],
+    "traced_runs": [
+      {
+        "label": "reference-0",
+        "pipeline_elapsed_seconds": 44.76379297499079,
+        "step_elapsed_seconds": {
+          "ParseJSONPipelineStep": 0.0003038219874724746,
+          "SlicesGeometryPipelineStep": 0.03992100100731477,
+          "VolumeCachePipelineStep": 0.010971096984576434,
+          "SliceParallelPipelineStep": 44.712324135995004
+        },
+        "last_single_worker_tail_seconds": 6.289615896996111,
+        "events": [
+          {
+            "kind": "download",
+            "index": 0,
+            "shape": [
+              570,
+              551,
+              537
+            ],
+            "voxels": 168655590,
+            "start_seconds": 0.0,
+            "end_seconds": 6.245901807968039
+          },
+          {
+            "kind": "slice",
+            "index": 0,
+            "count": 99,
+            "first": 293,
+            "last": 391,
+            "durations": {
+              "initial_load": [
+                0.0002486180164851248
+              ],
+              "generate_grid": [
+                0.4041152930003591
+              ],
+              "slice_volume": [
+                24.160247308027465
+              ],
+              "memmap_write": [
+                0.1294553040061146
+              ],
+              "total_process": [
+                24.694085224997252
+              ]
+            },
+            "start_seconds": 6.250943674007431,
+            "end_seconds": 30.96103793795919
+          },
+          {
+            "kind": "download",
+            "index": 1,
+            "shape": [
+              631,
+              651,
+              238
+            ],
+            "voxels": 97765878,
+            "start_seconds": 6.315526066988241,
+            "end_seconds": 8.147555371979252
+          },
+          {
+            "kind": "slice",
+            "index": 1,
+            "count": 64,
+            "first": 0,
+            "last": 292,
+            "durations": {
+              "initial_load": [
+                0.0003962279879488051
+              ],
+              "generate_grid": [
+                0.2884613780188374
+              ],
+              "slice_volume": [
+                9.951030168973375
+              ],
+              "memmap_write": [
+                0.14091287704650313
+              ],
+              "total_process": [
+                10.380820652993862
+              ]
+            },
+            "start_seconds": 8.151497356011532,
+            "end_seconds": 18.538989568012767
+          },
+          {
+            "kind": "download",
+            "index": 2,
+            "shape": [
+              564,
+              541,
+              509
+            ],
+            "voxels": 155308116,
+            "start_seconds": 8.201423452002928,
+            "end_seconds": 11.438178395968862
+          },
+          {
+            "kind": "slice",
+            "index": 2,
+            "count": 92,
+            "first": 187,
+            "last": 278,
+            "durations": {
+              "initial_load": [
+                0.00026461901143193245
+              ],
+              "generate_grid": [
+                0.38795744499657303
+              ],
+              "slice_volume": [
+                26.18872731103329
+              ],
+              "memmap_write": [
+                0.010169623012188822
+              ],
+              "total_process": [
+                26.587153400003444
+              ]
+            },
+            "start_seconds": 11.441020899976138,
+            "end_seconds": 38.040460573975
+          },
+          {
+            "kind": "download",
+            "index": 3,
+            "shape": [
+              545,
+              556,
+              528
+            ],
+            "voxels": 159994560,
+            "start_seconds": 11.49973693001084,
+            "end_seconds": 13.933386826014612
+          },
+          {
+            "kind": "slice",
+            "index": 3,
+            "count": 103,
+            "first": 50,
+            "last": 152,
+            "durations": {
+              "initial_load": [
+                0.00010100699728354812
+              ],
+              "generate_grid": [
+                0.40088713000295684
+              ],
+              "slice_volume": [
+                25.25866400299128
+              ],
+              "memmap_write": [
+                0.07782904501073062
+              ],
+              "total_process": [
+                25.73749258700991
+              ]
+            },
+            "start_seconds": 18.578909309988376,
+            "end_seconds": 44.33007647097111
+          },
+          {
+            "kind": "download",
+            "index": 4,
+            "shape": [
+              457,
+              394,
+              531
+            ],
+            "voxels": 95610798,
+            "start_seconds": 18.60025187500287,
+            "end_seconds": 20.771862005989533
+          },
+          {
+            "kind": "slice",
+            "index": 4,
+            "count": 34,
+            "first": 153,
+            "last": 186,
+            "durations": {
+              "initial_load": [
+                0.00011970801278948784
+              ],
+              "generate_grid": [
+                0.09893593500601128
+              ],
+              "slice_volume": [
+                6.642916301032528
+              ],
+              "memmap_write": [
+                0.1259120519971475
+              ],
+              "total_process": [
+                6.867895897012204
+              ]
+            },
+            "start_seconds": 31.045115215005353,
+            "end_seconds": 37.91768894495908
+          }
+        ]
+      },
+      {
+        "label": "candidate-0",
+        "pipeline_elapsed_seconds": 49.747975518985186,
+        "step_elapsed_seconds": {
+          "ParseJSONPipelineStep": 0.00020961498375982046,
+          "SlicesGeometryPipelineStep": 0.0427618469693698,
+          "VolumeCachePipelineStep": 0.28228791401488706,
+          "SliceParallelPipelineStep": 49.4223889199784
+        },
+        "last_single_worker_tail_seconds": 17.695119493000675,
+        "events": [
+          {
+            "kind": "download",
+            "index": 0,
+            "shape": [
+              563,
+              507,
+              537
+            ],
+            "voxels": 153281817,
+            "start_seconds": 0.0,
+            "end_seconds": 5.124217948003206
+          },
+          {
+            "kind": "slice",
+            "index": 0,
+            "count": 52,
+            "first": 340,
+            "last": 391,
+            "durations": {
+              "initial_load": [
+                0.00021281500812619925
+              ],
+              "generate_grid": [
+                0.2113762419903651
+              ],
+              "slice_volume": [
+                15.089655980991665
+              ],
+              "memmap_write": [
+                0.07954607799183577
+              ],
+              "total_process": [
+                15.380808117974084
+              ]
+            },
+            "start_seconds": 5.128717368002981,
+            "end_seconds": 20.51841672003502
+          },
+          {
+            "kind": "download",
+            "index": 1,
+            "shape": [
+              586,
+              556,
+              432
+            ],
+            "voxels": 140752512,
+            "start_seconds": 5.182493494998198,
+            "end_seconds": 8.400106466026045
+          },
+          {
+            "kind": "slice",
+            "index": 1,
+            "count": 117,
+            "first": 223,
+            "last": 339,
+            "durations": {
+              "initial_load": [
+                0.0004315310507081449
+              ],
+              "generate_grid": [
+                0.4721663990058005
+              ],
+              "slice_volume": [
+                21.731083796999883
+              ],
+              "memmap_write": [
+                0.1290562089998275
+              ],
+              "total_process": [
+                22.332752539019566
+              ]
+            },
+            "start_seconds": 8.403392000007443,
+            "end_seconds": 30.753576682007406
+          },
+          {
+            "kind": "download",
+            "index": 2,
+            "shape": [
+              552,
+              425,
+              512
+            ],
+            "voxels": 120115200,
+            "start_seconds": 8.470026142022107,
+            "end_seconds": 10.836645353003405
+          },
+          {
+            "kind": "slice",
+            "index": 2,
+            "count": 38,
+            "first": 185,
+            "last": 222,
+            "durations": {
+              "initial_load": [
+                0.00022361602168530226
+              ],
+              "generate_grid": [
+                0.16686127398861572
+              ],
+              "slice_volume": [
+                12.293217212019954
+              ],
+              "memmap_write": [
+                0.06205872999271378
+              ],
+              "total_process": [
+                12.52237713400973
+              ]
+            },
+            "start_seconds": 10.840446322981734,
+            "end_seconds": 23.368204540980514
+          },
+          {
+            "kind": "download",
+            "index": 3,
+            "shape": [
+              451,
+              482,
+              531
+            ],
+            "voxels": 115429842,
+            "start_seconds": 10.902630447992124,
+            "end_seconds": 12.920311728026718
+          },
+          {
+            "kind": "download",
+            "index": 4,
+            "shape": [
+              551,
+              557,
+              470
+            ],
+            "voxels": 144246290,
+            "start_seconds": 20.599957140977494,
+            "end_seconds": 23.35316356702242
+          },
+          {
+            "kind": "slice",
+            "index": 3,
+            "count": 61,
+            "first": 124,
+            "last": 184,
+            "durations": {
+              "initial_load": [
+                5.880399839952588e-05
+              ],
+              "generate_grid": [
+                0.24064417800400406
+              ],
+              "slice_volume": [
+                10.509302917984314
+              ],
+              "memmap_write": [
+                0.018489219015464187
+              ],
+              "total_process": [
+                10.768507319968194
+              ]
+            },
+            "start_seconds": 20.6094521189807,
+            "end_seconds": 31.38536286703311
+          },
+          {
+            "kind": "slice",
+            "index": 4,
+            "count": 124,
+            "first": 0,
+            "last": 123,
+            "durations": {
+              "initial_load": [
+                5.710398545488715e-05
+              ],
+              "generate_grid": [
+                0.4812182489549741
+              ],
+              "slice_volume": [
+                24.9946718190331
+              ],
+              "memmap_write": [
+                0.1675091260112822
+              ],
+              "total_process": [
+                25.64346819894854
+              ]
+            },
+            "start_seconds": 23.416965420998167,
+            "end_seconds": 49.080482360033784
+          }
+        ]
+      },
+      {
+        "label": "candidate-1",
+        "pipeline_elapsed_seconds": 47.743015123996884,
+        "step_elapsed_seconds": {
+          "ParseJSONPipelineStep": 0.00024281797232106328,
+          "SlicesGeometryPipelineStep": 0.029373308992944658,
+          "VolumeCachePipelineStep": 0.2702314999769442,
+          "SliceParallelPipelineStep": 47.44290737900883
+        },
+        "last_single_worker_tail_seconds": 16.564164124021772,
+        "events": [
+          {
+            "kind": "download",
+            "index": 0,
+            "shape": [
+              563,
+              507,
+              537
+            ],
+            "voxels": 153281817,
+            "start_seconds": 0.0,
+            "end_seconds": 4.916354294982739
+          },
+          {
+            "kind": "slice",
+            "index": 0,
+            "count": 52,
+            "first": 340,
+            "last": 391,
+            "durations": {
+              "initial_load": [
+                0.0003209229907952249
+              ],
+              "generate_grid": [
+                0.17884833295829594
+              ],
+              "slice_volume": [
+                14.982936820015311
+              ],
+              "memmap_write": [
+                0.07993302098475397
+              ],
+              "total_process": [
+                15.242057597031817
+              ]
+            },
+            "start_seconds": 4.921495661023073,
+            "end_seconds": 20.17019390099449
+          },
+          {
+            "kind": "download",
+            "index": 1,
+            "shape": [
+              586,
+              556,
+              432
+            ],
+            "voxels": 140752512,
+            "start_seconds": 4.973373354994692,
+            "end_seconds": 8.238479097024538
+          },
+          {
+            "kind": "slice",
+            "index": 1,
+            "count": 117,
+            "first": 223,
+            "last": 339,
+            "durations": {
+              "initial_load": [
+                0.000312521995510906
+              ],
+              "generate_grid": [
+                0.48708187602460384
+              ],
+              "slice_volume": [
+                20.82912845799001
+              ],
+              "memmap_write": [
+                0.1289359320071526
+              ],
+              "total_process": [
+                21.44547788903583
+              ]
+            },
+            "start_seconds": 8.247834063018672,
+            "end_seconds": 29.71170552499825
+          },
+          {
+            "kind": "download",
+            "index": 2,
+            "shape": [
+              552,
+              425,
+              512
+            ],
+            "voxels": 120115200,
+            "start_seconds": 8.313509038009215,
+            "end_seconds": 10.689699099981226
+          },
+          {
+            "kind": "slice",
+            "index": 2,
+            "count": 38,
+            "first": 185,
+            "last": 222,
+            "durations": {
+              "initial_load": [
+                0.0002477180096320808
+              ],
+              "generate_grid": [
+                0.16989029495744035
+              ],
+              "slice_volume": [
+                12.040424466016702
+              ],
+              "memmap_write": [
+                0.06757067400030792
+              ],
+              "total_process": [
+                12.27816955599701
+              ]
+            },
+            "start_seconds": 10.692246881022584,
+            "end_seconds": 22.982518328004517
+          },
+          {
+            "kind": "download",
+            "index": 3,
+            "shape": [
+              451,
+              482,
+              531
+            ],
+            "voxels": 115429842,
+            "start_seconds": 10.758551701030228,
+            "end_seconds": 12.994658578012604
+          },
+          {
+            "kind": "download",
+            "index": 4,
+            "shape": [
+              551,
+              557,
+              470
+            ],
+            "voxels": 144246290,
+            "start_seconds": 20.228268366015982,
+            "end_seconds": 23.076409638975747
+          },
+          {
+            "kind": "slice",
+            "index": 3,
+            "count": 61,
+            "first": 124,
+            "last": 184,
+            "durations": {
+              "initial_load": [
+                3.8601981941610575e-05
+              ],
+              "generate_grid": [
+                0.2367460589739494
+              ],
+              "slice_volume": [
+                10.067788715998176
+              ],
+              "memmap_write": [
+                0.024972365994472057
+              ],
+              "total_process": [
+                10.32957024400821
+              ]
+            },
+            "start_seconds": 20.23770619399147,
+            "end_seconds": 30.57498781499453
+          },
+          {
+            "kind": "slice",
+            "index": 4,
+            "count": 124,
+            "first": 0,
+            "last": 123,
+            "durations": {
+              "initial_load": [
+                0.00014080997789278626
+              ],
+              "generate_grid": [
+                0.5142821589834057
+              ],
+              "slice_volume": [
+                23.435243884974625
+              ],
+              "memmap_write": [
+                0.09666518197627738
+              ],
+              "total_process": [
+                24.046342536981683
+              ]
+            },
+            "start_seconds": 23.07978038798319,
+            "end_seconds": 47.1391519390163
+          }
+        ]
+      },
+      {
+        "label": "reference-1",
+        "pipeline_elapsed_seconds": 40.03817880502902,
+        "step_elapsed_seconds": {
+          "ParseJSONPipelineStep": 0.00021341501269489527,
+          "SlicesGeometryPipelineStep": 0.030359330005012453,
+          "VolumeCachePipelineStep": 0.017727244005072862,
+          "SliceParallelPipelineStep": 39.989608697011136
+        },
+        "last_single_worker_tail_seconds": 5.610334519005846,
+        "events": [
+          {
+            "kind": "download",
+            "index": 0,
+            "shape": [
+              570,
+              551,
+              537
+            ],
+            "voxels": 168655590,
+            "start_seconds": 0.0,
+            "end_seconds": 5.052208320994396
+          },
+          {
+            "kind": "slice",
+            "index": 0,
+            "count": 99,
+            "first": 293,
+            "last": 391,
+            "durations": {
+              "initial_load": [
+                0.0008342599612660706
+              ],
+              "generate_grid": [
+                0.37493571697268635
+              ],
+              "slice_volume": [
+                21.10465525102336
+              ],
+              "memmap_write": [
+                0.09583700000075623
+              ],
+              "total_process": [
+                21.576283128000796
+              ]
+            },
+            "start_seconds": 5.056750546034891,
+            "end_seconds": 26.643485016014893
+          },
+          {
+            "kind": "download",
+            "index": 1,
+            "shape": [
+              631,
+              651,
+              238
+            ],
+            "voxels": 97765878,
+            "start_seconds": 5.117419185000472,
+            "end_seconds": 6.778240871033631
+          },
+          {
+            "kind": "slice",
+            "index": 1,
+            "count": 64,
+            "first": 0,
+            "last": 292,
+            "durations": {
+              "initial_load": [
+                0.00022051500855013728
+              ],
+              "generate_grid": [
+                0.266983395034913
+              ],
+              "slice_volume": [
+                9.362092563998885
+              ],
+              "memmap_write": [
+                0.1411775869783014
+              ],
+              "total_process": [
+                9.770490563008934
+              ]
+            },
+            "start_seconds": 6.7812752880272456,
+            "end_seconds": 16.558733254030813
+          },
+          {
+            "kind": "download",
+            "index": 2,
+            "shape": [
+              564,
+              541,
+              509
+            ],
+            "voxels": 155308116,
+            "start_seconds": 6.835747984005138,
+            "end_seconds": 9.817265228019096
+          },
+          {
+            "kind": "slice",
+            "index": 2,
+            "count": 92,
+            "first": 187,
+            "last": 278,
+            "durations": {
+              "initial_load": [
+                0.0002543180016800761
+              ],
+              "generate_grid": [
+                0.3697080420097336
+              ],
+              "slice_volume": [
+                23.846526406996418
+              ],
+              "memmap_write": [
+                0.03255231201183051
+              ],
+              "total_process": [
+                24.24905568000395
+              ]
+            },
+            "start_seconds": 9.819766507018358,
+            "end_seconds": 34.0795332469861
+          },
+          {
+            "kind": "download",
+            "index": 3,
+            "shape": [
+              545,
+              556,
+              528
+            ],
+            "voxels": 159994560,
+            "start_seconds": 9.886146055010613,
+            "end_seconds": 12.16066380002303
+          },
+          {
+            "kind": "slice",
+            "index": 3,
+            "count": 103,
+            "first": 50,
+            "last": 152,
+            "durations": {
+              "initial_load": [
+                4.240300040692091e-05
+              ],
+              "generate_grid": [
+                0.3522768190014176
+              ],
+              "slice_volume": [
+                22.673558259033598
+              ],
+              "memmap_write": [
+                0.05818794702645391
+              ],
+              "total_process": [
+                23.08407892799005
+              ]
+            },
+            "start_seconds": 16.593378752993885,
+            "end_seconds": 39.68986776599195
+          },
+          {
+            "kind": "download",
+            "index": 4,
+            "shape": [
+              457,
+              394,
+              531
+            ],
+            "voxels": 95610798,
+            "start_seconds": 16.61997097200947,
+            "end_seconds": 18.19116364500951
+          },
+          {
+            "kind": "slice",
+            "index": 4,
+            "count": 34,
+            "first": 153,
+            "last": 186,
+            "durations": {
+              "initial_load": [
+                5.8304984122514725e-05
+              ],
+              "generate_grid": [
+                0.10013320401776582
+              ],
+              "slice_volume": [
+                6.368414930999279
+              ],
+              "memmap_write": [
+                0.11296512198168784
+              ],
+              "total_process": [
+                6.581583863007836
+              ]
+            },
+            "start_seconds": 26.705079186009243,
+            "end_seconds": 33.291857117030304
+          }
+        ]
+      }
+    ],
+    "finding": "The selected partition changes slice counts in dispatch order from [99,64,92,103,34] to [52,117,38,61,124]. Its largest slice-count task is last in the unchanged FIFO queue, leaving one slicing worker active for about 16.6\u201317.7 seconds after the others finish, versus about 5.6\u20136.3 seconds for the reference. Original accumulated interpolation worker elapsed time decreases; the longer step wall time is consistent with this observed completion tail, not planner time charged to the slicing step. The objective constrains peak estimated task payload and source volume, not scheduling makespan."
   }
 }

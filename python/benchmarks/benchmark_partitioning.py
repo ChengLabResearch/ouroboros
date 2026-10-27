@@ -2,10 +2,10 @@
 """Compare partitions of recorded specimen annotations without fetching voxels.
 
 Run from the Python environment, for example:
-    python benchmarks/benchmark_partitioning.py --output /tmp/partitioning.json
+    python benchmarks/benchmark_partitioning.py --fixtures /path/to/local-inputs --output /tmp/partitioning.json
 
-The committed reduced Neuroglancer states regenerate the original full paths via
-geometry_pipeline. Payloads come only from the production estimator. Timings are
+Supply recorded Neuroglancer states and a manifest outside the repository.
+Paths regenerate through geometry_pipeline. Payloads come only from the production estimator. Timings are
 partitioner wall time; this benchmark does not measure slicing runtime or RAM.
 """
 
@@ -29,10 +29,9 @@ import numpy as np
 
 PYTHON_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PYTHON_ROOT))
-DEFAULT_FIXTURES = PYTHON_ROOT / "test" / "fixtures" / "partitioning"
 
 
-def load_specimen(name: str, fixture_dir: Path = DEFAULT_FIXTURES):
+def load_specimen(name: str, fixture_dir: Path):
     """Regenerate real recorded geometry through the existing pipeline, offline."""
     from ouroboros.common.pipelines import geometry_pipeline
     from ouroboros.helpers.options import SliceOptions
@@ -173,7 +172,7 @@ def partition_report(rects, boxes, mapping, specimen, *, include_chunks=True):
     return result
 
 
-def benchmark_specimen(name, fixture_dir=DEFAULT_FIXTURES, repeats=1):
+def benchmark_specimen(name, fixture_dir, repeats=1):
     from ouroboros.helpers.bounding_boxes import (
         _calculate_bounding_boxes_count, calculate_bounding_boxes_bsp_link_rects,
     )
@@ -230,7 +229,8 @@ def main():
     from ouroboros.common.run_statistics import runtime_metadata
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--fixtures", type=Path, default=DEFAULT_FIXTURES)
+    parser.add_argument("--fixtures", type=Path, required=True,
+                        help="External directory containing manifest.json and local annotation states.")
     parser.add_argument("--specimen", action="append", help="Recorded specimen name; repeat to select several.")
     parser.add_argument("--repeats", type=int, default=1, help="Repeat each partitioner; also check deterministic output.")
     parser.add_argument("--output", type=Path, required=True)

@@ -13,6 +13,12 @@ describes the production estimator, partition selection, and external annotation
 manifest. Regenerate complete recorded paths and compare their geometry without
 fetching specimen voxels:
 
+Geometry reports use the production payload estimator, `sVC + 8V + 12HW`,
+which counts the native source, one float64 coefficient workspace, and one
+reused float32 coordinate plane. Direct TIFF writes contribute zero heap output
+bytes for every assignment. These estimates and chunk-coverage metrics are
+separate from measured slicing RAM and timing.
+
 ```sh
 .venv/bin/python benchmarks/benchmark_partitioning.py \
   --fixtures /path/to/local-inputs --repeats 2 --output /tmp/partitioning.json

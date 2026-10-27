@@ -289,10 +289,12 @@ def test_partition_planning_uses_configured_raster_and_reuses_source_interface(t
         assert target_slices_per_box == config.bounding_box_params.target_slices_per_box
         assert max_depth == config.bounding_box_params.max_depth
         # Rectangle edge lengths differ from the configured 3x4 raster.
-        assert task_payload(box, 1, True) == estimate_slice_task_payload(
+        expected = estimate_slice_task_payload(
             box, 1, True, slice_shape=(3, 4), source_dtype=source.dtype,
             channels=source.num_channels,
         ).peak_bytes
+        for count, contiguous in ((1, True), (7, True), (7, False)):
+            assert task_payload(box, count, contiguous) == expected
         return [box], [0]
 
     monkeypatch.setattr(volume_cache_pipeline, "CloudVolumeInterface", interface)

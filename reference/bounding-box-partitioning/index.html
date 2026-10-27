@@ -465,7 +465,7 @@ them to the half-open requests expected by CloudVolume and computes source
 clipping. The cost model uses the full allocated extent, including any
 zero-filled region, because the slicing worker receives that full array.</p>
 <h2 id="slicing-task-payload-model">Slicing-task payload model</h2>
-<p>For a box, define:</p>
+<p>For a nonempty slicing task, define:</p>
 <table>
 <thead>
 <tr>
@@ -477,10 +477,6 @@ zero-filled region, because the slicing worker receives that full array.</p>
 <tr>
 <td><code>V</code></td>
 <td>Number of spatial voxels in the box's inclusive integer extent</td>
-</tr>
-<tr>
-<td><code>n</code></td>
-<td>Number of slices assigned to the box</td>
 </tr>
 <tr>
 <td><code>H</code>, <code>W</code></td>
@@ -495,10 +491,6 @@ zero-filled region, because the slicing worker receives that full array.</p>
 <td>Source dtype item size in bytes</td>
 </tr>
 <tr>
-<td><code>Q = nHW</code></td>
-<td>Number of output positions, excluding channels</td>
-</tr>
-<tr>
 <td><code>B = sVC</code></td>
 <td>Bytes in the allocated source array</td>
 </tr>
@@ -506,16 +498,22 @@ zero-filled region, because the slicing worker receives that full array.</p>
 </table>
 <p>The production download array has a channel axis, including when <code>C = 1</code>.
 The dominant array payload during slicing is estimated as:</p>
-<pre><code class="language-text">one consecutive run of slice indices: P = B + 12Q + 8V
-multiple runs of slice indices:       P = B + 12Q + 8V + 4QC + 4Q
+<pre><code class="language-text">P = B + 8V + 12HW = sVC + 8V + 12HW
 </code></pre>
-<p>The <code>12Q</code> term is the float32 XYZ coordinate grid. Cubic interpolation processes
-one channel at a time and creates a float64 prefilter array, contributing <code>8V</code>.
-A consecutive run writes directly into the temporary TIFF mapping. A box whose
-slices occupy multiple runs needs a float32 output array (<code>4QC</code>) and one
-temporary channel result (<code>4Q</code>) before copying to that mapping.</p>
+<p>The <code>12HW</code> term is one float32 XYZ coordinate plane reused for every assigned
+slice and channel. Cubic interpolation processes one channel at a time and
+reuses one float64 coefficient workspace, contributing <code>8V</code>. Every assignment,
+including gapped slice indices, writes directly into temporary TIFF views.
+There is no accumulated heap output array or per-channel interpolation-result
+array. For fixed source geometry, raster, dtype, and channels, the estimate is
+independent of slice count and contiguity.</p>
+<p><code>estimate_slice_task_payload()</code> and <code>SliceTaskPayload</code> own this estimate for
+both production partition selection and benchmark reporting. The
+<code>output_bytes</code> and <code>channel_result_bytes</code> components are always zero.
+Mapped TIFF writes/pages and the final normalization rewrite remain outside
+this estimate.</p>
 <p>The model describes dominant arrays for one slicing task. Process overhead,
-small temporary arrays, download buffers, concurrently active tasks, and
+small temporary arrays, download/decode buffers, concurrently active tasks, and
 resident TIFF or filesystem-cache pages also affect observed memory use. A
 payload estimate must not be interpreted as process RSS or total run memory.</p>
 <p>The source interface is initialized before partitioning and reused by the

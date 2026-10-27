@@ -106,7 +106,7 @@ This exact legacy response is recognized at the stream boundary; other scientifi
 errors retain their normal presentation and the API contract is unchanged.
 
 The short desktop regression tests run through `npm run test:release`, using the
-existing Node test runner and TypeScript compiler without new dependencies. For
+Node test runner and TypeScript compiler. For
 individual case output, run `node scripts/tests/task-status.test.mjs`. They feed
 HTTP-shaped status bodies and simulated SSE events through the production parser,
 stream handler, and React progress panel; they do not exercise a full Electron GUI
@@ -190,8 +190,8 @@ wall time. They can exceed it. Phase wall spans are explicitly unavailable
 because the workers currently return durations, not start/end intervals.
 
 Backprojection intermediate payload bytes are in `steps[].byte_counts`, never
-in timing summaries. System-available-memory samples have been removed from
-timing statistics.
+in timing summaries. Timing statistics do not include system-available-memory
+samples.
 
 ## Volume and storage definitions
 
@@ -244,7 +244,7 @@ they measure logical storage, not compression or equal information content.
 GB means decimal gigabytes and GiB means binary gibibytes; the structured
 measurements use bytes directly.
 
-## Verification and ownership
+## Ownership
 
 `Task` owns operation identity and outcome; `RunStatistics` owns operation timing
 and report publication. It references the existing options and pipeline owners.
@@ -263,16 +263,6 @@ existing file/volume facilities. The memory collector extends this same lifecycl
 
 The fixed-local-source benchmark and reproducible commands are documented in
 [the benchmark guide](../development/benchmarks/index.md).
-The owner-approved 1% combined in-operation engineering target applies to longer
-runs, assessed alongside inter-run variability and fixed startup/shutdown costs.
-For the recorded #139 real-data evidence, acceptance is scoped to the long
-Salivary Duct path; short-path costs remain reported and are not a general 1%
-guarantee. RAM collection shares the budget with timing and volume reporting.
-The real-data comparison uses the canonical data-step duration, retaining worker/
-manager startup and shutdown inside that step. Earlier preparation, sampler
-startup/shutdown and final reporting are excluded. These measurements do not
-isolate every cause of a timing difference; negative changes reflect variation,
-not free instrumentation. Two pairs do not establish a statistical upper bound.
 
 ## Memory measurements
 
@@ -302,14 +292,14 @@ bytes**: unused, paged-out or otherwise nonresident parts of live allocations
 remain included. The metric name makes this distinction explicit. The counter
 requires 64-bit Python and Windows 10 or 11 version 22H2 with the September 2023
 update or later. Missing counter support makes the metric unavailable; it does
-not silently fall back to the old working-set scan.
+not silently fall back to a working-set page scan.
 
 macOS retains a `libproc` region walk for private residency. A segment can appear
 private when the manager is its only mapper, so the manager's ranges are excluded
 before managed residency is added. Compressed/swapped pages are not included.
-Native CI exercises the macOS reader and short collector lifecycle. Native
-macOS slice/backprojection performance and macOS-host Docker delivery are deferred
-on #139; focused CI does not replace those workflow checks.
+Native CI exercises the macOS reader and short collector lifecycle. These tests
+do not establish slice/backprojection performance or Docker delivery on a macOS
+host.
 
 There is no separate TIFF or resident file-cache accounting. Ordinary mapped-file
 pages may still contribute to the native process counter; cached pages absent
@@ -394,22 +384,6 @@ polling and completion of an in-flight sweep discarded at stop;
 observer; only an external pipeline timer measures in-operation overhead.
 
 The native CI matrix covers Linux, Windows and Apple Silicon macOS on Python
-3.11 and 3.12. The current simplification is checked with focused ownership,
-accounting and reporting tests; it has not repeated the long real-data benchmark
-campaign. Historical Linux and Windows pipeline results, component diagnostics,
-and Docker/frozen-executable checks are retained in
-[the benchmark guide](../development/benchmarks/index.md).
-Those results describe earlier collectors. In particular, the earlier Windows
-long-path overhead finding applies to the removed working-set enumeration and
-mapping-tracking implementation, not a measurement of this replacement.
-
-Focused tests do not establish a 1% overhead bound or native macOS pipeline
-acceptance. No cross-platform 1% guarantee is claimed.
-
-The clock-dependent identity defect in
-[#162](https://github.com/ChengLabResearch/ouroboros/issues/162) invalidates the
-affected RAM results; fixing identity does not retroactively repair those
-reports. Fresh long-run overhead acceptance is tracked separately in
-[#163](https://github.com/ChengLabResearch/ouroboros/issues/163), and replacement
-publication measurements remain with the publication. The native macOS
-pipeline and macOS-host Docker deferrals on #139 remain unchanged.
+3.11 and 3.12 with focused ownership, accounting and reporting tests. These tests
+do not establish a pipeline overhead bound or substitute for performance and
+delivery checks on the intended platform and workload.

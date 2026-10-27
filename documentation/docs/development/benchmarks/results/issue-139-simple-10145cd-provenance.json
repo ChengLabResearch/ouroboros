@@ -1,9 +1,0 @@
-{
-  "revision": "10145cd34ecaff138fedd21336046cf989ca6ff4",
-  "production_python_sha256": "66ec3675faf7554d423c6b8a6b3b0da98dc43fa1f119e90a0a6611b0520df634",
-  "benchmark_python_sha256": "e0dbe2830828c194ca635a181daeef9d11b825936b11ffe358f9ad785f5f2d2d",
-  "annotation_sha256": "415049492ae667e2467ac575cc28d51a6254e699c4631e233971e46d4b7a001e",
-  "cache_dir": "/tmp/ouroboros-139-real-linux/cloudvolume-cache",
-  "source_snapshot": "/home/dnorthover/ChengCode/ouroboros-final-benchmarks-20261017/linux-source",
-  "method": "Canonical real-data benchmark, all three original annotation paths, two off/on pairs, off/on then on/off; each trial backprojects its own slicing output; twelve workers and one BLAS thread; no pixel hashing."
-}

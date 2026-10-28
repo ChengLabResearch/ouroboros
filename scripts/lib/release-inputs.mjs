@@ -30,7 +30,7 @@ export async function loadArtifactInputDefinition(root = process.cwd(), commit) 
 
 // Use the same limited glob dialect in Git identity and the generated workflow paths:
 // literal paths, a single-segment * wildcard, and a trailing /** directory wildcard.
-function artifactInputPattern(path) {
+export function artifactInputPattern(path) {
 	if (
 		typeof path !== 'string' ||
 		!path.length ||

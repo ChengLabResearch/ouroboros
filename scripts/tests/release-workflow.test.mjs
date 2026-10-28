@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import test from 'node:test'
 import yaml from 'js-yaml'
-import { loadArtifactInputDefinition } from '../lib/release-inputs.mjs'
+import { BUILD_INPUTS, createPackageWorkspace } from '../lib/package-workspace.mjs'
+import { artifactInputPattern, loadArtifactInputDefinition } from '../lib/release-inputs.mjs'
 import { syncReleaseInputPaths } from '../sync-release-input-paths.mjs'
 
 async function workflow(name) {
@@ -114,6 +115,51 @@ test('release trigger paths derive exactly from the canonical artifact input def
 		)
 	)
 	await syncReleaseInputPaths()
+})
+
+test('canonical fingerprints cover every staged build input and optional npm configuration', async (t) => {
+	const tempRoot = await mkdtemp(join(tmpdir(), 'ouroboros-staged-input-coverage-'))
+	t.after(() => rm(tempRoot, { recursive: true, force: true }))
+	const workspace = await createPackageWorkspace({
+		tempRoot,
+		artifactDir: null,
+		pluginCacheDir: null
+	})
+	t.after(() => workspace.cleanup())
+	await workspace.stageSource({ includeDependencies: false })
+	const entries = await readdir(workspace.compiledDir, { recursive: true })
+	const stagedFiles = (
+		await Promise.all(
+			entries.map(async (entry) =>
+				(await lstat(join(workspace.compiledDir, entry))).isDirectory()
+					? null
+					: entry.split(sep).join('/')
+			)
+		)
+	).filter(Boolean)
+	const inputs = new Set(['.npmrc'])
+	for (const input of BUILD_INPUTS) {
+		// Directory globs match the staged leaves, not bare names such as "src".
+		const leaves = stagedFiles.filter((path) => path === input || path.startsWith(`${input}/`))
+		assert(leaves.length > 0, `Build input ${input} has no staged files to check`)
+		for (const path of leaves) inputs.add(path)
+	}
+	const uncovered = (paths) => {
+		const patterns = paths.map(artifactInputPattern)
+		return [...inputs].filter((path) => !patterns.some((pattern) => pattern.test(path))).sort()
+	}
+	const definition = await loadArtifactInputDefinition()
+	assert.deepEqual(uncovered(definition.paths), [])
+
+	// Prove that a missing pattern exposes actual staged files, including nested
+	// resources, and that absent optional configuration still needs coverage.
+	const resourceFiles = stagedFiles.filter((path) => path.startsWith('resources/')).sort()
+	assert(resourceFiles.some((path) => path.split('/').length > 2))
+	assert.deepEqual(
+		uncovered(definition.paths.filter((path) => path !== 'resources/**')),
+		resourceFiles
+	)
+	assert.deepEqual(uncovered(definition.paths.filter((path) => path !== '.npmrc')), ['.npmrc'])
 })
 
 test('generated workflow filter drift fails preflight and is repaired from the definition', async (t) => {

@@ -347,6 +347,49 @@ def test_backproject_empty_slices():
     assert np.all(volume == 0)
 
 
+@pytest.mark.parametrize("side, index_dtype", [(5, np.uint8), (6, np.uint16), (40, np.uint32)])
+@pytest.mark.parametrize("channels", [1, 3])
+def test_backproject_maximum_face_uses_private_guard(monkeypatch, side, index_dtype, channels):
+    origin = np.array([-3, 7, 11])
+    maximum = origin + side - 1
+    bounding_box = BoundingBox(BoundingBox.bounds_to_rect(
+        origin[0], maximum[0], origin[1], maximum[1], origin[2], maximum[2]))
+    rects = np.array([[origin + [0, 0, side - 1],
+                       origin + [side - 1, 0, side - 1],
+                       maximum, origin + [0, side - 1, side - 1]]])
+    slices = np.arange(1, 4 * channels + 1, dtype=np.float32).reshape(1, 2, 2, channels)
+    if channels == 1:
+        slices = slices[..., 0]
+
+    allocations = []
+    zeros = np.zeros
+
+    def record_zeros(*args, **kwargs):
+        result = zeros(*args, **kwargs)
+        allocations.append(result)
+        return result
+
+    monkeypatch.setattr(slice_module.np, "zeros", record_zeros)
+    lookup, values, weights = backproject_box(bounding_box, rects, slices)
+
+    logical_size = side ** 3
+    guard = side ** 2 + side + 1
+    assert len(allocations) == 1
+    accumulator = allocations[0]
+    assert accumulator.shape == (channels + 1, logical_size + guard)
+    assert accumulator.dtype == np.float32
+    assert not np.any(accumulator[:, logical_size:])
+    assert lookup.dtype == index_dtype
+    assert np.iinfo(index_dtype).max >= logical_size + guard - 1
+    np.testing.assert_array_equal(bounding_box.get_shape(), (side, side, side))
+    np.testing.assert_array_equal(bounding_box.get_integer_origin(), origin)
+    np.testing.assert_array_equal(lookup, [
+        (side - 1) * side ** 2, (side - 1) * side ** 2 + side - 1,
+        logical_size - side, logical_size - 1])
+    np.testing.assert_array_equal(values, slices.reshape(4, channels).T.squeeze())
+    np.testing.assert_array_equal(weights, np.ones(4, dtype=np.float32))
+
+
 def test_backproject_slices_large_volume():
     volume = np.zeros(np.prod((100, 100, 100)), dtype=np.float32)
     bounding_box = BoundingBox(BoundingBox.bounds_to_rect(0, 100, 0, 100, 0, 100))

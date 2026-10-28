@@ -14,12 +14,15 @@ export async function loadReleaseLock(root = process.cwd()) {
 	const configuredPath = process.env.OUROBOROS_RELEASE_LOCK ?? RELEASE_LOCK_PATH
 	const path = isAbsolute(configuredPath) ? configuredPath : join(root, configuredPath)
 	const bytes = await readFile(path)
+	return { ...parseReleaseLock(bytes), path }
+}
+
+export function parseReleaseLock(bytes) {
 	const lock = JSON.parse(bytes.toString('utf8'))
 	validateReleaseLock(lock)
 
 	return {
 		lock,
-		path,
 		sha256: sha256(Buffer.from(JSON.stringify(lock)))
 	}
 }
@@ -54,6 +57,20 @@ export function validateReleaseLock(lock) {
 	validatePlugin(lock.plugins?.autosegCuda, 'plugins.autosegCuda', 'cuda')
 }
 
+export function validateReleaseVersions(packageJson, packageLock, lock) {
+	for (const [field, version] of [
+		['package.json version', packageJson.version],
+		['package-lock.json version', packageLock.version],
+		['package-lock.json packages[""].version', packageLock.packages?.['']?.version]
+	]) {
+		if (version !== lock.releaseVersion) {
+			throw new Error(
+				`${field} ${version} does not match release lock version ${lock.releaseVersion}`
+			)
+		}
+	}
+}
+
 export function pluginLocksForFlavor(lock, flavor) {
 	if (flavor === 'core') return []
 	if (flavor === 'with-plugins-cpu') {
@@ -63,19 +80,6 @@ export function pluginLocksForFlavor(lock, flavor) {
 		return [lock.plugins.neuroglancer, lock.plugins.autosegCuda]
 	}
 	throw new Error(`Unsupported package flavor "${flavor}"`)
-}
-
-export function releaseFingerprint({ lockSha256, sourceTree, releaseVersion }) {
-	return sha256(
-		Buffer.from(
-			JSON.stringify({
-				schemaVersion: 1,
-				lockSha256,
-				sourceTree,
-				releaseVersion
-			})
-		)
-	)
 }
 
 export async function sha256File(path) {

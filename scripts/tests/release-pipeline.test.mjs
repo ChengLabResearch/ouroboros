@@ -13,14 +13,16 @@ import {
 	RELEASE_PLATFORMS,
 	loadReleaseLock,
 	pluginLocksForFlavor,
-	releaseFingerprint,
 	sha256File,
 	validateReleaseLock
 } from '../lib/release-lock.mjs'
 import { gitOutput } from '../lib/git.mjs'
+import { getReleaseInputs } from '../lib/release-inputs.mjs'
 import { npmInvocation } from '../lib/npm.mjs'
 import { isReleaseAssetName, parsePlatform } from '../build-release-artifacts.mjs'
+import { selectReleaseBuild } from '../select-release-build.mjs'
 import { verifyReleaseArtifacts } from '../verify-release-artifacts.mjs'
+import { releaseRepository } from './helpers/release-repository.mjs'
 
 const root = process.cwd()
 
@@ -77,20 +79,6 @@ test('release lock identity is independent of checkout line endings', async () =
 	} finally {
 		await rm(directory, { recursive: true, force: true })
 	}
-})
-
-test('release fingerprints change with the source tree or input lock', () => {
-	const first = releaseFingerprint({
-		lockSha256: 'a'.repeat(64),
-		sourceTree: 'b'.repeat(40),
-		releaseVersion: '1.5.1'
-	})
-	const second = releaseFingerprint({
-		lockSha256: 'c'.repeat(64),
-		sourceTree: 'b'.repeat(40),
-		releaseVersion: '1.5.1'
-	})
-	assert.notEqual(first, second)
 })
 
 test('release artifact selection excludes electron-builder diagnostics', () => {
@@ -278,95 +266,290 @@ test('npm lifecycle commands stay shell-free on Windows', () => {
 	)
 })
 
-test('tag publication verification fails closed when a prebuilt file changes', async () => {
-	const directory = await mkdtemp(join(tmpdir(), 'ouroboros-release-test-'))
-	try {
-		const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
-		const { lock, sha256: releaseLockSha256 } = await loadReleaseLock(root)
-		const sourceCommit = await gitOutput(root, ['rev-parse', 'HEAD'])
-		const sourceTree = await gitOutput(root, ['rev-parse', 'HEAD^{tree}'])
-		const inputFingerprint = releaseFingerprint({
-			lockSha256: releaseLockSha256,
-			sourceTree,
-			releaseVersion: packageJson.version
-		})
+test('release reuse follows real Git ancestry and committed artifact inputs', async (t) => {
+	const repository = await releaseRepository(t, root)
+	const { built, pythonOnly, artifactChanged, artifactReverted, side } = repository
+	const inputs = await getReleaseInputs(repository.root, built)
+	const artifacts = () =>
+		RELEASE_PLATFORMS.map((platform) => ({
+			name: `release-assets-${platform}`,
+			expired: false
+		}))
+	const run = (id, head_sha, overrides = {}) => ({
+		id,
+		head_sha,
+		head_branch: 'main',
+		event: 'push',
+		status: 'completed',
+		conclusion: 'success',
+		...overrides
+	})
+	const select = (commit, runs, listArtifacts = async () => artifacts()) =>
+		selectReleaseBuild({ root: repository.root, commit, runs, listArtifacts })
 
-		for (const platform of RELEASE_PLATFORMS) {
-			const artifacts = []
-			for (const flavor of lock.packageFlavors) {
-				for (const [name, type] of [
-					[`ouroboros-${platform}-${flavor}.zip`, 'installer'],
-					[`package-metadata-${platform}-${flavor}.json`, 'package-metadata']
-				]) {
-					const path = join(directory, name)
-					await writeFile(path, `${platform}:${flavor}:${type}\n`)
-					const bytes = (await readFile(path)).length
-					artifacts.push({
-						name,
-						flavor,
-						type,
-						bytes,
-						sha256: await sha256File(path)
-					})
-				}
-			}
+	await t.test(
+		'Python-only history preserves inputs while retaining the original source tree',
+		async () => {
+			const later = await getReleaseInputs(repository.root, pythonOnly)
+			assert.match(
+				await gitOutput(repository.root, ['show', `${pythonOnly}:python/pyproject.toml`]),
+				/^version = "0\.0\.0\+release\.fixture"/m
+			)
+			assert.equal(
+				await gitOutput(repository.root, ['rev-parse', `${pythonOnly}:package-lock.json`]),
+				await gitOutput(repository.root, ['rev-parse', `${built}:package-lock.json`])
+			)
+			assert.equal(later.inputFingerprint, inputs.inputFingerprint)
+			assert.equal(later.releaseLockSha256, inputs.releaseLockSha256)
+			assert.notEqual(later.sourceTree, inputs.sourceTree)
+			assert.notEqual(later.sourceCommit, inputs.sourceCommit)
+			assert.equal((await select(pythonOnly, [run(1, built)])).id, 1)
+		}
+	)
 
-			await writeFile(
-				join(directory, `release-build-${platform}.json`),
-				`${JSON.stringify(
-					{
-						schemaVersion: 1,
-						releaseVersion: packageJson.version,
-						platform,
-						flavors: lock.packageFlavors,
-						sourceCommit,
-						certifiedCommit: sourceCommit,
-						sourceTree,
-						certification: {
-							mode: 'built',
-							workflowRun: 'test-run'
-						},
-						releaseLockSha256,
-						inputFingerprint,
-						releaseLock: lock,
-						artifacts,
-						metrics: {
-							operations: {
-								electronCompilations: 1,
-								packageOperations: lock.packageFlavors.length,
-								serverWheelBuilds: 0,
-								serverImageBuilds: 0
-							}
-						}
-					},
-					null,
-					2
-				)}\n`
+	await t.test(
+		'an artifact change requires a build but reverting it restores input identity',
+		async () => {
+			const changed = await getReleaseInputs(repository.root, artifactChanged)
+			const reverted = await getReleaseInputs(repository.root, artifactReverted)
+			assert.notEqual(changed.inputFingerprint, inputs.inputFingerprint)
+			assert.equal(reverted.inputFingerprint, inputs.inputFingerprint)
+			await assert.rejects(select(artifactChanged, [run(1, built)]))
+			assert.equal(
+				(await select(artifactReverted, [run(1, built), run(2, artifactChanged)])).id,
+				1
 			)
 		}
+	)
 
-		await verifyReleaseArtifacts({
-			root,
+	await t.test(
+		'selection prefers the nearest matching ancestor over workflow run recency',
+		async () => {
+			const selected = await select(artifactReverted, [
+				run(100, built),
+				run(200, side),
+				run(300, artifactChanged),
+				run(10, pythonOnly)
+			])
+			assert.equal(selected.id, 10)
+			assert.equal(selected.head_sha, pythonOnly)
+		}
+	)
+
+	await t.test('successful main dispatches recertify changed artifact inputs', async () => {
+		const selected = await select(artifactChanged, [
+			run(1, built),
+			run(2, artifactChanged, { event: 'workflow_dispatch' })
+		])
+		assert.equal(selected.id, 2)
+	})
+
+	await t.test(
+		'pull requests, failed builds, other branches, and nonancestor builds cannot certify',
+		async () => {
+			const invalidRuns = [
+				run(2, built, { event: 'pull_request' }),
+				run(3, built, { conclusion: 'failure' }),
+				run(4, built, { head_branch: 'feature' }),
+				run(5, side)
+			]
+			await assert.rejects(select(pythonOnly, invalidRuns))
+			assert.equal((await select(pythonOnly, [...invalidRuns, run(1, built)])).id, 1)
+			await assert.rejects(select(side, [run(1, side)]))
+		}
+	)
+
+	await t.test('expired or incomplete native artifact sets are skipped', async () => {
+		const lookedUp = []
+		const selected = await select(
+			pythonOnly,
+			[run(3, pythonOnly), run(2, pythonOnly), run(1, built)],
+			async (id) => {
+				lookedUp.push(id)
+				if (id === 3) return artifacts().map((artifact) => ({ ...artifact, expired: true }))
+				if (id === 2) return artifacts().filter(({ name }) => name !== 'release-assets-mac')
+				return artifacts()
+			}
+		)
+		assert.equal(selected.id, 1)
+		assert.deepEqual(new Set(lookedUp), new Set([1, 2, 3]))
+		await assert.rejects(select(pythonOnly, [run(3, pythonOnly)], async () => []))
+	})
+
+	const directory = join(repository.directory, 'artifacts')
+	await mkdir(directory)
+	const manifests = new Map()
+	for (const platform of RELEASE_PLATFORMS) {
+		const listedArtifacts = []
+		for (const flavor of inputs.lock.packageFlavors) {
+			for (const [name, type] of [
+				[`ouroboros-${platform}-${flavor}.zip`, 'installer'],
+				[`package-metadata-${platform}-${flavor}.json`, 'package-metadata']
+			]) {
+				const path = join(directory, name)
+				await writeFile(path, `${platform}:${flavor}:${type}\n`)
+				listedArtifacts.push({
+					name,
+					flavor,
+					type,
+					bytes: (await stat(path)).size,
+					sha256: await sha256File(path)
+				})
+			}
+		}
+		manifests.set(platform, {
+			schemaVersion: 2,
+			releaseVersion: inputs.releaseVersion,
+			platform,
+			flavors: inputs.lock.packageFlavors,
+			sourceCommit: built,
+			certifiedCommit: built,
+			sourceTree: inputs.sourceTree,
+			certification: { mode: 'built', workflowRun: '123' },
+			releaseLockSha256: inputs.releaseLockSha256,
+			inputFingerprint: inputs.inputFingerprint,
+			releaseLock: inputs.lock,
+			artifacts: listedArtifacts,
+			metrics: {
+				operations: {
+					electronCompilations: 1,
+					packageOperations: inputs.lock.packageFlavors.length,
+					serverWheelBuilds: 0,
+					serverImageBuilds: 0
+				}
+			}
+		})
+	}
+	const writeManifest = (platform, manifest) =>
+		writeFile(join(directory, `release-build-${platform}.json`), JSON.stringify(manifest))
+	for (const [platform, manifest] of manifests) await writeManifest(platform, manifest)
+	const verify = (overrides = {}) =>
+		verifyReleaseArtifacts({
+			root: repository.root,
 			directory,
-			commit: sourceCommit,
-			ref: `v${packageJson.version}`
+			commit: pythonOnly,
+			ref: `v${inputs.releaseVersion}`,
+			buildCommit: built,
+			workflowRun: '123',
+			...overrides
 		})
 
-		const tampered = join(
-			directory,
-			`ouroboros-${RELEASE_PLATFORMS[0]}-${lock.packageFlavors[0]}.zip`
-		)
-		await writeFile(tampered, 'tampered\n')
-		await assert.rejects(
-			verifyReleaseArtifacts({
-				root,
-				directory,
-				commit: sourceCommit,
-				ref: `v${packageJson.version}`
-			}),
-			/(size|SHA-256) mismatch/
-		)
-	} finally {
-		await rm(directory, { recursive: true, force: true })
+	await t.test(
+		'verification accepts exact and equivalent descendant tags without rewriting provenance',
+		async () => {
+			for (const commit of [built, pythonOnly, artifactReverted]) await verify({ commit })
+			for (const [platform, manifest] of manifests) {
+				assert.deepEqual(
+					JSON.parse(
+						await readFile(join(directory, `release-build-${platform}.json`), 'utf8')
+					),
+					manifest
+				)
+			}
+		}
+	)
+
+	await t.test(
+		'verification rejects changed inputs, unrelated tags, wrong versions, and wrong runs',
+		async () => {
+			await assert.rejects(verify({ commit: artifactChanged }))
+			await assert.rejects(verify({ commit: side }))
+			await assert.rejects(verify({ ref: 'v0.0.0' }))
+			await assert.rejects(verify({ workflowRun: '456' }))
+			await assert.rejects(verify({ buildCommit: side }))
+		}
+	)
+
+	const invalidManifestChanges = [
+		[
+			'legacy whole-tree schema',
+			(manifest) => {
+				manifest.schemaVersion = 1
+			}
+		],
+		[
+			'incorrect source tree',
+			(manifest) => {
+				manifest.sourceTree = 'a'.repeat(40)
+			}
+		],
+		[
+			'incorrect input fingerprint',
+			(manifest) => {
+				manifest.inputFingerprint = 'b'.repeat(64)
+			}
+		],
+		[
+			'incorrect lock hash',
+			(manifest) => {
+				manifest.releaseLockSha256 = 'c'.repeat(64)
+			}
+		],
+		[
+			'rewritten certification commit',
+			(manifest) => {
+				manifest.certifiedCommit = pythonOnly
+			}
+		],
+		[
+			'mixed platform source commits',
+			(manifest) => {
+				manifest.sourceCommit = pythonOnly
+				manifest.certifiedCommit = pythonOnly
+			}
+		],
+		[
+			'mixed platform workflow runs',
+			(manifest) => {
+				manifest.certification.workflowRun = '456'
+			}
+		],
+		[
+			'PR artifact recertification',
+			(manifest) => {
+				manifest.certification = {
+					mode: 'reused-pr-build',
+					sourceRun: '123',
+					operationsInCertificationRun: {
+						electronCompilations: 0,
+						packageOperations: 0,
+						serverWheelBuilds: 0,
+						serverImageBuilds: 0
+					}
+				}
+			}
+		]
+	]
+	for (const [label, mutate] of invalidManifestChanges) {
+		await t.test(`verification rejects ${label}`, async () => {
+			// The first platform establishes certification identity; later platforms
+			// must derive from that same build and workflow run.
+			const platform = RELEASE_PLATFORMS[1]
+			const manifest = structuredClone(manifests.get(platform))
+			mutate(manifest)
+			await writeManifest(platform, manifest)
+			try {
+				await assert.rejects(verify())
+			} finally {
+				await writeManifest(platform, manifests.get(platform))
+			}
+		})
 	}
+
+	await t.test(
+		'verification checks installer bytes even when source certification is valid',
+		async () => {
+			const name = manifests.get('linux').artifacts[0].name
+			const path = join(directory, name)
+			const original = await readFile(path)
+			const tampered = Buffer.from(original)
+			tampered[0] ^= 1
+			await writeFile(path, tampered)
+			try {
+				await assert.rejects(verify(), /SHA-256 mismatch/)
+			} finally {
+				await writeFile(path, original)
+			}
+		}
+	)
 })

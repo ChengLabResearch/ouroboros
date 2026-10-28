@@ -3,8 +3,8 @@ name: Build Release Artifacts
 on:
     pull_request:
         paths:
+            # BEGIN GENERATED ARTIFACT INPUT PATHS
             - .github/workflows/build-and-release.yml
-            - .github/workflows/pr-tag.yml
             - .github/workflows/publish-release.yml
             - electron-builder.yml
             - electron.vite.config.ts
@@ -17,12 +17,13 @@ on:
             - release/**
             - scripts/**
             - src/**
+            # END GENERATED ARTIFACT INPUT PATHS
     push:
         branches:
             - main
         paths:
+            # BEGIN GENERATED ARTIFACT INPUT PATHS
             - .github/workflows/build-and-release.yml
-            - .github/workflows/pr-tag.yml
             - .github/workflows/publish-release.yml
             - electron-builder.yml
             - electron.vite.config.ts
@@ -35,6 +36,7 @@ on:
             - release/**
             - scripts/**
             - src/**
+            # END GENERATED ARTIFACT INPUT PATHS
     workflow_dispatch:
 
 concurrency:
@@ -63,6 +65,9 @@ jobs:
 
             - name: Install locked dependencies
               run: npm ci
+
+            - name: Check generated artifact input filters
+              run: node scripts/sync-release-input-paths.mjs --check
 
             - name: Test release lock and artifact validation
               run: npm run test:release

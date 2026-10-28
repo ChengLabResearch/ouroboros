@@ -16,7 +16,21 @@ export async function gitOutput(root, args) {
 		child.on('error', reject)
 		child.on('close', (code) => {
 			if (code === 0) resolve(stdout.trim())
-			else reject(new Error(`git ${args.join(' ')} failed: ${stderr.trim()}`))
+			else {
+				const error = new Error(`git ${args.join(' ')} failed: ${stderr.trim()}`)
+				error.exitCode = code
+				reject(error)
+			}
 		})
 	})
+}
+
+export async function isAncestor(root, ancestor, descendant) {
+	try {
+		await gitOutput(root, ['merge-base', '--is-ancestor', ancestor, descendant])
+		return true
+	} catch (error) {
+		if (error.exitCode === 1) return false
+		throw error
+	}
 }

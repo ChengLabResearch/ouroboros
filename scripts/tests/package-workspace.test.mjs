@@ -22,6 +22,7 @@ import { validatePackageConfiguration } from '../preflight-release.mjs'
 import { prepareProductionServer } from '../prepare-production-server.mjs'
 import { preparePackageFlavor } from '../prepare-package-flavor.mjs'
 import { loadReleaseLock } from '../lib/release-lock.mjs'
+import { getReleaseInputs } from '../lib/release-inputs.mjs'
 
 const run = promisify(execFile)
 const repository = process.cwd()
@@ -81,7 +82,7 @@ async function fixture(t, { git = false } = {}) {
 			name: packageJson.name,
 			version: packageJson.version,
 			lockfileVersion: 3,
-			packages: {}
+			packages: { '': { version: packageJson.version } }
 		},
 		'tsconfig.json': {},
 		'tsconfig.node.json': {},
@@ -99,6 +100,10 @@ async function fixture(t, { git = false } = {}) {
 		'node_modules/runtime/index.js': 'original dependency\n',
 		'node_modules/compiler/package.json': { name: 'compiler', version: '1.0.0' },
 		'release/release-lock.json': lock,
+		'release/artifact-inputs.json': await readFile(
+			join(repository, 'release/artifact-inputs.json'),
+			'utf8'
+		),
 		'out/main/index.js': 'stale checkout compilation\n',
 		'dist/old-installer.AppImage': 'keep checkout installer\n',
 		'extra-resources/package-flavor.json': { flavor: 'keep checkout metadata' },
@@ -391,6 +396,7 @@ for (const failPackaging of [false, true]) {
 		let compilations = 0
 		let compiledRoot
 		let compiledBasis
+		let preparedLock
 		const packaged = []
 		const packageRoots = []
 		const resourceRoots = []
@@ -445,6 +451,8 @@ for (const failPackaging of [false, true]) {
 		}
 		const prepareFlavor = async ({ project, releaseLock, environment }) => {
 			assert.deepEqual(releaseLock.lock, lock)
+			if (preparedLock) assert.strictEqual(releaseLock.lock, preparedLock)
+			else preparedLock = releaseLock.lock
 			assert.equal(project.root, compiledRoot)
 			assert.equal(
 				resolve(project.root, environment.OUROBOROS_PACKAGE_RESOURCES_DIR),
@@ -478,6 +486,11 @@ for (const failPackaging of [false, true]) {
 		if (failPackaging) await assert.rejects(promise, /fixture packaging failure/)
 		else {
 			const manifest = await promise
+			const inputs = await getReleaseInputs(root)
+			assert.equal(manifest.schemaVersion, 2)
+			assert.equal(manifest.inputFingerprint, inputs.inputFingerprint)
+			assert.equal(manifest.sourceCommit, inputs.sourceCommit)
+			assert.strictEqual(manifest.releaseLock, preparedLock)
 			assert.deepEqual(packaged, lock.packageFlavors)
 			assert.equal(manifest.artifacts.length, lock.packageFlavors.length * 2)
 			assert.equal(manifest.metrics.operations.electronCompilations, 1)
@@ -507,3 +520,25 @@ for (const failPackaging of [false, true]) {
 		assert.deepEqual(await snapshot(root), before)
 	})
 }
+
+test('release orchestration rejects an uncommitted release-lock override', async () => {
+	await assert.rejects(
+		buildReleaseArtifacts({
+			platform: 'linux',
+			environment: { OUROBOROS_RELEASE_LOCK: 'release/alternate-lock.json' }
+		}),
+		/require the committed release lock/
+	)
+})
+
+test('release orchestration rejects provenance from a different checked out commit', async (t) => {
+	const { root } = await fixture(t, { git: true })
+	await assert.rejects(
+		buildReleaseArtifacts({
+			root,
+			platform: 'linux',
+			environment: { GITHUB_SHA: '0'.repeat(40) }
+		}),
+		/does not match checked out release commit/
+	)
+})

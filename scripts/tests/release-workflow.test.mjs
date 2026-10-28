@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, sep } from 'node:path'
 import test from 'node:test'
 import yaml from 'js-yaml'
+import { BUILD_INPUTS, createPackageWorkspace } from '../lib/package-workspace.mjs'
+import { artifactInputPattern, loadArtifactInputDefinition } from '../lib/release-inputs.mjs'
+import { syncReleaseInputPaths } from '../sync-release-input-paths.mjs'
 
 async function workflow(name) {
 	return yaml.load(
@@ -98,63 +103,119 @@ test('native build and publication artifacts stay outside the checkout', async (
 	}
 })
 
-test('release preflight watches packaging resources and build configuration', async () => {
+test('release trigger paths derive exactly from the canonical artifact input definition', async () => {
 	const build = await workflow('build-and-release.yml')
+	const definition = await loadArtifactInputDefinition()
 	for (const event of ['push', 'pull_request']) {
-		for (const input of [
-			'resources/**',
-			'build/**',
-			'tsconfig*.json',
-			'.npmrc',
-			'release/**',
-			'scripts/**',
-			'electron-builder.yml',
-			'electron.vite.config.ts',
-			'package.json',
-			'package-lock.json'
-		]) {
-			assert(build.on[event].paths.includes(input), `${event} does not watch ${input}`)
-		}
+		assert.deepEqual(build.on[event].paths, definition.paths, event)
 	}
+	assert(
+		build.jobs['release-preflight'].steps.some(
+			({ run }) => run === 'node scripts/sync-release-input-paths.mjs --check'
+		)
+	)
+	await syncReleaseInputPaths()
 })
 
-test('successful main certification still precedes tagging and verified draft publication', async () => {
-	const build = await workflow('build-and-release.yml')
-	const tag = await workflow('pr-tag.yml')
-	assert(tag.on.workflow_run.workflows.includes(build.name))
-	assert.deepEqual(tag.on.workflow_run.branches, ['main'])
-	assert.deepEqual(tag.on.workflow_run.types, ['completed'])
-	const allowsTag = new Function('github', `return (${tag.jobs.tag.if})`)
-	assert.equal(
-		allowsTag({ event: { workflow_run: { conclusion: 'success', event: 'push' } } }),
-		true
-	)
-	assert.equal(
-		allowsTag({ event: { workflow_run: { conclusion: 'failure', event: 'push' } } }),
-		false
-	)
-	assert.equal(
-		allowsTag({
-			event: { workflow_run: { conclusion: 'success', event: 'workflow_dispatch' } }
-		}),
-		false
-	)
+test('canonical fingerprints cover every staged build input and optional npm configuration', async (t) => {
+	const tempRoot = await mkdtemp(join(tmpdir(), 'ouroboros-staged-input-coverage-'))
+	t.after(() => rm(tempRoot, { recursive: true, force: true }))
+	const workspace = await createPackageWorkspace({
+		tempRoot,
+		artifactDir: null,
+		pluginCacheDir: null
+	})
+	t.after(() => workspace.cleanup())
+	await workspace.stageSource({ includeDependencies: false })
+	const entries = await readdir(workspace.compiledDir, { recursive: true })
+	const stagedFiles = (
+		await Promise.all(
+			entries.map(async (entry) =>
+				(await lstat(join(workspace.compiledDir, entry))).isDirectory()
+					? null
+					: entry.split(sep).join('/')
+			)
+		)
+	).filter(Boolean)
+	const inputs = new Set(['.npmrc'])
+	for (const input of BUILD_INPUTS) {
+		// Directory globs match the staged leaves, not bare names such as "src".
+		const leaves = stagedFiles.filter((path) => path === input || path.startsWith(`${input}/`))
+		assert(leaves.length > 0, `Build input ${input} has no staged files to check`)
+		for (const path of leaves) inputs.add(path)
+	}
+	const uncovered = (paths) => {
+		const patterns = paths.map(artifactInputPattern)
+		return [...inputs].filter((path) => !patterns.some((pattern) => pattern.test(path))).sort()
+	}
+	const definition = await loadArtifactInputDefinition()
+	assert.deepEqual(uncovered(definition.paths), [])
 
+	// Prove that a missing pattern exposes actual staged files, including nested
+	// resources, and that absent optional configuration still needs coverage.
+	const resourceFiles = stagedFiles.filter((path) => path.startsWith('resources/')).sort()
+	assert(resourceFiles.some((path) => path.split('/').length > 2))
+	assert.deepEqual(
+		uncovered(definition.paths.filter((path) => path !== 'resources/**')),
+		resourceFiles
+	)
+	assert.deepEqual(uncovered(definition.paths.filter((path) => path !== '.npmrc')), ['.npmrc'])
+})
+
+test('generated workflow filter drift fails preflight and is repaired from the definition', async (t) => {
+	const root = await mkdtemp(join(tmpdir(), 'ouroboros-release-paths-'))
+	t.after(() => rm(root, { recursive: true, force: true }))
+	await mkdir(join(root, 'release'))
+	await mkdir(join(root, '.github', 'workflows'), { recursive: true })
+	await copyFile(
+		new URL('../../release/artifact-inputs.json', import.meta.url),
+		join(root, 'release', 'artifact-inputs.json')
+	)
+	const original = await readFile(
+		new URL('../../.github/workflows/build-and-release.yml', import.meta.url),
+		'utf8'
+	)
+	const path = join(root, '.github', 'workflows', 'build-and-release.yml')
+	await writeFile(path, original.replace('            - resources/**\n', ''))
+	await assert.rejects(syncReleaseInputPaths({ root }), /Artifact workflow paths differ/)
+	await syncReleaseInputPaths({ root, check: false })
+	assert.equal(await readFile(path, 'utf8'), original)
+	await syncReleaseInputPaths({ root })
+})
+
+test('manual tags publish verified certified artifacts as a draft without rebuilding', async () => {
+	await assert.rejects(workflow('pr-tag.yml'), { code: 'ENOENT' })
 	const publish = await workflow('publish-release.yml')
 	assert.deepEqual(publish.on.push.tags, ['v*.*.*'])
 	const steps = publish.jobs.publish.steps
+	const selectionIndex = steps.findIndex(({ id }) => id === 'certified-build')
+	const downloadIndex = steps.findIndex(({ uses }) =>
+		uses?.startsWith('actions/download-artifact')
+	)
 	const verificationIndex = steps.findIndex(({ run }) =>
 		run?.includes('verify-release-artifacts.mjs')
 	)
 	const releaseIndex = steps.findIndex(({ uses }) =>
 		uses?.startsWith('softprops/action-gh-release')
 	)
-	assert(verificationIndex >= 0 && verificationIndex < releaseIndex)
+	assert(selectionIndex >= 0 && selectionIndex < downloadIndex)
+	assert(downloadIndex < verificationIndex && verificationIndex < releaseIndex)
 	assert.equal(steps[releaseIndex].with.draft, true)
 	assert.doesNotMatch(JSON.stringify(steps), /build:release-artifacts|electron-builder/)
-	const certifiedBuild = steps.find(({ id }) => id === 'certified-build').with.script
-	assert(certifiedBuild.includes("workflow_id: 'build-and-release.yml'"))
-	assert(certifiedBuild.includes("candidate.head_branch === 'main'"))
-	assert(certifiedBuild.includes("candidate.event === 'push'"))
-	assert(certifiedBuild.includes("candidate.conclusion === 'success'"))
+	assert.match(steps[selectionIndex].run, /node scripts\/select-release-build\.mjs/)
+	assert.match(steps[selectionIndex].run, /--commit "\$\{\{ github\.sha \}\}"/)
+	assert.equal(steps[selectionIndex].env.GH_TOKEN, '${{ secrets.GITHUB_TOKEN }}')
+	assert.equal(steps[downloadIndex].with['run-id'], '${{ steps.certified-build.outputs.run-id }}')
+	assert.match(
+		steps[verificationIndex].run,
+		/--build-commit \$\{\{ steps\.certified-build\.outputs\.source-commit \}\}/
+	)
+	assert.match(
+		steps[verificationIndex].run,
+		/--run \$\{\{ steps\.certified-build\.outputs\.run-id \}\}/
+	)
+	assert.equal(
+		steps.find(({ uses }) => uses?.startsWith('actions/checkout')).with['fetch-depth'],
+		0
+	)
 })

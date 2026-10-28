@@ -3,19 +3,14 @@ import { copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/pro
 import { spawn } from 'node:child_process'
 import { join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { gitOutput } from './lib/git.mjs'
+import { getReleaseInputs } from './lib/release-inputs.mjs'
 import { npmInvocation } from './lib/npm.mjs'
 import { createPackageWorkspace } from './lib/package-workspace.mjs'
 import { validatePackageConfiguration } from './preflight-release.mjs'
 import { prepareProductionServer } from './prepare-production-server.mjs'
 import { preparePackageFlavor } from './prepare-package-flavor.mjs'
 import { renameReleaseArtifacts } from './rename-release-artifacts.mjs'
-import {
-	RELEASE_PLATFORMS,
-	loadReleaseLock,
-	releaseFingerprint,
-	sha256File
-} from './lib/release-lock.mjs'
+import { RELEASE_PLATFORMS, sha256File } from './lib/release-lock.mjs'
 
 const releaseAssetPattern =
 	/(?:\.exe|\.zip|\.dmg|\.AppImage|\.snap|\.deb|\.rpm|\.tar\.gz|\.blockmap)$/
@@ -53,12 +48,23 @@ export async function buildReleaseArtifacts({
 } = {}) {
 	const startedAt = new Date()
 	const startedMs = performance.now()
-	const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
-	const releaseLock = await loadReleaseLock(root)
-	const { lock, sha256: releaseLockSha256 } = releaseLock
-	if (packageJson.version !== lock.releaseVersion) {
+	if (environment.OUROBOROS_RELEASE_LOCK !== undefined) {
 		throw new Error(
-			`package.json version ${packageJson.version} does not match release lock version ${lock.releaseVersion}`
+			'Release artifacts require the committed release lock; OUROBOROS_RELEASE_LOCK cannot be overridden'
+		)
+	}
+	const { lock, releaseVersion, releaseLockSha256, inputFingerprint, sourceCommit, sourceTree } =
+		await getReleaseInputs(root)
+	if (environment.GITHUB_SHA && environment.GITHUB_SHA !== sourceCommit) {
+		throw new Error(
+			`GITHUB_SHA ${environment.GITHUB_SHA} does not match checked out release commit ${sourceCommit}`
+		)
+	}
+	const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
+	const releaseLock = { lock, sha256: releaseLockSha256 }
+	if (packageJson.version !== releaseVersion) {
+		throw new Error(
+			`Checkout package.json version ${packageJson.version} does not match committed release version ${releaseVersion}`
 		)
 	}
 
@@ -68,13 +74,6 @@ export async function buildReleaseArtifacts({
 		: lock.packageFlavors
 	if (flavors.some((flavor) => !lock.packageFlavors.includes(flavor)))
 		throw new Error('Requested package flavor is not in the release lock')
-	const sourceCommit = environment.GITHUB_SHA ?? (await gitOutput(root, ['rev-parse', 'HEAD']))
-	const sourceTree = await gitOutput(root, ['rev-parse', 'HEAD^{tree}'])
-	const inputFingerprint = releaseFingerprint({
-		lockSha256: releaseLockSha256,
-		sourceTree,
-		releaseVersion: packageJson.version
-	})
 	const workspace = await createPackageWorkspace({ root, tempRoot, artifactDir, pluginCacheDir })
 	const outputDir = workspace.artifactDir
 	console.log(`Packaging workspace: ${workspace.directory}`)
@@ -83,6 +82,7 @@ export async function buildReleaseArtifacts({
 		await workspace.stageSource()
 		const buildEnvironment = {
 			...environment,
+			GITHUB_SHA: sourceCommit,
 			ELECTRON_BUILDER_CACHE: workspace.builderCacheDir
 		}
 		const packageMetrics = []
@@ -166,8 +166,8 @@ export async function buildReleaseArtifacts({
 		artifacts.sort((left, right) => left.name.localeCompare(right.name))
 		const finishedAt = new Date()
 		const manifest = {
-			schemaVersion: 1,
-			releaseVersion: packageJson.version,
+			schemaVersion: 2,
+			releaseVersion,
 			platform,
 			flavors,
 			sourceCommit,

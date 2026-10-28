@@ -2,13 +2,9 @@ import { existsSync } from 'node:fs'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { gitOutput } from './lib/git.mjs'
-import {
-	RELEASE_PLATFORMS,
-	loadReleaseLock,
-	releaseFingerprint,
-	sha256File
-} from './lib/release-lock.mjs'
+import { isAncestor } from './lib/git.mjs'
+import { getReleaseInputs } from './lib/release-inputs.mjs'
+import { RELEASE_PLATFORMS, sha256File } from './lib/release-lock.mjs'
 
 export async function verifyReleaseArtifacts({
 	root = process.cwd(),
@@ -16,28 +12,23 @@ export async function verifyReleaseArtifacts({
 	commit,
 	ref,
 	platforms = RELEASE_PLATFORMS,
-	requireCertifiedCommit = true
+	mainRef = 'origin/main',
+	buildCommit,
+	workflowRun
 }) {
 	if (!directory) throw new Error('Release artifact directory is required')
 	if (!commit) throw new Error('Release commit is required')
 
-	const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
-	const { lock, sha256: releaseLockSha256 } = await loadReleaseLock(root)
-	if (packageJson.version !== lock.releaseVersion) {
-		throw new Error(
-			`package.json version ${packageJson.version} does not match release lock version ${lock.releaseVersion}`
-		)
+	const target = await getReleaseInputs(root, commit)
+	const { lock, releaseVersion, releaseLockSha256, inputFingerprint } = target
+	if (ref && ref !== `v${releaseVersion}`) {
+		throw new Error(`Release tag ${ref} does not match package version v${releaseVersion}`)
 	}
-	if (ref && ref !== `v${packageJson.version}`) {
-		throw new Error(`Release tag ${ref} does not match package version v${packageJson.version}`)
+	if (!(await isAncestor(root, target.sourceCommit, mainRef))) {
+		throw new Error(`Release commit ${target.sourceCommit} is not on ${mainRef}`)
 	}
-
-	const sourceTree = await gitOutput(root, ['rev-parse', `${commit}^{tree}`])
-	const inputFingerprint = releaseFingerprint({
-		lockSha256: releaseLockSha256,
-		sourceTree,
-		releaseVersion: packageJson.version
-	})
+	let certifiedInputs
+	let certifiedRun = workflowRun == null ? null : String(workflowRun)
 	const artifactDir = resolve(root, directory)
 	const listedNames = new Set()
 	let producedBytes = 0
@@ -53,16 +44,38 @@ export async function verifyReleaseArtifacts({
 			throw new Error(`Missing release build manifest: ${manifestName}`)
 		}
 		const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+		if (!certifiedInputs) {
+			if (!/^[a-f0-9]{40}$/.test(manifest.sourceCommit ?? '')) {
+				throw new Error(`Release build manifest ${platform} has no valid sourceCommit`)
+			}
+			if (buildCommit && manifest.sourceCommit !== buildCommit) {
+				throw new Error(
+					`Release build manifest ${platform} sourceCommit does not match selected build`
+				)
+			}
+			certifiedInputs = await getReleaseInputs(root, manifest.sourceCommit)
+			if (!(await isAncestor(root, certifiedInputs.sourceCommit, target.sourceCommit))) {
+				throw new Error(
+					`Certified build ${certifiedInputs.sourceCommit} is not an ancestor of release commit ${target.sourceCommit}`
+				)
+			}
+			if (certifiedInputs.inputFingerprint !== inputFingerprint) {
+				throw new Error(
+					'Certified build inputFingerprint does not match release artifact inputs'
+				)
+			}
+			certifiedRun ??= manifest.certification?.workflowRun
+		}
 		validateManifest({
 			manifest,
 			platform,
-			commit,
-			sourceTree,
+			sourceCommit: certifiedInputs.sourceCommit,
+			sourceTree: certifiedInputs.sourceTree,
+			workflowRun: certifiedRun,
 			inputFingerprint,
 			releaseLockSha256,
 			lock,
-			releaseVersion: packageJson.version,
-			requireCertifiedCommit
+			releaseVersion
 		})
 
 		for (const artifact of manifest.artifacts) {
@@ -109,9 +122,10 @@ export async function verifyReleaseArtifacts({
 	}
 
 	const summary = {
-		releaseVersion: packageJson.version,
-		commit,
-		sourceTree,
+		releaseVersion,
+		commit: target.sourceCommit,
+		buildCommit: certifiedInputs.sourceCommit,
+		workflowRun: certifiedRun,
 		releaseLockSha256,
 		inputFingerprint,
 		platforms,
@@ -126,23 +140,24 @@ export async function verifyReleaseArtifacts({
 function validateManifest({
 	manifest,
 	platform,
-	commit,
+	sourceCommit,
 	sourceTree,
+	workflowRun,
 	inputFingerprint,
 	releaseLockSha256,
 	lock,
-	releaseVersion,
-	requireCertifiedCommit
+	releaseVersion
 }) {
 	const exactFields = {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		releaseVersion,
 		platform,
+		sourceCommit,
+		certifiedCommit: sourceCommit,
 		sourceTree,
 		releaseLockSha256,
 		inputFingerprint
 	}
-	if (requireCertifiedCommit) exactFields.certifiedCommit = commit
 	for (const [field, expected] of Object.entries(exactFields)) {
 		if (manifest[field] !== expected) {
 			throw new Error(
@@ -153,7 +168,7 @@ function validateManifest({
 	if (typeof manifest.sourceCommit !== 'string' || manifest.sourceCommit.length === 0) {
 		throw new Error(`Release build manifest ${platform} has no sourceCommit`)
 	}
-	validateCertification(manifest, platform)
+	validateCertification(manifest, platform, workflowRun)
 	if (JSON.stringify(manifest.flavors) !== JSON.stringify(lock.packageFlavors)) {
 		throw new Error(`Release build manifest ${platform} package flavors do not match the lock`)
 	}
@@ -194,35 +209,19 @@ function validateManifest({
 	}
 }
 
-function validateCertification(manifest, platform) {
-	if (manifest.certification?.mode === 'built') {
-		if (manifest.certifiedCommit !== manifest.sourceCommit) {
-			throw new Error(
-				`Release build manifest ${platform} built certification does not match its source commit`
-			)
-		}
-		return
+function validateCertification(manifest, platform, workflowRun) {
+	if (manifest.certification?.mode !== 'built') {
+		throw new Error(`Release build manifest ${platform} has an invalid certification mode`)
 	}
-	if (manifest.certification?.mode === 'reused-pr-build') {
-		if (!manifest.certification.sourceRun) {
-			throw new Error(
-				`Release build manifest ${platform} reused certification has no source run`
-			)
-		}
-		const operations = manifest.certification.operationsInCertificationRun
-		if (
-			operations?.electronCompilations !== 0 ||
-			operations?.packageOperations !== 0 ||
-			operations?.serverWheelBuilds !== 0 ||
-			operations?.serverImageBuilds !== 0
-		) {
-			throw new Error(
-				`Release build manifest ${platform} reused certification records build operations`
-			)
-		}
-		return
+	if (
+		typeof workflowRun !== 'string' ||
+		workflowRun.length === 0 ||
+		manifest.certification.workflowRun !== workflowRun
+	) {
+		throw new Error(
+			`Release build manifest ${platform} workflowRun does not match selected build`
+		)
 	}
-	throw new Error(`Release build manifest ${platform} has an invalid certification mode`)
 }
 
 function parseArguments(args) {
@@ -233,7 +232,10 @@ function parseArguments(args) {
 	return {
 		directory: values.get('--dir'),
 		commit: values.get('--commit'),
-		ref: values.get('--ref')
+		ref: values.get('--ref'),
+		mainRef: values.get('--main-ref'),
+		buildCommit: values.get('--build-commit'),
+		workflowRun: values.get('--run')
 	}
 }
 

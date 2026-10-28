@@ -38,47 +38,29 @@ jobs:
 
             - name: Find certified main build
               id: certified-build
-              uses: actions/github-script@v8
-              with:
-                  result-encoding: string
-                  script: |
-                      const response = await github.rest.actions.listWorkflowRuns({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        workflow_id: 'build-and-release.yml',
-                        head_sha: context.sha,
-                        event: 'push',
-                        status: 'success',
-                        per_page: 100
-                      })
-                      const run = response.data.workflow_runs.find(candidate =>
-                        candidate.head_sha === context.sha &&
-                        candidate.head_branch === 'main' &&
-                        candidate.event === 'push' &&
-                        candidate.conclusion === 'success'
-                      )
-                      if (!run) {
-                        core.setFailed(`No successful main release-artifact build exists for ${context.sha}`)
-                        return
-                      }
-                      core.info(`Publishing artifacts from ${run.html_url}`)
-                      return run.id
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: node scripts/select-release-build.mjs --commit "${{ github.sha }}"
 
             - name: Download certified release artifacts
               uses: actions/download-artifact@v8
               with:
-                  run-id: ${{ steps.certified-build.outputs.result }}
+                  run-id: ${{ steps.certified-build.outputs.run-id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
                   pattern: release-assets-*
                   merge-multiple: true
                   path: ${{ env.OUROBOROS_RELEASE_ARTIFACT_DIR }}
 
-            - name: Verify commit, input lock, manifests, and hashes
+            - name: Verify ancestry, artifact inputs, manifests, and hashes
+              env:
+                  RELEASE_REF: ${{ github.ref_name }}
               run: >-
                   node scripts/verify-release-artifacts.mjs
                   --dir "${{ env.OUROBOROS_RELEASE_ARTIFACT_DIR }}"
                   --commit ${{ github.sha }}
-                  --ref ${{ github.ref_name }}
+                  --ref "$RELEASE_REF"
+                  --build-commit ${{ steps.certified-build.outputs.source-commit }}
+                  --run ${{ steps.certified-build.outputs.run-id }}
 
             - name: Publish draft release from prebuilt artifacts
               uses: softprops/action-gh-release@v3

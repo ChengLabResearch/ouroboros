@@ -267,11 +267,13 @@ def backproject_box(bounding_box: BoundingBox, slice_rects: np.ndarray, slices: 
     zyx_shape = np.flip(bounding_box.get_shape())
     flat_shape = np.prod(zyx_shape)
 
-    # Determine minimum dtype for index of flattened shape.
-    squish_type = np.min_scalar_type(flat_shape)
+    # Include the largest corner increment for zero-weight boundary writes.
+    guard = np.ravel_multi_index((1, 1, 1), zyx_shape)
+    capacity = flat_shape + guard
+    squish_type = np.min_scalar_type(capacity - 1)
 
     # Allocate the flattened data volume.
-    volume = np.zeros((1 + channels, flat_shape), dtype=np.float32)
+    volume = np.zeros((1 + channels, capacity), dtype=np.float32)
 
     # Get the top corner (integer) points and full weight matrix.
     points, weights = _points_and_weights(precise_points.reshape(-1, 3).T, zyx_shape, squish_type)
@@ -286,7 +288,7 @@ def backproject_box(bounding_box: BoundingBox, slice_rects: np.ndarray, slices: 
         np.add.at(volume[-1], points + point_inc, c_weights)
 
     # Get indicies of the flattened Z-Y-X backprojected domain that have values.
-    nz_vol = np.flatnonzero(volume[-1]).astype(squish_type)
+    nz_vol = np.flatnonzero(volume[-1, :flat_shape]).astype(squish_type)
 
     # Return indicies and only the volume region with values.
     return nz_vol, volume[:-1, nz_vol].squeeze(), volume[-1, nz_vol].squeeze()

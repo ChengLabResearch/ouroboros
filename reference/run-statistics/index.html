@@ -653,6 +653,16 @@ OS, and remote caches and remains unknown without observation.</p>
 for the default download submission order, or <code>alternating_slice_count</code> for the
 <a href="../bounding-box-partitioning/#internal-box-ordering">internal ordering flag</a>.
 This describes submission policy, not concurrent worker start or finish order.</p>
+<p>The <code>VolumeCachePipelineStep</code> entry in <code>execution.workers</code> records
+<code>planner_processes</code>: <code>0</code> for serial planning or <code>1</code> when the planner allocates
+its additional worker. Only the latter includes <code>planner_start_method: "fork"</code>.
+These additive fields retain schema version 1 and come from the planner's
+executor allocation, not eligibility estimates; an unsplittable root reports
+zero even when it meets the platform, slice-count, depth, and budget checks.
+The caller also builds a subtree but is not counted as an additional process.
+The worker is joined before threshold selection, cache construction, and
+downstream pools. See <a href="../bounding-box-partitioning/#parallel-planning">parallel planning</a>
+for the Linux/macOS policy, serial fallbacks, and accepted fork risk.</p>
 <p>The schema defines timing boundaries, units, axis conventions, and unavailable
 values here rather than repeating explanatory text in every record. The
 effective slicing configuration is included separately for backprojection; a

@@ -441,7 +441,7 @@
 <nav>
     <ul>
         <li><a href="#bounding-box-partitioning">Bounding box partitioning</a></li>
-        <li><a href="#geometry-and-assignment">Geometry and assignment</a></li><li><a href="#slicing-task-payload-model">Slicing-task payload model</a></li><li><a href="#partition-selection">Partition selection</a></li><li><a href="#internal-box-ordering">Internal box ordering</a></li><li><a href="#options-compatibility-and-limits">Options, compatibility, and limits</a></li><li><a href="#interpolation-and-comparison">Interpolation and comparison</a></li><li><a href="#reproducing-geometry-comparisons">Reproducing geometry comparisons</a></li>
+        <li><a href="#geometry-and-assignment">Geometry and assignment</a></li><li><a href="#slicing-task-payload-model">Slicing-task payload model</a></li><li><a href="#partition-selection">Partition selection</a></li><li><a href="#parallel-planning">Parallel planning</a></li><li><a href="#internal-box-ordering">Internal box ordering</a></li><li><a href="#options-compatibility-and-limits">Options, compatibility, and limits</a></li><li><a href="#interpolation-and-comparison">Interpolation and comparison</a></li><li><a href="#reproducing-geometry-comparisons">Reproducing geometry comparisons</a></li>
     </ul>
 </nav>
 </aside>
@@ -564,6 +564,30 @@ With a fixed worker count, a large task dispatched late can extend the final
 period when other workers are idle, even if accumulated worker time decreases.
 Worker durations overlap and must not be added to, or equated with, the
 coordinator's elapsed time.</p>
+<h2 id="parallel-planning">Parallel planning</h2>
+<p>On Linux and macOS, the slicing pipeline can build the candidate tree with one
+additional process and the caller. It explicitly selects the <code>fork</code> context for
+this executor, independently of the application's default start method. Windows
+and other platforms plan serially. Eligibility requires at least 512 slices,
+<code>max_depth &gt;= 2</code>, and an available process budget (<code>process_count &gt;= 1</code>; public
+options already require at least four). A root without a valid split remains
+serial without requesting a multiprocessing context or creating an executor.</p>
+<p>The worker builds the smaller root subtree while the caller builds its sibling,
+using the same tree builder and payload estimator as serial planning. Results
+are assembled in their original order, preserving deterministic partition
+selection. The executor is closed and joined before threshold selection,
+<code>VolumeCache</code> construction, or downstream download and slicing pools start.
+Small or shallow inputs remain serial to avoid startup overhead. This policy
+does not establish a performance benefit for every workload or native macOS.</p>
+<p>Forking a multithreaded backend carries an accepted, unlikely operational risk;
+its incidence has not been measured and no Ouroboros hang has been reproduced.
+One narrow failure is another parent thread holding a buffered stdout/stderr
+lock during the fork: the child inherits the locked buffer without that thread
+and can hang when multiprocessing flushes the stream at worker exit. Other
+libraries can also have unsafe inherited state, so this is not an exhaustive
+account of fork risks. If this becomes an operational problem, the intended
+follow-up is a full-application switch to <code>forkserver</code> on supported platforms,
+covering existing pools and their lifecycle together.</p>
 <h2 id="internal-box-ordering">Internal box ordering</h2>
 <p>The slicing step normally submits downloads in partition order. Python callers
 can opt into alternating slice-count order when constructing the step:</p>

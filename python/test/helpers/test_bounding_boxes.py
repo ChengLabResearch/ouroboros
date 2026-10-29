@@ -1,3 +1,5 @@
+from collections import Counter
+
 import numpy as np
 import pytest
 from ouroboros.helpers.bounding_boxes import (
@@ -28,6 +30,26 @@ def test_bounding_box_initialization():
     assert bbox.y_max == 1
     assert bbox.z_min == 0
     assert bbox.z_max == 1
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64, np.longdouble])
+def test_scanned_extents_preserve_coordinate_precision_and_own_the_bounds(dtype):
+    lower = np.array([np.nextafter(dtype(-1), dtype(-np.inf)), 2.25, -4], dtype=dtype)
+    upper = np.array([np.nextafter(dtype(1), dtype(np.inf)), 3.5, -4], dtype=dtype)
+    reference = BoundingBox(BoundingBox.bounds_to_rect(
+        lower[0], upper[0], lower[1], upper[1], lower[2], upper[2],
+    ))
+
+    bbox = BoundingBox._from_extents(lower, upper)
+    # Scan buffers are boundary inputs, not retained geometry authorities.
+    lower[:] = upper[:] = 0
+
+    assert bbox.to_dict() == reference.to_dict()
+    assert all(type(value) is dtype for value in bbox.to_dict().values())
+    assert bbox.approx_bounds() == reference.approx_bounds() == (-2, 2, 2, 4, -4, -4)
+    assert bbox.get_shape() == reference.get_shape() == (5, 3, 1)
+    assert bbox.calculate_volume() == reference.calculate_volume() == 15
+    assert type(bbox.calculate_volume()) is type(reference.calculate_volume())
 
 
 def test_bounding_box_get_shape():
@@ -147,6 +169,17 @@ def test_bounding_box_calculate_volume():
     bbox = BoundingBox(rect)
     volume = bbox.calculate_volume()
     assert volume == 8
+
+
+def test_bounding_box_volume_preserves_numpy_integer_reduction():
+    # The existing public method uses NumPy's integer dtype and overflow rule.
+    # No volume is allocated; the large dimensions distinguish a Python product.
+    bbox = BoundingBox(np.array([[0, 0, 0], [2**32 - 1, 2**32 - 1, 1]]))
+    expected = np.prod(bbox.get_shape())
+    with np.errstate(over="raise"):
+        volume = bbox.calculate_volume()
+    assert type(volume) is type(expected)
+    assert volume == expected == 0
 
 
 def test_to_empty_volume():
@@ -489,7 +522,7 @@ def test_coincident_centers_with_distinct_orientations_can_split():
     ([0, 0, 0], [0, 1, 2]),
     ([0, 19], [0, 1]),
 ])
-def test_valid_path_cut_survives_an_invalid_unrestricted_minimum(positions, indices):
+def test_valid_path_cut_survives_an_invalid_unrestricted_minimum(positions, indices, monkeypatch):
     rects = yz_planes(positions)
     indices = np.asarray(indices)
     box = BoundingBox.from_rects(rects)
@@ -508,18 +541,38 @@ def test_valid_path_cut_survives_an_invalid_unrestricted_minimum(positions, indi
             expected_calls.append((child.to_dict(), len(assigned), contiguous))
             costs.append(model(child, len(assigned), contiguous))
         candidates.append(((max(costs), sum(volumes)), cut, left, right))
-    calls = []
+    calls, callback_boxes = [], set()
+    constructed, volume_calls = set(), Counter()
+    from_extents = BoundingBox._from_extents
+    calculate_volume = BoundingBox.calculate_volume
+
+    def record_extents(cls, lower, upper):
+        child = from_extents(lower, upper)
+        constructed.add(child)
+        return child
+
+    def record_volume(child):
+        volume_calls[child] += 1
+        return calculate_volume(child)
+
+    monkeypatch.setattr(BoundingBox, "_from_extents", classmethod(record_extents))
+    monkeypatch.setattr(BoundingBox, "calculate_volume", record_volume)
 
     def observed(child, count, contiguous):
+        assert child in constructed
+        callback_boxes.add(child)
         calls.append((child.to_dict(), count, contiguous))
         return model(child, count, contiguous)
 
     children = _path_partition(indices, rects, int(box.calculate_volume()), observed)
     assert calls == expected_calls
+    # Both callback cost and candidate-volume scoring use the owning box.
+    assert all(volume_calls[child] >= 2 for child in callback_boxes)
     if not candidates:
         assert children is None
         return
     _, cut, left, right = min(candidates, key=lambda candidate: candidate[0])
+    assert all(child.box in callback_boxes for child in children)
     assert [child.box.to_dict() for child in children] == [left.to_dict(), right.to_dict()]
     np.testing.assert_array_equal(children[0].indices, indices[:cut])
     np.testing.assert_array_equal(children[1].indices, indices[cut:])

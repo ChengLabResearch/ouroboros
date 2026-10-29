@@ -35,10 +35,9 @@ class BoundingBoxParams:
 
 class BoundingBox:
     def __init__(self, initial_rect: tuple) -> dict:
-        x_min, x_max, y_min, y_max, z_min, z_max = BoundingBox.get_rect_bounds(
-            initial_rect
-        )
+        self._set_bounds(*BoundingBox.get_rect_bounds(initial_rect))
 
+    def _set_bounds(self, x_min, x_max, y_min, y_max, z_min, z_max):
         self.x_min = x_min
         self.x_max = x_max
         self.y_min = y_min
@@ -47,6 +46,20 @@ class BoundingBox:
         self.z_max = z_max
 
         self.approx_bounds_memo = None
+
+    @classmethod
+    def _from_extents(cls, lower: np.ndarray, upper: np.ndarray) -> "BoundingBox":
+        """Consume ordered, same-dtype 3-vector extrema from the path scan.
+
+        These reductions already identify the enclosing bounds. Avoid making
+        a four-corner rectangle only to reduce it back to those same scalars.
+        Public rectangle/dictionary adapters still normalize their inputs.
+        """
+        box = cls.__new__(cls)
+        box._set_bounds(
+            lower[0], upper[0], lower[1], upper[1], lower[2], upper[2]
+        )
+        return box
 
     def vol_slice(self) -> tuple[slice]:
         return np.s_[self.x_min: self.x_max, self.y_min: self.y_max, self.z_min: self.z_max]
@@ -257,7 +270,10 @@ class BoundingBox:
         return np.zeros(shape, dtype=dtype)
 
     def calculate_volume(self) -> float:
-        return np.prod(self.get_shape())
+        # This is np.prod's reduction for the canonical 1-D shape tuple,
+        # without its generic array dispatch. Retain NumPy's integer dtype
+        # and overflow behavior rather than changing to Python multiplication.
+        return np.multiply.reduce(self.get_shape())
 
     def should_be_divided(self, utilized_volume: float) -> bool:
         return utilized_volume < (1 - DEFAULT_SPLIT_THRESHOLD) * self.calculate_volume()
@@ -438,14 +454,6 @@ class _PartitionNode:
 _TaskPayload = Callable[[BoundingBox, int, bool], int]
 
 
-def _box_from_extents(lower: np.ndarray, upper: np.ndarray) -> BoundingBox:
-    # Extrema are temporary scan results. BoundingBox remains responsible for
-    # converting these floating corner bounds into inclusive integer extents.
-    return BoundingBox(BoundingBox.bounds_to_rect(
-        lower[0], upper[0], lower[1], upper[1], lower[2], upper[2]
-    ))
-
-
 def _spatially_smaller(child: BoundingBox, parent_volume: int) -> bool:
     # Require a five-percent reduction in each child, using exact integer
     # arithmetic at the inclusive voxel boundary.
@@ -470,16 +478,16 @@ def _path_partition(
     # passing the canonical volume rule before constructing/scoring every cut.
     # Payloads need not be monotone; all admissible cuts retain their old order.
     stop = 1 + bisect_left(range(1, len(indices)), True, key=lambda cut: not _spatially_smaller(
-        _box_from_extents(prefix_lower[cut - 1], prefix_upper[cut - 1]), parent_volume,
+        BoundingBox._from_extents(prefix_lower[cut - 1], prefix_upper[cut - 1]), parent_volume,
     ))
     start = 1 + bisect_left(range(1, stop), True, key=lambda cut: _spatially_smaller(
-        _box_from_extents(suffix_lower[cut], suffix_upper[cut]), parent_volume,
+        BoundingBox._from_extents(suffix_lower[cut], suffix_upper[cut]), parent_volume,
     ))
     best = None
     best_score = None
     for cut in range(start, stop):
-        left = _box_from_extents(prefix_lower[cut - 1], prefix_upper[cut - 1])
-        right = _box_from_extents(suffix_lower[cut], suffix_upper[cut])
+        left = BoundingBox._from_extents(prefix_lower[cut - 1], prefix_upper[cut - 1])
+        right = BoundingBox._from_extents(suffix_lower[cut], suffix_upper[cut])
         left_payload = int(task_payload(left, cut, bool(gaps[cut - 1] == 0)))
         right_payload = int(task_payload(
             right, len(indices) - cut, bool(gaps[-1] == gaps[cut])

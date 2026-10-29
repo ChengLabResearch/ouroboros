@@ -283,7 +283,9 @@ def test_partition_planning_uses_configured_raster_and_reuses_source_interface(t
         events.append("metadata")
         return source
 
-    def partition(received, *, target_slices_per_box, max_depth, task_payload):
+    def partition(received, *, target_slices_per_box, max_depth, task_payload,
+                  executor_factory=None):
+        assert executor_factory is None
         events.append("partition")
         assert received is rects
         assert target_slices_per_box == config.bounding_box_params.target_slices_per_box

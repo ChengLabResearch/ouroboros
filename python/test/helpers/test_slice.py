@@ -229,7 +229,9 @@ def test_high_precision_source_interpolates_before_float32_output(dtype, channel
 
 
 @pytest.mark.parametrize("channels", [None, 1, 3])
-def test_slice_volume_writes_each_interpolated_plane_into_tiff_destination(channels, tmp_path, monkeypatch):
+@pytest.mark.parametrize("source_order", ["C", "F"])
+def test_slice_volume_writes_each_interpolated_plane_into_tiff_destination(
+        channels, source_order, tmp_path, monkeypatch):
     volume = np.arange(80, dtype=np.uint16).reshape(5, 4, 4)
     if channels is not None:
         volume = np.stack([np.roll(volume, channel, axis=0) for channel in range(channels)], axis=-1)
@@ -242,6 +244,7 @@ def test_slice_volume_writes_each_interpolated_plane_into_tiff_destination(chann
         output=np.empty((2, 2, 3) + (() if channels is None else (channels,)), dtype=np.float32),
         slice_indices=range(len(grids)),
     )
+    volume = np.array(volume, order=source_order)
     path = tmp_path / "destination.tif"
     mapping = tifffile.memmap(path, shape=(4, *expected.shape[1:]), dtype=np.float32,
                              photometric="minisblack")
@@ -254,6 +257,7 @@ def test_slice_volume_writes_each_interpolated_plane_into_tiff_destination(chann
         assert kwargs["order"] == 3 and kwargs["mode"] == "constant"
         workspace = kwargs["output"]
         assert workspace.dtype == np.float64 and workspace.shape == volume.shape[:3]
+        assert workspace.flags.c_contiguous
         coefficients.append(workspace)
         return spline_filter(data, **kwargs)
 

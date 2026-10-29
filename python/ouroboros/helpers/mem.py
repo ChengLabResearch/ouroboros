@@ -33,10 +33,13 @@ class SharedNPArray:
     __shutdown = True
 
     def __init__(self, name: str, shape: DataShape, dtype: np.dtype,
-                 views: list = None, *, allocate: bool = False):
+                 views: list = None, order: str = "C", *, allocate: bool = False):
+        if order not in ("C", "F"):
+            raise ValueError("order must be 'C' or 'F'")
         self.__name = name
         self.__shape = shape
         self.__dtype = np.dtype(dtype)
+        self.__order = order
         self.__views = [] if views is None else views
         self.__shutdown = False
         self.__allocated = allocate
@@ -58,7 +61,8 @@ class SharedNPArray:
     def __load(self) -> np.ndarray:
         """Allocates a numpy array in the shared memory."""
         if self.__sm.buf is not None:
-            self.__ar = np.ndarray(shape=astuple(self.__shape), dtype=self.dtype, buffer=self.__sm.buf)
+            self.__ar = np.ndarray(shape=astuple(self.__shape), dtype=self.dtype,
+                                   buffer=self.__sm.buf, order=self.__order)
             if self.has_views:
                 ar = self.__ar
                 for view in self.__views:
@@ -110,7 +114,7 @@ class SharedNPArray:
 
     def __reduce__(self):
         """Serialize an attachment, never the creator's unlink authority or view."""
-        return type(self), (self.__name, self.__shape, self.__dtype, self.__views)
+        return type(self), (self.__name, self.__shape, self.__dtype, self.__views, self.__order)
 
     @property
     def owns_unlink(self) -> bool:
@@ -121,7 +125,8 @@ class SharedNPArray:
         if is_advanced_index(view):
             raise IndexError("This would be an advanced index and create copies, so should not be used here.")
         else:
-            return SharedNPArray(self.__name, self.__shape, self.__dtype, self.__views + [view])
+            return SharedNPArray(self.__name, self.__shape, self.__dtype,
+                                 self.__views + [view], self.__order)
 
     @cached_property
     def has_views(self):
@@ -134,6 +139,11 @@ class SharedNPArray:
     @property
     def dtype(self):
         return self.__dtype
+
+    @property
+    def order(self):
+        """Storage order of the base allocation, retained by indexed views."""
+        return self.__order
 
     @cached_property
     def shape(self):
@@ -320,17 +330,18 @@ class SharedNPManager(SharedMemoryManager):
             self._request("release_segment", name)
             raise
 
-    def SharedNPArray(self, shape: DataShape, dtype: np.dtype, *create_with: tuple[DataShape, np.dtype]):
-        return self._array(shape, dtype, create_with, termed=False)
+    def SharedNPArray(self, shape: DataShape, dtype: np.dtype,
+                      *create_with: tuple[DataShape, np.dtype], order: str = "C"):
+        return self._array(shape, dtype, create_with, termed=False, order=order)
 
-    def _array(self, shape, dtype, create_with, *, termed):
+    def _array(self, shape, dtype, create_with, *, termed, order="C"):
         full_set = [(shape, dtype)] + list(create_with)
         size = max([np.prod(astuple(shape), dtype=object) * np.dtype(dtype).itemsize for (shape, dtype) in full_set])
         mem = self.SharedMemory(int(size), termed=termed)
         result = []
         try:
             for array_shape, array_dtype in full_set:
-                result.append(SharedNPArray(mem.name, array_shape, array_dtype))
+                result.append(SharedNPArray(mem.name, array_shape, array_dtype, order=order))
             return result[0] if len(result) == 1 else result
         except BaseException:
             for array in result:
@@ -340,8 +351,9 @@ class SharedNPManager(SharedMemoryManager):
         finally:
             mem.close()
 
-    def TermedNPArray(self, shape: DataShape, dtype: np.dtype, *create_with: tuple[DataShape, np.dtype]):
-        return self._array(shape, dtype, create_with, termed=True)
+    def TermedNPArray(self, shape: DataShape, dtype: np.dtype,
+                      *create_with: tuple[DataShape, np.dtype], order: str = "C"):
+        return self._array(shape, dtype, create_with, termed=True, order=order)
 
     def clear_queue(self):  # pragma: no cover - IPC lifecycle.
         ar_mem = []

@@ -1,7 +1,9 @@
 """Mode scheduling and comparisons supplement actual CLI benchmark validation."""
 
 import json
+from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -9,6 +11,7 @@ import tifffile
 
 from benchmarks import benchmark_run_statistics as benchmark
 from ouroboros.common.logging_mode import LoggingMode
+from ouroboros.common.memory_statistics import unavailable
 
 
 @pytest.mark.parametrize("names", [None, ["detailed", "standard", "off"]])
@@ -111,3 +114,145 @@ def test_pagewise_pixel_evidence_matches_single_file_and_directory_outputs(tmp_p
         assert single_evidence[key] == directory_evidence[key]
     assert directory_evidence["files"] == 3
     assert directory_evidence["storage_bytes"] == sum(file.stat().st_size for file in directory.iterdir())
+
+
+@pytest.fixture
+def child_outputs(monkeypatch):
+    """Supply completed CLI artifacts while exercising the benchmark's readers."""
+    # Both benchmark entry points set these for their subprocesses.
+    for variable in ("CLOUD_VOLUME_DIR", "CLOUD_VOLUME_CACHE_DIR", "CLOUD_FILES_DIR"):
+        monkeypatch.delenv(variable, raising=False)
+    state = {
+        "calls": [],
+        "memory": {
+            LoggingMode.DETAILED: unavailable("No complete RAM sample"),
+            LoggingMode.STANDARD: unavailable("RAM monitoring disabled", status="disabled"),
+        },
+    }
+    pixels = np.arange(3 * 8 * 8, dtype=np.uint16).reshape(3, 8, 8)
+
+    def completed_child(command, *, cwd, stdout, stderr, check, timeout):
+        def argument(name):
+            return command[command.index(name) + 1]
+
+        operation = argument("--operation")
+        mode = LoggingMode(argument("--logging-mode"))
+        options = json.loads(Path(argument("--options")).read_text())
+        scope = argument("--scope")
+        state["calls"].append({"operation": operation, "mode": mode,
+                               "scope": scope, "options": options})
+        if operation == "backproject":
+            # The orchestration must retain the matching slicing output until
+            # backprojection consumes it, including when RAM was unavailable.
+            np.testing.assert_array_equal(tifffile.imread(options["straightened_volume_path"]), pixels)
+            assert Path(options["slice_options_path"]).is_file()
+        output_folder = Path(options["output_file_folder"])
+        tifffile.imwrite(output_folder / f"{operation}.tif", pixels, photometric="minisblack")
+        measurement = {"handler_elapsed_seconds": 1.0}
+        if scope == "pipeline":
+            measurement.update(pipeline_elapsed_seconds=0.8,
+                               data_operation_elapsed_seconds=0.6)
+        benchmark.write_json(Path(argument("--measurement")), measurement)
+        if mode.reporting_enabled:
+            report_path = output_folder / f"{operation}-statistics.json"
+            benchmark.write_json(report_path, {
+                "outcome": "succeeded", "error": None, "collection_errors": [],
+                "logging_mode": mode.value,
+                "steps": [{"custom_times": {"data": 0.6}}],
+                "memory": state["memory"][mode],
+            })
+            stdout.write(report_path.read_text())
+
+    monkeypatch.setattr(benchmark, "subprocess", SimpleNamespace(run=completed_child))
+    return state
+
+
+@pytest.mark.parametrize("scope", ["handler", "pipeline"])
+def test_detailed_run_requires_ram_sample_by_default(tmp_path, child_outputs, scope):
+    with pytest.raises(RuntimeError, match="Memory sampling unavailable"):
+        benchmark.run_once(tmp_path, "slice", {}, LoggingMode.DETAILED,
+                           4, "detailed", 30, scope)
+
+
+@pytest.mark.parametrize("scope", ["handler", "pipeline"])
+def test_tolerant_detailed_run_retains_timings_memory_and_pixels(tmp_path, child_outputs, scope):
+    result, output = benchmark.run_once(tmp_path, "slice", {}, LoggingMode.DETAILED,
+                                       4, "detailed", 30, scope, require_memory=False)
+    assert result["handler_elapsed_seconds"] == 1.0
+    if scope == "pipeline":
+        assert result["pipeline_elapsed_seconds"] == 0.8
+        assert result["data_operation_elapsed_seconds"] == 0.6
+    assert result["memory"] == child_outputs["memory"][LoggingMode.DETAILED]
+    assert result["memory"]["sampled_peak_bytes"] is None
+    assert result["output"] == benchmark.tiff_evidence(output)
+    assert json.loads((tmp_path / "detailed" / "measurement.json").read_text()) == result
+
+
+@pytest.mark.parametrize("memory", [
+    unavailable("No complete RAM sample"),
+    {"status": "sampled", "sampled_peak_bytes": 1024},
+    {"status": "disabled", "sampled_peak_bytes": 1024},
+])
+def test_tolerance_does_not_relax_standard_disabled_memory_contract(tmp_path, child_outputs, memory):
+    child_outputs["memory"][LoggingMode.STANDARD] = memory
+    with pytest.raises(RuntimeError, match="Memory was not disabled"):
+        benchmark.run_once(tmp_path, "slice", {}, LoggingMode.STANDARD,
+                           4, "standard", 30, "pipeline", require_memory=False)
+
+
+@pytest.mark.parametrize("scope", ["handler", "pipeline"])
+def test_fixture_benchmark_requires_detailed_ram_samples(tmp_path, child_outputs, scope):
+    fixture_folder = tmp_path / "fixture"
+    fixture_folder.mkdir()
+    benchmark.write_json(fixture_folder / "results.json", {
+        "fixture": {"slice_options": {"make_single_file": True}},
+    })
+    tifffile.imwrite(fixture_folder / "segmentation.tif", np.zeros((3, 8, 8), dtype=np.uint8),
+                     photometric="minisblack")
+    args = SimpleNamespace(work_dir=tmp_path / "run", reuse_fixture=fixture_folder,
+                           workers=4, scope=scope, pairs=2, timeout=30,
+                           modes=[LoggingMode.DETAILED])
+    with pytest.raises(RuntimeError, match="Memory sampling unavailable"):
+        benchmark.benchmark(args)
+    assert len(child_outputs["calls"]) == 1
+
+
+def test_real_data_keeps_all_modes_and_backprojection_when_detailed_ram_is_unavailable(
+        tmp_path, child_outputs):
+    annotations = tmp_path / "source-annotations.json"
+    benchmark.write_json(annotations, {"layers": [{
+        "type": "annotation", "name": "path", "annotations": [{"point": [1, 2, 3]}],
+    }]})
+    slice_options = tmp_path / "slice-options.json"
+    backproject_options = tmp_path / "backproject-options.json"
+    benchmark.write_json(slice_options, {"neuroglancer_json": str(annotations)})
+    benchmark.write_json(backproject_options, {})
+    args = SimpleNamespace(work_dir=tmp_path / "run", resume_real_data=False,
+                           real_slice_options=slice_options,
+                           real_backproject_options=backproject_options,
+                           annotation_layer=None, cache_dir=None, workers=4,
+                           pairs=2, timeout=30,
+                           modes=[LoggingMode.DETAILED, LoggingMode.OFF, LoggingMode.STANDARD])
+
+    benchmark.benchmark_real_data(args)
+
+    result = json.loads((args.work_dir / "results.json").read_text())
+    path = result["paths"]["path"]
+    assert result["production_code_unchanged"] is True
+    assert path["slicing_warmup"]["memory"] == child_outputs["memory"][LoggingMode.DETAILED]
+    assert len(child_outputs["calls"]) == 13  # One warmup, two rounds of six operations.
+    assert all(call["scope"] == "pipeline" for call in child_outputs["calls"])
+    assert len(path["runs"]) == 12
+    assert all("status" not in run for run in path["runs"])
+    for run in path["runs"]:
+        if run["mode"] == "detailed":
+            assert run["memory"] == child_outputs["memory"][LoggingMode.DETAILED]
+    for summaries in (path["operations"], path["pipeline_operations"]):
+        assert set(summaries) == {"slice", "backproject"}
+        for measured in summaries.values():
+            assert set(measured["modes"]) == {"off", "standard", "detailed"}
+            assert measured["baseline_mode"] == "off"
+            assert set(measured["comparisons"]) == {"standard", "detailed"}
+            assert measured["pixel_equivalence"] is True
+            assert len(measured["runs"]) == 6
+    assert not list(args.work_dir.rglob("*.tif"))

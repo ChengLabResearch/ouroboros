@@ -175,7 +175,13 @@ def tiff_evidence(path: Path) -> dict:
 
 
 def run_once(folder: Path, operation: str, options: dict, mode: LoggingMode,
-             workers: int, label: str, timeout: int, scope: str = "handler") -> tuple[dict, Path]:
+             workers: int, label: str, timeout: int, scope: str = "handler", *,
+             require_memory: bool = True) -> tuple[dict, Path]:
+    """Run one trial; real data may retain timings despite unavailable RAM coverage.
+
+    require_memory controls validation only. LoggingMode remains the sole owner
+    of instrumentation policy, including whether a collector starts.
+    """
     run_folder = folder / label
     run_folder.mkdir()
     output_folder = run_folder / "output"
@@ -224,7 +230,7 @@ def run_once(folder: Path, operation: str, options: dict, mode: LoggingMode,
         if not steps or not any(step.get("custom_times") for step in steps):
             raise RuntimeError(f"Step statistics missing in {report_path}")
         memory = record.get("memory")
-        if mode.memory_enabled and (not memory or memory["sampled_peak_bytes"] is None):
+        if mode.memory_enabled and require_memory and (not memory or memory["sampled_peak_bytes"] is None):
             raise RuntimeError(f"Memory sampling unavailable in {report_path}: {memory}")
         if not mode.memory_enabled and (not memory or memory.get("status") != "disabled"
                                         or memory.get("sampled_peak_bytes") is not None):
@@ -483,7 +489,7 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
             return failed_trial(label, operation, mode, "Prior attempt did not complete; retained without retry")
         try:
             return run_once(folder, operation, options, mode, args.workers,
-                            label, args.timeout, "pipeline")
+                            label, args.timeout, "pipeline", require_memory=False)
         except Exception as error:
             print(f"{label}: failed: {error}", flush=True)
             return failed_trial(label, operation, mode, error)

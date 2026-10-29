@@ -35,7 +35,8 @@ the original source datasets and complete recorded options.
 The harness defaults to Standard logging. Select modes with
 `--modes off standard detailed` to compare all three, or select any subset.
 Off writes no statistics; Standard includes step statistics without RAM collection;
-Detailed additionally requires a usable memory sample. The harness checks saved
+Detailed requires a usable memory sample on the generated fixture; real-data
+trials retain unavailable RAM results without discarding their timings. The harness checks saved
 reports against stdout. `--pairs` retains its original spelling but now counts
 rounds: each round runs every selected mode once and rotates their execution order.
 
@@ -76,8 +77,12 @@ This adds I/O between trials; account for it when comparing historical results
 that skipped pixel hashing.
 
 Failed trials remain recorded and dependent backprojections are marked skipped;
-remaining independent trials still run. A missing usable RAM sample in Detailed is
-recorded as a failed trial. Standard requires memory to be explicitly disabled.
+remaining independent trials still run. In the real-data path, a missing usable
+RAM sample in Detailed is retained on the run as a coverage failure, not silently
+treated as a disabled collector. Its timings still count, and the matching
+backprojection and mode comparisons continue. Generated-fixture runs still
+require a usable Detailed sample, including with `--scope pipeline`.
+Standard requires memory to be explicitly disabled in both paths.
 An incomplete round receives no aggregate overhead estimate. `--resume-real-data` completes an
 interrupted batch without repeating completed/failed attempts, after checking
 production code, annotations, settings, selected mode order, schema and dependency

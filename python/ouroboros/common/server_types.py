@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from ouroboros.common.logging_mode import LoggingMode
 from ouroboros.pipeline import PipelineInput, Pipeline
 
 if TYPE_CHECKING:
@@ -15,7 +16,7 @@ class Task:
     pipeline: Pipeline = None
     status: str = "enqueued"
     error: str = None
-    reporting_enabled: bool = True
+    logging_mode: LoggingMode = LoggingMode.OFF
     show_progress: bool = False
     statistics: "RunStatistics | None" = None
     execution_phase: str = "loading_input"

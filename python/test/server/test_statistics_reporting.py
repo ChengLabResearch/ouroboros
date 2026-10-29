@@ -17,6 +17,7 @@ from sse_starlette.sse import AppStatus
 
 from ouroboros import cli
 from ouroboros.common import file_system, run_statistics, server_handlers
+from ouroboros.common.logging_mode import LoggingMode
 from ouroboros.common.server_api import create_api
 from ouroboros.common.server_types import BackProjectTask, SliceTask
 from ouroboros.helpers.files import format_slice_output_file, format_slice_output_multiple
@@ -37,7 +38,7 @@ def run_fixture(tmp_path, monkeypatch):
     state = SimpleNamespace(
         output=output, annotation=annotation, volume=tmp_path / "volume",
         slice_path=slice_options_path, backproject_path=backproject_options_path,
-        events=[], pipelines=[], inputs=[], collected=[], memory_events=[], behavior="success",
+        events=[], pipelines=[], inputs=[], collected=[], memory_events=[], memory_collectors=[], behavior="success",
         transfer_failure=None, import_failure=None,
     )
 
@@ -121,6 +122,7 @@ def run_fixture(tmp_path, monkeypatch):
     class FixtureMemoryCollector:
 
         def __init__(self):
+            state.memory_collectors.append(self)
             self.active = False
             self.summary = {"status": "not_started"}
 
@@ -140,14 +142,22 @@ def run_fixture(tmp_path, monkeypatch):
     return state
 
 
-def _task(state, operation, **kwargs):
+def _task(state, operation, *, logging_mode=LoggingMode.DETAILED, **kwargs):
     cls = SliceTask if operation == "slice" else BackProjectTask
     path = state.slice_path if operation == "slice" else state.backproject_path
-    return cls(task_id="fixture-run", options=str(path), **kwargs)
+    return cls(task_id="fixture-run", options=str(path), logging_mode=logging_mode, **kwargs)
 
 
 def _record(task):
     return json.loads(Path(task.statistics.publication["path"]).read_text())
+
+
+@pytest.mark.parametrize("task_type", [SliceTask, BackProjectTask])
+def test_task_defaults_to_off_without_a_parallel_reporting_switch(task_type):
+    task = task_type(task_id="default-mode", options="options.json")
+    assert task.logging_mode is LoggingMode.OFF
+    assert not hasattr(task, "reporting_enabled")
+    assert task.statistics is None
 
 
 @pytest.mark.parametrize("method", ["start", "stop"])
@@ -166,36 +176,63 @@ def test_memory_observation_failure_keeps_scientific_outcome(run_fixture, monkey
 
 
 @pytest.mark.parametrize("operation", ["slice", "backproject"])
+@pytest.mark.parametrize("mode", list(LoggingMode))
+@pytest.mark.parametrize("docker", [False, True], ids=["native", "docker"])
 @pytest.mark.parametrize(
     ("behavior", "task_status", "outcome"),
     [("success", "done", "succeeded"), ("returned", "error", "failed"),
      ("raised", "error", "failed"), ("interrupted", "interrupted", "interrupted")],
 )
-def test_native_outcomes_finalize_one_record_from_the_canonical_pipeline(
-    run_fixture, operation, behavior, task_status, outcome,
+def test_logging_modes_preserve_outcomes_and_derive_reports_from_the_canonical_pipeline(
+    run_fixture, monkeypatch, operation, mode, docker, behavior, task_status, outcome,
 ):
     state = run_fixture
     state.behavior = behavior
-    task = _task(state, operation)
-    assert server_handlers.handle_task(task) is task
+    if docker:
+        _docker_transport(state, monkeypatch)
+    task = _task(state, operation, logging_mode=mode)
+    handler = server_handlers.handle_task_docker if docker else server_handlers.handle_task
+    assert handler(task) is task
     assert task.status == task_status
     assert task.pipeline is state.pipelines[0]
     assert task.pipeline_input is state.inputs[0]
+    assert task.pipeline.logging_mode is task.logging_mode is mode
+    assert all(step.logging_mode is task.logging_mode for step in task.pipeline.steps)
+    name, progress, duration = task.pipeline.get_steps_progress_and_durations()[0]
+    assert name == task.pipeline.steps[0].step_name
+    assert duration > 0
+    assert progress == (1 if behavior == "success" else 0)
+    assert len(state.memory_collectors) == int(mode.memory_enabled)
+    assert state.memory_events == (["start", "stop"] if mode.memory_enabled else [])
+    if not mode.reporting_enabled:
+        assert task.statistics is None
+        assert state.collected == []
+        assert task.pipeline.get_step_statistics()[0]["custom_times"] == {}
+        assert list(state.output.glob("*statistics*.json")) == []
+        return
     assert task.statistics.task is task
     assert len(state.collected) == 1
     record = _record(task)
     assert record["outcome"] == outcome
     assert record["operation"] == operation
+    assert record["logging_mode"] == mode.value
     assert record["run_id"] == task.task_id
     assert record["operation_elapsed_seconds"] >= record["pipeline_elapsed_seconds"] > 0
     assert record["started_at"].endswith("+00:00")
     assert record["finished_at"] is not None
     assert record["steps"] == task.pipeline.get_step_statistics()
     assert record["steps"][0]["custom_times"]["compute"]["mean"] == 0.00123456789
-    assert record["memory"] == task.statistics.memory_collector.summary
-    assert state.memory_events == ["start", "stop"]
-    assert state.events.index("memory-start") < state.events.index("scientific-output")
-    assert state.events.index("memory-stop") < state.events.index("collect-volumes")
+    if mode.memory_enabled:
+        assert record["memory"] == task.statistics.memory_collector.summary
+        assert state.events.index("memory-start") < state.events.index("scientific-output")
+        assert state.events.index("memory-stop") < state.events.index("collect-volumes")
+    else:
+        assert task.statistics.memory_collector is None
+        assert record["memory"]["status"] == "disabled"
+        assert record["memory"]["reason"] == "RAM monitoring disabled by logging mode"
+        assert record["memory"]["errors"] == []
+        assert record["memory"]["sampled_peak_bytes"] is None
+        assert record["memory"]["sampling"] is None
     assert record["phase_wall_spans"] is None
     assert ("slicing" in record["effective_configuration"]) == (operation == "backproject")
     assert task.statistics.publication["status"] == "published"
@@ -203,10 +240,23 @@ def test_native_outcomes_finalize_one_record_from_the_canonical_pipeline(
 
 
 @pytest.mark.parametrize("operation", ["slice", "backproject"])
-@pytest.mark.parametrize("enabled", [True, False])
-@pytest.mark.parametrize("saved_reporting", [None, False, True], ids=["legacy", "saved-off", "saved-on"])
-def test_cli_verbose_prints_exact_saved_json_and_disabled_skips_collection(
-    run_fixture, capsys, monkeypatch, operation, enabled, saved_reporting,
+@pytest.mark.parametrize(
+    ("flags", "mode"),
+    [([], LoggingMode.OFF), (["--logging-mode", "off"], LoggingMode.OFF),
+     (["--logging-mode", "standard"], LoggingMode.STANDARD),
+     (["--logging-mode", "detailed"], LoggingMode.DETAILED),
+     (["--verbose"], LoggingMode.DETAILED)],
+    ids=["default", "off", "standard", "detailed", "verbose-alias"],
+)
+@pytest.mark.parametrize(
+    "saved_preferences",
+    [{}, {"reporting_enabled": False}, {"reporting_enabled": True},
+     {"logging_mode": "off"}, {"logging_mode": "standard"}, {"logging_mode": "detailed"},
+     {"logging_mode": "standard", "reporting_enabled": True}],
+    ids=["missing", "legacy-off", "legacy-on", "saved-off", "saved-standard", "saved-detailed", "both"],
+)
+def test_cli_logging_mode_controls_exact_saved_json_independently_of_saved_preferences(
+    run_fixture, capsys, monkeypatch, operation, flags, mode, saved_preferences,
 ):
     state = run_fixture
     tasks = []
@@ -216,11 +266,10 @@ def test_cli_verbose_prints_exact_saved_json_and_disabled_skips_collection(
     option_paths = [state.slice_path]
     if operation == "backproject":
         option_paths.append(state.backproject_path)
-    if saved_reporting is not None:
-        for option_path in option_paths:
-            saved_options = json.loads(option_path.read_text())
-            saved_options["reporting_enabled"] = saved_reporting
-            option_path.write_text(json.dumps(saved_options))
+    for option_path in option_paths:
+        saved_options = json.loads(option_path.read_text())
+        saved_options.update(saved_preferences)
+        option_path.write_text(json.dumps(saved_options))
 
     def execute(task, **kwargs):
         tasks.append(task)
@@ -228,35 +277,44 @@ def test_cli_verbose_prints_exact_saved_json_and_disabled_skips_collection(
 
     monkeypatch.setattr(cli, "handle_task", execute)
     path = state.slice_path if operation == "slice" else state.backproject_path
-    monkeypatch.setattr(sys, "argv", ["ouroboros-cli", operation, str(path)] + (["--verbose"] if enabled else []))
+    monkeypatch.setattr(sys, "argv", ["ouroboros-cli", operation, str(path), *flags])
     cli.main()
     task, = tasks
     stdout = capsys.readouterr().out
     assert task.pipeline is state.pipelines[0]
     assert task.pipeline_input is state.inputs[0]
-    assert task.reporting_enabled is enabled
+    assert task.logging_mode is mode
+    assert task.pipeline.logging_mode is mode
+    assert task.pipeline.steps[0].logging_mode is mode
+    assert not hasattr(task, "reporting_enabled")
     assert task.show_progress is True
     loaded_options = [(task.pipeline_input.slice_options, SliceOptions)]
     if operation == "backproject":
         loaded_options.append((task.pipeline_input.backproject_options, BackprojectOptions))
     for options, model in loaded_options:
         assert isinstance(options, model)
-        # The saved desktop preference is discarded at input, not retained as
-        # another runtime switch. Catch both extra="forbid" and extra="allow" drift.
-        assert not hasattr(options, "reporting_enabled")
-        assert "reporting_enabled" not in options.model_dump()
-        assert "reporting_enabled" not in json.loads(options.to_json())
+        # Saved desktop preferences are discarded at the input boundary; the
+        # execution mode is owned by Task, never duplicated in science options.
+        for preference in ("reporting_enabled", "logging_mode"):
+            assert not hasattr(options, preference)
+            assert preference not in options.model_dump()
+            assert preference not in json.loads(options.to_json())
     name, progress, duration = task.pipeline.get_steps_progress_and_durations()[0]
     assert name == task.pipeline.steps[0].step_name
     assert progress == 1
     assert duration > 0
-    if enabled:
+    assert len(state.memory_collectors) == int(mode.memory_enabled)
+    assert state.memory_events == (["start", "stop"] if mode.memory_enabled else [])
+    if mode.reporting_enabled:
         file_text = Path(task.statistics.publication["path"]).read_text()
         assert stdout.split("Calculation Statistics:", 1)[1].strip() == file_text
-        assert json.loads(file_text)["outcome"] == "succeeded"
+        record = json.loads(file_text)
+        assert record["outcome"] == "succeeded"
+        assert record["logging_mode"] == mode.value
+        assert record["steps"][0]["custom_times"]["compute"]["mean"] == 0.00123456789
+        assert record["memory"]["status"] == ("sampled" if mode.memory_enabled else "disabled")
         assert len(state.collected) == 1
     else:
-        assert state.memory_events == []
         assert "Calculation Statistics:" not in stdout
         assert task.statistics is None
         assert state.collected == []
@@ -265,9 +323,31 @@ def test_cli_verbose_prints_exact_saved_json_and_disabled_skips_collection(
         assert list(state.output.glob("*statistics*.json")) == []
 
 
+@pytest.mark.parametrize("operation", ["slice", "backproject"])
+@pytest.mark.parametrize("flags", [
+    ["--logging-mode", "unknown"],
+    ["--verbose", "--logging-mode", "off"],
+    ["--verbose", "--logging-mode", "standard"],
+    ["--verbose", "--logging-mode", "detailed"],
+    ["--logging-mode", "off", "--verbose"],
+    ["--logging-mode", "standard", "--verbose"],
+    ["--logging-mode", "detailed", "--verbose"],
+])
+def test_cli_rejects_unknown_or_conflicting_mode_flags_before_execution(
+    run_fixture, monkeypatch, operation, flags,
+):
+    path = run_fixture.slice_path if operation == "slice" else run_fixture.backproject_path
+    monkeypatch.setattr(sys, "argv", ["ouroboros-cli", operation, str(path), *flags])
+    with pytest.raises(SystemExit) as error:
+        cli.main()
+    assert error.value.code == 2
+    assert run_fixture.pipelines == []
+    assert run_fixture.memory_collectors == []
+
+
 def test_repeated_cli_output_name_preserves_distinct_runs_and_prior_payload(run_fixture):
     state = run_fixture
-    args = SimpleNamespace(options=str(state.slice_path), verbose=True)
+    args = SimpleNamespace(options=str(state.slice_path), logging_mode=LoggingMode.DETAILED)
     first = cli.handle_slice(args)
     first_path = Path(first.statistics.publication["path"])
     first_payload = first_path.read_bytes()
@@ -293,7 +373,8 @@ def test_repeated_cli_output_name_preserves_distinct_runs_and_prior_payload(run_
 
 def test_early_options_failure_has_no_unintended_cwd_report(run_fixture, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    task = SliceTask(task_id="bad-options", options=str(tmp_path / "missing.json"))
+    task = SliceTask(task_id="bad-options", options=str(tmp_path / "missing.json"),
+                     logging_mode=LoggingMode.DETAILED)
     server_handlers.handle_task(task)
     assert task.status == "error"
     assert task.pipeline is None
@@ -531,7 +612,7 @@ def test_cli_failed_and_interrupted_runs_publish_before_nonzero_exit(run_fixture
     state = run_fixture
     state.behavior = behavior
     with pytest.raises(SystemExit) as error:
-        cli.handle_slice(SimpleNamespace(options=str(state.slice_path), verbose=True))
+        cli.handle_slice(SimpleNamespace(options=str(state.slice_path), logging_mode=LoggingMode.DETAILED))
     assert error.value.code == exit_code
     reports = list(state.output.glob("*statistics*.json"))
     assert len(reports) == 1
@@ -539,7 +620,91 @@ def test_cli_failed_and_interrupted_runs_publish_before_nonzero_exit(run_fixture
 
 
 @pytest.mark.parametrize("operation", ["slice", "backproject"])
-def test_api_reporting_default_opt_out_and_publication_status(run_fixture, operation, monkeypatch):
+@pytest.mark.parametrize("docker", [False, True], ids=["native", "docker"])
+@pytest.mark.parametrize(
+    ("parameters", "mode"),
+    [({}, LoggingMode.OFF),
+     ({"reporting_enabled": "false"}, LoggingMode.OFF),
+     ({"reporting_enabled": "true"}, LoggingMode.DETAILED),
+     ({"logging_mode": "off"}, LoggingMode.OFF),
+     ({"logging_mode": "standard"}, LoggingMode.STANDARD),
+     ({"logging_mode": "detailed"}, LoggingMode.DETAILED),
+     ({"logging_mode": "off", "reporting_enabled": "true"}, LoggingMode.OFF),
+     ({"logging_mode": "standard", "reporting_enabled": "true"}, LoggingMode.STANDARD),
+     ({"logging_mode": "detailed", "reporting_enabled": "false"}, LoggingMode.DETAILED)],
+    ids=["default", "legacy-off", "legacy-on", "off", "standard", "detailed",
+         "explicit-off-wins", "explicit-standard-wins", "explicit-detailed-wins"],
+)
+def test_api_normalizes_legacy_input_once_and_runs_the_canonical_logging_mode(
+    run_fixture, monkeypatch, operation, docker, parameters, mode,
+):
+    state = run_fixture
+    if docker:
+        _docker_transport(state, monkeypatch)
+
+    async def scenario():
+        app = FastAPI()
+        queued = []
+
+        @app.middleware("http")
+        async def queue_middleware(request: Request, call_next):
+            request.state.queue = SimpleNamespace(put_nowait=queued.append)
+            return await call_next(request)
+
+        create_api(app, docker=docker)
+        path = state.slice_path if operation == "slice" else state.backproject_path
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(f"/{operation}/", params={"options": str(path), **parameters})
+            assert response.status_code == 200
+            task, = queued
+            assert task.logging_mode is mode
+            assert not hasattr(task, "reporting_enabled")
+            handler = server_handlers.handle_task_docker if docker else server_handlers.handle_task
+            assert handler(task) is task
+            assert task.status == "done"
+            assert task.pipeline.logging_mode is mode
+            assert all(step.logging_mode is mode for step in task.pipeline.steps)
+            status = (await client.get(f"/status/{task.task_id}")).json()
+            assert status["statistics"]["status"] == ("published" if mode.reporting_enabled else "disabled")
+            assert len(state.memory_collectors) == int(mode.memory_enabled)
+            assert state.memory_events == (["start", "stop"] if mode.memory_enabled else [])
+            if mode.reporting_enabled:
+                record = _record(task)
+                assert record["logging_mode"] == mode.value
+                assert record["memory"]["status"] == ("sampled" if mode.memory_enabled else "disabled")
+            else:
+                assert task.statistics is None
+                assert state.collected == []
+                assert list(state.output.glob("*statistics*.json")) == []
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("operation", ["slice", "backproject"])
+def test_api_rejects_invalid_logging_mode_before_queueing(run_fixture, operation):
+    async def scenario():
+        app = FastAPI()
+        queued = []
+
+        @app.middleware("http")
+        async def queue_middleware(request: Request, call_next):
+            request.state.queue = SimpleNamespace(put_nowait=queued.append)
+            return await call_next(request)
+
+        create_api(app)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(f"/{operation}/", params={
+                "options": str(run_fixture.slice_path), "logging_mode": "unknown",
+                "reporting_enabled": "true",
+            })
+            assert response.status_code == 422
+            assert queued == []
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("operation", ["slice", "backproject"])
+def test_api_explicit_reporting_default_off_and_publication_status(run_fixture, operation, monkeypatch):
     # sse-starlette retains a process-global event; each asyncio.run owns a new loop.
     monkeypatch.setattr(AppStatus, "should_exit_event", None)
     async def scenario():
@@ -554,10 +719,12 @@ def test_api_reporting_default_opt_out_and_publication_status(run_fixture, opera
         create_api(app)
         path = run_fixture.slice_path if operation == "slice" else run_fixture.backproject_path
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.post(f"/{operation}/", params={"options": str(path)})
+            response = await client.post(
+                f"/{operation}/", params={"options": str(path), "logging_mode": "standard"},
+            )
             assert response.status_code == 200
             task = queued[-1]
-            assert task.reporting_enabled
+            assert task.logging_mode is LoggingMode.STANDARD
             status = await client.get(f"/status/{task.task_id}")
             assert status.json()["statistics"]["status"] == "pending"
             server_handlers.handle_task(task)
@@ -588,12 +755,10 @@ def test_api_reporting_default_opt_out_and_publication_status(run_fixture, opera
             assert task.status == "done"
             assert task.statistics.to_record()["outcome"] == "succeeded"
 
-            response = await client.post(
-                f"/{operation}/", params={"options": str(path), "reporting_enabled": "false"},
-            )
+            response = await client.post(f"/{operation}/", params={"options": str(path)})
             assert response.status_code == 200
             disabled = queued[-1]
-            assert not disabled.reporting_enabled
+            assert disabled.logging_mode is LoggingMode.OFF
             server_handlers.handle_task(disabled)
             status = await client.get(f"/status/{disabled.task_id}")
             assert status.json()["statistics"]["status"] == "disabled"
@@ -614,7 +779,7 @@ def test_api_reporting_default_opt_out_and_publication_status(run_fixture, opera
 
 
 @pytest.mark.parametrize("operation", ["slice", "backproject"])
-def test_reporting_toggle_preserves_live_progress_durations_and_terminal_stream(
+def test_logging_modes_preserve_live_progress_durations_and_terminal_stream(
     run_fixture, operation, monkeypatch,
 ):
     monkeypatch.setattr(AppStatus, "should_exit_event", None)
@@ -652,24 +817,28 @@ def test_reporting_toggle_preserves_live_progress_durations_and_terminal_stream(
         create_api(app)
         path = run_fixture.slice_path if operation == "slice" else run_fixture.backproject_path
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            for enabled in (False, True, False):
+            for mode in (LoggingMode.OFF, LoggingMode.STANDARD, LoggingMode.DETAILED, LoggingMode.OFF):
+                enabled = mode.reporting_enabled
                 entered.clear()
                 release.clear()
                 progress_updates.clear()
                 collected_before = len(run_fixture.collected)
                 memory_before = len(run_fixture.memory_events)
+                collectors_before = len(run_fixture.memory_collectors)
                 reports_before = len(list(run_fixture.output.glob("*statistics*.json")))
                 response = await client.post(
-                    f"/{operation}/", params={"options": str(path), "reporting_enabled": enabled},
+                    f"/{operation}/", params={"options": str(path), "logging_mode": mode.value},
                 )
                 assert response.status_code == 200
                 task = queued[-1]
-                assert task.reporting_enabled is enabled
+                assert task.logging_mode is mode
                 with ThreadPoolExecutor(1) as pool:
                     running = pool.submit(server_handlers.handle_task, task)
                     try:
                         assert entered.wait(2)
                         assert task.pipeline is run_fixture.pipelines[-1]
+                        assert task.pipeline.logging_mode is mode
+                        assert task.pipeline.steps[0].logging_mode is mode
                         assert task.pipeline.statistics_enabled is enabled
                         status = await client.get(f"/status/{task.task_id}")
                         assert status.status_code == 200
@@ -699,7 +868,8 @@ def test_reporting_toggle_preserves_live_progress_durations_and_terminal_stream(
                 payload, = [line.removeprefix("data: ") for line in stream.text.splitlines() if line.startswith("data: ")]
                 assert json.loads(payload) == status
                 assert len(run_fixture.collected) == collected_before + int(enabled)
-                assert len(run_fixture.memory_events) == memory_before + 2 * int(enabled)
+                assert len(run_fixture.memory_events) == memory_before + 2 * int(mode.memory_enabled)
+                assert len(run_fixture.memory_collectors) == collectors_before + int(mode.memory_enabled)
                 assert len(list(run_fixture.output.glob("*statistics*.json"))) == reports_before + int(enabled)
                 if not enabled:
                     assert task.statistics is None
@@ -734,7 +904,7 @@ def test_disabled_reporting_keeps_failed_task_active_through_docker_cleanup(run_
         create_api(app, docker=True)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post("/slice/", params={"options": str(state.slice_path),
-                                                          "reporting_enabled": "false"})
+                                                          "logging_mode": "off"})
             assert response.status_code == 200
             task = queued[0]
             with ThreadPoolExecutor(1) as pool:
@@ -771,9 +941,9 @@ def test_disabled_reporting_keeps_failed_task_active_through_docker_cleanup(run_
 
 
 @pytest.mark.parametrize("operation", ["slice", "backproject"])
-@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("mode", list(LoggingMode))
 def test_docker_status_tracks_actual_input_output_cleanup_and_publication_boundaries(
-    run_fixture, monkeypatch, operation, enabled,
+    run_fixture, monkeypatch, operation, mode,
 ):
     state = run_fixture
     _docker_transport(state, monkeypatch)
@@ -837,10 +1007,10 @@ def test_docker_status_tracks_actual_input_output_cleanup_and_publication_bounda
         create_api(app, docker=True)
         path = state.slice_path if operation == "slice" else state.backproject_path
         phases = ["loading_input", "processing", "returning_output", "cleanup"]
-        if enabled:
+        if mode.reporting_enabled:
             phases.append("publishing_statistics")
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            await client.post(f"/{operation}/", params={"options": str(path), "reporting_enabled": enabled})
+            await client.post(f"/{operation}/", params={"options": str(path), "logging_mode": mode.value})
             task = queued[0]
             initial = (await client.get(f"/status/{task.task_id}")).json()
             assert initial["phase"] == "queued" and initial["steps"] == []
@@ -880,8 +1050,7 @@ def test_docker_status_tracks_actual_input_output_cleanup_and_publication_bounda
 def test_failure_phase_preserves_first_failure_across_cleanup(run_fixture, monkeypatch, failure, expected):
     state = run_fixture
     _docker_transport(state, monkeypatch)
-    task = _task(state, "slice")
-    task.reporting_enabled = False
+    task = _task(state, "slice", logging_mode=LoggingMode.OFF)
     if failure == "input":
         state.import_failure = state.slice_path.name
     elif failure == "output":
@@ -909,7 +1078,7 @@ def test_cli_presentation_failure_preserves_delivered_report(run_fixture, monkey
     monkeypatch.setattr(cli, "handle_task", execute)
     monkeypatch.setattr(server_handlers, "print", failed_print, raising=False)
     with pytest.raises(SystemExit) as exited:
-        cli.handle_slice(SimpleNamespace(options=str(run_fixture.slice_path), verbose=True))
+        cli.handle_slice(SimpleNamespace(options=str(run_fixture.slice_path), logging_mode=LoggingMode.DETAILED))
     assert exited.value.code == exit_code
     task = tasks[0]
     assert task.status == "done" and task.error is None

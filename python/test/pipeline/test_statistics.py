@@ -19,6 +19,7 @@ import tifffile
 from cloudvolume import Bbox
 from scipy.ndimage import map_coordinates
 
+from ouroboros.common.logging_mode import LoggingMode
 from ouroboros.common.pipelines import geometry_pipeline
 from ouroboros.common.run_statistics import RunStatistics
 from ouroboros.common.server_types import SliceTask
@@ -64,7 +65,7 @@ def test_overlapping_worker_samples_have_explicit_nested_semantics_and_repeatabl
             list(pool.map(lambda _: worker(), range(2)))
 
     step = FunctionStep(work)
-    pipeline = Pipeline([step]).set_statistics_enabled(True)
+    pipeline = Pipeline([step]).set_logging_mode(LoggingMode.STANDARD)
     monkeypatch.setattr(pipeline_module, "time", clock([0, 0, 1, 1]))
     pipeline.process(BasePipelineInput())
     original = pipeline.get_step_statistics()
@@ -123,7 +124,7 @@ def test_disabled_statistics_keep_progress_and_step_duration_but_no_detailed_sam
     assert step.timing["custom_times"] == {} and step.byte_counts == {}
     assert step.get_progress() == 1
     assert pipeline.elapsed_seconds >= step.get_duration() > 0
-    pipeline.set_statistics_enabled(True).process(BasePipelineInput())
+    pipeline.set_logging_mode(LoggingMode.STANDARD).process(BasePipelineInput())
     assert step.get_time_statistics()["custom_times"]["worker"]["loops"] == 1
     assert step.byte_counts == {"intermediate_payload_bytes": 100}
     pipeline.process(BasePipelineInput())
@@ -143,7 +144,7 @@ def test_status_snapshot_derives_lifecycle_from_step_owner_and_keeps_unknown_wor
         return "rewrite failed"
 
     step, skipped = FunctionStep(work), FunctionStep()
-    pipeline = Pipeline([step, skipped]).set_statistics_enabled(enabled)
+    pipeline = Pipeline([step, skipped]).set_logging_mode(LoggingMode.STANDARD if enabled else LoggingMode.OFF)
     assert pipeline.get_steps_status()[0]["status"] == "pending"
     pipeline.process(BasePipelineInput())
     assert observed[0]["status"] == observed[1]["status"] == "running"
@@ -675,7 +676,7 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
     monkeypatch.setattr(slice_module.threading, "Event", ObservedEvent)
     step = slice_module.SliceParallelPipelineStep()
     data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
-    output, error = Pipeline([step]).set_statistics_enabled(enabled).process(data)
+    output, error = Pipeline([step]).set_logging_mode(LoggingMode.STANDARD if enabled else LoggingMode.OFF).process(data)
     assert output is None and f"{failed_stage} failed" in error
     assert wait_results == ([] if failed_stage == "startup" else [True])
     assert step.timing["status"] == "failed"
@@ -866,7 +867,7 @@ def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
         step.listen_for_progress(fail_completed_progress)
     data = PipelineInput(backproject_options=options, slice_options=slice_options(tmp_path),
                          volume_cache=cache, slice_rects=rects)
-    output, error = Pipeline([step]).set_statistics_enabled(enabled).process(data)
+    output, error = Pipeline([step]).set_logging_mode(LoggingMode.STANDARD if enabled else LoggingMode.OFF).process(data)
     message = "cannot write output" if failure_source == "writer" else "cannot publish progress"
     assert output is None and message in error
     assert step.timing["status"] == "failed"

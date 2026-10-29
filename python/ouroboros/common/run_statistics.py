@@ -111,6 +111,8 @@ class RunStatistics:
             self.volumes = {"status": "unavailable", "reason": self.collection_errors[-1]}
 
     def start_memory(self):
+        if not self.task.logging_mode.memory_enabled:
+            return
         self.memory_collector = MemoryCollector()
         try:
             self.memory_collector.start()
@@ -142,6 +144,7 @@ class RunStatistics:
             "schema_version": 1,
             "run_id": self.task.task_id,
             "operation": self.operation,
+            "logging_mode": self.task.logging_mode.value,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "outcome": outcomes.get(self.task.status, "incomplete"),
@@ -153,6 +156,8 @@ class RunStatistics:
             "steps": pipeline.get_step_statistics() if pipeline else [],
             "volumes": self.volumes or {"status": "unavailable", "reason": "pipeline inputs unavailable"},
             "memory": (self.memory_collector.summary if self.memory_collector is not None
+                       else unavailable("RAM monitoring disabled by logging mode", status="disabled")
+                       if not self.task.logging_mode.memory_enabled
                        else unavailable("Pipeline was not reached", status="not_started")),
             "inputs": self.input_identifiers,
             "effective_configuration": {

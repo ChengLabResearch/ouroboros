@@ -8,6 +8,7 @@ import {
 	CompoundValueType,
 	Entry,
 	findPathsToType,
+	LoggingMode,
 	SliceOptionsFile
 } from '@renderer/interfaces/options'
 import { JSX, useContext, useEffect, useState } from 'react'
@@ -155,7 +156,7 @@ function useSlicePageState(): SlicePageState {
 	}, [clearStream])
 
 	const saveOptionsToFile = async (): Promise<
-		{ options: string; reporting_enabled: boolean } | undefined
+		{ options: string; logging_mode: LoggingMode } | undefined
 	> => {
 		if (!directoryPath) return
 
@@ -204,7 +205,7 @@ function useSlicePageState(): SlicePageState {
 
 		const outputOptions = await join(outputFolder, modifiedName)
 
-		return { options: outputOptions, reporting_enabled: optionsObject['reporting_enabled'] }
+		return { options: outputOptions, logging_mode: optionsObject['logging_mode'] }
 	}
 
 	const requestVisualization = async (): Promise<void> => {

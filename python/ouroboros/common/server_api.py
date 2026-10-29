@@ -11,9 +11,17 @@ from ouroboros.common.file_system import (
     load_options_for_slice_docker,
 )
 from ouroboros.common.pipelines import visualization_pipeline
+from ouroboros.common.logging_mode import LoggingMode
 from ouroboros.common.server_types import BackProjectTask, SliceTask
 from ouroboros.common.step_names import step_names_payload
 from ouroboros.helpers.options import SliceOptions, BackprojectOptions
+
+
+def resolve_logging_mode(mode: LoggingMode | None, reporting_enabled: bool | None) -> LoggingMode:
+    """Convert the legacy query parameter once; explicit modes take precedence."""
+    if mode is not None:
+        return mode
+    return LoggingMode.DETAILED if reporting_enabled else LoggingMode.OFF
 
 
 def create_api(app: FastAPI, docker: bool = False):
@@ -62,7 +70,9 @@ def create_api(app: FastAPI, docker: bool = False):
         return JSONResponse(step_names_payload())
 
     @app.post("/slice/")
-    async def add_slice_task(options: str, request: Request, reporting_enabled: bool = True):
+    async def add_slice_task(options: str, request: Request,
+                             logging_mode: LoggingMode | None = None,
+                             reporting_enabled: bool | None = None):
         if has_active_task(SliceTask):
             return JSONResponse(
                 {"detail": "A slice task is already queued or running."},
@@ -70,7 +80,8 @@ def create_api(app: FastAPI, docker: bool = False):
             )
 
         task_id = str(uuid.uuid4())
-        task = SliceTask(task_id=task_id, options=options, reporting_enabled=reporting_enabled)
+        task = SliceTask(task_id=task_id, options=options,
+                         logging_mode=resolve_logging_mode(logging_mode, reporting_enabled))
         tasks[task_id] = task
         request.state.queue.put_nowait(task)  # Add request to the queue
         return {"task_id": task_id}
@@ -184,7 +195,8 @@ def create_api(app: FastAPI, docker: bool = False):
     async def add_backproject_task(
         request: Request,
         options: str,
-        reporting_enabled: bool = True,
+        logging_mode: LoggingMode | None = None,
+        reporting_enabled: bool | None = None,
     ):
         if has_active_task(BackProjectTask):
             return JSONResponse(
@@ -196,7 +208,7 @@ def create_api(app: FastAPI, docker: bool = False):
         task = BackProjectTask(
             task_id=task_id,
             options=options,
-            reporting_enabled=reporting_enabled,
+            logging_mode=resolve_logging_mode(logging_mode, reporting_enabled),
         )
         tasks[task_id] = task
         request.state.queue.put_nowait(task)  # Add request to the queue
@@ -215,7 +227,7 @@ def create_api(app: FastAPI, docker: bool = False):
                 except BaseException as e:
                     progress_error = f"Error occurred while getting progress details: {e}."
             publication = (task.statistics.publication if task.statistics is not None else
-                           {"status": "pending" if task.reporting_enabled else "disabled",
+                           {"status": "pending" if task.logging_mode.reporting_enabled else "disabled",
                             "path": None, "recovery_path": None, "error": None,
                             "presentation_error": None, "presentation_interrupted": False})
             publishing = task.publication_pending

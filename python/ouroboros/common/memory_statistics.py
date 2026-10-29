@@ -37,7 +37,9 @@ def unavailable(reason, *, status="unavailable"):
     return {"status": status, "metric": metric, "unit": "bytes", "method": method,
             "scope": "backend parent and observed descendants; sampler excluded; overlapping jobs not isolated",
             "sampled_peak_bytes": None, "last_complete_sample_bytes": None,
-            "sampling": None, "errors": [{"kind": "collector", "count": 1, "example": reason}]}
+            "sampling": None,
+            **({"reason": reason, "errors": []} if status == "disabled" else
+               {"errors": [{"kind": "collector", "count": 1, "example": reason}]})}
 
 
 

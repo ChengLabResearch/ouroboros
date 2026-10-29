@@ -13,6 +13,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from ouroboros.common.pipelines import geometry_pipeline
+from ouroboros.common.logging_mode import LoggingMode
 from ouroboros.common.server_handlers import handle_task
 from ouroboros.common.server_types import BackProjectTask, SliceTask
 from ouroboros.helpers.options import (
@@ -39,11 +40,6 @@ def main():
         type=str,
         help="The path to the options json file.",
     )
-    parser_slice.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Print and save formatted timing and volume statistics beside the outputs.",
-    )
 
     # Create the parser for the backproject command
     parser_backproject = subparsers.add_parser(
@@ -55,11 +51,18 @@ def main():
         type=str,
         help="The path to the options json file.",
     )
-    parser_backproject.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Print and save formatted timing and volume statistics beside the outputs.",
-    )
+    for operation_parser in (parser_slice, parser_backproject):
+        logging = operation_parser.add_mutually_exclusive_group()
+        logging.add_argument(
+            "--logging-mode", type=LoggingMode, choices=list(LoggingMode),
+            default=None,
+            help="Off (default): no report; standard: print/save step and volume statistics; "
+                 "detailed: also monitor RAM (adds overhead). Progress remains available in all modes.",
+        )
+        logging.add_argument(
+            "--verbose", dest="logging_mode", action="store_const", const=LoggingMode.DETAILED,
+            help="Compatibility alias for --logging-mode detailed.",
+        )
 
     # Create the parser for the sample-options command
     subparsers.add_parser(
@@ -84,6 +87,10 @@ def main():
 
     # Parse the arguments
     args = parser.parse_args()
+    if args.command in ("slice", "backproject") and args.logging_mode is None:
+        # Resolve the default after argparse checks mutual exclusion, so an
+        # explicit Off cannot be mistaken for an absent --logging-mode option.
+        args.logging_mode = LoggingMode.OFF
 
     # Dispatch to the appropriate function
     match args.command:
@@ -140,7 +147,7 @@ def handle_geometry(args):
 def _handle_operation(args, task_type):
     print(f"Loading options from: {args.options}")
     task = task_type(task_id=str(uuid4()), options=args.options,
-                     reporting_enabled=args.verbose, show_progress=True)
+                     logging_mode=args.logging_mode, show_progress=True)
     handle_task(task, print_statistics=True)
     if task.error:
         print(f"Pipeline Error: {task.error}", file=sys.stderr)

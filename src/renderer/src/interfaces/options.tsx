@@ -1,4 +1,15 @@
-import { any, boolean, number, object, optional, string } from 'valibot'
+import {
+	any,
+	boolean,
+	number,
+	object,
+	optional,
+	picklist,
+	pipe,
+	rawTransform,
+	string,
+	unknown
+} from 'valibot'
 
 import { Schema } from '@renderer/schemas/schema-helpers'
 
@@ -11,7 +22,8 @@ export class Entry {
 	label: string
 	value: ValueType
 	type: EntryValueType
-	options?: string[]
+	options?: readonly string[]
+	optionLabels?: Record<string, string>
 	hidden: boolean = false
 	description?: string
 	separator: boolean = false
@@ -21,13 +33,15 @@ export class Entry {
 		label: string,
 		value: ValueType,
 		type: EntryValueType,
-		options?: string[]
+		options?: readonly string[],
+		optionLabels?: Record<string, string>
 	) {
 		this.name = name
 		this.label = label
 		this.value = value
 		this.type = type
 		this.options = options
+		this.optionLabels = optionLabels
 	}
 
 	withHidden(): Entry {
@@ -175,23 +189,62 @@ export class CompoundEntry {
 	}
 }
 
-const DEFAULT_REPORTING_ENABLED = false
+const LOGGING_MODES = ['off', 'standard', 'detailed'] as const
+export type LoggingMode = (typeof LOGGING_MODES)[number]
+const DEFAULT_LOGGING_MODE: LoggingMode = 'off'
 
 class PerformanceLoggingEntry extends Entry {
 	constructor() {
-		super('reporting_enabled', 'Performance Logging', DEFAULT_REPORTING_ENABLED, 'boolean')
+		super(
+			'logging_mode',
+			'Performance Logging',
+			DEFAULT_LOGGING_MODE,
+			'string',
+			LOGGING_MODES,
+			{
+				off: 'Off',
+				standard: 'Standard',
+				detailed: 'Detailed (with RAM)'
+			}
+		)
 		this.withDescription(
-			'Save detailed performance statistics beside the outputs. Progress bars and step timings remain available when off.'
+			'Off: Do not save performance reports to the output directory. Standard: Save performance reports without RAM monitoring. Detailed (with RAM): Save full performance reports and monitor RAM usage; RAM monitoring adds overhead. Progress bars and step timings remain available in all modes.'
 		)
 	}
 
 	toSchema(): Schema {
-		// Loading an older file must reset this option, even after an enabled run.
-		return optional(super.toSchema(), DEFAULT_REPORTING_ENABLED)
+		// Loading an older file must reset this option, even after a detailed run.
+		return optional(picklist(LOGGING_MODES), DEFAULT_LOGGING_MODE)
 	}
 }
 
-export class SliceOptionsFile extends CompoundEntry {
+class OptionsFile extends CompoundEntry {
+	toSchema(): Schema {
+		return pipe(
+			unknown(),
+			rawTransform(({ dataset, addIssue, NEVER }) => {
+				const input = dataset.value
+				if (
+					input === null ||
+					typeof input !== 'object' ||
+					'logging_mode' in input ||
+					!('reporting_enabled' in input)
+				) {
+					return input
+				}
+				if (typeof input.reporting_enabled !== 'boolean') {
+					addIssue({ message: 'Expected a boolean legacy reporting_enabled setting.' })
+					return NEVER
+				}
+				// Adapt legacy files once on input. The entry schema drops the old key.
+				return { ...input, logging_mode: input.reporting_enabled ? 'detailed' : 'off' }
+			}),
+			super.toSchema()
+		)
+	}
+}
+
+export class SliceOptionsFile extends OptionsFile {
 	constructor(values: CompoundValueType = {}) {
 		super('options', 'Options File', [
 			new Entry('neuroglancer_json', 'Neuroglancer JSON', '', 'filePath').withDescription(
@@ -284,7 +337,7 @@ export class SliceOptionsFile extends CompoundEntry {
 	}
 }
 
-export class BackprojectOptionsFile extends CompoundEntry {
+export class BackprojectOptionsFile extends OptionsFile {
 	constructor(values: CompoundValueType = {}) {
 		super('options', 'Options File', [
 			new Entry(

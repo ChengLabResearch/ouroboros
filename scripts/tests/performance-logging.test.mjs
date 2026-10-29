@@ -16,6 +16,7 @@ const alertURL = new URL(
 	'../../src/renderer/src/components/AlertArea/components/Alert/Alert.tsx',
 	import.meta.url
 )
+const tooltipURL = new URL('../../src/renderer/src/components/Tooltip/Tooltip.tsx', import.meta.url)
 registerHooks({
 	resolve(specifier, context, nextResolve) {
 		let source
@@ -30,6 +31,12 @@ export default function Capture(props) {
 export default function CaptureNotice(props) {
   globalThis.pageNotices.push(props);
   return Alert(props);
+}`
+		} else if (specifier === '@renderer/components/Tooltip/Tooltip') {
+			source = `import { useTooltip as realTooltip } from ${JSON.stringify(tooltipURL.href)};
+export function useTooltip(...args) {
+  globalThis.performanceLoggingTooltips.push(args[1]);
+  return realTooltip(...args);
 }`
 		} else if (specifier.endsWith('.svg?react') || specifier.endsWith('/VisualizeSlicing')) {
 			source = 'export default function Artwork() { return null }'
@@ -52,6 +59,7 @@ const { default: SlicesPage } =
 	await import('../../src/renderer/src/routes/SlicesPage/SlicesPage.tsx')
 const { default: BackprojectPage } =
 	await import('../../src/renderer/src/routes/BackprojectPage/BackprojectPage.tsx')
+const { safeParse } = await import('valibot')
 
 function fixture(t, operation, fetchStates = new Map()) {
 	const requests = []
@@ -91,10 +99,12 @@ function fixture(t, operation, fetchStates = new Map()) {
 		}
 	}
 	globalThis.window = { electron: { ipcRenderer: ipc } }
+	globalThis.performanceLoggingTooltips = []
 	t.after(() => {
 		delete globalThis.window
 		delete globalThis.performanceLoggingPanel
 		delete globalThis.pageNotices
+		delete globalThis.performanceLoggingTooltips
 	})
 	const render = (component) => {
 		for (const [context, value] of [
@@ -114,7 +124,7 @@ function fixture(t, operation, fetchStates = new Map()) {
 	const html = renderPage()
 	const panel = globalThis.performanceLoggingPanel
 	const entries = panel.entries[0]
-	const logging = entries.findEntry('reporting_enabled')
+	const logging = entries.findEntry('logging_mode')
 	return {
 		requests,
 		files,
@@ -125,6 +135,9 @@ function fixture(t, operation, fetchStates = new Map()) {
 		renderPage,
 		get notices() {
 			return globalThis.pageNotices
+		},
+		get tooltips() {
+			return globalThis.performanceLoggingTooltips
 		},
 		get panel() {
 			return globalThis.performanceLoggingPanel
@@ -148,19 +161,30 @@ function fixture(t, operation, fetchStates = new Map()) {
 			assert.equal(request.url, `/${operation}/`)
 			assert.equal(request.options.method, 'POST')
 			const saved = JSON.parse(files.get(request.query.options))
-			assert.equal(request.query.reporting_enabled, saved.reporting_enabled)
+			assert.equal(request.query.logging_mode, saved.logging_mode)
+			assert.equal('reporting_enabled' in request.query, false)
+			assert.equal('reporting_enabled' in saved, false)
 			assert.equal(alerts.length, 0)
 			return request.query
 		}
 	}
 }
 
-function checkbox(html) {
-	const input = html.match(/<input[^>]*name="reporting_enabled"[^>]*>/)?.[0]
-	assert.ok(input, 'Performance Logging must have an input')
-	assert.match(input, /type="checkbox"/)
+function selectedMode(html) {
+	const input = html.match(/<select[^>]*name="logging_mode"[^>]*>(.*?)<\/select>/)?.[1]
+	assert.ok(input, 'Performance Logging must have a select')
+	assert.deepEqual(
+		[...input.matchAll(/<option value="([^"]+)"[^>]*>(.*?)<\/option>/g)].map(
+			([, value, label]) => [value, label]
+		),
+		[
+			['off', 'Off'],
+			['standard', 'Standard'],
+			['detailed', 'Detailed (with RAM)']
+		]
+	)
 	assert.match(html, /Performance Logging/)
-	return input
+	return input.match(/<option value="([^"]+)" selected=""/)[1]
 }
 
 for (const operation of ['slice', 'backproject']) {
@@ -238,44 +262,121 @@ for (const operation of ['slice', 'backproject']) {
 		assert.deepEqual(run.alerts, [])
 	})
 
-	test(`${operation}: default off, saved value and successive run requests follow the checkbox`, async (t) => {
+	test(`${operation}: default off, saved value and successive run requests follow the select`, async (t) => {
 		const run = fixture(t, operation)
-		assert.doesNotMatch(checkbox(run.html), /checked/)
-		assert.equal((await run.submit()).reporting_enabled, false)
-		for (const enabled of [true, false, true]) {
-			run.logging.setValue(enabled)
-			assert.equal(/checked/.test(checkbox(run.renderForm())), enabled)
-			assert.equal((await run.submit()).reporting_enabled, enabled)
+		assert.equal(selectedMode(run.html), 'off')
+		assert.equal((await run.submit()).logging_mode, 'off')
+		for (const mode of ['standard', 'detailed', 'off', 'detailed']) {
+			run.logging.setValue(mode)
+			assert.equal(selectedMode(run.renderForm()), mode)
+			assert.equal((await run.submit()).logging_mode, mode)
 			const saved = run.files.get(run.requests.at(-1).query.options)
-			run.logging.setValue(!enabled)
+			run.logging.setValue(mode === 'off' ? 'detailed' : 'off')
 			// Avoid visualization I/O when the slice options are dropped onto the header.
 			const input = JSON.parse(saved)
 			if (operation === 'slice') input.neuroglancer_json = ''
 			run.files.set('/saved.json', JSON.stringify(input))
 			await run.panel.onHeaderDrop('/saved.json')
-			assert.equal(run.logging.value, enabled)
-			assert.equal((await run.submit()).reporting_enabled, enabled)
+			assert.equal(run.logging.value, mode)
+			assert.equal((await run.submit()).logging_mode, mode)
 		}
 	})
 
-	test(`${operation}: loading legacy options resets an enabled checkbox and rejects invalid values`, async (t) => {
+	test(`${operation}: legacy settings migrate only at load, explicit modes win, and missing settings reset off`, async (t) => {
 		const run = fixture(t, operation)
 		const legacy = run.entries.toObject()
-		delete legacy.reporting_enabled
-		run.logging.setValue(true)
-		run.files.set('/legacy.json', JSON.stringify(legacy))
-		await run.panel.onHeaderDrop('/legacy.json')
-		assert.equal(run.logging.value, false)
-		assert.doesNotMatch(checkbox(run.renderForm()), /checked/)
-		assert.equal((await run.submit()).reporting_enabled, false)
-		for (const invalid of ['false', null, 1]) {
-			run.files.set(
-				'/invalid.json',
-				JSON.stringify({ ...legacy, reporting_enabled: invalid })
-			)
-			await run.panel.onHeaderDrop('/invalid.json')
-			assert.match(run.alerts.at(-1)[0], /Wrong JSON file format/)
-			assert.equal(run.logging.value, false)
+		delete legacy.logging_mode
+		for (const [input, expected] of [
+			[{ ...legacy, reporting_enabled: true }, 'detailed'],
+			[{ ...legacy, reporting_enabled: false }, 'off'],
+			[legacy, 'off'],
+			[{ ...legacy, reporting_enabled: true, logging_mode: 'standard' }, 'standard'],
+			[{ ...legacy, reporting_enabled: false, logging_mode: 'detailed' }, 'detailed'],
+			[{ ...legacy, reporting_enabled: true, logging_mode: 'off' }, 'off'],
+			[{ ...legacy, reporting_enabled: 'invalid', logging_mode: 'standard' }, 'standard']
+		]) {
+			run.logging.setValue('detailed')
+			const parsed = safeParse(run.entries.toSchema(), input)
+			assert.equal(parsed.success, true)
+			assert.equal('reporting_enabled' in parsed.output, false)
+			run.files.set('/legacy.json', JSON.stringify(input))
+			await run.panel.onHeaderDrop('/legacy.json')
+			assert.equal(run.logging.value, expected)
+			assert.equal(selectedMode(run.renderForm()), expected)
+			assert.equal((await run.submit()).logging_mode, expected)
 		}
 	})
+
+	test(`${operation}: invalid saved logging settings are rejected without changing the selected mode`, async (t) => {
+		const run = fixture(t, operation)
+		const input = run.entries.toObject()
+		delete input.logging_mode
+		run.logging.setValue('standard')
+		for (const invalid of [
+			...['false', 'off', 'standard', 'detailed', null, 1].map((reporting_enabled) => ({
+				reporting_enabled
+			})),
+			...['verbose', '', null, 1, true, false].map((logging_mode) => ({ logging_mode })),
+			{ logging_mode: 'invalid', reporting_enabled: true }
+		]) {
+			run.files.set('/invalid.json', JSON.stringify({ ...input, ...invalid }))
+			await run.panel.onHeaderDrop('/invalid.json')
+			assert.match(run.alerts.at(-1)[0], /Wrong JSON file format/)
+			assert.equal(run.logging.value, 'standard')
+		}
+	})
+
+	test(`${operation}: the existing tooltip explains the three modes and RAM overhead`, (t) => {
+		const run = fixture(t, operation)
+		assert.ok(run.tooltips.includes(run.logging.description))
+		assert.match(run.logging.description, /Off: Do not save performance reports/)
+		assert.match(
+			run.logging.description,
+			/Standard: Save performance reports without RAM monitoring/
+		)
+		assert.match(
+			run.logging.description,
+			/Detailed \(with RAM\): Save full performance reports/
+		)
+		assert.match(run.logging.description, /RAM monitoring adds overhead/)
+		assert.match(
+			run.logging.description,
+			/Progress bars and step timings remain available in all modes/
+		)
+	})
+
+	for (const mode of ['off', 'standard', 'detailed']) {
+		test(`${operation}: ${mode} submissions retain progress, basic timings, and completion`, async (t) => {
+			const run = fixture(t, operation)
+			run.logging.setValue(mode)
+			assert.equal((await run.submit()).logging_mode, mode)
+			const stepName =
+				operation === 'slice' ? 'SliceParallelPipelineStep' : 'BackprojectPipelineStep'
+			run.stream.results = {
+				status: 'started',
+				phase: 'processing',
+				progress: [[stepName, 0.5, 1.25]],
+				error: null,
+				statistics: {
+					status: mode === 'off' ? 'disabled' : 'pending',
+					path: null,
+					recovery_path: null,
+					error: null
+				}
+			}
+			const running = run.renderPage()
+			assert.match(running, /role="progressbar"[^>]*aria-valuenow="50"/)
+			assert.match(running, />1\.3s</)
+			assert.match(running, />Processing</)
+			run.stream.results.status = 'done'
+			run.stream.results.phase = 'complete'
+			run.stream.results.progress = [[stepName, 1, 2.5]]
+			run.stream.results.statistics.status = mode === 'off' ? 'disabled' : 'published'
+			run.stream.done = true
+			const completed = run.renderPage()
+			assert.match(completed, /role="progressbar"[^>]*aria-valuenow="100"/)
+			assert.match(completed, />2\.5s</)
+			assert.match(completed, /completed\./)
+		})
+	}
 }

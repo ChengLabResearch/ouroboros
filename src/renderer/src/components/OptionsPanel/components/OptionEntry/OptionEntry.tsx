@@ -221,7 +221,7 @@ function OptionEntry({
 						>
 							{inputOptions?.map((option) => (
 								<option key={option} value={option}>
-									{option}
+									{entry.optionLabels?.[option] ?? option}
 								</option>
 							))}
 						</select>

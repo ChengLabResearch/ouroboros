@@ -8,19 +8,24 @@ from typing import Callable
 from tqdm import tqdm
 
 from ouroboros.pipeline.pipeline_input import BasePipelineInput
+from ouroboros.common.logging_mode import LoggingMode
 
 
 class Pipeline:
     def __init__(self, steps: list["PipelineStep"]) -> None:
         self.steps = steps
-        self.statistics_enabled = False
+        self.logging_mode = LoggingMode.OFF
         self.elapsed_seconds = 0.0
         self.status = "pending"
 
-    def set_statistics_enabled(self, enabled: bool) -> "Pipeline":
-        self.statistics_enabled = bool(enabled)
+    @property
+    def statistics_enabled(self) -> bool:
+        return self.logging_mode.reporting_enabled
+
+    def set_logging_mode(self, mode: LoggingMode) -> "Pipeline":
+        self.logging_mode = mode
         for step in self.steps:
-            step.statistics_enabled = self.statistics_enabled
+            step.logging_mode = mode
         return self
 
     def process(
@@ -73,13 +78,17 @@ class PipelineStep(ABC):
 
     def __init__(self, inputs: tuple[str]) -> None:
         self.step_name = type(self).__name__
-        self.statistics_enabled = False
+        self.logging_mode = LoggingMode.OFF
         self._statistics_lock = RLock()
         self.reset_statistics()
         self.progress_listener_callables = []
         self.show_progress_bar = False
         self.progress_bar = None
         self.inputs = inputs
+
+    @property
+    def statistics_enabled(self) -> bool:
+        return self.logging_mode.reporting_enabled
 
     def reset_statistics(self):
         self.timing = {

@@ -63,6 +63,25 @@ def estimate_slice_task_payload(
     )
 
 
+@dataclass(frozen=True)
+class SliceTaskPayloadEstimator:
+    """Pickleable planning adapter containing only source/raster metadata.
+
+    The canonical estimator owns every component; this adapter transfers no
+    live source interface and computes or caches no independent cost model.
+    """
+
+    slice_shape: tuple[int, int]
+    source_dtype: np.dtype
+    channels: int
+
+    def __call__(self, box: BoundingBox, slice_count: int, contiguous: bool) -> int:
+        return estimate_slice_task_payload(
+            box, slice_count, contiguous, slice_shape=self.slice_shape,
+            source_dtype=self.source_dtype, channels=self.channels,
+        ).peak_bytes
+
+
 @dataclass
 class FrontProj(DataShape): V: int; U: int      # noqa: E701,E702
 @dataclass

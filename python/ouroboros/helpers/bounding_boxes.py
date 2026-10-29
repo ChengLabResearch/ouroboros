@@ -1,6 +1,8 @@
 import heapq
 from bisect import bisect_left
 from collections.abc import Callable
+from concurrent.futures import Executor
+from contextlib import AbstractContextManager
 
 import numpy as np
 
@@ -452,6 +454,7 @@ class _PartitionNode:
 
 
 _TaskPayload = Callable[[BoundingBox, int, bool], int]
+_ExecutorFactory = Callable[[], AbstractContextManager[Executor]]
 
 
 def _spatially_smaller(child: BoundingBox, parent_volume: int) -> bool:
@@ -565,13 +568,14 @@ def _best_partition(
     return best
 
 
-def _partition_tree(
-    rects: np.ndarray, max_depth: int, task_payload: _TaskPayload
+def _partition_subtree(
+    root: _PartitionNode,
+    rects: np.ndarray,
+    max_depth: int,
+    task_payload: _TaskPayload,
 ) -> list[_PartitionNode]:
-    root_box = BoundingBox.from_rects(rects)
-    nodes = [_PartitionNode(
-        root_box, np.arange(len(rects)), int(task_payload(root_box, len(rects), True))
-    )]
+    """Build a subtree in serial order, retaining global rectangle indices."""
+    nodes = [root]
     stack = [(0, max_depth)]
     while stack:
         index, depth = stack.pop()
@@ -584,6 +588,53 @@ def _partition_tree(
             nodes.extend(children)
             stack.extend((child, depth - 1) for child in node.children)
     return nodes
+
+
+def _partition_tree(
+    rects: np.ndarray,
+    max_depth: int,
+    task_payload: _TaskPayload,
+    *,
+    executor_factory: _ExecutorFactory | None = None,
+) -> list[_PartitionNode]:
+    root_box = BoundingBox.from_rects(rects)
+    root = _PartitionNode(
+        root_box, np.arange(len(rects)), int(task_payload(root_box, len(rects), True))
+    )
+    if executor_factory is None or max_depth <= 1 or len(rects) <= 1:
+        return _partition_subtree(root, rects, max_depth, task_payload)
+
+    children = _best_partition(root, rects, task_payload)
+    if children is None:
+        return [root]
+
+    # The caller builds one branch while a single task builds the smaller one.
+    # Geometry travels with that task, so pool initialization carries no array.
+    worker_index = 0 if len(children[0].indices) <= len(children[1].indices) else 1
+    caller_index = 1 - worker_index
+    with executor_factory() as executor:
+        future = executor.submit(
+            _partition_subtree, children[worker_index], rects, max_depth - 1,
+            task_payload,
+        )
+        caller_nodes = _partition_subtree(
+            children[caller_index], rects, max_depth - 1, task_payload,
+        )
+        worker_nodes = future.result()
+
+    left, right = (
+        (worker_nodes, caller_nodes) if worker_index == 0
+        else (caller_nodes, worker_nodes)
+    )
+    # The serial stack appends both children, then all right descendants before
+    # the left descendants. Only child links change when joining these existing
+    # nodes; their bounds, indices and payloads remain authoritative.
+    root.children = (1, 2)
+    for subtree, offset in ((left, len(right) + 1), (right, 2)):
+        for node in subtree:
+            if node.children is not None:
+                node.children = tuple(child + offset for child in node.children)
+    return [root, left[0], right[0], *right[1:], *left[1:]]
 
 
 def _select_partition_threshold(
@@ -640,6 +691,7 @@ def calculate_bounding_boxes_bsp_link_rects(
     max_depth: int = DEFAULT_MAX_DEPTH,
     *,
     task_payload: _TaskPayload | None = None,
+    executor_factory: _ExecutorFactory | None = None,
 ) -> tuple[list[BoundingBox], list[int]]:
     """Partition slice rectangles with a bounded, optional task-payload model.
 
@@ -647,6 +699,10 @@ def calculate_bounding_boxes_bsp_link_rects(
     deterministic candidate tree is evaluated at all of its payload thresholds.
     The callback receives the canonical bounding box, slice count, and whether
     the assigned indices form one contiguous run. It must be a pure function.
+    Planning is serial unless an executor factory is supplied. That factory
+    owns the executor's allocation and lifetime; process executors require a
+    pickleable callback. One child subtree runs there while the caller builds
+    the other, and the executor closes before threshold selection begins.
 
     A candidate is returned only if its actual largest task payload is smaller
     than the count-based reference and its total inclusive source volume does
@@ -667,7 +723,9 @@ def calculate_bounding_boxes_bsp_link_rects(
         for box, indices in zip(reference_boxes, groups)
     )
     reference_volume = sum(int(box.calculate_volume()) for box in reference_boxes)
-    nodes = _partition_tree(rects, max_depth, task_payload)
+    nodes = _partition_tree(
+        rects, max_depth, task_payload, executor_factory=executor_factory,
+    )
     threshold = _select_partition_threshold(nodes, reference_peak, reference_volume)
     if threshold is None:
         return reference

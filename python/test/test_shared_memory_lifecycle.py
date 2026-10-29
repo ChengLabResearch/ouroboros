@@ -23,6 +23,7 @@ from ouroboros.helpers.shapes import ProjOrder
 
 
 SHAPE = ProjOrder(Y=2, Theta=3, X=4)
+ORDER_SHAPE = ProjOrder(Y=5, Theta=6, X=7)
 SPAWN = multiprocessing.get_context("spawn")
 START_METHODS = multiprocessing.get_all_start_methods()
 
@@ -42,6 +43,46 @@ def _produce(address, authkey, sender, termed, crash):
     sender.close()
     if crash:
         os._exit(7)
+
+
+def _produce_ordered(address, authkey, sender, termed, order):
+    manager = SharedNPManager(address=address, authkey=authkey)
+    manager.connect()
+    allocate = manager.TermedNPArray if termed else manager.SharedNPArray
+    array = allocate(ORDER_SHAPE, np.uint16, order=order)
+    first_view = array[::2, 1:, :]
+    nested_view = first_view[1:, :, ::-2]
+    try:
+        with array as pixels:
+            pixels[:] = np.arange(210, dtype=np.uint16).reshape(6, 5, 7)
+        sender.send_bytes(pickle.dumps((array, nested_view)))
+    finally:
+        nested_view.shutdown()
+        first_view.shutdown()
+        array.shutdown()
+        sender.close()
+
+
+def _consume_ordered(payload, sender, order):
+    array, view = pickle.loads(payload)
+    expected = np.arange(210, dtype=np.uint16).reshape(6, 5, 7)
+    try:
+        assert array.order == view.order == order
+        assert not array.owns_unlink
+        assert not view.owns_unlink
+        with array as pixels, view as subset:
+            assert pixels.flags.c_contiguous == (order == "C")
+            assert pixels.flags.f_contiguous == (order == "F")
+            assert not subset.flags.c_contiguous
+            assert not subset.flags.f_contiguous
+            np.testing.assert_array_equal(pixels, expected)
+            np.testing.assert_array_equal(subset, expected[::2, 1:, :][1:, :, ::-2])
+            subset += 1000
+            sender.send((array.name, np.array(pixels)))
+    finally:
+        view.shutdown()
+        array.shutdown()
+        sender.close()
 
 
 def _owner_until_killed(sender, process_group, start_method):
@@ -113,6 +154,53 @@ def test_manager_owns_buffer_across_producer_exit(termed, crash, start_method):
             if producer.is_alive():
                 producer.kill()
                 producer.join(5)
+    _assert_absent(name)
+
+
+@pytest.mark.parametrize("termed", [False, True])
+@pytest.mark.parametrize("order", ["C", "F"])
+def test_array_order_and_nested_views_survive_spawned_producer_and_consumer(termed, order):
+    with SharedNPManager(ctx=SPAWN) as (manager,):
+        receiver, sender = SPAWN.Pipe(duplex=False)
+        producer = SPAWN.Process(
+            target=_produce_ordered,
+            args=(manager.address, bytes(manager._authkey), sender, termed, order),
+        )
+        producer.start()
+        sender.close()
+        try:
+            assert receiver.poll(15)
+            payload = receiver.recv_bytes()
+            _join(producer)
+            assert producer.exitcode == 0
+        finally:
+            receiver.close()
+            if producer.is_alive():
+                producer.kill()
+                producer.join(5)
+
+        # Attach in another spawned process only after the producer has exited.
+        receiver, sender = SPAWN.Pipe(duplex=False)
+        consumer = SPAWN.Process(target=_consume_ordered, args=(payload, sender, order))
+        consumer.start()
+        sender.close()
+        try:
+            assert receiver.poll(15)
+            name, pixels = receiver.recv()
+            _join(consumer)
+            assert consumer.exitcode == 0
+            expected = np.arange(210, dtype=np.uint16).reshape(6, 5, 7)
+            expected[::2, 1:, :][1:, :, ::-2] += 1000
+            np.testing.assert_array_equal(pixels, expected)
+            assert manager._request("list_segments") == [name]
+            if termed:
+                manager.remove_termed(name)
+                _assert_absent(name)
+        finally:
+            receiver.close()
+            if consumer.is_alive():
+                consumer.kill()
+                consumer.join(5)
     _assert_absent(name)
 
 
@@ -269,10 +357,10 @@ def test_failed_second_view_closes_first_and_releases_server_allocation(monkeypa
     with SharedNPManager(ctx=SPAWN) as (manager,):
         views = []
 
-        def fail_second_view(*args):
+        def fail_second_view(*args, **kwargs):
             if views:
                 raise OSError("deliberate view failure")
-            array = SharedNPArray(*args)
+            array = SharedNPArray(*args, **kwargs)
             views.append(array)
             return array
 
@@ -285,6 +373,15 @@ def test_failed_second_view_closes_first_and_releases_server_allocation(monkeypa
         _assert_absent(views[0].name)
         with pytest.raises(FileNotFoundError):
             views[0].array()
+
+
+@pytest.mark.parametrize("termed", [False, True])
+def test_invalid_order_releases_server_allocation(termed):
+    with SharedNPManager(ctx=SPAWN) as (manager,):
+        allocate = manager.TermedNPArray if termed else manager.SharedNPArray
+        with pytest.raises(ValueError, match="order"):
+            allocate(SHAPE, np.uint16, order="K")
+        assert manager._request("list_segments") == []
 
 
 def test_pickle_transfers_attachment_without_unlink_authority_or_cached_pixels():

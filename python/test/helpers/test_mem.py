@@ -4,6 +4,7 @@ from multiprocessing.shared_memory import SharedMemory, ShareableList
 import pytest
 from sys import getsizeof
 from time import sleep
+from uuid import uuid4
 
 import numpy as np
 
@@ -18,6 +19,7 @@ def test_alt_creation():
         assert sino_mem.shape == SinoOrder(Y=12, Theta=1501, X=2048)
         assert proj_mem.shape == ProjOrder(Y=12, Theta=1501, X=2048)
         assert recon_mem.shape == ReconOrder(Y=12, X=2048, Z=2048)
+        assert sino_mem.order == proj_mem.order == recon_mem.order == "C"
 
         assert recon_mem.name == proj_mem.name
         assert recon_mem.name != sino_mem.name
@@ -27,6 +29,95 @@ def test_alt_creation():
             pj[0, 0, 0] = 5
             assert rc[0, 0, 0] == pj[0, 0, 0]
             assert pj[0, 0, 0] != si[0, 0, 0]
+
+
+@pytest.mark.parametrize("order", [None, "C", "F"])
+def test_direct_array_order_matches_shared_buffer_layout(order):
+    shape = ProjOrder(Y=2, Theta=3, X=4)
+    options = {} if order is None else {"order": order}
+    expected_order = "C" if order is None else order
+    owner = SharedNPArray(
+        f"ob-{uuid4().hex[:16]}", shape, "uint16", allocate=True, **options
+    )
+    attachment = None
+    try:
+        expected = np.arange(24, dtype=np.uint16).reshape(3, 2, 4)
+        with owner as pixels:
+            pixels[:] = expected
+            assert pixels.flags.c_contiguous == (expected_order == "C")
+            assert pixels.flags.f_contiguous == (expected_order == "F")
+        assert owner.order == expected_order
+        assert owner.dtype == np.dtype(np.uint16)
+        raw = SharedMemory(owner.name)
+        try:
+            assert bytes(raw.buf) == expected.tobytes(order=expected_order)
+        finally:
+            raw.close()
+        attachment = SharedNPArray(owner.name, shape, np.uint16, **options)
+        with attachment as pixels:
+            np.testing.assert_array_equal(pixels, expected)
+            pixels[1, 0, 2] = 100
+        with owner as pixels:
+            assert pixels[1, 0, 2] == 100
+        assert not attachment.owns_unlink
+        assert owner.owns_unlink
+    finally:
+        if attachment is not None:
+            attachment.shutdown()
+        owner.shutdown()
+
+
+@pytest.mark.parametrize("order", ["A", "K", "c", "f", "", None])
+@pytest.mark.filterwarnings("error::pytest.PytestUnraisableExceptionWarning")
+def test_invalid_array_order_is_rejected_before_creation_or_attachment(order):
+    name = f"ob-{uuid4().hex[:16]}"
+    shape = ProjOrder(Y=2, Theta=3, X=4)
+    for allocate in (False, True):
+        with pytest.raises(ValueError, match="order"):
+            SharedNPArray(name, shape, np.uint16, order=order, allocate=allocate)
+    with pytest.raises(FileNotFoundError):
+        handle = SharedMemory(name)
+        handle.close()
+    gc.collect()
+
+
+@pytest.mark.parametrize("order", [None, "F"])
+@pytest.mark.parametrize("termed", [False, True])
+def test_manager_aliases_share_order_and_preserve_shape_and_dtype(order, termed):
+    specifications = (
+        (ProjOrder(Y=2, Theta=3, X=4), np.dtype(np.uint16)),
+        (SinoOrder(Y=2, Theta=3, X=4), np.dtype(np.uint16)),
+        (ReconOrder(Y=2, X=3, Z=2), np.dtype(np.uint32)),
+    )
+    options = {} if order is None else {"order": order}
+    expected_order = "C" if order is None else order
+    with SharedNPManager() as (manager,):
+        allocate = manager.TermedNPArray if termed else manager.SharedNPArray
+        arrays = allocate(*specifications[0], *specifications[1:], **options)
+        try:
+            expected = np.arange(24, dtype=np.uint16).reshape(3, 2, 4)
+            with arrays[0] as pixels:
+                pixels[:] = expected
+            buffer = expected.tobytes(order=expected_order)
+            assert len({array.name for array in arrays}) == 1
+            for array, (shape, dtype) in zip(arrays, specifications):
+                assert array.order == expected_order
+                assert array.shape == shape
+                assert array.dtype == dtype
+                assert not array.owns_unlink
+                expected_view = np.ndarray(
+                    astuple(shape), dtype=dtype, buffer=buffer, order=expected_order
+                )
+                with array as pixels:
+                    np.testing.assert_array_equal(pixels, expected_view)
+                    assert pixels.flags.c_contiguous == (expected_order == "C")
+                    assert pixels.flags.f_contiguous == (expected_order == "F")
+        finally:
+            for array in arrays:
+                array.shutdown()
+        if termed:
+            manager.remove_termed(arrays[0].name)
+            assert manager._request("list_segments") == []
 
 
 @pytest.mark.filterwarnings("error::pytest.PytestUnraisableExceptionWarning")

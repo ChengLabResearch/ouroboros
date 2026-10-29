@@ -250,17 +250,18 @@ class _FailingPayload:
         return _production_payload(box, count, contiguous)
 
 
+@pytest.mark.parametrize("start_method", START_METHODS)
 @pytest.mark.parametrize("failure, error, message", [
     ("worker_exception", ValueError, "worker payload failed"),
     ("worker_exit", BrokenProcessPool, "terminated abruptly"),
     ("parent_exception", ValueError, "parent payload failed"),
 ])
-def test_spawn_pool_joins_after_worker_or_parent_failure(
-    curve_rects, failure, error, message,
+def test_pool_joins_after_worker_or_parent_failure(
+    curve_rects, start_method, failure, error, message,
 ):
     payload = _FailingPayload(os.getpid(), failure)
     observed = _ObservedPool(
-        "spawn", on_enter=lambda: setattr(payload, "armed", True),
+        start_method, on_enter=lambda: setattr(payload, "armed", True),
     )
     with pytest.raises(error, match=message):
         partitioning._partition_tree(

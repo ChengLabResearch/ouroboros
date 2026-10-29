@@ -1,5 +1,6 @@
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
+import sys
 
 import numpy as np
 
@@ -10,9 +11,9 @@ from ouroboros.helpers.slice import SliceTaskPayloadEstimator
 from .pipeline import PipelineStep
 
 
-# Startup-inclusive recorded-path measurements support these conservative
-# cutoffs. Other start methods keep serial planning until measured separately.
-_MIN_PARALLEL_SLICES = {"fork": 512, "spawn": 8192}
+# Retain the startup-inclusive Linux fork cutoff for Linux and macOS planning.
+# Windows stays serial because native spawn startup outweighs the saved work.
+_MIN_PARALLEL_SLICES = 512
 
 
 class VolumeCachePipelineStep(PipelineStep):
@@ -37,13 +38,12 @@ class VolumeCachePipelineStep(PipelineStep):
             source_dtype=cloud_volume_interface.dtype,
             channels=cloud_volume_interface.num_channels,
         )
-        context = multiprocessing.get_context()
-        cutoff = _MIN_PARALLEL_SLICES.get(context.get_start_method())
         self.execution_resources = {"planner_processes": 0}
 
         def planner_executor():
             # Invoked only after the tree owner finds a splittable root. This
             # owner supplies the executor allocation and the statistics record.
+            context = multiprocessing.get_context("fork")
             self.execution_resources.update(
                 planner_processes=min(1, config.process_count),
                 planner_start_method=context.get_start_method(),
@@ -54,7 +54,8 @@ class VolumeCachePipelineStep(PipelineStep):
             )
 
         parallel = (
-            cutoff is not None and len(slice_rects) >= cutoff
+            sys.platform in ("linux", "darwin")
+            and len(slice_rects) >= _MIN_PARALLEL_SLICES
             and config.bounding_box_params.max_depth >= 2
             and config.process_count >= 1
         )

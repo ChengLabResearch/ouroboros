@@ -115,6 +115,34 @@ period when other workers are idle, even if accumulated worker time decreases.
 Worker durations overlap and must not be added to, or equated with, the
 coordinator's elapsed time.
 
+## Parallel planning
+
+On Linux and macOS, the slicing pipeline can build the candidate tree with one
+additional process and the caller. It explicitly selects the `fork` context for
+this executor, independently of the application's default start method. Windows
+and other platforms plan serially. Eligibility requires at least 512 slices,
+`max_depth >= 2`, and an available process budget (`process_count >= 1`; public
+options already require at least four). A root without a valid split remains
+serial without requesting a multiprocessing context or creating an executor.
+
+The worker builds the smaller root subtree while the caller builds its sibling,
+using the same tree builder and payload estimator as serial planning. Results
+are assembled in their original order, preserving deterministic partition
+selection. The executor is closed and joined before threshold selection,
+`VolumeCache` construction, or downstream download and slicing pools start.
+Small or shallow inputs remain serial to avoid startup overhead. This policy
+does not establish a performance benefit for every workload or native macOS.
+
+Forking a multithreaded backend carries an accepted, unlikely operational risk;
+its incidence has not been measured and no Ouroboros hang has been reproduced.
+One narrow failure is another parent thread holding a buffered stdout/stderr
+lock during the fork: the child inherits the locked buffer without that thread
+and can hang when multiprocessing flushes the stream at worker exit. Other
+libraries can also have unsafe inherited state, so this is not an exhaustive
+account of fork risks. If this becomes an operational problem, the intended
+follow-up is a full-application switch to `forkserver` on supported platforms,
+covering existing pools and their lifecycle together.
+
 ## Internal box ordering
 
 The slicing step normally submits downloads in partition order. Python callers

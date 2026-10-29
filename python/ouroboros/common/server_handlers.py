@@ -23,7 +23,7 @@ def _process(task, pipeline, input_data):
     task.pipeline = pipeline
     task.pipeline_input = input_data
     task.execution_phase = "processing"
-    pipeline.set_statistics_enabled(task.reporting_enabled)
+    pipeline.set_logging_mode(task.logging_mode)
     try:
         if task.statistics is not None:
             task.statistics.start_memory()
@@ -104,7 +104,7 @@ def _execute_task(task: Task, *, docker: bool = False, print_statistics: bool = 
     task.error = None
     task.execution_phase = "loading_input"
     task.failure_phase = None
-    task.statistics = RunStatistics(task, docker=docker) if task.reporting_enabled else None
+    task.statistics = RunStatistics(task, docker=docker) if task.logging_mode.reporting_enabled else None
     outcome, failure = "done", None
     try:
         if isinstance(task, SliceTask):

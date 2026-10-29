@@ -12,22 +12,31 @@ Installing this package automatically provides a CLI called `ouroboros-cli`. It 
 
 Slice the original volume along a path and save to a tiff file.
 
-`ouroboros-cli slice <options.json> [--verbose]` 
+`ouroboros-cli slice <options.json> [--logging-mode {off,standard,detailed}]`
 
 Project the straightened slices back into the space of the original volume.
 
-`ouroboros-cli backproject <options.json> [--verbose]`
+`ouroboros-cli backproject <options.json> [--logging-mode {off,standard,detailed}]`
 
-`--verbose` prints and saves the same formatted statistics JSON beside the
-configured outputs. Reports are named
+Logging defaults to `off`, which keeps progress and basic step durations but
+does not generate performance reports. `standard` prints and saves step timings,
+byte counts, and volume statistics without RAM monitoring. `detailed` also
+monitors RAM, which adds overhead. `--verbose` remains an alias for
+`--logging-mode detailed`; the two options are mutually exclusive. CLI logging
+is selected by the command line, independently of saved desktop preferences.
+
+Reporting modes print and save the same formatted JSON beside the configured
+outputs. Reports are named
 `<output_file_name>-<operation>-<run_id>-statistics.json`, so repeated runs retain
 separate records. They include operation and pipeline timings, volume/storage
-metrics, sampled process-tree memory, effective configuration, and explicit
-success/failure/interruption status. Without the flag, detailed
-collection and report writes are disabled; progress remains available.
+metrics, effective configuration, and explicit success/failure/interruption
+status. Detailed includes sampled process-tree memory; Standard explicitly
+records RAM monitoring as disabled.
 
-Server reporting is enabled by default; pass `reporting_enabled=false` when
-submitting a task to opt out. Task status exposes report delivery and recovery
+Server reporting also defaults to `off`; pass `logging_mode=standard` or
+`logging_mode=detailed` when submitting a task to enable it. Legacy API
+`reporting_enabled=false/true` maps to Off/Detailed when `logging_mode` is absent;
+an explicit mode takes precedence. Task status exposes report delivery and recovery
 information. See the [run-statistics reference](../documentation/docs/reference/run-statistics.md)
 for timing boundaries, schema definitions, Docker behavior, and limitations, and
 the [benchmark guide](../documentation/docs/development/benchmarks/index.md) for reproducible overhead measurements.

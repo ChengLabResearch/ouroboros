@@ -1,11 +1,20 @@
 # Pipeline run statistics
 
-Use `--verbose` with either Python CLI operation to print and save the same
-formatted statistics JSON:
+Choose a logging mode with either Python CLI operation. Off is the default for
+the CLI, desktop, and server API.
+
+| Mode | Print/save a performance report | Step timings and byte counts | RAM monitoring |
+| --- | --- | --- | --- |
+| `off` | No | Basic durations only | No |
+| `standard` | Yes | Yes | No |
+| `detailed` | Yes | Yes | Yes; adds overhead |
+
+All modes retain progress, basic step durations, and ordinary diagnostics.
+Reporting modes print and save the same formatted statistics JSON:
 
 ```sh
-ouroboros-cli slice slice-options.json --verbose
-ouroboros-cli backproject backproject-options.json --verbose
+ouroboros-cli slice slice-options.json --logging-mode standard
+ouroboros-cli backproject backproject-options.json --logging-mode detailed
 ```
 
 The report is written beside the configured outputs, using
@@ -15,7 +24,13 @@ single TIFF or a directory of TIFF planes. JSON numeric values retain their
 precision; byte counts are integers. Console headings and progress bars are
 outside the JSON payload.
 
-Without `--verbose`, the CLI skips the pipeline's accumulation of detailed timing
+`--verbose` remains a compatibility alias for `--logging-mode detailed`. Supplying
+both options is an error. Saved desktop logging preferences do not override CLI
+arguments or its Off default. In the desktop, old `reporting_enabled` values map
+from false to Off and true to Detailed; an explicit `logging_mode` wins, and a
+missing setting resets to Off. New saves contain only `logging_mode`.
+
+In Off mode, the CLI skips the pipeline's accumulation of detailed timing
 samples, memory sampler, volume statistics, report formatting and report writes. Existing worker
 phase clocks still run; basic step duration and progress remain available. The
 pipeline factory's `verbose` argument continues to control its progress bar; it
@@ -23,9 +38,13 @@ is separate from run reporting.
 
 ## Server and Docker
 
-Server tasks report statistics by default. Pass `reporting_enabled=false` to
-`POST /slice/` or `POST /backproject/` to disable detailed reporting for that
-task. Both CLI and server use the same operation lifecycle and reporting code.
+Server tasks default to Off. Pass `logging_mode=off`, `standard`, or `detailed`
+to `POST /slice/` or `POST /backproject/`. This changes the previous API default
+of enabled reporting. The legacy `reporting_enabled` query parameter is still
+accepted: false maps to Off and true to Detailed, only when `logging_mode` is
+absent. Explicit modes take precedence. Invalid mode values are rejected.
+Both CLI and server use the same operation lifecycle and reporting code. Before
+a report exists, status is `disabled` for Off and `pending` for Standard/Detailed.
 
 The existing status response and status events include `statistics`:
 
@@ -63,7 +82,7 @@ or transfer leaves a successful scientific outcome intact but exposes the
 publication error through status, an error event, and server logging. A console
 or log presentation failure is exposed separately as `presentation_error`; an
 example is `BrokenPipeError` when a consumer such as `head` closes stdout while
-`--verbose` prints the saved report. `presentation_interrupted` distinguishes an
+Standard or Detailed prints the saved report. `presentation_interrupted` distinguishes an
 interruption during this final output. Neither changes the scientific outcome
 or an already-published file's delivery status and path. The CLI exits with
 status 1 on failure and 130 on interruption, including interrupted report
@@ -246,7 +265,12 @@ measurements use bytes directly.
 
 ## Ownership
 
-`Task` owns operation identity and outcome; `RunStatistics` owns operation timing
+`Task` owns operation identity, outcome, and the selected `LoggingMode`;
+pipelines and steps receive that same enum object. Report and step-statistics
+gates derive from its `reporting_enabled` property; RAM collection derives from
+`memory_enabled`. Legacy CLI/API/configuration representations are input
+adapters, not additional runtime settings. The report's `logging_mode` is a
+one-way serialization of the task selection. `RunStatistics` owns operation timing
 and report publication. It references the existing options and pipeline owners.
 `Pipeline` and `PipelineStep` own all pipeline/worker timing samples and progress.
 Summary dictionaries are one-way output adapters: they never replace or mutate
@@ -266,7 +290,10 @@ The fixed-local-source benchmark and reproducible commands are documented in
 
 ## Memory measurements
 
-The collector belongs to `RunStatistics` and runs only around `Pipeline.process`.
+The collector belongs to `RunStatistics` and runs only in Detailed mode around
+`Pipeline.process`. Standard neither constructs the collector nor starts its
+observation session, and records memory status `disabled` with the reason
+`RAM monitoring disabled by logging mode`.
 It stops before volume inspection, output transfer, cleanup and report delivery.
 Each operation starts a fresh sampling window and uses the same run identifier,
 status and report delivery as its timing statistics. No container-lifetime peak
@@ -334,7 +361,7 @@ never supply allocation or lifecycle state back to the manager. POSIX residency
 queries temporarily open a read-only mapping without faulting in the buffer or
 acquiring unlink authority. A manager started before an observation session is
 not retroactively observed. The scientific pipelines start their managers inside
-the collection window. Disabled reporting creates no sampler or observation
+the collection window. Off and Standard create no sampler or observation
 workspace.
 
 The narrow identity adapter in `common/memory_ipc.py` serializes the validated
@@ -358,7 +385,7 @@ in 7.1.3 a backwards clock adjustment within one enumeration can omit a previous
 unseen child because psutil itself filters by public creation timestamps. Retained
 workers are checked independently, but sampling is not a complete process census.
 
-`status` is `sampled` when all admitted sweeps succeeded, `partial` when some
+In Detailed mode, memory `status` is `sampled` when all admitted sweeps succeeded, `partial` when some
 failed, `unavailable` when none completed, or `not_started` if the pipeline was
 never reached. Process or allocation changes during a sweep make that sweep
 incomplete. Manifest reads and publication reuse the control-file retry for

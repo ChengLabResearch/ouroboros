@@ -173,12 +173,12 @@ function useBackprojectPageState(): BackprojectPageState {
 
 		const outputOptions = await join(outputFolder, modifiedName)
 
-		// Run the backprojection with this submission's saved reporting setting.
+		// Run the backprojection with this submission's saved logging mode.
 		await performFetch(
 			BACKPROJECT_REQUEST,
 			{
 				options: outputOptions,
-				reporting_enabled: optionsObject['reporting_enabled']
+				logging_mode: optionsObject['logging_mode']
 			},
 			{ method: 'POST' }
 		)

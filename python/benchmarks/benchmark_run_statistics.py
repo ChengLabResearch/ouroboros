@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure real local CLI runs with and without run-statistics reporting.
+"""Measure local CLI runs in Off, Standard, and Detailed logging modes.
 
 Run from an environment with the project's dependencies installed. By default,
 generate local CloudVolume chunks; --real-slice-options uses an existing dataset.
@@ -24,14 +24,16 @@ import time
 PYTHON_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PYTHON_ROOT))
 
+from ouroboros.common.logging_mode import LoggingMode
+
 
 def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
 
 
 def child_run(args: argparse.Namespace) -> None:
-    # Set these before importing numpy/scipy. The same limits apply to both
-    # treatments, including the worker processes created by the pipeline.
+    # Set these before importing numpy/scipy. The same limits apply to every
+    # mode, including the worker processes created by the pipeline.
     for variable in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
         os.environ[variable] = "1"
     os.environ.setdefault("CLOUD_VOLUME_DIR", str(args.options.parent / "cloudvolume"))
@@ -52,16 +54,15 @@ def child_run(args: argparse.Namespace) -> None:
                 return process(pipeline, input_data)
             finally:
                 pipeline_times.append(time.perf_counter() - started)
-                # Basic step timers run in both treatments. Read their canonical
+                # Basic step timers run in every mode. Read their canonical
                 # durations after the external timer, without another clock.
                 step_times.append({step.step_name: step.get_duration()
                                    for step in pipeline.steps})
 
         Pipeline.process = timed_process
 
-    sys.argv = ["ouroboros-cli", args.operation, str(args.options)]
-    if args.enabled:
-        sys.argv.append("--verbose")
+    sys.argv = ["ouroboros-cli", args.operation, str(args.options),
+                "--logging-mode", args.logging_mode.value]
     started = time.perf_counter()
     cli.main()
     sys.stdout.flush()
@@ -143,30 +144,38 @@ def make_fixture(folder: Path, size: int, workers: int) -> dict:
 def tiff_evidence(path: Path) -> dict:
     import numpy as np
     import tifffile
+    from ouroboros.helpers.files import get_sorted_tif_files
 
+    files = [path / name for name in get_sorted_tif_files(str(path))] if path.is_dir() else [path]
     digest = hashlib.sha256()
-    with tifffile.TiffFile(path) as tif:
-        shape = (len(tif.pages), *tif.pages[0].shape)
-        dtype = str(tif.pages[0].dtype)
-        pixel_bytes = 0
-        for page in tif.pages:
-            pixels = np.ascontiguousarray(page.asarray())
-            digest.update(pixels.tobytes())
-            pixel_bytes += pixels.nbytes
-        pages = len(tif.pages)
+    pixel_bytes = pages = 0
+    page_shape = dtype = None
+    for file in files:
+        with tifffile.TiffFile(file) as tif:
+            for page in tif.pages:
+                if page_shape is None:
+                    page_shape, dtype = page.shape, str(page.dtype)
+                if page.shape != page_shape or str(page.dtype) != dtype:
+                    raise RuntimeError(f"Inconsistent TIFF pages in {path}")
+                pixels = np.ascontiguousarray(page.asarray())
+                digest.update(pixels.tobytes())
+                pixel_bytes += pixels.nbytes
+                pages += 1
+    if not pages:
+        raise RuntimeError(f"No TIFF pages in {path}")
     return {
-        "shape": shape,
+        "shape": [pages, *page_shape],
         "dtype": dtype,
         "pages": pages,
+        "files": len(files),
         "pixel_bytes": pixel_bytes,
-        "storage_bytes": path.stat().st_size,
+        "storage_bytes": sum(file.stat().st_size for file in files),
         "pixel_sha256": digest.hexdigest(),
     }
 
 
-def run_once(folder: Path, operation: str, options: dict, enabled: bool,
-             workers: int, label: str, timeout: int, scope: str = "handler",
-             require_memory: bool = True) -> tuple[dict, Path]:
+def run_once(folder: Path, operation: str, options: dict, mode: LoggingMode,
+             workers: int, label: str, timeout: int, scope: str = "handler") -> tuple[dict, Path]:
     run_folder = folder / label
     run_folder.mkdir()
     output_folder = run_folder / "output"
@@ -178,9 +187,8 @@ def run_once(folder: Path, operation: str, options: dict, enabled: bool,
     timing_path = run_folder / "measurement.json"
     command = [sys.executable, str(Path(__file__).resolve()), "--child",
                "--operation", operation, "--options", str(options_path),
-               "--measurement", str(timing_path), "--scope", scope]
-    if enabled:
-        command.append("--enabled")
+               "--measurement", str(timing_path), "--scope", scope,
+               "--logging-mode", mode.value]
     started = time.perf_counter()
     with (run_folder / "stdout.txt").open("w") as stdout, (run_folder / "stderr.txt").open("w") as stderr:
         subprocess.run(command, cwd=run_folder, stdout=stdout, stderr=stderr,
@@ -193,26 +201,16 @@ def run_once(folder: Path, operation: str, options: dict, enabled: bool,
     if len(outputs) != 1:
         raise RuntimeError(f"Expected one finished TIFF in {output_folder}; found {outputs}. See run logs.")
     output = outputs[0]
-    result = dict(json.loads(timing_path.read_text()), enabled=enabled,
+    result = dict(json.loads(timing_path.read_text()), mode=mode.value,
                   process_elapsed_seconds=process_elapsed, label=label,
                   statistics_files=[str(path.relative_to(folder))
                                     for path in output_folder.glob("*-statistics.json")])
-    if scope == "handler":
-        result["output"] = tiff_evidence(output)
-    else:
-        # Inspect headers only, outside the operation timer; do not read pixels.
-        import tifffile
-        files = sorted(output.glob("*.tif")) if output.is_dir() else [output]
-        with tifffile.TiffFile(files[0]) as tif:
-            result["output_header"] = {
-                "files": len(files), "pages_in_first_file": len(tif.pages),
-                "page_shape": list(tif.pages[0].shape), "dtype": str(tif.pages[0].dtype),
-                "storage_bytes": sum(path.stat().st_size for path in files),
-            }
-    if enabled and not result["statistics_files"]:
-        raise RuntimeError(f"Verbose run did not deliver a statistics file: {run_folder}")
-    if not enabled and result["statistics_files"]:
-        raise RuntimeError(f"Non-verbose run unexpectedly wrote statistics: {run_folder}")
+    # Hash one page at a time after every timed boundary, including pipeline scope.
+    result["output"] = tiff_evidence(output)
+    if mode.reporting_enabled and not result["statistics_files"]:
+        raise RuntimeError(f"{mode.value} run did not deliver a statistics file: {run_folder}")
+    if not mode.reporting_enabled and result["statistics_files"]:
+        raise RuntimeError(f"{mode.value} run unexpectedly wrote statistics: {run_folder}")
     for report_path in result["statistics_files"]:
         formatted = (folder / report_path).read_text()
         record = json.loads(formatted)
@@ -220,17 +218,41 @@ def run_once(folder: Path, operation: str, options: dict, enabled: bool,
             raise RuntimeError(f"Reporting failed in {report_path}: {record['collection_errors']}")
         if formatted.strip() not in (run_folder / "stdout.txt").read_text():
             raise RuntimeError(f"Saved statistics differ from stdout in {run_folder}")
+        if record.get("logging_mode") != mode.value:
+            raise RuntimeError(f"Unexpected logging mode in {report_path}: {record.get('logging_mode')}")
+        steps = record.get("steps", [])
+        if not steps or not any(step.get("custom_times") for step in steps):
+            raise RuntimeError(f"Step statistics missing in {report_path}")
         memory = record.get("memory")
-        if require_memory and (not memory or memory["sampled_peak_bytes"] is None):
+        if mode.memory_enabled and (not memory or memory["sampled_peak_bytes"] is None):
             raise RuntimeError(f"Memory sampling unavailable in {report_path}: {memory}")
+        if not mode.memory_enabled and (not memory or memory.get("status") != "disabled"
+                                        or memory.get("sampled_peak_bytes") is not None):
+            raise RuntimeError(f"Memory was not disabled in {report_path}: {memory}")
         result["memory"] = memory
     write_json(timing_path, result)
     return result, output
 
 
+def modes_for_round(modes: list[LoggingMode], round_index: int) -> list[LoggingMode]:
+    offset = round_index % len(modes)
+    return modes[offset:] + modes[:offset]
+
+
 def summary(runs: list[dict], elapsed_field: str = "handler_elapsed_seconds") -> dict:
-    disabled = [run[elapsed_field] for run in runs if not run["enabled"]]
-    enabled = [run[elapsed_field] for run in runs if run["enabled"]]
+    # Values read from saved results enter the same canonical mode representation
+    # used by argument parsing and execution. Derive instrumentation order from it.
+    by_mode = {}
+    rounds = {}
+    for run in runs:
+        mode = LoggingMode(run["mode"])
+        by_mode.setdefault(mode, []).append(run[elapsed_field])
+        round_times = rounds.setdefault(run["round"], {})
+        if mode in round_times:
+            raise ValueError(f"Duplicate {mode.value} run in round {run['round']}")
+        round_times[mode] = run[elapsed_field]
+    if not by_mode or any(set(times) != set(by_mode) for times in rounds.values()):
+        raise ValueError("Every round must contain each selected mode once")
 
     def distribution(values: list[float]) -> dict:
         median = statistics.median(values)
@@ -238,19 +260,28 @@ def summary(runs: list[dict], elapsed_field: str = "handler_elapsed_seconds") ->
                 "median_absolute_deviation_seconds": statistics.median(abs(value - median) for value in values),
                 "samples_seconds": values}
 
-    overhead = (statistics.median(enabled) / statistics.median(disabled) - 1) * 100
-    pairs = []
-    for index in range(0, len(runs), 2):
-        pair = {run["enabled"]: run[elapsed_field] for run in runs[index:index + 2]}
-        pairs.append((pair[True] / pair[False] - 1) * 100)
+    distributions = {mode.value: distribution(values) for mode, values in by_mode.items()}
+    comparisons = {}
+    baseline = min(by_mode, key=lambda mode: (mode.reporting_enabled, mode.memory_enabled))
+    for mode in by_mode:
+        if mode is baseline:
+            continue
+        overhead = (statistics.median(by_mode[mode]) / statistics.median(by_mode[baseline]) - 1) * 100
+        comparisons[mode.value] = {
+            "median_elapsed_overhead_percent": overhead,
+            "per_round_overhead_percent": [
+                {"round": number, "overhead_percent": (times[mode] / times[baseline] - 1) * 100}
+                for number, times in sorted(rounds.items())
+            ],
+        }
+        if baseline is LoggingMode.OFF:
+            comparisons[mode.value]["measured_median_at_most_one_percent"] = overhead <= 1
     return {
-        "disabled": distribution(disabled),
-        "enabled": distribution(enabled),
-        "median_elapsed_overhead_percent": overhead,
-        "paired_overhead_percent": pairs,
-        "measured_median_at_most_one_percent": overhead <= 1,
-        "pixel_equivalence": (len({run["output"]["pixel_sha256"] for run in runs}) == 1
-                              if all("output" in run for run in runs) else None),
+        "modes": distributions,
+        "baseline_mode": baseline.value if comparisons else None,
+        "comparisons": comparisons,
+        "pixel_equivalence": len({(tuple(run["output"]["shape"]), run["output"]["dtype"],
+                                   run["output"]["pixel_sha256"]) for run in runs}) == 1,
         "runs": runs,
     }
 
@@ -286,18 +317,18 @@ def benchmark(args: argparse.Namespace) -> None:
                           for line in Path("/proc/cpuinfo").read_text().splitlines()
                           if line.startswith("model name")), cpu_model)
     result = {
-        "schema_version": 1,
+        "schema_version": 2,
         "scope": ("External timer around Pipeline.process only: includes scientific preparation, data operations, "
                   "worker measurement transport/aggregation, concurrent RAM sampling and scientific output; excludes options loading, "
                   "sampler startup/shutdown, "
                   "volume-statistics collection, report construction/printing/publication. Basic duration/progress "
-                  "timers remain enabled in both treatments. No pixel hashing."
+                  "timers remain enabled in every mode. Output pixel hashing follows all timed boundaries."
                   if args.scope == "pipeline" else
                   "Native CLI handler including options load, pipeline, report formatting, stdout flush, and report write; no Docker transfer."),
         "elapsed_field": elapsed_field,
-        "cache_policy": ("Warm filesystem and CloudVolume caches; one disabled warmup per operation."
+        "cache_policy": ("Warm filesystem and CloudVolume caches; one warmup of the first selected mode per operation."
                          if args.scope == "pipeline" else
-                         "Warm filesystem and CloudVolume caches; one unmeasured run of each treatment per operation."),
+                         "Warm filesystem and CloudVolume caches; one unmeasured run of each selected mode per operation."),
         "hardware": {"platform": platform.platform(), "processor": cpu_model,
                      "logical_cpus": os.cpu_count(), "python": platform.python_version(),
                      "cpu_affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None},
@@ -305,7 +336,8 @@ def benchmark(args: argparse.Namespace) -> None:
         "benchmark_python_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "versions": {name: importlib.metadata.version(name) for name in ("numpy", "scipy", "tifffile", "cloud-volume", "psutil")},
         "fixture": fixture,
-        "pairs": args.pairs,
+        "rounds": args.pairs,
+        "modes": [mode.value for mode in args.modes],
         "operations": {},
     }
     options = fixture["slice_options"]
@@ -321,14 +353,14 @@ def benchmark(args: argparse.Namespace) -> None:
                 "chunk_size": 64,
             }
         warmups = []
-        for enabled in ((False,) if args.scope == "pipeline" else (False, True)):
-            print(f"{operation}: warmup enabled={enabled}", flush=True)
-            warmup, output = run_once(folder, operation, options, enabled, args.workers,
-                                      f"{operation}-warmup-{int(enabled)}", args.timeout, args.scope)
+        for mode in (args.modes[:1] if args.scope == "pipeline" else args.modes):
+            print(f"{operation}: warmup mode={mode.value}", flush=True)
+            warmup, output = run_once(folder, operation, options, mode, args.workers,
+                                      f"{operation}-warmup-{mode.value}", args.timeout, args.scope)
             warmups.append(warmup)
-            if operation == "slice" and not enabled and not args.reuse_fixture:
+            if operation == "slice" and len(warmups) == 1 and not args.reuse_fixture:
                 # A fixed segmentation derived once from actual slicing is shared
-                # by every backprojection treatment, never regenerated per pair.
+                # by every backprojection mode, never regenerated per round.
                 pixels = tifffile.imread(output)
                 segmentation = np.squeeze(pixels > 32767).astype(np.uint8)
                 tifffile.imwrite(folder / "segmentation.tif", segmentation,
@@ -338,19 +370,19 @@ def benchmark(args: argparse.Namespace) -> None:
                 result["fixture"]["segmentation"] = tiff_evidence(folder / "segmentation.tif")
             output.unlink()
         runs = []
-        for pair in range(args.pairs):
-            for enabled in ((False, True) if pair % 2 == 0 else (True, False)):
-                print(f"{operation}: pair {pair + 1}/{args.pairs} enabled={enabled}", flush=True)
-                measurement, output = run_once(folder, operation, options, enabled, args.workers,
-                                               f"{operation}-{pair:02}-{int(enabled)}", args.timeout, args.scope)
+        for round_index in range(args.pairs):
+            for mode in modes_for_round(args.modes, round_index):
+                print(f"{operation}: round {round_index + 1}/{args.pairs} mode={mode.value}", flush=True)
+                measurement, output = run_once(folder, operation, options, mode, args.workers,
+                                               f"{operation}-{round_index:02}-{mode.value}", args.timeout, args.scope)
+                measurement["round"] = round_index + 1
                 runs.append(measurement)
                 output.unlink()
         result["operations"][operation] = summary(runs, elapsed_field)
         result["operations"][operation]["warmups"] = warmups
         write_json(folder / "results.json", result)
         measured = result["operations"][operation]
-        print(f"{operation}: median overhead {measured['median_elapsed_overhead_percent']:.3f}%; "
-              f"pixel equivalent={measured['pixel_equivalence']}", flush=True)
+        print_summary(operation, measured)
         if measured["pixel_equivalence"] is False:
             raise RuntimeError(f"{operation} output pixels differed; inspect {folder / 'results.json'}")
     result["production_code_unchanged"] = production_digest() == result["production_python_sha256"]
@@ -358,6 +390,18 @@ def benchmark(args: argparse.Namespace) -> None:
     if not result["production_code_unchanged"]:
         raise RuntimeError("Production source changed during the benchmark; repeat with a stable checkout.")
     print(f"Full results and per-run logs: {folder / 'results.json'}")
+
+
+def print_summary(label: str, measured: dict) -> None:
+    if "status" in measured:
+        print(f"{label}: {measured['status']}", flush=True)
+        return
+    for mode, distribution in measured["modes"].items():
+        print(f"{label}: {mode} median {distribution['median_seconds']:.6f}s", flush=True)
+    for mode, comparison in measured["comparisons"].items():
+        print(f"{label}: {mode} median overhead relative to {measured['baseline_mode']}: "
+              f"{comparison['median_elapsed_overhead_percent']:.3f}%", flush=True)
+    print(f"{label}: pixel equivalent={measured['pixel_equivalence']}", flush=True)
 
 
 def benchmark_real_data(args: argparse.Namespace) -> None:
@@ -390,9 +434,9 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
     if args.cache_dir:
         os.environ["CLOUD_VOLUME_CACHE_DIR"] = str(args.cache_dir.resolve())
     result = {
-        "schema_version": 1,
+        "schema_version": 2,
         "scope": "Existing data-processing step duration; excludes preceding parsing, geometry and source/cache setup. External Pipeline.process timer retained separately. Both exclude sampler startup/shutdown and final reporting.",
-        "cache_policy": "One disabled slicing warmup per path; shared CloudVolume cache across all trials. Remote metadata requests may remain.",
+        "cache_policy": "One slicing warmup of the first selected mode per path; shared CloudVolume cache across all trials. Remote metadata requests may remain. Pixel hashing follows all timed boundaries.",
         "cloudvolume_cache_directory": os.environ["CLOUD_VOLUME_CACHE_DIR"],
         "hardware": {"platform": platform.platform(), "processor": platform.processor(),
                      "logical_cpus": os.cpu_count(), "python": platform.python_version()},
@@ -404,11 +448,12 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
         "annotation_layers": sorted(args.annotation_layer) if args.annotation_layer else None,
         "slice_options_template": slice_options,
         "backproject_options_template": backproject_options,
-        "workers": args.workers, "pairs": args.pairs, "paths": {},
+        "workers": args.workers, "rounds": args.pairs,
+        "modes": [mode.value for mode in args.modes], "paths": {},
     }
     if args.resume_real_data:
         previous = json.loads((folder / "results.json").read_text())
-        for key in ("production_python_sha256", "annotation_sha256", "annotation_layers", "workers", "pairs",
+        for key in ("schema_version", "modes", "production_python_sha256", "annotation_sha256", "annotation_layers", "workers", "rounds",
                     "slice_options_template", "backproject_options_template", "versions"):
             if previous.get(key) != result[key]:
                 raise ValueError(f"Cannot resume with changed {key}")
@@ -419,10 +464,10 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
     def remove_output(path):
         shutil.rmtree(path) if path.is_dir() else path.unlink()
 
-    def failed_trial(label, operation, enabled, error):
+    def failed_trial(label, operation, mode, error):
         run_folder = folder / label
         stderr = run_folder / "stderr.txt"
-        record = {"label": label, "operation": operation, "enabled": enabled,
+        record = {"label": label, "operation": operation, "mode": mode.value,
                   "status": "failed_trial", "error": str(error),
                   "stderr": stderr.read_text(errors="replace")[-12000:] if stderr.exists() else None}
         reports = list((run_folder / "output").glob("*-statistics.json"))
@@ -433,15 +478,15 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
             record["memory"] = report.get("memory")
         return record, None
 
-    def attempt(operation, options, enabled, label):
+    def attempt(operation, options, mode, label):
         if (folder / label).exists():
-            return failed_trial(label, operation, enabled, "Prior attempt did not complete; retained without retry")
+            return failed_trial(label, operation, mode, "Prior attempt did not complete; retained without retry")
         try:
-            return run_once(folder, operation, options, enabled, args.workers,
-                            label, args.timeout, "pipeline", require_memory=False)
+            return run_once(folder, operation, options, mode, args.workers,
+                            label, args.timeout, "pipeline")
         except Exception as error:
             print(f"{label}: failed: {error}", flush=True)
-            return failed_trial(label, operation, enabled, error)
+            return failed_trial(label, operation, mode, error)
 
     # Short paths first; preserve the original annotation names and coordinates.
     for index, layer in enumerate(sorted(layers, key=lambda item: len(item["annotations"]))):
@@ -449,29 +494,31 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
         options = dict(slice_options, neuroglancer_annotation_layer=name)
         path_result = result["paths"].setdefault(name, {"annotation_points": len(layer["annotations"]), "runs": []})
         if "slicing_warmup" not in path_result:
-            print(f"{name}: slicing cache warmup", flush=True)
-            warmup, output = attempt("slice", options, False, f"path-{index}-warmup")
+            mode = args.modes[0]
+            print(f"{name}: slicing cache warmup mode={mode.value}", flush=True)
+            warmup, output = attempt("slice", options, mode, f"path-{index}-warmup-{mode.value}")
             path_result["slicing_warmup"] = warmup
             if output is not None:
                 remove_output(output)
         write_json(folder / "results.json", result)
-        for pair in range(args.pairs):
-            for enabled in ((False, True) if pair % 2 == 0 else (True, False)):
-                label = f"path-{index}-pair-{pair + 1}-{int(enabled)}"
+        for round_index in range(args.pairs):
+            for mode in modes_for_round(args.modes, round_index):
+                label = f"path-{index}-round-{round_index + 1}-{mode.value}"
                 if any(run["label"] == label + "-backproject" for run in path_result["runs"]):
                     continue
-                print(f"{name}: pair {pair + 1}/{args.pairs}, enabled={enabled}, slicing", flush=True)
+                print(f"{name}: round {round_index + 1}/{args.pairs}, mode={mode.value}, slicing", flush=True)
                 sliced = next((run for run in path_result["runs"] if run["label"] == label + "-slice"), None)
                 if sliced is None:
-                    sliced, sliced_output = attempt("slice", options, enabled, label + "-slice")
-                    path_result["runs"].append(dict(sliced, operation="slice"))
+                    sliced, sliced_output = attempt("slice", options, mode, label + "-slice")
+                    path_result["runs"].append(dict(sliced, operation="slice", round=round_index + 1))
                 else:
                     outputs = list((folder / (label + "-slice") / "output").glob("*.tif"))
                     sliced_output = outputs[0] if len(outputs) == 1 and "status" not in sliced else None
                 write_json(folder / "results.json", result)
                 if sliced_output is None:
                     path_result["runs"].append({"operation": "backproject", "label": label + "-backproject",
-                        "enabled": enabled, "status": "skipped", "error": "Matching slicing trial did not complete"})
+                        "mode": mode.value, "round": round_index + 1,
+                        "status": "skipped", "error": "Matching slicing trial did not complete"})
                     write_json(folder / "results.json", result)
                     continue
                 bp_options = dict(backproject_options,
@@ -479,11 +526,11 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
                     slice_options_path=str(folder / (label + "-slice") / "options.json"),
                     process_count=args.workers,
                     make_backprojection_binary=False, make_backprojection_discrete=False)
-                print(f"{name}: pair {pair + 1}/{args.pairs}, enabled={enabled}, backprojection", flush=True)
-                projected, projected_output = attempt("backproject", bp_options, enabled, label + "-backproject")
-                path_result["runs"].append(dict(projected, operation="backproject"))
+                print(f"{name}: round {round_index + 1}/{args.pairs}, mode={mode.value}, backprojection", flush=True)
+                projected, projected_output = attempt("backproject", bp_options, mode, label + "-backproject")
+                path_result["runs"].append(dict(projected, operation="backproject", round=round_index + 1))
                 write_json(folder / "results.json", result)
-                # Keep logs, reports and headers; release large scientific outputs
+                # Keep logs, reports and pixel digests; release large scientific outputs
                 # only after the matching backprojection has finished.
                 if projected_output is not None:
                     remove_output(projected_output)
@@ -492,15 +539,17 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
                       for operation in ("slice", "backproject")}
         def measured_or_incomplete(runs, field):
             if any(field not in run for run in runs):
-                return {"status": "incomplete_pairs", "runs": runs}
+                return {"status": "incomplete_rounds", "runs": runs}
             return summary(runs, field)
         path_result["operations"] = {operation: measured_or_incomplete(runs, "data_operation_elapsed_seconds")
                                      for operation, runs in operations.items()}
         path_result["pipeline_operations"] = {operation: measured_or_incomplete(runs, "pipeline_elapsed_seconds")
                                               for operation, runs in operations.items()}
         for operation, measured in path_result["operations"].items():
-            print(f"{name}: {operation}: {measured.get('median_elapsed_overhead_percent', 'incomplete pairs')}", flush=True)
+            print_summary(f"{name}: {operation}", measured)
         write_json(folder / "results.json", result)
+        if any(measured.get("pixel_equivalence") is False for measured in path_result["operations"].values()):
+            raise RuntimeError(f"{name} output pixels differed; inspect {folder / 'results.json'}")
     result["production_code_unchanged"] = production_digest() == result["production_python_sha256"]
     write_json(folder / "results.json", result)
     if not result["production_code_unchanged"]:
@@ -523,21 +572,29 @@ def main() -> None:
     parser.add_argument("--resume-real-data", action="store_true",
                         help="Finish remaining real-data trials, preserving completed and failed attempts without retry.")
     parser.add_argument("--scope", choices=("handler", "pipeline"), default="handler",
-                        help="Timing boundary; pipeline excludes all final reporting and skips pixel hashing.")
+                        help="Timing boundary; pipeline excludes all final reporting. Pixel hashing is outside both timers.")
+    parser.add_argument("--modes", nargs="+", type=LoggingMode,
+                        choices=list(LoggingMode), default=[LoggingMode.STANDARD],
+                        metavar="{off,standard,detailed}",
+                        help="Logging modes to run once per round (default: standard).")
     parser.add_argument("--size", type=int, default=384, help="Cubic source edge in voxels (default: 384).")
     parser.add_argument("--workers", type=int, default=4, help="Multiple of four (default: 4).")
-    parser.add_argument("--pairs", type=int, default=7)
+    parser.add_argument("--pairs", type=int, default=7,
+                        help="Number of rounds; each runs every selected mode once (default: 7).")
     parser.add_argument("--timeout", type=int, default=600, help="Maximum seconds per child operation.")
     parser.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--operation", choices=("slice", "backproject"), help=argparse.SUPPRESS)
     parser.add_argument("--options", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--measurement", type=Path, help=argparse.SUPPRESS)
-    parser.add_argument("--enabled", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--logging-mode", type=LoggingMode, choices=list(LoggingMode),
+                        default=LoggingMode.STANDARD, help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.workers < 4 or args.workers % 4:
         parser.error("--workers must be a positive multiple of four")
     if args.pairs < 2:
         parser.error("--pairs must be at least two")
+    if len(set(args.modes)) != len(args.modes):
+        parser.error("--modes must not contain duplicates")
     if bool(args.real_slice_options) != bool(args.real_backproject_options):
         parser.error("Real-data mode requires both slice and backproject options")
     if args.resume_real_data and not args.real_slice_options:

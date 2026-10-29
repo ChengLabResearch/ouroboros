@@ -233,17 +233,17 @@ def download_volume(
                            zip(local_min, np.sum([local_min, dl_box.size3()], axis=0))],
                          :]
 
-    # Download the bounding box volume
+    # Match CloudVolume's decoded layout when placing the downloaded cutout.
     if use_shared:
         shm_host = SharedNPManager(address=shm_address, authkey=shm_authkey)
         shm_host.connect()
         # The manager creates a fresh OS-zeroed segment for every download;
         # leave unwritten background pages untouched rather than filling them.
-        volume = shm_host.TermedNPArray(vol_shape, cv.dtype)
+        volume = shm_host.TermedNPArray(vol_shape, cv.dtype, order="F")
         with volume as volume_data:
             volume_data[local_bounds] = cv.cv.download(dl_box, mip=mip, parallel=parallel)
     else:
-        volume = np.zeros(astuple(vol_shape), dtype=cv.dtype)
+        volume = np.zeros(astuple(vol_shape), dtype=cv.dtype, order="F")
         volume[local_bounds] = cv.cv.download(dl_box, mip=mip, parallel=parallel)
 
     # Return volume

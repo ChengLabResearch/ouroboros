@@ -43,6 +43,7 @@ def _source(dtype, channels=1, download=None):
     else:
         values /= 7
         values.flat[-1] = 1 + 2**-40
+    values = np.asfortranarray(values)
 
     def read(box, **kwargs):
         assert box == Bbox((0, 0, 0), (3, 3, 2))
@@ -74,6 +75,10 @@ def test_download_preserves_source_values_and_clipped_zero_background(
         pixels = result.array() if use_shared else result
         assert pixels.shape == (6, 4, 3, channels)
         assert pixels.dtype == np.dtype(dtype)
+        assert pixels.flags.f_contiguous
+        assert not pixels.flags.c_contiguous
+        if use_shared:
+            assert result.order == "F"
         np.testing.assert_array_equal(pixels[1:4, :3, :2], values)
         assert np.all(pixels[0] == 0)
         assert np.all(pixels[4:] == 0)
@@ -101,7 +106,9 @@ def test_download_allocates_native_bytes_without_writing_the_full_buffer(
 
     def observe(array):
         # Observe the real manager-owned mapping; this view never owns memory.
-        return enter(array).view(ObservedArray)
+        pixels = enter(array)
+        assert pixels.flags.f_contiguous
+        return pixels.view(ObservedArray)
 
     source, values = _source(dtype)
     read = source.cv.download

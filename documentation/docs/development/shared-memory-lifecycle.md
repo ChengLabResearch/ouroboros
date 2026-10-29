@@ -20,8 +20,14 @@ local attachment and constructs array views; failed client attachment or view
 construction releases the server allocation. Inherited `ShareableList()`
 registration also opens an owning server handle before acknowledging the client.
 
-Serializing `SharedNPArray` transfers only its name, original shape, dtype, and
-view description. Deserialization opens a non-owning attachment; it does not
+Shared arrays default to C order; `order="F"` selects Fortran storage for every
+view returned by an allocation. Download destinations request Fortran order to
+match CloudVolume's decoded cutouts; other allocations retain their defaults.
+
+Serializing `SharedNPArray` transfers only its name, original shape, dtype, base
+storage order, and view description. Basic indexed views retain the base order
+even when the resulting view is not contiguous. Deserialization opens a
+non-owning attachment; it does not
 transfer unlink authority or cached NumPy data. The server keeps the buffer alive
 even if the producer exits before the consumer opens it. This matters on Windows,
 where the allocation disappears when its last handle closes.

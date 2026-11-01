@@ -110,6 +110,9 @@ def create_api(app: FastAPI, docker: bool = False):
         if task_id in tasks:
             task = tasks[task_id]
             if task.status == "done":
+                if task.pipeline_input.volume_cache is None:
+                    result["error"] = "Task has no slicing partition visualization."
+                    return JSONResponse(result, status_code=400)
                 data = {
                     "rects": task.pipeline_input.slice_rects.tolist(),
                     "bounding_boxes": [

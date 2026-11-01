@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from ouroboros.common.server import process_requests
 from ouroboros.common.server_api import create_api
 from ouroboros.common.server_types import BackProjectTask, SliceTask
+from ouroboros.pipeline import PipelineInput
 
 
 class RecordingQueue:
@@ -33,6 +34,27 @@ def create_test_app():
 
 def run_scenario(scenario):
     asyncio.run(scenario())
+
+
+def test_completed_backprojection_has_no_slicing_partition_visualization():
+    async def scenario():
+        app, queue = create_test_app()
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/backproject/", params={"options": "backproject.json"})
+            task = queue.tasks[-1]
+            task.pipeline_input = PipelineInput()
+            task.status = "done"
+
+            visualization = await client.get(
+                "/slice_visualization/", params={"task_id": response.json()["task_id"]},
+            )
+            assert visualization.status_code == 400
+            assert visualization.json() == {
+                "data": None, "error": "Task has no slicing partition visualization.",
+            }
+            assert task.status == "done"
+
+    run_scenario(scenario)
 
 
 def test_duplicate_task_is_rejected_until_active_task_finishes():

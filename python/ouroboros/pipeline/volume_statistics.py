@@ -1,6 +1,6 @@
 """One-way JSON adapters for the volumes already owned by a pipeline run.
 
-No pixel data is loaded here. Geometry comes from BoundingBox/VolumeCache and
+No pixel data is loaded here. Geometry comes from the pipeline's BoundingBox or VolumeCache and
 effective stack dimensions come from the same header inspector as backprojection.
 The returned dictionaries are reporting snapshots, never pipeline inputs.
 """
@@ -34,16 +34,15 @@ def _volume(shape, axes, dtype, channels) -> dict:
     }
 
 
-def _source_at_mip(cache, mip) -> dict:
-    if mip not in cache.cv.available_mips:
+def _source_at_mip(source, mip) -> dict:
+    if mip not in source.available_mips:
         return _unavailable(f"Source metadata does not provide mip {mip}.")
     result = _volume(
-        cache.cv.get_volume_shape(mip), "XYZ", cache.get_volume_dtype(),
-        cache.get_num_channels(),
+        source.get_volume_shape(mip), "XYZ", source.dtype, source.num_channels,
     )
     result.update({
         "mip": int(mip),
-        "voxel_spacing_um": [float(value) for value in cache.cv.get_resolution_um(mip)],
+        "voxel_spacing_um": [float(value) for value in source.get_resolution_um(mip)],
     })
     return result
 
@@ -118,24 +117,21 @@ def _tiff_volume(path, axes, data_kind) -> dict:
     return result
 
 
-def _bounds(box) -> dict:
-    return {"minimum": box.minpt.tolist(), "maximum": box.maxpt.tolist()}
+def _geometry(envelope, source, mip, cache=None) -> dict:
+    if envelope is None:
+        return _unavailable("The pipeline has not produced an output envelope.")
 
-
-def _geometry(cache, operation) -> dict:
-    if not cache.bounding_boxes:
-        return _unavailable("The pipeline has not produced bounding boxes.")
-
-    # These are the exact owning methods used by backprojection and downloads.
-    envelope = BoundingBox.bound_boxes(cache.bounding_boxes)
-    result = _volume(envelope.get_shape(), "XYZ", cache.get_volume_dtype(), cache.get_num_channels())
+    # Serialize the same inclusive integer extent used by backprojection and
+    # downloads, even when the owning box retains floating rectangle extrema.
+    bounds = envelope.approx_bounds()
+    result = _volume(envelope.get_shape(), "XYZ", source.dtype, source.num_channels)
     result.update({
-        "bounds": _bounds(envelope.to_cloudvolume_bbox()),
-        "mip": int(cache.get_volume_mip()),
-        "voxel_spacing_um": [float(value) for value in cache.get_resolution_um()],
+        "bounds": {"minimum": list(bounds[::2]), "maximum": list(bounds[1::2])},
+        "mip": int(mip),
+        "voxel_spacing_um": [float(value) for value in source.get_resolution_um(mip)],
     })
 
-    if operation == "slice":
+    if cache is not None:
         allocated_bytes = clipped_bytes = 0
         itemsize = np.dtype(cache.get_volume_dtype()).itemsize
         for box in cache.bounding_boxes:
@@ -174,15 +170,24 @@ def collect_volume_statistics(input_data, operation: str) -> dict:
     if input_data is None:
         return _unavailable("The pipeline has not been initialized.")
     cache = input_data.volume_cache
-    if cache is None:
+    if operation == "backproject":
+        source = input_data.backprojection_source
+        mip = input_data.slice_options.output_mip_level if input_data.slice_options else None
+        envelope = input_data.backprojection_box
+    else:
+        source = cache.cv if cache is not None else None
+        mip = cache.get_volume_mip() if cache is not None else None
+        envelope = BoundingBox.bound_boxes(cache.bounding_boxes) if cache is not None and cache.bounding_boxes else None
+
+    if source is None:
         full_source = used_source = _unavailable("The pipeline has not loaded source metadata.")
-        geometry = _unavailable("The pipeline has not generated a volume cache.")
+        geometry = _unavailable("The pipeline has not produced an output envelope.")
         source_kind = "unknown"
     else:
-        full_source = _source_at_mip(cache, 0)
-        used_source = _source_at_mip(cache, cache.get_volume_mip())
-        geometry = _geometry(cache, operation)
-        kind = cache.cv.cv.info.get("type")
+        full_source = _source_at_mip(source, 0)
+        used_source = _source_at_mip(source, mip)
+        geometry = _geometry(envelope, source, mip, cache if operation == "slice" else None)
+        kind = source.cv.info.get("type")
         source_kind = kind if kind in ("image", "segmentation") else "unknown"
 
     if operation == "backproject":

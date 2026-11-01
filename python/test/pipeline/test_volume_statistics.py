@@ -49,6 +49,14 @@ def _input(tmp_path, cache=None):
     )
 
 
+def _backprojection_input(tmp_path, cache=None):
+    data = _input(tmp_path, cache)
+    data.backprojection_source = data.volume_cache.cv
+    data.backprojection_box = data.volume_cache.bounding_boxes[0]
+    data.volume_cache = None
+    return data
+
+
 def _write_stack(path, values, spacing=(0.2, 0.4, 0.6)):
     with tifffile.TiffWriter(path) as writer:
         write = generate_tiff_write(
@@ -185,7 +193,7 @@ def test_integer_geometry_and_downloads_share_the_inclusive_extent(tmp_path):
 
 
 def test_backprojection_uses_input_and_actual_rescaled_tiled_output_headers(tmp_path):
-    data = _input(tmp_path)
+    data = _backprojection_input(tmp_path)
     input_path = tmp_path / "plugin-mask.tif"
     input_values = np.zeros((2, 3, 4), dtype=np.uint8)
     _write_stack(input_path, input_values)
@@ -218,7 +226,7 @@ def test_backprojection_uses_input_and_actual_rescaled_tiled_output_headers(tmp_
 
 
 def test_backprojection_single_file_rgb_output_and_missing_resolution(tmp_path):
-    data = _input(tmp_path, _cache(channels=3, kind="segmentation"))
+    data = _backprojection_input(tmp_path, _cache(channels=3, kind="segmentation"))
     path = tmp_path / "bp.tif"
     values = np.zeros((5, 6, 7, 3), dtype=np.uint16)
     with tifffile.TiffWriter(path) as tif:

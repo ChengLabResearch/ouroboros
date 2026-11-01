@@ -136,6 +136,12 @@ class RunStatistics:
         options = self.primary_options
         input_data = self.task.pipeline_input
         cache = getattr(input_data, "volume_cache", None)
+        if self.operation == "backproject":
+            source = getattr(input_data, "backprojection_source", None)
+            flush_requested = self.slice_options.flush_cache if source is not None and self.slice_options else None
+        else:
+            source = cache.cv if cache is not None else None
+            flush_requested = cache.flush_cache if cache is not None else None
         resources = [{"step": step.step_name, **step.execution_resources}
                      for step in (pipeline.steps if pipeline else [])
                      if getattr(step, "execution_resources", None)]
@@ -167,8 +173,8 @@ class RunStatistics:
             **runtime_metadata(),
             "execution": {"deployment": "docker" if self.docker else "native",
                           "workers": resources},
-            "cache": {"flush_requested": cache.flush_cache if cache else None,
-                      "cloudvolume_cache_enabled": getattr(getattr(getattr(getattr(cache, "cv", None), "cv", None),
+            "cache": {"flush_requested": flush_requested,
+                      "cloudvolume_cache_enabled": getattr(getattr(getattr(source, "cv", None),
                                                            "cache", None), "enabled", None),
                       "warmth": "unknown", "network_conditions": "unknown"},
             "collection_errors": self.collection_errors,

@@ -117,6 +117,11 @@ coordinator's elapsed time.
 
 ## Parallel planning
 
+Backprojection bypasses this partition planner. It derives one output envelope
+from the slice rectangles through `BoundingBox.from_rects`, then retains its
+existing straightened-volume chunks and their local bounding boxes. Slicing and
+slice visualization continue to use the partitioning described here.
+
 On Linux and macOS, the slicing pipeline can build the candidate tree with one
 additional process and the caller. It explicitly selects the `fork` context for
 this executor, independently of the application's default start method. Windows

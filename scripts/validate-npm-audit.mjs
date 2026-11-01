@@ -5,6 +5,82 @@ import { npmInvocation } from './lib/npm.mjs'
 
 const exceptions = [
 	{
+		advisory: 'GHSA-g3hv-75wg-m249',
+		sourcePackage: 'minimatch',
+		developmentOnly: true,
+		// Reviewed 2026-11-01: these lint/build consumers use trusted configuration
+		// patterns and do not enable the advisory's optimizationLevel >= 2 path.
+		// Keep the exception within the reviewed development dependency graph.
+		via: {
+			'@electron-toolkit/eslint-config-prettier': [
+				'eslint',
+				'eslint-config-prettier',
+				'eslint-plugin-prettier'
+			],
+			'@electron-toolkit/eslint-config-ts': ['eslint', 'typescript-eslint'],
+			'@electron/asar': ['glob', 'minimatch'],
+			'@electron/universal': ['@electron/asar', 'dir-compare', 'minimatch'],
+			'@eslint-community/eslint-utils': ['eslint'],
+			'@eslint/config-array': ['minimatch'],
+			'@eslint/eslintrc': ['minimatch'],
+			'@typescript-eslint/eslint-plugin': [
+				'@typescript-eslint/parser',
+				'@typescript-eslint/type-utils',
+				'@typescript-eslint/utils',
+				'eslint'
+			],
+			'@typescript-eslint/parser': ['@typescript-eslint/typescript-estree', 'eslint'],
+			'@typescript-eslint/type-utils': [
+				'@typescript-eslint/typescript-estree',
+				'@typescript-eslint/utils',
+				'eslint'
+			],
+			'@typescript-eslint/typescript-estree': ['minimatch'],
+			'@typescript-eslint/utils': [
+				'@eslint-community/eslint-utils',
+				'@typescript-eslint/typescript-estree',
+				'eslint'
+			],
+			'app-builder-lib': [
+				'@electron/asar',
+				'@electron/universal',
+				'dmg-builder',
+				'ejs',
+				'electron-builder-squirrel-windows',
+				'minimatch'
+			],
+			'dir-compare': ['minimatch'],
+			'dmg-builder': ['app-builder-lib'],
+			ejs: ['jake'],
+			'electron-builder': ['app-builder-lib', 'dmg-builder'],
+			'electron-builder-squirrel-windows': ['app-builder-lib', 'electron-winstaller'],
+			'electron-winstaller': ['@electron/asar', 'temp'],
+			eslint: [
+				'@eslint-community/eslint-utils',
+				'@eslint/config-array',
+				'@eslint/eslintrc',
+				'minimatch'
+			],
+			'eslint-config-prettier': ['eslint'],
+			'eslint-plugin-prettier': ['eslint', 'eslint-config-prettier'],
+			'eslint-plugin-react': ['minimatch'],
+			filelist: ['minimatch'],
+			glob: ['minimatch'],
+			jake: ['filelist'],
+			minimatch: [],
+			rimraf: ['glob'],
+			temp: ['rimraf'],
+			'typescript-eslint': [
+				'@typescript-eslint/eslint-plugin',
+				'@typescript-eslint/parser',
+				'@typescript-eslint/typescript-estree',
+				'@typescript-eslint/utils',
+				'eslint'
+			]
+		},
+		reason: 'Reviewed development-only lint/build patterns do not enable optimizationLevel >= 2.'
+	},
+	{
 		advisory: 'GHSA-qwww-vcr4-c8h2',
 		sourcePackage: 'react-router',
 		via: { 'react-router': [], 'react-router-dom': ['react-router'] },
@@ -72,6 +148,7 @@ if (reportedPackages.length === 0) {
 }
 
 const appliedExceptions = new Set()
+let lockedPackages
 const unapprovedPackages = reportedPackages.filter((packageName) => {
 	const exception = exceptions.find((candidate) => validateFinding(packageName, candidate))
 	if (!exception) return true
@@ -110,6 +187,13 @@ function validateFinding(packageName, exception) {
 		seen.add(name)
 		const finding = vulnerabilities[name]
 		if (!finding || !Array.isArray(finding.via) || finding.via.length === 0) return false
+		if (exception.developmentOnly) {
+			if (!Array.isArray(finding.nodes) || finding.nodes.length === 0) return false
+			lockedPackages ??= JSON.parse(
+				readFileSync(join(process.cwd(), 'package-lock.json'), 'utf8')
+			).packages
+			if (finding.nodes.some((node) => lockedPackages?.[node]?.dev !== true)) return false
+		}
 
 		return finding.via.every((source) => {
 			if (typeof source === 'string') {

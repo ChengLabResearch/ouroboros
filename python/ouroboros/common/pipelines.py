@@ -105,7 +105,6 @@ def backproject_pipeline(
         [
             ParseJSONPipelineStep(),
             SlicesGeometryPipelineStep(),
-            VolumeCachePipelineStep(),
             (
                 BackprojectPipelineStep().with_progress_bar()
                 if verbose

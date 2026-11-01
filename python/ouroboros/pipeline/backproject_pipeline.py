@@ -22,7 +22,7 @@ from ouroboros.helpers.slice import (        # noqa: F401
     backproject_box,
     BackProjectIter
 )
-from ouroboros.helpers.volume_cache import VolumeCache, get_mip_volume_sizes, update_writable_rects
+from ouroboros.helpers.volume_cache import CloudVolumeInterface, get_mip_volume_sizes, update_writable_rects
 from ouroboros.helpers.bounding_boxes import BoundingBox
 from .pipeline import PipelineStep
 from .pipeline_input import PipelineInput
@@ -44,15 +44,15 @@ class BackprojectPipelineStep(PipelineStep):
         super().__init__(
             inputs=(
                 "backproject_options",
-                "volume_cache",
+                "source_url",
                 "slice_rects",
             )
         )
 
     def _process(self,
-                 input_data: tuple[BackprojectOptions, VolumeCache, np.ndarray, PipelineInput]
+                 input_data: tuple[BackprojectOptions, str, np.ndarray, PipelineInput]
                  ) -> tuple[any, None] | tuple[None, any]:
-        config, volume_cache, slice_rects, pipeline_input = input_data
+        config, source_url, slice_rects, pipeline_input = input_data
         self.set_stage("preparing_input")
 
         # Verify that a config object is provided
@@ -72,13 +72,17 @@ class BackprojectPipelineStep(PipelineStep):
         if pipeline_input.slice_options is None:
             return "Missing slice config: loaded SliceOptions are required for backprojection."
 
-        # Verify that a volume cache is given
-        if not isinstance(volume_cache, VolumeCache):
-            return "Input data must contain a VolumeCache object."
-
         # Verify that slice rects is given
         if not isinstance(slice_rects, np.ndarray):
             return "Input data must contain an array of slice rects."
+
+        # Backprojection partitions the straightened input into its own chunks.
+        # It only needs the slice envelope and source metadata, not a slice cache
+        # or the download partitioner's candidate tree and planning pool.
+        source = CloudVolumeInterface(source_url)
+        pipeline_input.backprojection_source = source
+        full_bounding_box = BoundingBox.from_rects(slice_rects)
+        pipeline_input.backprojection_box = full_bounding_box
 
         straightened_volume_path = config.straightened_volume_path
 
@@ -137,7 +141,6 @@ class BackprojectPipelineStep(PipelineStep):
 
             straightened_volume_path = new_straightened_volume_path
 
-        full_bounding_box = BoundingBox.bound_boxes(volume_cache.bounding_boxes)
         write_shape = np.flip(full_bounding_box.get_shape()).tolist()
 
         pipeline_input.output_file_path = (f"{config.output_file_name}_"
@@ -162,7 +165,7 @@ class BackprojectPipelineStep(PipelineStep):
         bp_offset = pipeline_input.backprojection_offset if config.backproject_min_bounding_box else None
         tif_write = partial(generate_tiff_write,
                             compression=config.backprojection_compression,
-                            micron_resolution=volume_cache.get_resolution_um(),
+                            micron_resolution=source.get_resolution_um(pipeline_input.slice_options.output_mip_level),
                             backprojection_offset=bp_offset,
                             photometric="rgb" if channels > 1 else "minisblack")
 

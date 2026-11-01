@@ -832,9 +832,9 @@ def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
     rects = make_rects()
     options = BackprojectOptions(output_file_folder=str(tmp_path), output_file_name="sample",
                                  straightened_volume_path=str(source), slice_options_path="unused", process_count=4)
-    cache = Mock(spec=cache_module.VolumeCache)
-    cache.bounding_boxes = [BoundingBox.from_rects(rects)]
-    cache.get_resolution_um.return_value = np.ones(3)
+    interface = Mock(spec=cache_module.CloudVolumeInterface)
+    interface.get_resolution_um.return_value = np.ones(3)
+    monkeypatch.setattr(backproject_module, "CloudVolumeInterface", lambda url: interface)
     submitted_resources = []
 
     class InlineExecutor:
@@ -866,7 +866,7 @@ def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
                 raise RuntimeError("cannot publish progress")
         step.listen_for_progress(fail_completed_progress)
     data = PipelineInput(backproject_options=options, slice_options=slice_options(tmp_path),
-                         volume_cache=cache, slice_rects=rects)
+                         source_url="memory://source", slice_rects=rects)
     output, error = Pipeline([step]).set_logging_mode(LoggingMode.STANDARD if enabled else LoggingMode.OFF).process(data)
     message = "cannot write output" if failure_source == "writer" else "cannot publish progress"
     assert output is None and message in error
@@ -894,9 +894,9 @@ def test_backproject_single_tiff_export_and_cleanup_keep_step_running(tmp_path, 
     options = BackprojectOptions(output_file_folder=str(tmp_path), output_file_name="sample",
                                  straightened_volume_path=str(source), slice_options_path="unused",
                                  process_count=4, make_single_file=True)
-    cache = Mock(spec=cache_module.VolumeCache)
-    cache.bounding_boxes = [BoundingBox.from_rects(rects)]
-    cache.get_resolution_um.return_value = np.ones(3)
+    interface = Mock(spec=cache_module.CloudVolumeInterface)
+    interface.get_resolution_um.return_value = np.ones(3)
+    monkeypatch.setattr(backproject_module, "CloudVolumeInterface", lambda url: interface)
     step = backproject_module.BackprojectPipelineStep()
     observed = []
 
@@ -937,7 +937,7 @@ def test_backproject_single_tiff_export_and_cleanup_keep_step_running(tmp_path, 
     monkeypatch.setattr(backproject_module.tifffile, "imread", read_observed)
     monkeypatch.setattr(backproject_module.shutil, "rmtree", cleanup_observed)
     data = PipelineInput(backproject_options=options, slice_options=slice_options(tmp_path),
-                         volume_cache=cache, slice_rects=rects)
+                         source_url="memory://source", slice_rects=rects)
     pipeline = Pipeline([step])
     if fail_export:
         with pytest.raises(OSError, match="cannot export TIFF"):

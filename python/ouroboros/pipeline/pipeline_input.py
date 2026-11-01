@@ -2,7 +2,8 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 from ouroboros.helpers.models import model_with_json
 from ouroboros.helpers.options import BackprojectOptions, SliceOptions
-from ouroboros.helpers.volume_cache import VolumeCache
+from ouroboros.helpers.bounding_boxes import BoundingBox
+from ouroboros.helpers.volume_cache import CloudVolumeInterface, VolumeCache
 
 
 @model_with_json
@@ -33,6 +34,9 @@ class PipelineInput(BasePipelineInput):
     annotation_points: np.ndarray | None = None
     slice_rects: np.ndarray | None = None
     volume_cache: VolumeCache | None = None
+    # Backprojection owns one envelope and source metadata, not slicing partitions.
+    backprojection_box: BoundingBox | None = None
+    backprojection_source: CloudVolumeInterface | None = None
     output_file_path: str | None = None
     backprojected_folder_path: str | None = None
     config_file_path: str | None = None
@@ -49,7 +53,7 @@ class PipelineInput(BasePipelineInput):
             return np.array(value)
         return value
 
-    @field_serializer("volume_cache")
+    @field_serializer("volume_cache", "backprojection_box", "backprojection_source")
     def to_dict(self, value) -> dict | None:
         return value.to_dict() if value is not None else None
 
@@ -59,3 +63,13 @@ class PipelineInput(BasePipelineInput):
         if isinstance(value, dict):
             return VolumeCache.from_dict(value)
         return value
+
+    @field_validator("backprojection_box", mode="before")
+    @classmethod
+    def validate_backprojection_box(cls, value: any) -> BoundingBox | None:
+        return BoundingBox.from_dict(value) if isinstance(value, dict) else value
+
+    @field_validator("backprojection_source", mode="before")
+    @classmethod
+    def validate_backprojection_source(cls, value: any) -> CloudVolumeInterface | None:
+        return CloudVolumeInterface.from_dict(value) if isinstance(value, dict) else value

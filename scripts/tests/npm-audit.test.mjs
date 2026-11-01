@@ -32,9 +32,10 @@ function packagingReport() {
 	}
 }
 
-function runAudit(report, { status = 1, routerVersion = '7.18.2' } = {}) {
+function runAudit(report, { status = 1, routerVersion = '7.18.2', packages = {} } = {}) {
 	const directory = mkdtempSync(join(tmpdir(), 'ouroboros-audit-test-'))
 	try {
+		writeFileSync(join(directory, 'package-lock.json'), JSON.stringify({ packages }))
 		for (const name of ['react-router', 'react-router-dom']) {
 			const packageDirectory = join(directory, 'node_modules', name)
 			mkdirSync(packageDirectory, { recursive: true })
@@ -59,6 +60,22 @@ function runAudit(report, { status = 1, routerVersion = '7.18.2' } = {}) {
 		rmSync(directory, { recursive: true, force: true })
 	}
 }
+
+test('limits the minimatch exception to nodes locked as development dependencies', () => {
+	const node = 'node_modules/minimatch'
+	const report = {
+		vulnerabilities: {
+			minimatch: { via: [advisory('minimatch', 'GHSA-g3hv-75wg-m249')], nodes: [node] }
+		}
+	}
+	const result = runAudit(report, { packages: { [node]: { dev: true } } })
+	assert.equal(result.status, 0, result.stderr)
+	assert.match(result.stderr, /development-only/)
+	assert.equal(runAudit(report, { packages: { [node]: { dev: false } } }).status, 1)
+	assert.equal(runAudit(report).status, 1)
+	delete report.vulnerabilities.minimatch.nodes
+	assert.equal(runAudit(report, { packages: { [node]: { dev: true } } }).status, 1)
+})
 
 test('accepts the reviewed sprintf advisory and its cyclic packaging dependents', () => {
 	const result = runAudit(packagingReport())

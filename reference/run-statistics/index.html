@@ -663,6 +663,16 @@ The caller also builds a subtree but is not counted as an additional process.
 The worker is joined before threshold selection, cache construction, and
 downstream pools. See <a href="../bounding-box-partitioning/#parallel-planning">parallel planning</a>
 for the Linux/macOS policy, serial fallbacks, and accepted fork risk.</p>
+<p>Backprojection does not run <code>VolumeCachePipelineStep</code> or allocate a planner
+worker. <code>BackprojectPipelineStep</code> derives its overall envelope directly from
+the slice rectangles and loads source metadata during its <code>preparing_input</code>
+stage. That setup is included in the backprojection step duration. The native
+volume report uses the same envelope and source interface, retaining inclusive
+integer bounds, source dimensions and voxel spacing without slicing partitions.
+The operation timing boundary is unchanged.
+The task-based <code>/slice_visualization/</code> endpoint returns its existing error
+response shape with HTTP 400 for a completed task without slicing partitions,
+including backprojection. On-demand slicing visualization is unchanged.</p>
 <p>The schema defines timing boundaries, units, axis conventions, and unavailable
 values here rather than repeating explanatory text in every record. The
 effective slicing configuration is included separately for backprojection; a

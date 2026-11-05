@@ -1,3 +1,6 @@
+from contextlib import contextmanager
+import errno
+import multiprocessing
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -357,7 +360,7 @@ def test_write_intermediate(tmp_path):
     }
     type_ar = np.array([raveled_source.dtype.str, source_values.dtype.str, source_weights.dtype.str], dtype='S8')
 
-    write_raw_intermediate(open(sample_path, "wb"),
+    write_raw_intermediate(sample_path,
                            np.fromiter(offset_dict.values(), dtype=np.uint32, count=5).tobytes(),
                            np.uint32(len(raveled_source)).tobytes(),
                            type_ar.tobytes(),
@@ -396,7 +399,7 @@ def test_increment_volume(tmp_path):
     }
     type_ar = np.array([raveled_source.dtype.str, source_values.dtype.str, source_weights.dtype.str], dtype='S8')
 
-    write_raw_intermediate(open(sample_path, "wb"),
+    write_raw_intermediate(sample_path,
                            np.fromiter(offset_dict.values(), dtype=np.uint32, count=5).tobytes(),
                            np.uint32(len(raveled_source)).tobytes(),
                            type_ar.tobytes(),
@@ -494,15 +497,156 @@ def _write_intermediate_file(path: Path, indexes, values, weights, source_rows=2
     )
     type_ar = np.array([indexes.dtype.str, values.dtype.str, weights.dtype.str], dtype="S8")
 
-    with open(path, "wb") as handle:
-        write_raw_intermediate(
-            handle,
-            meta.tobytes(),
-            type_ar.tobytes(),
-            indexes.tobytes(),
-            values.tobytes(),
-            weights.tobytes(),
+    write_raw_intermediate(
+        path,
+        meta.tobytes(),
+        type_ar.tobytes(),
+        indexes.tobytes(),
+        values.tobytes(),
+        weights.tobytes(),
+    )
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX vectored append")
+def test_raw_append_preserves_record_bytes_in_one_unlocked_writev(tmp_path, monkeypatch):
+    import fcntl
+
+    path = tmp_path / "i_00000.dat"
+    indexes = np.arange(3, dtype=np.uint32)
+    values = np.arange(6, dtype=np.float32).reshape(2, 3)
+    weights = np.ones(3, dtype=np.float32)
+    segments = (
+        np.array([3, 3, 0, 0, 2], dtype=np.uint32).tobytes(),
+        np.uint32(3).tobytes(),
+        np.array([indexes.dtype.str, values.dtype.str, weights.dtype.str], dtype="S8").tobytes(),
+        indexes, values, weights,
+    )
+    legacy_record = b"".join(
+        entry.tobytes() if isinstance(entry, np.ndarray) else entry for entry in segments
+    )
+    path.write_bytes(legacy_record)
+    calls = []
+    original_writev = os.writev
+
+    def record_writev(fd, buffers):
+        assert fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_APPEND
+        assert buffers[4].obj is values
+        calls.append(fd)
+        return original_writev(fd, buffers)
+
+    def unexpected_lock(*args, **kwargs):
+        pytest.fail("POSIX record append must not acquire a file lock")
+
+    monkeypatch.setattr(files_mod.os, "writev", record_writev)
+    monkeypatch.setattr(files_mod, "FileLock", unexpected_lock)
+    assert write_raw_intermediate(path, *segments) == len(legacy_record)
+    assert len(calls) == 1
+    assert path.read_bytes() == legacy_record * 2
+    assert list(tmp_path.glob("*.lock")) == []
+    with path.open("rb") as handle:
+        for _ in range(2):
+            actual_indexes, actual_values, actual_weights = load_raw_file_intermediate(handle)
+            np.testing.assert_array_equal(actual_indexes, indexes)
+            np.testing.assert_array_equal(actual_values, values)
+            np.testing.assert_array_equal(actual_weights, weights)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX vectored append")
+def test_short_raw_append_closes_descriptor_without_retry(tmp_path, monkeypatch):
+    path = tmp_path / "i_00000.dat"
+    calls = []
+
+    def short_write(fd, buffers):
+        calls.append(fd)
+        return os.write(fd, b"x")
+
+    monkeypatch.setattr(files_mod.os, "writev", short_write)
+    with pytest.raises(OSError, match="short append.*1 of 10 bytes"):
+        write_raw_intermediate(path, b"header", np.array([1], dtype=np.uint32))
+    assert len(calls) == 1
+    with pytest.raises(OSError) as error:
+        os.fstat(calls[0])
+    assert error.value.errno == errno.EBADF
+    assert path.read_bytes() == b"x"
+
+
+def test_windows_raw_append_holds_lock_for_one_binary_write(tmp_path, monkeypatch):
+    path = tmp_path / "i_00000.dat"
+    values = np.arange(6, dtype=np.uint16).reshape(2, 3)
+    record = b"header" + values.tobytes()
+    events = []
+
+    @contextmanager
+    def lock(lock_path):
+        events.append(("lock", lock_path))
+        yield
+        events.append(("unlock", lock_path))
+
+    def open_fd(target, flags, mode):
+        events.append(("open", target, flags, mode))
+        return 123
+
+    def write(fd, data):
+        events.append(("write", fd, data))
+        return len(data)
+
+    binary_flag = 0x8000
+    flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | binary_flag
+    monkeypatch.setattr(files_mod, "sys", SimpleNamespace(platform="win32"))
+    monkeypatch.setattr(files_mod, "FileLock", lock)
+    monkeypatch.setattr(files_mod, "os", SimpleNamespace(
+        O_WRONLY=os.O_WRONLY, O_APPEND=os.O_APPEND, O_CREAT=os.O_CREAT, O_BINARY=binary_flag,
+        open=open_fd, write=write, close=lambda fd: events.append(("close", fd)),
+    ))
+    assert write_raw_intermediate(path, b"header", values) == len(record)
+    assert events == [
+        ("lock", path.with_suffix(".lock")),
+        ("open", path, flags, 0o666),
+        ("write", 123, record),
+        ("close", 123),
+        ("unlock", path.with_suffix(".lock")),
+    ]
+
+
+def _append_intermediate_records(path, worker, start):
+    indexes = np.arange(4096, dtype=np.uint32)
+    weights = np.ones(len(indexes), dtype=np.float32)
+    start.wait(timeout=15)
+    for record in range(worker * 8, (worker + 1) * 8):
+        _write_intermediate_file(
+            path, indexes, np.full(len(indexes), record, dtype=np.float32), weights,
+            source_rows=64, target_rows=64,
         )
+
+
+def test_concurrent_raw_appends_remain_complete_reader_records(tmp_path):
+    path = tmp_path / "i_00000.dat"
+    context = multiprocessing.get_context("spawn")
+    start = context.Barrier(3)
+    processes = [context.Process(target=_append_intermediate_records, args=(path, worker, start))
+                 for worker in range(3)]
+    try:
+        for process in processes:
+            process.start()
+        for process in processes:
+            process.join(timeout=20)
+            assert process.exitcode == 0
+    finally:
+        for process in processes:
+            if process.is_alive():
+                process.kill()
+                process.join(timeout=5)
+    records = []
+    with path.open("rb") as handle:
+        while handle.tell() < path.stat().st_size:
+            indexes, values, weights = load_raw_file_intermediate(handle)
+            np.testing.assert_array_equal(indexes, np.arange(4096))
+            np.testing.assert_array_equal(weights, np.ones(4096, dtype=np.float32))
+            np.testing.assert_array_equal(values, np.full((1, 4096), values[0, 0], dtype=np.float32))
+            records.append(int(values[0, 0]))
+    assert sorted(records) == list(range(24))
+    if os.name != "nt":
+        assert list(tmp_path.glob("*.lock")) == []
 
 
 def test_volume_from_intermediates(tmp_path):

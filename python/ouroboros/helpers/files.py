@@ -1,9 +1,12 @@
+from contextlib import nullcontext
 from dataclasses import dataclass
 from functools import partial
 from io import BytesIO
 from multiprocessing.pool import ThreadPool
 import os
+import sys
 
+from filelock import FileLock
 import numpy as np
 from numpy.typing import ArrayLike
 from pathlib import Path
@@ -283,10 +286,23 @@ def generate_tiff_write(write_func: callable, compression: str | None, micron_re
                    **kwargs)
 
 
-def write_raw_intermediate(target: BytesIO, *series):
-    for entry in series:
-        target.write(entry)
-    return target.tell()
+def write_raw_intermediate(path: Path, *series):
+    """Append one complete record; POSIX callers require a local filesystem."""
+
+    segments = [memoryview(entry) for entry in series]
+    expected = sum(segment.nbytes for segment in segments)
+    windows = sys.platform == "win32"
+    with FileLock(path.with_suffix(".lock")) if windows else nullcontext():
+        flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_BINARY", 0)
+        fd = os.open(path, flags, 0o666)
+        try:
+            written = os.write(fd, b"".join(segments)) if windows else os.writev(fd, segments)
+            if written != expected:
+                # Retrying could interleave the remainder with another record.
+                raise OSError(f"short append to {path}: {written} of {expected} bytes")
+            return written
+        finally:
+            os.close(fd)
 
 
 def ravel_map_2d(index, source_rows, target_rows, offset):

@@ -9,7 +9,6 @@ import sys
 import time
 import traceback
 
-from filelock import FileLock
 import numpy as np
 import tifffile
 
@@ -394,18 +393,18 @@ def process_chunk(
         i_path = Path(config.output_file_folder, f"{os.getppid()}_{config.output_file_name}")
         i_path.mkdir(exist_ok=True, parents=True)
 
-        def write_z(target, z_slice):
-            write_raw_intermediate(target,
-                                   np.fromiter(offset_dict.values(), dtype=np.uint32, count=5).tobytes(),
-                                   np.uint32(len(yx_vals[z_slice])).tobytes(),
-                                   type_ar.tobytes(),
-                                   yx_vals[z_slice].tobytes(), values[z_slice].tobytes(), weights[z_slice].tobytes())
-
         def make_z(i, z_slice):
             offset_z = z_stack[i] + offset[0]
             z_path = i_path.joinpath(f"i_{offset_z:05}.dat")
-            with FileLock(z_path.with_suffix(".lock")), open(z_path, "ab") as target:
-                write_z(target, z_slice)
+            write_raw_intermediate(
+                z_path,
+                np.fromiter(offset_dict.values(), dtype=np.uint32, count=5).tobytes(),
+                np.uint32(len(yx_vals[z_slice])).tobytes(),
+                type_ar.tobytes(),
+                np.ascontiguousarray(yx_vals[z_slice]),
+                np.ascontiguousarray(values[z_slice]),
+                np.ascontiguousarray(weights[z_slice]),
+            )
 
         with ThreadPool(intermediate_threads) as pool:
             pool.starmap(make_z, enumerate(z_slices))

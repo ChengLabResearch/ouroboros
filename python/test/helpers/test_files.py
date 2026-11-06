@@ -492,7 +492,7 @@ def _write_intermediate_file(path: Path, indexes, values, weights, source_rows=2
     values = np.asarray(values, dtype=np.float32)
     weights = np.asarray(weights, dtype=np.float32)
     meta = np.array(
-        [source_rows, target_rows, 0, 0, 1, len(indexes)],
+        [source_rows, target_rows, 0, 0, np.atleast_2d(values).shape[0], len(indexes)],
         dtype=np.uint32,
     )
     type_ar = np.array([indexes.dtype.str, values.dtype.str, weights.dtype.str], dtype="S8")
@@ -656,6 +656,7 @@ def test_volume_from_intermediates(tmp_path):
 
     merged = volume_from_intermediates(single_file, shape)
 
+    assert merged.shape == (6,)
     np.testing.assert_allclose(merged[:3], np.array([2.0, 2.0, 0.0], dtype=np.float32))
     assert not single_file.exists()
 
@@ -668,6 +669,24 @@ def test_volume_from_intermediates(tmp_path):
 
     np.testing.assert_allclose(discrete[:3], np.array([0.0, 2.0, 0.0], dtype=np.float32))
     assert list(chunk_dir.glob("*.tif")) == []
+
+
+@pytest.mark.parametrize("discrete", [False, True])
+@pytest.mark.parametrize("dimensions", [(1, 1), (2, 3)])
+def test_multichannel_merge_uses_shared_weights(tmp_path, discrete, dimensions):
+    shape = ImgSliceC(*dimensions, C=3)
+    path = tmp_path / "channels.dat"
+    # Appended contributions share weights even when channel zero is empty.
+    _write_intermediate_file(path, [0], [[0], [3], [4]], [2])
+    _write_intermediate_file(path, [0], [[0], [4], [8]], [2])
+
+    merged = volume_from_intermediates(path, shape, discrete=discrete)
+
+    expected = np.zeros((3, shape.Y * shape.X), dtype=np.float32)
+    expected[:, 0] = [0, 0 if discrete else 1.75, 3]
+    assert merged.shape == expected.shape
+    np.testing.assert_array_equal(merged, expected)
+    assert not path.exists()
 
 
 def test_write_conv_vol(tmp_path, monkeypatch):

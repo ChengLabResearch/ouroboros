@@ -402,7 +402,7 @@ def process_chunk(
                 np.uint32(len(yx_vals[z_slice])).tobytes(),
                 type_ar.tobytes(),
                 np.ascontiguousarray(yx_vals[z_slice]),
-                np.ascontiguousarray(values[z_slice]),
+                np.ascontiguousarray(values[..., z_slice]),
                 np.ascontiguousarray(weights[z_slice]),
             )
 

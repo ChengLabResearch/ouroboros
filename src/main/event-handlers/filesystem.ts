@@ -4,6 +4,7 @@ import { basename, join, relative, sep } from 'path'
 import Watcher from 'watcher'
 
 import { readFile, saveFile } from '../helpers'
+import { evictOperationOutput } from '../cache-eviction'
 import { COLLAPSE_TEARDOWN_DELAY_MS } from '../../shared/constants'
 
 const FILE_EXPLORER_WATCH_LIMIT = 100_000
@@ -483,6 +484,10 @@ export const addFSEventHandlers = (ipcMain: IpcMain, getMainWindow: () => Browse
 	// Read the contents of a file as a string
 	ipcMain.handle('read-file', async (_, args) => {
 		return await readFile(args)
+	})
+
+	ipcMain.handle('evict-output-cache', async (_, optionsPath: string) => {
+		await evictOperationOutput(optionsPath)
 	})
 
 	// Delete a file or folder

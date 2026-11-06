@@ -12,7 +12,7 @@ import {
 	CompoundValueType,
 	findPathsToType
 } from '@renderer/interfaces/options'
-import { useContext, useEffect, useState } from 'react'
+import { useContext, useState } from 'react'
 import { DirectoryContext } from '@renderer/contexts/DirectoryContext'
 import { join, readFile, writeFile } from '@renderer/interfaces/file'
 import { AlertContext } from '@renderer/contexts/AlertContext'
@@ -70,7 +70,7 @@ function useBackprojectPageState(): BackprojectPageState {
 		connected,
 		launchStatus,
 		performFetch,
-		performStream,
+		deleteTask,
 		useFetchListener,
 		useStreamListener,
 		clearFetch,
@@ -85,27 +85,17 @@ function useBackprojectPageState(): BackprojectPageState {
 
 	const { addAlert } = useContext(AlertContext)
 
-	const { results: backprojectResults, pending: backprojectRequestPending } =
-		useFetchListener(BACKPROJECT_REQUEST)
+	const {
+		results: backprojectResults,
+		pending: backprojectRequestPending,
+		optionsPath
+	} = useFetchListener(BACKPROJECT_REQUEST)
 	const previousTask = parseBackprojectResult(backprojectResults)
 	const deleteRequestURL = previousTask.error
 		? null
 		: `/delete/?task_id=${encodeURIComponent(previousTask.result.task_id)}`
 	const stream = useStreamListener(BACKPROJECT_STREAM)
 	const streamDone = stream.done
-
-	// Listen to the status stream for the active task
-	useEffect(() => {
-		const { result, error } = parseBackprojectResult(backprojectResults)
-
-		if (!error) {
-			void performStream(BACKPROJECT_STREAM, result)
-		}
-	}, [backprojectResults, performStream])
-
-	useEffect(() => {
-		return (): void => clearStream(BACKPROJECT_STREAM)
-	}, [clearStream])
 
 	////// HANDLE OPTIONS PANEL FORM SUBMISSION //////
 	const onSubmit = async (): Promise<void> => {
@@ -118,8 +108,7 @@ function useBackprojectPageState(): BackprojectPageState {
 
 		// Delete the previous task if it exists. Its URL also scopes its request notice.
 		if (deleteRequestURL) {
-			const deleteResult = await performFetch(deleteRequestURL, {}, { method: 'POST' })
-			if (deleteResult.error.status) return
+			if (!(await deleteTask(BACKPROJECT_STREAM, deleteRequestURL, optionsPath))) return
 
 			// Clear the task once it has been deleted
 			clearFetch(BACKPROJECT_REQUEST)
@@ -217,7 +206,7 @@ function useBackprojectPageState(): BackprojectPageState {
 	}
 
 	const backprojectTaskActive = !parseBackprojectResult(backprojectResults).error && !streamDone
-	const isRunning = backprojectRequestPending || backprojectTaskActive
+	const isRunning = backprojectRequestPending || backprojectTaskActive || !!stream.cleanupPending
 
 	return {
 		stream,

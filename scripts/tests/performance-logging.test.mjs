@@ -54,6 +54,7 @@ const { AlertContext } = await import('../../src/renderer/src/contexts/AlertCont
 const { DragContext } = await import('../../src/renderer/src/contexts/DragContext.tsx')
 const { emptyStreamResult } =
 	await import('../../src/renderer/src/interfaces/task-status-stream.ts')
+const { deleteOperation } = await import('../../src/renderer/src/interfaces/operation-cleanup.ts')
 const { default: OptionsPanel } = await import(panelURL.href)
 const { default: SlicesPage } =
 	await import('../../src/renderer/src/routes/SlicesPage/SlicesPage.tsx')
@@ -77,6 +78,8 @@ function fixture(t, operation, fetchStates = new Map()) {
 		},
 		clearFetch: (url) => fetchStates.delete(url),
 		clearStream: () => {},
+		deleteTask: (_streamURL, deleteURL, optionsPath) =>
+			deleteOperation(deleteURL, optionsPath, server.performFetch),
 		performFetch: async (url, query, options) => {
 			requests.push({ url, query, options })
 			fetchStates.set(url, fetchResult)
@@ -188,6 +191,18 @@ function selectedMode(html) {
 }
 
 for (const operation of ['slice', 'backproject']) {
+	test(`${operation}: host cleanup keeps Start disabled while the terminal outcome remains visible`, (t) => {
+		const run = fixture(t, operation)
+		run.stream.results = { status: 'done', progress: [], error: null }
+		run.stream.done = true
+		run.stream.cleanupPending = true
+		assert.match(run.renderPage(), /completed\./)
+		assert.equal(run.panel.isRunning, true)
+		run.stream.cleanupPending = false
+		run.renderPage()
+		assert.equal(run.panel.isRunning, false)
+	})
+
 	test(`${operation}: submission errors are inline, dismiss at their owner, and clear on another submission`, async (t) => {
 		const url = `/${operation}/`
 		const failed = {

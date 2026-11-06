@@ -79,3 +79,34 @@ cleared at its owner. Persistence is limited to the provider's lifetime. Each de
 identified by its actual task-specific URL (`/delete/?task_id=…`), so one workflow cannot
 display another workflow's deletion failure. The saved task response remains the source
 of that task ID until the existing deletion/submission lifecycle replaces it.
+
+## Completion cleanup
+
+`ServerContext` starts and owns the slicing and backprojection status streams when
+submission succeeds. Navigating away from a page does not close those streams.
+The existing terminal-status parser remains authoritative: pending report
+publication, a lost connection, and an unknown task do not trigger cleanup.
+
+After a confirmed terminal outcome, the provider posts the task's `/delete/`
+request and waits for success before asking the Electron main process to evict
+the output directory from the Windows file cache. The saved submission's options
+path identifies that directory: both operation pages write their options beside
+their outputs. Neither later form edits nor rereading an overwritten options file
+can redirect the cache pass. The pass includes nested output files and logs,
+skips symbolic links and junctions, and opens files sequentially with read-only
+unbuffered access. It does no filesystem work on other operating systems.
+
+Start remains disabled during cleanup, including a retry after navigation, while
+the terminal result stays visible. A failed deletion retains the task response
+and its existing request notice; the next submission retries through the same
+deletion/eviction helper.
+File-access or IPC failures produce warnings without changing the scientific
+outcome. Successful cleanup clears the deleted task response but preserves the
+terminal progress and statistics snapshot.
+
+For native verification, use a finished operation's Windows output folder after
+server deletion, and compare host standby-cache counters before and after the
+cache pass. The multi-round performance check in [issue #214](https://github.com/ChengLabResearch/ouroboros/issues/214)
+requires the Windows/Docker campaign environment; frontend lifecycle tests alone
+cannot establish cache reduction or sustained throughput. The separate Table 1
+runner lives in [ouroboros_pub](https://github.com/den-sq/ouroboros_pub).

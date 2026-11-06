@@ -102,8 +102,8 @@ function useSlicePageState(): SlicePageState {
 		connected,
 		launchStatus,
 		performFetch,
+		deleteTask,
 		useFetchListener,
-		performStream,
 		useStreamListener,
 		clearFetch,
 		clearFetchError,
@@ -115,7 +115,11 @@ function useSlicePageState(): SlicePageState {
 
 	const { addAlert } = useContext(AlertContext)
 
-	const { results: sliceResults, pending: sliceRequestPending } = useFetchListener(SLICE_REQUEST)
+	const {
+		results: sliceResults,
+		pending: sliceRequestPending,
+		optionsPath
+	} = useFetchListener(SLICE_REQUEST)
 	const previousTask = parseSliceResult(sliceResults)
 	const deleteRequestURL = previousTask.error
 		? null
@@ -141,19 +145,6 @@ function useSlicePageState(): SlicePageState {
 			setVisualizationData(result)
 		}
 	}, [onDemandVisualizationResults])
-
-	// Listen to the status stream for the active task
-	useEffect(() => {
-		const { result, error } = parseSliceResult(sliceResults)
-
-		if (!error) {
-			void performStream(SLICE_STREAM, result)
-		}
-	}, [performStream, sliceResults])
-
-	useEffect(() => {
-		return (): void => clearStream(SLICE_STREAM)
-	}, [clearStream])
 
 	const saveOptionsToFile = async (): Promise<
 		{ options: string; logging_mode: LoggingMode } | undefined
@@ -306,8 +297,7 @@ function useSlicePageState(): SlicePageState {
 
 		// Delete the previous task if it exists. Its URL also scopes its request notice.
 		if (deleteRequestURL) {
-			const deleteResult = await performFetch(deleteRequestURL, {}, { method: 'POST' })
-			if (deleteResult.error.status) return
+			if (!(await deleteTask(SLICE_STREAM, deleteRequestURL, optionsPath))) return
 
 			// Clear the task once it has been deleted
 			clearFetch(SLICE_REQUEST)
@@ -367,7 +357,7 @@ function useSlicePageState(): SlicePageState {
 		? (progress.find(([name]) => name === SLICE_STEP_NAME) ?? [SLICE_STEP_NAME, 0.0])[1]
 		: 0.0
 	const sliceTaskActive = !parseSliceResult(sliceResults).error && !streamDone
-	const isRunning = sliceRequestPending || sliceTaskActive
+	const isRunning = sliceRequestPending || sliceTaskActive || !!stream.cleanupPending
 
 	return {
 		stream,

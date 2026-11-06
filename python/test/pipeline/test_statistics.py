@@ -580,8 +580,14 @@ def test_backproject_worker_timers_are_disjoint_and_bytes_are_separate(tmp_path,
     rects = make_rects()
     box = BoundingBox.from_rects(rects)
     monkeypatch.setattr(backproject_module.tifffile, "memmap", lambda *args, **kwargs: np.ones((1, 2, 2)))
-    monkeypatch.setattr(backproject_module, "backproject_box", lambda *args: (
-        np.array([0, 1], dtype=np.uint32), np.array([3, 4], dtype=np.float32), np.array([1, 1], dtype=np.float32)))
+    payload = (
+        np.array([0, 1], dtype=np.uint32),
+        np.array([3, -1, 4, -1], dtype=np.float32)[::2],
+        np.array([1, -1, 1, -1], dtype=np.float32)[::2],
+    )
+    monkeypatch.setattr(backproject_module, "backproject_box", lambda *args: payload)
+    append = Mock(wraps=backproject_module.write_raw_intermediate)
+    monkeypatch.setattr(backproject_module, "write_raw_intermediate", append)
     monkeypatch.setattr(backproject_module, "time", clock(range(13)))
     options = BackprojectOptions(output_file_folder=str(tmp_path), output_file_name="sample",
                                  straightened_volume_path="unused", slice_options_path="unused")
@@ -595,6 +601,18 @@ def test_backproject_worker_timers_are_disjoint_and_bytes_are_separate(tmp_path,
     assert "total_bytes" not in durations
     assert index == (0, 0, 0)
     assert stack.tolist() == [0]
+    append.assert_called_once()
+    path, *segments = append.call_args.args
+    assert path == tmp_path / f"{os.getppid()}_sample" / "i_00000.dat"
+    assert all(isinstance(part, np.ndarray) and part.flags.c_contiguous for part in segments[3:])
+    expected = (
+        np.array([box.get_shape()[0], box.get_shape()[0], 0, 0, 1, 2], dtype=np.uint32).tobytes()
+        + np.array([array.dtype.str for array in payload], dtype="S8").tobytes()
+        + b"".join(array.tobytes() for array in payload)
+    )
+    assert path.read_bytes() == expected
+    if sys.platform != "win32":
+        assert list(path.parent.glob("*.lock")) == []
 
 
 def test_writer_returns_nested_timings_and_uses_dispatched_merge_threads(tmp_path, monkeypatch):

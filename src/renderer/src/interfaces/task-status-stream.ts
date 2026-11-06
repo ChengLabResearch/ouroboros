@@ -6,6 +6,8 @@ export type StreamResult = {
 	error: ServerError
 	// Stream closure, not a scientific outcome. Transport failure also closes it.
 	done: boolean
+	// Host cleanup follows the terminal outcome; keep another submission waiting for it.
+	cleanupPending?: boolean
 }
 
 export function emptyStreamResult(): StreamResult {

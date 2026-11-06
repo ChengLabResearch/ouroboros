@@ -2,6 +2,10 @@
 import { JSX, createContext, useCallback, useEffect, useRef, useState } from 'react'
 import type { MainServerLaunchStatus } from '@shared/main-server-status'
 import { subscribeToMainServerLaunchStatus } from '../interfaces/main-server-status'
+import { deleteOperation } from '../interfaces/operation-cleanup'
+import { parseSliceResult } from '../schemas/slice-result-schema'
+import { parseBackprojectResult } from '../schemas/backproject-result-schema'
+import { isTerminalTaskStatus } from '../schemas/task-status-schema'
 
 import {
 	emptyStreamResult,
@@ -17,6 +21,8 @@ export type FetchResult = {
 	results: object | null
 	error: ServerError
 	pending: boolean
+	// Saved at submission, alongside the outputs; never read from the editable form.
+	optionsPath?: string
 }
 
 export type ServerContextValue = {
@@ -28,7 +34,7 @@ export type ServerContextValue = {
 		query?: Record<string, any>,
 		options?: RequestInit
 	) => Promise<FetchResult>
-	performStream: (relativeURL: string, query?: Record<string, any>) => Promise<void>
+	deleteTask: (streamURL: string, deleteURL: string, optionsPath?: string) => Promise<boolean>
 	clearFetch: (relativeURL: string) => void
 	clearFetchError: (relativeURL: string) => void
 	clearStream: (relativeURL: string) => void
@@ -77,19 +83,22 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 			relativeURL,
 			results,
 			error,
-			pending
+			pending,
+			optionsPath
 		}: {
 			relativeURL: string
 			results?: object | null
 			error?: ServerError
 			pending?: boolean
+			optionsPath?: string
 		}) => {
 			setFetchStates((prev) => {
 				const previous = prev.get(relativeURL) ?? emptyFetchResult()
 				return new Map(prev).set(relativeURL, {
 					results: results === undefined ? previous.results : results,
 					error: error === undefined ? previous.error : error,
-					pending: pending === undefined ? previous.pending : pending
+					pending: pending === undefined ? previous.pending : pending,
+					optionsPath: results === undefined ? previous.optionsPath : optionsPath
 				})
 			})
 		},
@@ -127,12 +136,66 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 		[baseURL]
 	)
 
-	const performFetch = useCallback(
+	const closeStream = useCallback((relativeURL: string): void => {
+		const activeStream = activeStreams.current.get(relativeURL)
+		if (!activeStream) return
+		activeStreams.current.delete(relativeURL)
+		activeStream.close()
+	}, [])
+
+	const cleanupOperation = useCallback(
 		async (
+			streamURL: string,
+			deleteURL: string,
+			optionsPath: string | undefined,
+			request: ServerContextValue['performFetch']
+		): Promise<boolean> => {
+			const stream = activeStreams.current.get(streamURL)
+			setStreamStatesHelper({ relativeURL: streamURL, cleanupPending: true })
+			try {
+				return await deleteOperation(deleteURL, optionsPath, request)
+			} finally {
+				if (activeStreams.current.get(streamURL) === stream) {
+					setStreamStatesHelper({ relativeURL: streamURL, cleanupPending: false })
+				}
+			}
+		},
+		[setStreamStatesHelper]
+	)
+
+	const performStream = useCallback(
+		(relativeURL: string, taskId: string, onTerminal: () => Promise<void>): Promise<void> => {
+			closeStream(relativeURL)
+			let terminal = false
+			const stream = openTaskStatusStream(
+				getFullURL(relativeURL, { task_id: taskId }),
+				taskId,
+				(update) => {
+					terminal = !!update.results && isTerminalTaskStatus(update.results)
+					setStreamStatesHelper({ relativeURL, ...update, cleanupPending: terminal })
+				}
+			)
+			activeStreams.current.set(relativeURL, stream)
+			return stream.finished.then(async () => {
+				try {
+					// A disconnect, unknown task, or provider shutdown is not a terminal outcome.
+					if (terminal) await onTerminal()
+				} finally {
+					if (activeStreams.current.get(relativeURL) === stream) {
+						activeStreams.current.delete(relativeURL)
+					}
+				}
+			})
+		},
+		[closeStream, getFullURL, setStreamStatesHelper]
+	)
+
+	const performFetch = useCallback(
+		async function performFetch(
 			relativeURL: string,
 			query: Record<string, any> = {},
 			options: RequestInit = {}
-		): Promise<FetchResult> => {
+		): Promise<FetchResult> {
 			// Enqueue the fetch request if the server is not connected
 			if (!connected) {
 				setFetchQueue((prev) => [...prev, [relativeURL, query, options]])
@@ -143,6 +206,7 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 			const requestKey = `${(options.method ?? 'GET').toUpperCase()} ${fullURL}`
 			const activeFetch = activeFetches.current.get(requestKey)
 			if (activeFetch) return activeFetch
+			const optionsPath = typeof query.options === 'string' ? query.options : undefined
 
 			const request = (async (): Promise<FetchResult> => {
 				const abortController = new AbortController()
@@ -175,7 +239,53 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 								pending: false
 							}
 
+					const operation =
+						options.method?.toUpperCase() === 'POST'
+							? relativeURL === '/slice/'
+								? 'slice'
+								: relativeURL === '/backproject/'
+									? 'backproject'
+									: null
+							: null
+					if (response.ok && operation) {
+						result.optionsPath = optionsPath
+					}
 					setFetchStatesHelper({ relativeURL, ...result })
+					if (response.ok && operation) {
+						const task = (
+							operation === 'slice' ? parseSliceResult : parseBackprojectResult
+						)(data)
+						if (!task.error) {
+							const deleteURL = `/delete/?task_id=${encodeURIComponent(task.result.task_id)}`
+							void performStream(
+								`/${operation}_status_stream/`,
+								task.result.task_id,
+								async () => {
+									if (
+										await cleanupOperation(
+											`/${operation}_status_stream/`,
+											deleteURL,
+											result.optionsPath,
+											performFetch
+										)
+									) {
+										// Keep the terminal stream snapshot, but no longer offer a deleted task.
+										setFetchStates((previous) => {
+											if (
+												previous.get(relativeURL)?.results !==
+												result.results
+											)
+												return previous
+											return new Map(previous).set(
+												relativeURL,
+												emptyFetchResult()
+											)
+										})
+									}
+								}
+							).catch((error) => console.warn('Operation cleanup failed:', error))
+						}
+					}
 					return result
 				} catch (error) {
 					if (abortController.signal.aborted) return emptyFetchResult()
@@ -208,7 +318,13 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 			})
 			return request
 		},
-		[getFullURL, connected, setFetchStatesHelper]
+		[getFullURL, connected, setFetchStatesHelper, performStream, cleanupOperation]
+	)
+
+	const deleteTask = useCallback(
+		(streamURL: string, deleteURL: string, optionsPath?: string): Promise<boolean> =>
+			cleanupOperation(streamURL, deleteURL, optionsPath, performFetch),
+		[cleanupOperation, performFetch]
 	)
 
 	const clearFetch = useCallback(
@@ -238,33 +354,6 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 		[setFetchStatesHelper]
 	)
 
-	const closeStream = useCallback((relativeURL: string): void => {
-		const activeStream = activeStreams.current.get(relativeURL)
-		if (!activeStream) return
-
-		activeStreams.current.delete(relativeURL)
-		activeStream.close()
-	}, [])
-
-	const performStream = useCallback(
-		(relativeURL: string, query: Record<string, any> = {}): Promise<void> => {
-			closeStream(relativeURL)
-			const stream = openTaskStatusStream(
-				getFullURL(relativeURL, query),
-				typeof query.task_id === 'string' ? query.task_id : '',
-				(update) => setStreamStatesHelper({ relativeURL, ...update })
-			)
-			activeStreams.current.set(relativeURL, stream)
-			void stream.finished.then(() => {
-				if (activeStreams.current.get(relativeURL) === stream) {
-					activeStreams.current.delete(relativeURL)
-				}
-			})
-			return stream.finished
-		},
-		[closeStream, getFullURL, setStreamStatesHelper]
-	)
-
 	const clearStream = useCallback(
 		(relativeURL: string) => {
 			closeStream(relativeURL)
@@ -272,7 +361,8 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 				relativeURL,
 				results: null,
 				error: { status: false, message: '' },
-				done: false
+				done: false,
+				cleanupPending: false
 			})
 		},
 		[closeStream, setStreamStatesHelper]
@@ -348,7 +438,7 @@ function useServerContextProvider(baseURL = DEFAULT_SERVER_URL): ServerContextVa
 		connected,
 		launchStatus: baseURL === DEFAULT_SERVER_URL ? launchStatus : null,
 		performFetch,
-		performStream,
+		deleteTask,
 		clearFetch,
 		clearFetchError,
 		clearStream,

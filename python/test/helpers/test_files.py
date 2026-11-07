@@ -84,6 +84,33 @@ def test_get_sorted_tif_files_prefix(tmp_path):
     assert sorted_files == original_filenames
 
 
+def test_get_sorted_tif_files_unpadded_indices(tmp_path):
+    expected = [f"{index}.tif" for index in (0, 1, 2, 10, 100, 99999, 100000)]
+    for name in reversed(expected):
+        (tmp_path / name).touch()
+
+    assert get_sorted_tif_files(str(tmp_path)) == expected
+
+
+def test_get_sorted_tif_files_equal_indices_use_filename_order(tmp_path):
+    expected = ["00001.tif", "1.tif", "1.tiff", "2.tif"]
+    for name in reversed(expected):
+        (tmp_path / name).touch()
+
+    assert get_sorted_tif_files(str(tmp_path)) == expected
+
+
+@pytest.mark.parametrize("names", [
+    ["slice_2.tif", "slice_10.tif", "slice_1.tiff"],
+    ["2.tif", "10.tif", "slice_1.tiff"],
+])
+def test_get_sorted_tif_files_preserves_legacy_nonnumeric_order(tmp_path, names):
+    for name in names:
+        (tmp_path / name).touch()
+
+    assert get_sorted_tif_files(str(tmp_path)) == sorted(names)
+
+
 def test_join_path():
     path = join_path("folder", "subfolder", "file.txt")
     assert path == os.path.join("folder", "subfolder", "file.txt")

@@ -42,10 +42,11 @@ class StraightenedVolumeInfo:
 
 def get_sorted_tif_files(directory: str) -> list[str]:
     """
-    Get all .tif files in a directory and sort them numerically.
+    Get all .tif and .tiff files in a directory, ordered by numeric plane index.
 
-    Assumes that the files are named with a number at the beginning of the file name.
-    E.g. 0001.tif, 0002.tif, 0003.tif, etc.
+    Numeric filenames may be padded or unpadded; equal indices use filename
+    order. If any filename cannot be parsed as a plane index, retain lexical
+    order for the directory, including legacy names such as slice_0001.tif.
 
     Parameters
     ----------
@@ -61,10 +62,11 @@ def get_sorted_tif_files(directory: str) -> list[str]:
     # Get all files in the directory
     files = os.listdir(directory)
 
-    # Filter to include only .tif files and sort them numerically
-    tif_files = sorted((file for file in files if file.endswith((".tif", ".tiff"))))
-
-    return tif_files
+    tif_files = [file for file in files if file.endswith((".tif", ".tiff"))]
+    try:
+        return sorted(tif_files, key=lambda name: (parse_tiff_name(name), name))
+    except ValueError:
+        return sorted(tif_files)
 
 
 def expected_straightened_volume_shape(slice_rects: np.ndarray) -> FrontProjectionShape:

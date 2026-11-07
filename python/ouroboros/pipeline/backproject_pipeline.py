@@ -29,7 +29,6 @@ from ouroboros.helpers.options import BackprojectOptions
 from ouroboros.helpers.files import (
     format_backproject_resave_volume,
     get_sorted_tif_files,
-    join_path,
     generate_tiff_write,
     StraightenedVolumeInfo,
     validate_straightened_volume_for_backprojection,
@@ -97,6 +96,7 @@ class BackprojectPipelineStep(PipelineStep):
         except (TypeError, ValueError) as e:
             return str(e)
 
+        owns_temporary_input = False
         FPShape = FrontProjStack(
             D=volume_info.shape.D,
             V=volume_info.shape.V,
@@ -114,7 +114,7 @@ class BackprojectPipelineStep(PipelineStep):
             print("Preparing a contiguous straightened TIFF for backprojection.")
 
             # Create a new path for the straightened volume
-            new_straightened_volume_path = join_path(
+            new_straightened_volume_path = Path(
                 config.output_file_folder,
                 format_backproject_resave_volume(config.output_file_name),
             )
@@ -126,6 +126,13 @@ class BackprojectPipelineStep(PipelineStep):
             # The output folder may be the input folder. Capture its members
             # before creating the temporary TIFF so it cannot read itself.
             images = get_sorted_tif_files(volume_info.path) if volume_info.path.is_dir() else None
+            if new_straightened_volume_path.exists():
+                overwrites_input = (
+                    new_straightened_volume_path.samefile(volume_info.path) if images is None else
+                    any(new_straightened_volume_path.samefile(volume_info.path / image) for image in images)
+                )
+                if overwrites_input:
+                    return "Cannot prepare a temporary straightened TIFF over an input file."
             with tifffile.TiffWriter(new_straightened_volume_path, bigtiff=input_is_big_tiff) as tif:
                 write_page = partial(tif.write, contiguous=True, compression=None,
                                      photometric=volume_info.photometric,
@@ -140,8 +147,9 @@ class BackprojectPipelineStep(PipelineStep):
                     for image in images:
                         write_page(tifffile.imread(volume_info.path / image))
 
-            volume_info = replace(volume_info, path=Path(new_straightened_volume_path),
-                                  sample_path=Path(new_straightened_volume_path), is_compressed=False)
+            volume_info = replace(volume_info, path=new_straightened_volume_path,
+                                  sample_path=new_straightened_volume_path, is_compressed=False)
+            owns_temporary_input = True
 
         write_shape = np.flip(full_bounding_box.get_shape()).tolist()
 
@@ -315,6 +323,9 @@ class BackprojectPipelineStep(PipelineStep):
         if config.make_single_file:
             shutil.rmtree(folder_path)
         shutil.rmtree(i_path)
+        # Workers have exited. Keep failed runs' inputs with their intermediates.
+        if owns_temporary_input:
+            volume_info.path.unlink()
 
         return None
 

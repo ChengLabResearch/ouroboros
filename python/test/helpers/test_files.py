@@ -687,15 +687,16 @@ def test_volume_from_intermediates(tmp_path):
     np.testing.assert_allclose(merged[:3], np.array([2.0, 2.0, 0.0], dtype=np.float32))
     assert not single_file.exists()
 
-    chunk_dir = tmp_path.joinpath("chunks")
-    chunk_dir.mkdir()
-    _write_intermediate_file(chunk_dir.joinpath("a.tif"), [0], [3], [2])
-    _write_intermediate_file(chunk_dir.joinpath("b.tif"), [1], [4], [2])
+    appended = tmp_path / "appended.dat"
+    _write_intermediate_file(appended, [0], [3], [2])
+    _write_intermediate_file(appended, [1], [4], [2])
 
-    discrete = volume_from_intermediates(chunk_dir, shape, discrete=True, thread_count=1)
+    discrete = volume_from_intermediates(appended, shape, discrete=True)
 
     np.testing.assert_allclose(discrete[:3], np.array([0.0, 2.0, 0.0], dtype=np.float32))
-    assert list(chunk_dir.glob("*.tif")) == []
+    assert not appended.exists()
+    assert not np.shares_memory(merged, discrete)
+    np.testing.assert_array_equal(merged, [2, 2, 0, 0, 0, 0])
 
 
 @pytest.mark.parametrize("discrete", [False, True])
@@ -716,24 +717,21 @@ def test_multichannel_merge_uses_shared_weights(tmp_path, discrete, dimensions):
     assert not path.exists()
 
 
-def test_write_conv_vol(tmp_path, monkeypatch):
+def test_write_conv_vol(tmp_path):
     shape = ImgSliceC(Y=2, X=2, C=1)
     target_folder = tmp_path.joinpath("output")
     target_folder.mkdir()
     writes = []
 
-    monkeypatch.setattr(
-        files_mod,
-        "volume_from_intermediates",
-        lambda source_path, shape, discrete, thread_count: np.array([0, 1, 2, 3], dtype=np.float32),
-    )
+    source = tmp_path / "page.dat"
+    _write_intermediate_file(source, [0, 1, 2, 3], [0, 1, 2, 3], [1, 1, 1, 1])
 
     def writer(path, data):
         writes.append((path.name, np.array(data)))
 
     perf = write_conv_vol(
         writer,
-        tmp_path.joinpath("chunks"),
+        source,
         shape,
         np.uint8,
         None,
@@ -745,12 +743,14 @@ def test_write_conv_vol(tmp_path, monkeypatch):
 
     assert writes[0][0] == "7.tif"
     assert writes[0][1].shape == (2, 2, 1)
+    np.testing.assert_array_equal(writes[0][1][..., 0], [[0, 1], [2, 3]])
     assert {"Merge Volume", "Write Merged", "Total Chunk Merge"} <= perf.keys()
 
     writes.clear()
+    _write_intermediate_file(source, [0, 1, 2, 3], [0, 1, 2, 3], [1, 1, 1, 1])
     perf = write_conv_vol(
         writer,
-        tmp_path.joinpath("chunks"),
+        source,
         shape,
         np.uint8,
         (2, 1, 1),
@@ -761,4 +761,123 @@ def test_write_conv_vol(tmp_path, monkeypatch):
     )
 
     assert [name for name, _data in writes] == ["00006.tif", "00007.tif"]
+    for _, data in writes:
+        np.testing.assert_array_equal(data, [[0, 1], [2, 3]])
     assert {"Merge Volume", "Zoom", "Write Merged", "Total Chunk Merge"} <= perf.keys()
+
+
+def test_writer_reuses_storage_and_clears_disjoint_empty_and_missing_pages(tmp_path, monkeypatch):
+    monkeypatch.setattr(files_mod, "_writer_page_buffers", None)
+    shape = ImgSliceC(2, 3, 2)
+    first, second, empty, missing = [tmp_path / f"{name}.dat" for name in ("first", "second", "empty", "missing")]
+    _write_intermediate_file(first, [0, 2], [[0, 8], [6, 10]], [2, 2], target_rows=3, source_rows=3)
+    _write_intermediate_file(second, [5], [[14], [18]], [2], target_rows=3, source_rows=3)
+    empty.touch()
+    accumulators, outputs, pages = [], [], []
+
+    def writer(path, data):
+        outputs.append(data)
+        pages.append(data.copy())
+
+    for index, source in enumerate((first, second, empty, missing)):
+        write_conv_vol(writer, source, shape, np.uint16, None, tmp_path, index, 0, False)
+        accumulator, output = files_mod._writer_page_buffers
+        accumulators.append(accumulator)
+        assert output is outputs[-1]
+        assert not np.any(accumulator)
+        assert not np.any(output)
+        assert not source.exists()
+
+    assert all(array is accumulators[0] for array in accumulators)
+    assert all(array is outputs[0] for array in outputs)
+    expected = np.zeros((4, 2, 3, 2), dtype=np.uint16)
+    expected[0, 0, 0] = [0, 3]
+    expected[0, 0, 2] = [4, 5]
+    expected[1, 1, 2] = [7, 9]
+    np.testing.assert_array_equal(pages, expected)
+
+
+def test_writer_adapts_storage_to_geometry_channels_and_dtype(tmp_path, monkeypatch):
+    monkeypatch.setattr(files_mod, "_writer_page_buffers", None)
+    for shape, dtype in (
+        (ImgSliceC(2, 3, 1), np.uint16), (ImgSliceC(3, 2, 1), np.uint16),
+        (ImgSliceC(3, 2, 2), np.uint16), (ImgSliceC(3, 2, 2), bool),
+        (ImgSliceC(3, 2, 2), np.bool_), (ImgSliceC(2, 3, 1), np.uint16),
+    ):
+        source = tmp_path / "page.dat"
+        _write_intermediate_file(source, [0], [[4]] * shape.C, [2])
+        pages = []
+        write_conv_vol(lambda path, data: pages.append(data.copy()), source, shape, dtype,
+                       None, tmp_path, 0, 0, False)
+        accumulator, output = files_mod._writer_page_buffers
+        assert accumulator.shape == (shape.C + 1, shape.Y * shape.X)
+        assert output.shape == (shape.Y, shape.X, shape.C)
+        assert pages[0].shape == output.shape
+        assert pages[0].dtype == (np.uint8 if dtype is bool else dtype)
+        expected = np.zeros(output.shape, dtype=pages[0].dtype)
+        expected[0, 0] = [1 if dtype in (bool, np.bool_) else 2] * shape.C
+        np.testing.assert_array_equal(pages[0], expected)
+
+
+@pytest.mark.parametrize("discrete", [False, True])
+@pytest.mark.parametrize("dtype, output_dtype", [(bool, np.uint8), (np.bool_, np.bool_), (np.dtype(bool), np.uint8)])
+def test_sparse_binary_conversion_preserves_dtype_truthiness_and_discrete_rounding(tmp_path, discrete, dtype, output_dtype):
+    source = tmp_path / "page.dat"
+    _write_intermediate_file(source, [0, 1, 2, 3], [-2, 0, 1.5, 2.999], [1, 1, 1, 1])
+    pages = []
+    write_conv_vol(lambda path, data: pages.append(data.copy()), source, ImgSliceC(2, 2, 1),
+                   dtype, None, tmp_path, 0, 0, discrete)
+    assert pages[0].dtype == output_dtype
+    np.testing.assert_array_equal(pages[0].ravel(), [1, 0, 0 if discrete else 1, 1])
+
+
+def test_writer_failure_discards_storage_before_next_page(tmp_path, monkeypatch):
+    monkeypatch.setattr(files_mod, "_writer_page_buffers", None)
+    source = tmp_path / "page.dat"
+    shape = ImgSliceC(2, 2, 1)
+    write_conv_vol(lambda path, data: None, source, shape, np.uint16, None, tmp_path, 0, 0, False)
+    failed_accumulator, failed_output = files_mod._writer_page_buffers
+    _write_intermediate_file(source, [0], [8], [2])
+
+    def fail_write(path, data):
+        assert data is failed_output
+        assert data[0, 0, 0] == 4
+        raise OSError("disk full")
+
+    with pytest.raises(OSError, match="disk full"):
+        write_conv_vol(fail_write, source, shape, np.uint16, None, tmp_path, 0, 0, False)
+    assert files_mod._writer_page_buffers is None
+    _write_intermediate_file(source, [3], [6], [2])
+    pages = []
+    write_conv_vol(lambda path, data: pages.append(data.copy()), source, shape, np.uint16,
+                   None, tmp_path, 1, 0, False)
+    accumulator, output = files_mod._writer_page_buffers
+    assert accumulator is not failed_accumulator
+    assert output is not failed_output
+    np.testing.assert_array_equal(pages[0].ravel(), [0, 0, 0, 3])
+
+
+def test_partial_accumulation_failure_discards_storage(tmp_path, monkeypatch):
+    monkeypatch.setattr(files_mod, "_writer_page_buffers", None)
+    source = tmp_path / "page.dat"
+    shape = ImgSliceC(2, 2, 2)
+    write_conv_vol(lambda path, data: None, source, shape, np.uint16, None, tmp_path, 0, 0, False)
+    failed_accumulator, failed_output = files_mod._writer_page_buffers
+    # A one-channel record can update channel zero before failing on channel
+    # one, leaving values at a pixel whose weights were never accumulated.
+    _write_intermediate_file(source, [0], [8], [2])
+    with pytest.raises(IndexError):
+        write_conv_vol(lambda path, data: pytest.fail("invalid record reached writer"),
+                       source, shape, np.uint16, None, tmp_path, 0, 0, False)
+    assert failed_accumulator[0, 0] == 8
+    assert not np.any(failed_accumulator[-1])
+    assert files_mod._writer_page_buffers is None
+    source.unlink()
+    _write_intermediate_file(source, [3], [[6], [10]], [2])
+    pages = []
+    write_conv_vol(lambda path, data: pages.append(data.copy()), source, shape, np.uint16,
+                   None, tmp_path, 1, 0, False)
+    accumulator, output = files_mod._writer_page_buffers
+    assert accumulator is not failed_accumulator
+    assert output is not failed_output
+    np.testing.assert_array_equal(pages[0].reshape(-1, 2), [[0, 0], [0, 0], [0, 0], [3, 5]])

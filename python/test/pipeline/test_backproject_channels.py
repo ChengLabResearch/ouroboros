@@ -61,7 +61,7 @@ def _backproject_tiff(folder, data, rects, photometric, *, discrete, binary, sca
         write_conv_vol(
             writer, path, ImgSliceC(Y=y, X=x, C=channels),
             bool if binary else np.uint16, scaling, target,
-            int(path.stem.removeprefix("i_")), 0, discrete, merge_threads=1,
+            int(path.stem.removeprefix("i_")), 0, discrete,
         )
     assert not list(intermediates.glob("*.dat"))
     return {path.name: tifffile.imread(path) for path in target.glob("*.tif")}

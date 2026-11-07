@@ -618,18 +618,17 @@ def test_backproject_worker_timers_are_disjoint_and_bytes_are_separate(tmp_path,
         assert list(path.parent.glob("*.lock")) == []
 
 
-def test_writer_returns_nested_timings_and_uses_dispatched_merge_threads(tmp_path, monkeypatch):
-    merge = Mock(return_value=np.arange(4, dtype=np.float32))
+def test_writer_preserves_nested_timings_with_reusable_storage(tmp_path, monkeypatch):
     writer = Mock()
     shape = ImgSliceC(2, 2, 1)
-    monkeypatch.setattr(files_module, "volume_from_intermediates", merge)
+    monkeypatch.setattr(files_module, "_writer_page_buffers", None)
     monkeypatch.setattr(files_module, "time", clock([0, 2, 3, 7, 8]))
     timings = files_module.write_conv_vol(
-        writer, tmp_path, shape, np.uint8, None, tmp_path, 0, 0, False, merge_threads=3,
+        writer, tmp_path / "empty.dat", shape, np.uint8, None, tmp_path, 0, 0, False,
     )
     assert timings == {"Merge Volume": 2, "Write Merged": 4, "Total Chunk Merge": 8}
-    merge.assert_called_once_with(tmp_path, shape, False, thread_count=3)
     assert writer.call_count == 1
+    assert writer.call_args.kwargs["data"] is files_module._writer_page_buffers[1]
 
 
 @pytest.mark.parametrize("workers", [4, 8, 12])
@@ -871,7 +870,6 @@ def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
                 assert kwargs["intermediate_threads"] == 12
                 future.set_result(({"back_project": [1], "total_chunk_process": [2]}, 24, (0, 0, 0), [0]))
             else:
-                assert kwargs["merge_threads"] == 4
                 if failure_source == "writer":
                     future.set_exception(OSError("cannot write output"))
                 else:

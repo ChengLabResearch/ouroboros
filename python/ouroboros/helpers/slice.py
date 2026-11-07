@@ -286,8 +286,10 @@ def backproject_box(bounding_box: BoundingBox, slice_rects: np.ndarray, slices: 
     zyx_shape = np.flip(bounding_box.get_shape())
     flat_shape = np.prod(zyx_shape)
 
-    # Include the largest corner increment for zero-weight boundary writes.
-    guard = np.ravel_multi_index((1, 1, 1), zyx_shape)
+    # Flat corner offsets remain valid for private zero-weight guard writes
+    # even when the canonical bounding box has a singleton axis.
+    strides = np.array([zyx_shape[1] * zyx_shape[2], zyx_shape[2], 1])
+    guard = np.sum(strides)
     capacity = flat_shape + guard
     squish_type = np.min_scalar_type(capacity - 1)
 
@@ -300,7 +302,7 @@ def backproject_box(bounding_box: BoundingBox, slice_rects: np.ndarray, slices: 
     # Sequentially allocate the points and weights for each corner to the flattened array.
     for corner in np.array(list(np.ndindex(2, 2, 2))):
         w_values, c_weights = _apply_weights(values, weights, corner)
-        point_inc = np.ravel_multi_index(corner, zyx_shape).astype(squish_type)
+        point_inc = np.dot(corner, strides).astype(squish_type)
 
         for i in range(0, channels):
             np.add.at(volume[i], points + point_inc, w_values[..., i])
@@ -309,8 +311,10 @@ def backproject_box(bounding_box: BoundingBox, slice_rects: np.ndarray, slices: 
     # Get indicies of the flattened Z-Y-X backprojected domain that have values.
     nz_vol = np.flatnonzero(volume[-1, :flat_shape]).astype(squish_type)
 
-    # Return indicies and only the volume region with values.
-    return nz_vol, volume[:-1, nz_vol].squeeze(), volume[-1, nz_vol].squeeze()
+    # Collapse only a scalar channel axis; the occupied-point axis is needed
+    # by the intermediate writer even when there is exactly one point.
+    values = volume[:-1, nz_vol]
+    return nz_vol, values[0] if channels == 1 else values, volume[-1, nz_vol]
 
 
 def make_volume_binary(volume: np.ndarray, dtype=np.uint8) -> np.ndarray:
@@ -381,8 +385,10 @@ class BackProjectIter(TFIter):
         self.__shape = asdict(shape)
         self.__step_f = {f.name: i for i, f in enumerate(fields(dr.step))}
         self.__step_v = asdict(dr.step)
-        self.__u_gap = (slice_rects[:, 1, :] - slice_rects[:, 0, :]) / (shape.U - 1)
-        self.__v_gap = (slice_rects[:, 3, :] - slice_rects[:, 0, :]) / (shape.V - 1)
+        # A singleton axis samples the first endpoint, as coordinate_grid's
+        # linspace does. Its start/end indices are zero, so no gap is applied.
+        self.__u_gap = (slice_rects[:, 1, :] - slice_rects[:, 0, :]) / max(shape.U - 1, 1)
+        self.__v_gap = (slice_rects[:, 3, :] - slice_rects[:, 0, :]) / max(shape.V - 1, 1)
         self.__top_r = slice_rects[:, 0, :]
         self.__step = dr.step
 

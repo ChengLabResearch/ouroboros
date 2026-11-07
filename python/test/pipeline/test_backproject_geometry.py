@@ -83,8 +83,14 @@ def test_backprojection_setup_and_reporting_share_the_direct_envelope(
         slice_options=slicing, backproject_options=backprojecting,
         source_url="memory://source", slice_rects=rects,
     )
-    envelopes, submitted = [], []
+    envelopes, submitted, validated = [], [], []
     from_rects = BoundingBox.from_rects
+    validate = backproject_module.validate_straightened_volume_for_backprojection
+
+    def inspect_input(*args):
+        info = validate(*args)
+        validated.append(info)
+        return info
 
     def envelope(values):
         box = from_rects(values)
@@ -108,6 +114,10 @@ def test_backprojection_setup_and_reporting_share_the_direct_envelope(
         def submit(self, function, **kwargs):
             assert function is backproject_module.process_chunk
             submitted.append(kwargs["full_bounding_box"])
+            assert kwargs["volume_info"] is validated[0]
+            assert "straightened_volume_path" not in kwargs
+            assert "config" not in kwargs
+            assert kwargs["intermediate_directory"].parent == tmp_path
             future = Future()
             # The ownership assertion needs setup and the worker boundary, not
             # image processing or another process pool in this regression test.
@@ -115,6 +125,7 @@ def test_backprojection_setup_and_reporting_share_the_direct_envelope(
             return future
 
     monkeypatch.setattr(BoundingBox, "from_rects", staticmethod(envelope))
+    monkeypatch.setattr(backproject_module, "validate_straightened_volume_for_backprojection", inspect_input)
     monkeypatch.setattr(BoundingBox, "bound_boxes", staticmethod(forbidden))
     monkeypatch.setattr(planning, "calculate_bounding_boxes_bsp_link_rects", forbidden)
     monkeypatch.setattr(planning, "ProcessPoolExecutor", forbidden)
@@ -125,6 +136,7 @@ def test_backprojection_setup_and_reporting_share_the_direct_envelope(
     result, error = pipeline.process(data)
     assert result is None and "stop after observing worker geometry" in error
     assert len(envelopes) == 1 and submitted == [envelopes[0]]
+    assert len(validated) == 1
     assert data.backprojection_box is envelopes[0]
     assert data.volume_cache is None
     assert source_metadata.opened == ["memory://source"]
@@ -173,3 +185,77 @@ def test_backprojection_owners_round_trip_through_pipeline_input_json(source_met
     assert isinstance(restored.backprojection_box, BoundingBox)
     assert restored.backprojection_box.to_dict() == box.to_dict()
     assert restored.volume_cache is None
+
+
+@pytest.mark.parametrize(
+    "xyz,channels,single_file,binary,expected_bigtiff",
+    [
+        # The exact 617 x 2048 x 1630 output envelope reported in #218.
+        ((1630, 2048, 617), 3, True, False, True),
+        ((1630, 2048, 617), 1, True, False, False),
+        ((1630, 2048, 617), 3, True, True, True),
+        ((1630, 2048, 617), 1, True, True, False),
+        ((32768, 32768, 1), 3, False, False, True),
+        ((32768, 32768, 1), 1, False, False, False),
+    ],
+)
+def test_backprojection_bigtiff_reaches_the_writer(
+    tmp_path, monkeypatch, source_metadata, xyz, channels, single_file, binary, expected_bigtiff,
+):
+    slicing, options = _options(tmp_path)
+    options.make_single_file = single_file
+    options.make_backprojection_binary = binary
+    options.backprojection_compression = "none"
+    pixels = np.ones((2, 2, channels), dtype=np.uint16)
+    tifffile.imwrite(options.straightened_volume_path, pixels,
+                     photometric="rgb" if channels == 3 else "minisblack")
+    rects = np.array([[[0, 0, 0], [2, 0, 0], [2, 2, 0], [0, 2, 0]]])
+    envelope = BoundingBox(BoundingBox.bounds_to_rect(
+        0, xyz[0] - 1, 0, xyz[1] - 1, 0, xyz[2] - 1,
+    ))
+    from_rects = BoundingBox.from_rects
+    monkeypatch.setattr(BoundingBox, "from_rects", staticmethod(
+        lambda values: envelope if values is rects else from_rects(values)
+    ))
+
+    # Exercise real TIFF writers and headers using the reported large envelope,
+    # but substitute a tiny plane for the expensive backprojection payload.
+    def one_page_ready(processed, slice_rects, min_dim, writeable, chunk_size):
+        writeable[0] = 1
+
+    monkeypatch.setattr(backproject_module, "update_writable_rects", one_page_ready)
+
+    class TinyPayloadExecutor:
+        def __init__(self, count):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def submit(self, function, **kwargs):
+            future = Future()
+            if function is backproject_module.process_chunk:
+                future.set_result(({}, 0, (0, 0, 0), [0]))
+            else:
+                assert kwargs["shape"].C == channels
+                assert (kwargs["shape"].X, kwargs["shape"].Y) == xyz[:2]
+                kwargs["source_path"].parent.mkdir(exist_ok=True)
+                kwargs["writer"](kwargs["target_folder"] / "0.tif",
+                                  data=pixels.astype(np.uint8 if binary else np.uint16))
+                future.set_result({})
+            return future
+
+    monkeypatch.setattr(backproject_module.concurrent.futures, "ProcessPoolExecutor", TinyPayloadExecutor)
+    data = PipelineInput(slice_options=slicing, backproject_options=options,
+                         source_url="memory://source", slice_rects=rects)
+    result, error = Pipeline([backproject_module.BackprojectPipelineStep()]).process(data)
+    assert error is None, error
+    path = tmp_path / result.output_file_path
+    if not single_file:
+        path /= "0.tif"
+    with tifffile.TiffFile(path) as tif:
+        assert tif.is_bigtiff is expected_bigtiff
+        assert tif.pages[0].dtype == np.dtype(np.uint8 if binary else np.uint16)

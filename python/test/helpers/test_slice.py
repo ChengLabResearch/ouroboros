@@ -394,6 +394,59 @@ def test_backproject_maximum_face_uses_private_guard(monkeypatch, side, index_dt
     np.testing.assert_array_equal(weights, np.ones(4, dtype=np.float32))
 
 
+@pytest.mark.parametrize("dimensions", [
+    (1, 2, 2), (2, 1, 2), (2, 2, 1),
+    (1, 1, 2), (1, 2, 1), (2, 1, 1), (1, 1, 1),
+])
+@pytest.mark.parametrize("channels", [1, 3])
+def test_backproject_singleton_axes_keep_integer_geometry(dimensions, channels):
+    depth, height, width = dimensions
+    origin = np.array([-3, 7, 11])
+    rects = np.array([
+        [origin + [0, 0, z], origin + [width - 1, 0, z],
+         origin + [width - 1, height - 1, z], origin + [0, height - 1, z]]
+        for z in range(depth)
+    ])
+    bounding_box = BoundingBox.from_rects(rects)
+    bounds = bounding_box.to_dict()
+    data = np.arange(1, np.prod(dimensions) * channels + 1, dtype=np.float32)
+    data = data.reshape(*dimensions, channels)
+    slices = data[..., 0] if channels == 1 else data
+
+    lookup, values, weights = backproject_box(bounding_box, rects, slices)
+
+    # Integer samples belong to exactly their original voxels, including the
+    # last point of a singleton chunk. Scratch guard space is not geometry.
+    assert bounding_box.to_dict() == bounds
+    np.testing.assert_array_equal(bounding_box.get_shape(), (width, height, depth))
+    np.testing.assert_array_equal(bounding_box.get_integer_origin(), origin)
+    np.testing.assert_array_equal(lookup, np.arange(np.prod(dimensions)))
+    expected = data.reshape(-1, channels).T
+    assert values.shape == ((len(lookup),) if channels == 1 else (channels, len(lookup)))
+    np.testing.assert_array_equal(values, expected[0] if channels == 1 else expected)
+    assert weights.shape == lookup.shape
+    np.testing.assert_array_equal(weights, np.ones(len(lookup), dtype=np.float32))
+
+
+@pytest.mark.parametrize("channels", [1, 3])
+def test_backproject_singleton_occupied_point_keeps_point_axis(channels):
+    origin = np.array([-3, 7, 11])
+    rects = np.tile(origin, (1, 4, 1))
+    bounding_box = BoundingBox(BoundingBox.bounds_to_rect(-3, -2, 7, 8, 11, 12))
+    data = np.arange(1, channels + 1, dtype=np.float32).reshape(1, 1, 1, channels)
+
+    lookup, values, weights = backproject_box(
+        bounding_box, rects, data[..., 0] if channels == 1 else data,
+    )
+
+    # The occupied-point axis survives independently of the bounding-box size.
+    np.testing.assert_array_equal(lookup, [0])
+    assert values.shape == ((1,) if channels == 1 else (channels, 1))
+    np.testing.assert_array_equal(values, np.arange(1, channels + 1).reshape(values.shape))
+    assert weights.shape == (1,)
+    np.testing.assert_array_equal(weights, [1])
+
+
 def test_backproject_slices_large_volume():
     volume = np.zeros(np.prod((100, 100, 100)), dtype=np.float32)
     bounding_box = BoundingBox(BoundingBox.bounds_to_rect(0, 100, 0, 100, 0, 100))
@@ -523,3 +576,23 @@ def test_backproject_iter_2D():
     assert np.all(chunk_rects_set[0][0][0].astype(int) == rects[0][0])
     assert np.all(chunk_rects_set[-1][-1][2].astype(int) == rects[-1][2])
     assert bboxes[2].approx_bounds() == BoundingBox.from_rects(chunk_rects_set[2]).approx_bounds()
+
+
+@pytest.mark.parametrize("dimensions", [(3, 1, 3), (3, 3, 1), (1, 1, 1)])
+def test_backproject_iter_singleton_input_matches_coordinate_grid(dimensions):
+    shape = FrontProjStack(*dimensions)
+    rects = np.array([
+        [[10, 20, z], [14, 20, z], [14, 24, z], [10, 24, z]]
+        for z in range(shape.D)
+    ])
+    expected = np.stack([coordinate_grid(rect, (shape.V, shape.U)) for rect in rects])
+    chunks = FrontProjStack.drange((0, 0, 0), dimensions, (2, 2, 2))
+    iterator = partial(BackProjectIter, shape=shape, slice_rects=rects)
+
+    with np.errstate(divide="raise", invalid="raise"):
+        for chunk, chunk_shape, chunk_rects, _, _ in chunks.get_iter(iterator):
+            actual = np.stack([
+                coordinate_grid(rect, (chunk_shape.V, chunk_shape.U)) for rect in chunk_rects
+            ])
+            assert np.all(np.isfinite(chunk_rects))
+            np.testing.assert_array_equal(actual, expected[chunk])

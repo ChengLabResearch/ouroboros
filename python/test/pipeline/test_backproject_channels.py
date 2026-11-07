@@ -1,7 +1,5 @@
 """Multichannel TIFFs retain every channel through chunk records and TIFF output."""
 
-import os
-
 import numpy as np
 import pytest
 import tifffile
@@ -13,7 +11,6 @@ from ouroboros.helpers.files import (
     validate_straightened_volume_for_backprojection,
     write_conv_vol,
 )
-from ouroboros.helpers.options import BackprojectOptions
 from ouroboros.helpers.shapes import ImgSliceC
 from ouroboros.pipeline.backproject_pipeline import process_chunk
 
@@ -26,25 +23,19 @@ def _backproject_tiff(folder, data, rects, photometric, *, discrete, binary, sca
                      **({"planarconfig": "contig"} if channels > 1 else {}))
     info = validate_straightened_volume_for_backprojection(str(source), rects)
     assert info.channels == channels
-    config = BackprojectOptions(
-        output_file_folder=str(folder), output_file_name="sample",
-        straightened_volume_path=str(source), slice_options_path="slice.json",
-        make_backprojection_discrete=discrete, make_backprojection_binary=binary,
-        process_count=4,
-    )
+    intermediates = folder / "intermediates"
     box = BoundingBox.from_rects(rects)
     chunk_pages = []
     # Both chunks contain several source planes and contribute to common Z pages.
     for chunk_index, start in enumerate((0, 2)):
         _, _, _, pages = process_chunk(
-            config, str(source), rects[start:start + 2],
+            intermediates, info, rects[start:start + 2],
             (slice(start, start + 2), slice(None), slice(None)),
             (chunk_index, 0, 0), box, intermediate_threads=1,
         )
         chunk_pages.append(set(pages))
     assert chunk_pages[0] & chunk_pages[1]
 
-    intermediates = folder / f"{os.getppid()}_sample"
     records = sorted(intermediates.glob("i_*.dat"))
     assert len(records) > 1
     appended = False

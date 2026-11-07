@@ -62,7 +62,7 @@ jobs:
         working-directory: ./python
 
       - name: Verify Changed files
-        uses: tj-actions/verify-changed-files@v16
+        uses: tj-actions/verify-changed-files@v20
         id: verify-changed-files
         with:
           files: python/coverage.svg

@@ -351,7 +351,8 @@ def volume_from_intermediates(path: Path, shape: DataShape, discrete: bool = Fal
     nz = np.flatnonzero(vol[-1])
     values[:, nz] /= vol[-1, nz]
     if discrete:
-        rounded = np.round(values[:, nz], 2)
+        rounded = values[:, nz]
+        np.round(rounded, 2, out=rounded)
         rounded[rounded % 1 != 0] = 0
         values[:, nz] = rounded
     values = values[0] if channels == 1 else values

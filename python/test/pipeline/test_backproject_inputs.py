@@ -1,9 +1,12 @@
 """Backprojection accepts TIFF layouts without changing channel or Z identity."""
 
+from contextlib import ExitStack
+
 import numpy as np
 import pytest
 import tifffile
 
+from ouroboros.helpers.files import format_backproject_resave_volume
 from ouroboros.helpers.options import BackprojectOptions, SliceOptions
 from ouroboros.pipeline.backproject_pipeline import BackprojectPipelineStep
 from ouroboros.pipeline.pipeline import Pipeline
@@ -12,7 +15,8 @@ from test.pipeline.test_backproject_geometry import source_metadata  # noqa: F40
 
 
 def _run_backprojection(folder, shape, channels, photometric, layout, *,
-                        chunk_size=2, compression=None, input_is_output=False):
+                        chunk_size=2, compression=None, input_is_output=False,
+                        input_file_name=None, single_file=True, expected_error=None):
     folder.mkdir()
     depth, height, width = shape
     # Every source plane identifies its own Z, independently of export order.
@@ -31,15 +35,18 @@ def _run_backprojection(folder, shape, channels, photometric, layout, *,
             source.mkdir()
         # Unpadded names and reversed creation order exercise numeric input order.
         for z in reversed(range(depth)):
-            tifffile.imwrite(source / f"{z}.tif", source_pixels[z], **options)
+            name = input_file_name if z == 0 and input_file_name else f"{z}.tif"
+            tifffile.imwrite(source / name, source_pixels[z], **options)
     else:
-        source = folder / "straightened.tif"
+        source = folder / (input_file_name or "straightened.tif")
         pixels = source_pixels[0] if depth == 1 else source_pixels
         tifffile.imwrite(source, pixels, **options)
         if depth == 1 and compression is None:
             mapped = tifffile.memmap(source, mode="r")
             assert mapped.shape == source_pixels.shape[1:]
             del mapped
+    input_bytes = {path: path.read_bytes()
+                   for path in (source.glob("*.tif") if source.is_dir() else [source])}
 
     rects = np.array([
         [[0, 0, z], [width, 0, z], [width, height, z], [0, height, z]]
@@ -53,22 +60,35 @@ def _run_backprojection(folder, shape, channels, photometric, layout, *,
     backprojecting = BackprojectOptions(
         output_file_folder=str(folder), output_file_name="sample",
         straightened_volume_path=str(source), slice_options_path="unused.json",
-        make_single_file=True, backprojection_compression="none",
+        make_single_file=single_file, backprojection_compression="none",
         chunk_size=chunk_size, output_mip_level=0, process_count=4,
     )
     data = PipelineInput(
         slice_options=slicing, backproject_options=backprojecting,
         source_url="memory://source", slice_rects=rects,
     )
-    result, error = Pipeline([BackprojectPipelineStep()]).process(data)
+    try:
+        result, error = Pipeline([BackprojectPipelineStep()]).process(data)
+    finally:
+        for path, original in input_bytes.items():
+            assert path.read_bytes() == original, f"Input changed: {path}"
+    if expected_error is not None:
+        assert result is None
+        assert error == expected_error
+        return
     assert error is None, error
     assert result is data
+    if layout == "folder" or compression is not None:
+        assert not (folder / format_backproject_resave_volume("sample")).exists()
 
     output = folder / data.output_file_path
     pages = []
-    with tifffile.TiffFile(output) as tif:
-        assert len(tif.pages) == depth
-        for z, page in enumerate(tif.pages):
+    paths = [output] if single_file else [output / f"{z}.tif" for z in range(depth)]
+    with ExitStack() as stack:
+        tiffs = [stack.enter_context(tifffile.TiffFile(path)) for path in paths]
+        output_pages = [page for tif in tiffs for page in tif.pages]
+        assert len(output_pages) == depth
+        for z, page in enumerate(output_pages):
             assert page.photometric == tifffile.PHOTOMETRIC[photometric.upper()]
             assert page.samplesperpixel == channels
             assert page.dtype == np.uint16
@@ -129,3 +149,45 @@ def test_compressed_backprojection_input_keeps_shape_and_photometric(
 def test_backprojection_input_folder_can_also_hold_its_outputs(tmp_path, source_metadata):
     _run_backprojection(tmp_path / "run", (3, 3, 3), 3, "rgb", "folder",
                         input_is_output=True)
+
+
+@pytest.mark.parametrize("layout,compression", [("folder", None), ("file", "zlib")])
+def test_backprojection_removes_temporary_input_with_per_slice_output(
+    tmp_path, source_metadata, layout, compression,
+):
+    _run_backprojection(tmp_path / "run", (3, 3, 3), 3, "rgb", layout,
+                        compression=compression, single_file=False)
+
+
+def test_backprojection_retains_user_input_named_like_temporary_file(tmp_path, source_metadata):
+    _run_backprojection(tmp_path / "run", (3, 3, 3), 3, "rgb", "file",
+                        input_file_name=format_backproject_resave_volume("sample"))
+
+
+@pytest.mark.parametrize("layout,compression", [("file", "zlib"), ("folder", None)])
+def test_backprojection_rejects_temporary_path_over_input(
+    tmp_path, source_metadata, layout, compression,
+):
+    _run_backprojection(
+        tmp_path / "run", (3, 3, 3), 3, "rgb", layout,
+        compression=compression, input_is_output=True,
+        input_file_name=format_backproject_resave_volume("sample"),
+        expected_error="Cannot prepare a temporary straightened TIFF over an input file.",
+    )
+
+
+def test_failed_export_retains_temporary_input(tmp_path, source_metadata, monkeypatch):
+    set_stage = BackprojectPipelineStep.set_stage
+
+    def fail_export(step, stage, *args, **kwargs):
+        if stage == "exporting_tiff":
+            raise OSError("injected export failure")
+        return set_stage(step, stage, *args, **kwargs)
+
+    monkeypatch.setattr(BackprojectPipelineStep, "set_stage", fail_export)
+    folder = tmp_path / "run"
+    with pytest.raises(OSError, match="injected export failure"):
+        _run_backprojection(folder, (3, 3, 3), 3, "rgb", "file", compression="zlib")
+    temporary = folder / format_backproject_resave_volume("sample")
+    with tifffile.TiffFile(temporary) as tif:
+        assert len(tif.pages) == 3

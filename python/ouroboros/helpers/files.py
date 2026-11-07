@@ -37,6 +37,7 @@ class StraightenedVolumeInfo:
     dtype: np.dtype
     channels: int
     is_compressed: bool
+    photometric: str = "minisblack"
 
 
 def get_sorted_tif_files(directory: str) -> list[str]:
@@ -114,6 +115,7 @@ def inspect_straightened_volume(straightened_volume_path: str) -> StraightenedVo
                 U=page.shape[1],
             ),
             dtype=np.dtype(page.dtype),
+            photometric="rgb" if page.photometric.name == "RGB" else "minisblack",
             channels=channels,
             is_compressed=page.compression != tifffile.COMPRESSION.NONE,
         )
@@ -336,19 +338,22 @@ def increment_volume(path: Path, vol: np.ndarray, offset: int = 0, cleanup=False
 
 
 def volume_from_intermediates(path: Path, shape: DataShape, discrete: bool = False, thread_count: int = 4):
-    vol = np.zeros((2, np.prod((shape.Y, shape.X))), dtype=np.float32)
+    # Shapes without a channel axis retain the scalar merge contract.
+    channels = getattr(shape, "C", 1)
+    vol = np.zeros((channels + 1, np.prod((shape.Y, shape.X))), dtype=np.float32)
     if path.is_dir():
         with ThreadPool(thread_count) as pool:
             pool.starmap(increment_volume, [(i, vol, 0, True) for i in path.glob("**/*.tif*")])
     elif path.exists():
         increment_volume(path, vol, 0, True)
 
-    nz = np.flatnonzero(vol[0])
-    vol[0, nz] /= vol[1, nz]
+    values = vol[:-1]
+    nz = np.flatnonzero(vol[-1])
+    values[:, nz] /= vol[-1, nz]
     if discrete:
-        vol[0] = np.round(vol[0], 2)
-        vol[0, vol[0] % 1 != 0] = 0
-    return vol[0]
+        values[:] = np.round(values, 2)
+        values[values % 1 != 0] = 0
+    return values[0] if channels == 1 else values
 
 
 def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_folder, index, interpolation, discrete,

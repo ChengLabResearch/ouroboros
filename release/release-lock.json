@@ -1,6 +1,6 @@
 {
 	"schemaVersion": 1,
-	"releaseVersion": "1.6.0-beta.3",
+	"releaseVersion": "1.6.0-beta.4",
 	"packageFlavors": [
 		"core",
 		"with-plugins-cpu",
@@ -8,8 +8,8 @@
 	],
 	"serverImage": {
 		"repository": "ghcr.io/chenglabresearch/ouroboros-server",
-		"digest": "sha256:b21c3a769de36c2c36219ea51bbbf48a593971b0de79e84e2b4fc71e3485f34c",
-		"sourceCommit": "964dbd39274cc7c27ada1e3bffe625f6882cc80a"
+		"digest": "sha256:9a89d1e9e29ce6c3f0921062a2967e2ca4835ecbccc48d7ce815326fdd35d643",
+		"sourceCommit": "693f537051e2481637ffdcee19aac2173207f963"
 	},
 	"plugins": {
 		"neuroglancer": {

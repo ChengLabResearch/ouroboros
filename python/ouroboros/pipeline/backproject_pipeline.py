@@ -1,5 +1,5 @@
 import concurrent.futures
-from dataclasses import astuple
+from dataclasses import astuple, replace
 from functools import partial
 from multiprocessing.pool import ThreadPool
 import os
@@ -31,6 +31,7 @@ from ouroboros.helpers.files import (
     get_sorted_tif_files,
     join_path,
     generate_tiff_write,
+    StraightenedVolumeInfo,
     validate_straightened_volume_for_backprojection,
     write_conv_vol,
     write_raw_intermediate
@@ -96,27 +97,21 @@ class BackprojectPipelineStep(PipelineStep):
         except (TypeError, ValueError) as e:
             return str(e)
 
-        is_compressed = volume_info.is_compressed
         FPShape = FrontProjStack(
             D=volume_info.shape.D,
             V=volume_info.shape.V,
             U=volume_info.shape.U,
         )
-        channels = volume_info.channels
-
         cannot_memmap = False
         try:
-            if Path(straightened_volume_path).is_dir():
-                _ = tifffile.memmap(volume_info.sample_path, mode="r")
-            else:
-                _ = tifffile.memmap(straightened_volume_path, mode="r")
+            _ = tifffile.memmap(volume_info.sample_path, mode="r")
         except:     # noqa: E722
             # Check here is because memmap needs certain types of dataoffsets, which aren't always there
             # separate to compression.
             cannot_memmap = True
 
-        if is_compressed or cannot_memmap:
-            print("Input data compressed; Rewriting.")
+        if volume_info.is_compressed or cannot_memmap or volume_info.path.is_dir():
+            print("Preparing a contiguous straightened TIFF for backprojection.")
 
             # Create a new path for the straightened volume
             new_straightened_volume_path = join_path(
@@ -125,20 +120,28 @@ class BackprojectPipelineStep(PipelineStep):
             )
 
             # Save the straightened volume to a new tif file
-            with tifffile.TiffWriter(new_straightened_volume_path) as tif:
-                if straightened_volume_path.endswith((".tif", ".tiff")):
+            input_is_big_tiff = calculate_gigabytes_from_dimensions(
+                (*astuple(volume_info.shape), volume_info.channels), volume_info.dtype
+            ) > 4
+            # The output folder may be the input folder. Capture its members
+            # before creating the temporary TIFF so it cannot read itself.
+            images = get_sorted_tif_files(volume_info.path) if volume_info.path.is_dir() else None
+            with tifffile.TiffWriter(new_straightened_volume_path, bigtiff=input_is_big_tiff) as tif:
+                write_page = partial(tif.write, contiguous=True, compression=None,
+                                     photometric=volume_info.photometric,
+                                     **({"planarconfig": "contig"} if volume_info.channels > 1 else {}))
+                if images is None:
                     # Read the single tif file
-                    with tifffile.TiffFile(straightened_volume_path) as tif_in:
+                    with tifffile.TiffFile(volume_info.path) as tif_in:
                         for i in range(len(tif_in.pages)):
-                            tif.save(tif_in.pages[i].asarray(), contiguous=True, compression=None)
+                            write_page(tif_in.pages[i].asarray())
                 else:
                     # Read the tif files from the folder
-                    images = get_sorted_tif_files(straightened_volume_path)
                     for image in images:
-                        tif.save(tifffile.imread(join_path(straightened_volume_path, image)),
-                                 contiguous=True, compression=None)
+                        write_page(tifffile.imread(volume_info.path / image))
 
-            straightened_volume_path = new_straightened_volume_path
+            volume_info = replace(volume_info, path=Path(new_straightened_volume_path),
+                                  sample_path=Path(new_straightened_volume_path), is_compressed=False)
 
         write_shape = np.flip(full_bounding_box.get_shape()).tolist()
 
@@ -150,14 +153,13 @@ class BackprojectPipelineStep(PipelineStep):
         # Intermediate Path
         i_path = Path(config.output_file_folder, f"{os.getpid()}_{config.output_file_name}")
 
-        if config.make_single_file:
-            is_big_tiff = calculate_gigabytes_from_dimensions(
-                            np.prod(write_shape),
-                            np.uint8 if config.make_backprojection_binary else np.uint16) > 4
-        else:
-            is_big_tiff = calculate_gigabytes_from_dimensions(
-                            np.prod(write_shape[1:]),
-                            np.uint8 if config.make_backprojection_binary else np.uint16) > 4
+        output_dtype = np.uint8 if config.make_backprojection_binary else np.uint16
+        page_is_big_tiff = calculate_gigabytes_from_dimensions(
+            (*write_shape[1:], volume_info.channels), output_dtype
+        ) > 4
+        is_big_tiff = calculate_gigabytes_from_dimensions(
+            (*write_shape, volume_info.channels), output_dtype
+        ) > 4 if config.make_single_file else page_is_big_tiff
 
         # Generate image writing function
         # Combining compression with binary images can cause issues.
@@ -167,7 +169,7 @@ class BackprojectPipelineStep(PipelineStep):
                             micron_resolution=source.get_resolution_um(pipeline_input.slice_options.output_mip_level),
                             backprojection_offset=bp_offset,
                             photometric=volume_info.photometric,
-                            **({"planarconfig": "contig"} if channels > 1 else {}))
+                            **({"planarconfig": "contig"} if volume_info.channels > 1 else {}))
 
         if pipeline_input.slice_options.output_mip_level != config.output_mip_level:
             scaling_factors, _ = calculate_scaling_factors(
@@ -204,8 +206,8 @@ class BackprojectPipelineStep(PipelineStep):
                 for chunk, _, chunk_rects, _, index in chunk_range.get_iter(chunk_iter):
                     bp_futures.append(executor.submit(
                         process_chunk,
-                        config=config,
-                        straightened_volume_path=straightened_volume_path,
+                        intermediate_directory=i_path,
+                        volume_info=volume_info,
                         chunk_rects=chunk_rects,
                         chunk=chunk,
                         index=index,
@@ -267,9 +269,9 @@ class BackprojectPipelineStep(PipelineStep):
                         for index in write:
                             write_futures.append(write_executor.submit(
                                 write_conv_vol,
-                                writer=tif_write(tifffile.imwrite),
+                                writer=tif_write(partial(tifffile.imwrite, bigtiff=page_is_big_tiff or None)),
                                 source_path=i_path.joinpath(f"i_{index:05}.dat"),
-                                shape=ImgSliceC(*write_shape[1:], channels),
+                                shape=ImgSliceC(*write_shape[1:], volume_info.channels),
                                 dtype=bool if config.make_backprojection_binary else np.uint16,
                                 scaling=scaling_factors,
                                 target_folder=folder_path,
@@ -318,8 +320,8 @@ class BackprojectPipelineStep(PipelineStep):
 
 
 def process_chunk(
-    config: BackprojectOptions,
-    straightened_volume_path: str,
+    intermediate_directory: Path,
+    volume_info: StraightenedVolumeInfo,
     chunk_rects: list[np.ndarray],
     chunk: tuple[slice],
     index: tuple[int],
@@ -332,16 +334,21 @@ def process_chunk(
 
     # Load the straightened volume
     try:
-        straightened_volume = tifffile.memmap(straightened_volume_path, mode="r")
+        # TIFF readers can omit singleton axes; validated metadata owns DVUC.
+        straightened_volume = tifffile.memmap(volume_info.path, mode="r").reshape(
+            (*astuple(volume_info.shape), volume_info.channels)
+        )
         durations["memmap"] = [time.perf_counter() - start_total]
     except BaseException as be:
-        print(f"Error loading Volume: {be} : {straightened_volume_path}")
+        print(f"Error loading Volume: {be} : {volume_info.path}")
         traceback.print_tb(be.__traceback__, file=sys.stderr)
         raise be
 
-    # Get the slices from the straightened volume  Dumb but maybe bugfix?
+    # Preserve depth, height and width even in a one-sample tail chunk.
     start = time.perf_counter()
-    slices = straightened_volume[chunk].squeeze()
+    slices = straightened_volume[chunk]
+    if volume_info.channels == 1:
+        slices = slices[..., 0]
     bounding_box = BoundingBox.from_rects(chunk_rects)
 
     # Close the memmap
@@ -377,7 +384,7 @@ def process_chunk(
             "target_rows": full_bounding_box.get_shape()[0],
             "offset_columns": offset[1],
             "offset_rows": offset[2],
-            "channel_count": np.uint32(1 if len(slices.shape) < 4 else slices.shape[-1]),
+            "channel_count": np.uint32(volume_info.channels),
         }
         type_ar = np.array([yx_vals.dtype.str, values.dtype.str, weights.dtype.str], dtype='S8')
         durations["split"] = [time.perf_counter() - start]
@@ -391,12 +398,11 @@ def process_chunk(
         durations["stack"] = [time.perf_counter() - start]
         start = time.perf_counter()
 
-        i_path = Path(config.output_file_folder, f"{os.getppid()}_{config.output_file_name}")
-        i_path.mkdir(exist_ok=True, parents=True)
+        intermediate_directory.mkdir(exist_ok=True, parents=True)
 
         def make_z(i, z_slice):
             offset_z = z_stack[i] + offset[0]
-            z_path = i_path.joinpath(f"i_{offset_z:05}.dat")
+            z_path = intermediate_directory.joinpath(f"i_{offset_z:05}.dat")
             write_raw_intermediate(
                 z_path,
                 np.fromiter(offset_dict.values(), dtype=np.uint32, count=5).tobytes(),

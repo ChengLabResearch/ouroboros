@@ -589,10 +589,13 @@ def test_backproject_worker_timers_are_disjoint_and_bytes_are_separate(tmp_path,
     append = Mock(wraps=backproject_module.write_raw_intermediate)
     monkeypatch.setattr(backproject_module, "write_raw_intermediate", append)
     monkeypatch.setattr(backproject_module, "time", clock(range(13)))
-    options = BackprojectOptions(output_file_folder=str(tmp_path), output_file_name="sample",
-                                 straightened_volume_path="unused", slice_options_path="unused")
+    intermediate_directory = tmp_path / "intermediates"
+    info = files_module.StraightenedVolumeInfo(
+        Path("unused"), Path("unused"), files_module.FrontProjectionShape(1, 2, 2),
+        np.dtype(np.uint8), 1, False,
+    )
     durations, byte_count, index, stack = backproject_module.process_chunk(
-        options, "unused", rects, (slice(None),) * 3, (0, 0, 0), box,
+        intermediate_directory, info, rects, (slice(None),) * 3, (0, 0, 0), box,
         intermediate_threads=1,
     )
     assert durations["split"] == durations["stack"] == [1]
@@ -603,7 +606,7 @@ def test_backproject_worker_timers_are_disjoint_and_bytes_are_separate(tmp_path,
     assert stack.tolist() == [0]
     append.assert_called_once()
     path, *segments = append.call_args.args
-    assert path == tmp_path / f"{os.getppid()}_sample" / "i_00000.dat"
+    assert path == intermediate_directory / "i_00000.dat"
     assert all(isinstance(part, np.ndarray) and part.flags.c_contiguous for part in segments[3:])
     expected = (
         np.array([box.get_shape()[0], box.get_shape()[0], 0, 0, 1, 2], dtype=np.uint32).tobytes()

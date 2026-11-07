@@ -21,7 +21,7 @@ Eligible builds are successful `Build Release Artifacts` runs from a `push` or `
 
 The canonical artifact-input definition is [`artifact-inputs.json`](artifact-inputs.json). It owns the file patterns used both to calculate committed input identity and to generate the build workflow's pull-request and push path filters. After changing that definition, run `node scripts/sync-release-input-paths.mjs --write`; CI checks the generated filters. Release tests also check every staged `BUILD_INPUTS` file and optional `.npmrc` against the fingerprint's path matcher, so additions to the compilation inputs must remain covered. The complete source tree remains recorded as provenance for the actual build commit.
 
-Release artifacts are retained for **14 days**. A successful old run is not releasable once its required artifacts have expired or disappeared. If no eligible build has a complete, unexpired artifact set, dispatch `Build Release Artifacts` on `main` and wait for success. Manual dispatch is also the recovery path when a build failed or a relevant input filter was previously missing.
+Release artifacts are retained for **14 days**. A successful old run is not releasable once its required artifacts have expired or disappeared. If no eligible build has a complete, unexpired artifact set, dispatch `Build Release Artifacts` on `main` and wait for success, then re-run the failed publish run.. Manual dispatch is also the recovery path when a build failed or a relevant input filter was previously missing.
 
 ## Ship a server change
 
@@ -39,7 +39,7 @@ Server images retain a two-commit release flow within the direct-commit or singl
 
     This option is required when preparing a release intended to ship that server change. It rejects an omitted or mismatched repin, validates the manifest's digest image reference and immutable tag, and prints the wheel version from A's `python/pyproject.toml`. It does not compare the wheel version to the application version or require later Python files to equal A's files. Ordinary preflight cannot infer an intention to ship an unpinned server change and intentionally accepts an existing pin.
 
-4. Push B directly to `main` or merge the single release PR, then wait for the application build. The `release/` lock change triggers the native build even though the preceding Python-only A commit does not. Tag that `main` candidate, or a later `main` candidate with identical artifact inputs. The application ships A's certified digest.
+4. Push B directly to `main` or merge the single release PR (using a merge commit rather than squash to maintain separate server commits), then wait for the application build. The `release/` lock change triggers the native build even though the preceding Python-only A commit does not. Tag that `main` candidate, or a later `main` candidate with identical artifact inputs. The application ships A's certified digest.
 
 Keep the downloaded manifest with the release preparation evidence. The explicit server preflight verifies it against the lock and local pinned source; obtain it from the successful server workflow to establish its origin. A missing local A commit produces a fetch instruction. Application version tags never rebuild the wheel or Docker image.
 

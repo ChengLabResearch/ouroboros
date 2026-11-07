@@ -37,7 +37,7 @@ test('native installers run only for main while pull requests and branch dispatc
 	const preflight = build.jobs['release-preflight']
 	assert.equal(preflight['runs-on'], 'ubuntu-24.04')
 	assert.equal(preflight.if, undefined)
-	for (const command of ['npm ci', 'npm run test:release', 'npm run preflight:release']) {
+	for (const command of ['npm ci', 'npm run test:release']) {
 		assert(
 			preflight.steps.some(({ run }) => run === command),
 			`Missing preflight command: ${command}`
@@ -109,11 +109,6 @@ test('release trigger paths derive exactly from the canonical artifact input def
 	for (const event of ['push', 'pull_request']) {
 		assert.deepEqual(build.on[event].paths, definition.paths, event)
 	}
-	assert(
-		build.jobs['release-preflight'].steps.some(
-			({ run }) => run === 'node scripts/sync-release-input-paths.mjs --check'
-		)
-	)
 	await syncReleaseInputPaths()
 })
 

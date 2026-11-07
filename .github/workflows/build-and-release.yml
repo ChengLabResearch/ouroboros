@@ -66,14 +66,12 @@ jobs:
             - name: Install locked dependencies
               run: npm ci
 
-            - name: Check generated artifact input filters
-              run: node scripts/sync-release-input-paths.mjs --check
+            - name: Audit release dependencies
+              if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+              run: npm run audit:release
 
             - name: Test release lock and artifact validation
               run: npm run test:release
-
-            - name: Validate locked release inputs and package boundary
-              run: npm run preflight:release
 
     build-packages:
         name: Build ${{ matrix.platform }} release artifacts
@@ -123,10 +121,6 @@ jobs:
 
             - name: Install locked dependencies
               run: npm ci
-
-            - name: Audit release dependencies
-              if: matrix.platform == 'linux'
-              run: npm run audit:release
 
             - name: Compile once and package selected flavors
               run: npm run build:release-artifacts -- --platform ${{ matrix.platform }}

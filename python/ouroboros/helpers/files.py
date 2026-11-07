@@ -37,6 +37,7 @@ class StraightenedVolumeInfo:
     dtype: np.dtype
     channels: int
     is_compressed: bool
+    photometric: str = "minisblack"
 
 
 def get_sorted_tif_files(directory: str) -> list[str]:
@@ -114,6 +115,7 @@ def inspect_straightened_volume(straightened_volume_path: str) -> StraightenedVo
                 U=page.shape[1],
             ),
             dtype=np.dtype(page.dtype),
+            photometric="rgb" if page.photometric.name == "RGB" else "minisblack",
             channels=channels,
             is_compressed=page.compression != tifffile.COMPRESSION.NONE,
         )

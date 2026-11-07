@@ -166,7 +166,8 @@ class BackprojectPipelineStep(PipelineStep):
                             compression=config.backprojection_compression,
                             micron_resolution=source.get_resolution_um(pipeline_input.slice_options.output_mip_level),
                             backprojection_offset=bp_offset,
-                            photometric="rgb" if channels > 1 else "minisblack")
+                            photometric=volume_info.photometric,
+                            **({"planarconfig": "contig"} if channels > 1 else {}))
 
         if pipeline_input.slice_options.output_mip_level != config.output_mip_level:
             scaling_factors, _ = calculate_scaling_factors(

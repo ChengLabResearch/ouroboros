@@ -195,7 +195,6 @@ class BackprojectPipelineStep(PipelineStep):
             "backproject_processes": config.process_count // 4 * (2 if scaling_factors is not None else 3),
             "writer_processes": config.process_count // 4 * (2 if scaling_factors is not None else 1),
             "intermediate_threads_per_process": 12,
-            "merge_threads_per_writer": 4,
         }
 
         # Process each bounding box in parallel, writing the results to the backprojected volume
@@ -286,7 +285,6 @@ class BackprojectPipelineStep(PipelineStep):
                                 index=index,
                                 interpolation=config.upsample_order,
                                 discrete=config.make_backprojection_discrete,
-                                merge_threads=self.execution_resources["merge_threads_per_writer"],
                             ))
                             write_futures[-1].add_done_callback(note_written)
 

@@ -2,7 +2,6 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from functools import partial
 from io import BytesIO
-from multiprocessing.pool import ThreadPool
 import os
 import sys
 
@@ -339,46 +338,63 @@ def increment_volume(path: Path, vol: np.ndarray, offset: int = 0, cleanup=False
         path.unlink()
 
 
-def volume_from_intermediates(path: Path, shape: DataShape, discrete: bool = False, thread_count: int = 4):
+def volume_from_intermediates(path: Path, shape: DataShape, discrete: bool = False, *,
+                              accumulator=None, return_indices=False):
     # Shapes without a channel axis retain the scalar merge contract.
     channels = getattr(shape, "C", 1)
-    vol = np.zeros((channels + 1, np.prod((shape.Y, shape.X))), dtype=np.float32)
-    if path.is_dir():
-        with ThreadPool(thread_count) as pool:
-            pool.starmap(increment_volume, [(i, vol, 0, True) for i in path.glob("**/*.tif*")])
-    elif path.exists():
+    vol = accumulator if accumulator is not None else np.zeros(
+        (channels + 1, shape.Y * shape.X), dtype=np.float32)
+    if path.exists():
         increment_volume(path, vol, 0, True)
 
     values = vol[:-1]
     nz = np.flatnonzero(vol[-1])
     values[:, nz] /= vol[-1, nz]
     if discrete:
-        values[:] = np.round(values, 2)
-        values[values % 1 != 0] = 0
-    return values[0] if channels == 1 else values
+        rounded = np.round(values[:, nz], 2)
+        rounded[rounded % 1 != 0] = 0
+        values[:, nz] = rounded
+    values = values[0] if channels == 1 else values
+    return (values, nz) if return_indices else values
 
 
-def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_folder, index, interpolation, discrete,
-                   merge_threads: int = 4):
+_writer_page_buffers = None
+
+
+def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_folder, index, interpolation, discrete):
+    global _writer_page_buffers
     perf = {}
     vol_start = time.perf_counter()
-    vol = volume_from_intermediates(source_path, shape, discrete, thread_count=merge_threads)
+    accumulator, output = _writer_page_buffers or (None, None)
+    # Return the pair to the cache only after a successful write and reset. A
+    # failed merge/write must not leave partial values for the next page.
+    _writer_page_buffers = None
+    if accumulator is None or accumulator.shape != (shape.C + 1, shape.Y * shape.X):
+        accumulator = np.zeros((shape.C + 1, shape.Y * shape.X), dtype=np.float32)
+    vol, nz = volume_from_intermediates(source_path, shape, discrete,
+                                      accumulator=accumulator, return_indices=True)
     perf["Merge Volume"] = time.perf_counter() - vol_start
+    start = time.perf_counter()
+    converted = np_convert(dtype, vol.reshape(shape.C, -1)[:, nz].T,
+                           normalize=False, safe_bool=True)
+    if (output is None or output.shape != (shape.Y, shape.X, shape.C)
+            or output.dtype != converted.dtype):
+        output = np.zeros((shape.Y, shape.X, shape.C), dtype=converted.dtype)
+    output.reshape(-1, shape.C)[nz] = converted
     if scaling is not None:
-        start = time.perf_counter()
         # CV2 is only 2D but we're resizing from the 1D image anyway at the moment.
         new_volume = cv2.resize(
-                        np_convert(dtype, vol.T.reshape(shape.Y, shape.X, shape.C), normalize=False, safe_bool=True),
-                        None, fx=scaling[1], fy=scaling[2], interpolation=interpolation)
+                        output, None, fx=scaling[1], fy=scaling[2], interpolation=interpolation)
         perf["Zoom"] = time.perf_counter() - start
         start = time.perf_counter()
         for i in range(round(scaling[0])):
             writer(target_folder.joinpath(f"{(index * round(scaling[0]) + i):05}.tif"), data=new_volume)
         perf["Write Merged"] = time.perf_counter() - start
     else:
-        start = time.perf_counter()
-        writer(target_folder.joinpath(f"{index}.tif"),
-               data=np_convert(dtype, vol.T.reshape(shape.Y, shape.X, shape.C), normalize=False, safe_bool=True))
+        writer(target_folder.joinpath(f"{index}.tif"), data=output)
         perf["Write Merged"] = time.perf_counter() - start
+    accumulator[:, nz] = 0
+    output.reshape(-1, shape.C)[nz] = 0
+    _writer_page_buffers = accumulator, output
     perf["Total Chunk Merge"] = time.perf_counter() - vol_start
     return perf

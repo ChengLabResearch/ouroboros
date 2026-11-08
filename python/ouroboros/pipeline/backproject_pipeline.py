@@ -200,7 +200,7 @@ class BackprojectPipelineStep(PipelineStep):
         try:
             self.set_stage("backprojecting_and_writing", determinate=True)
             with (concurrent.futures.ProcessPoolExecutor(self.exec_config["backproject_processes"]) as executor,
-                 concurrent.futures.ProcessPoolExecutor(self.exec_config["writer_processes"]) as write_executor):
+                  concurrent.futures.ProcessPoolExecutor(self.exec_config["writer_processes"]) as write_executor):
                 bp_futures = []
                 write_futures = []
 

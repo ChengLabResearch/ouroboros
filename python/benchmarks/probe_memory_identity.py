@@ -185,8 +185,10 @@ def probe(args):
         "public_creation_timestamp_changed": len({row["public_root_create_time_after"] for row in rows}) > 1,
         "early_sweeps": [row["epoch"] for row in rows[:part]],
         "late_sweeps": [row["epoch"] for row in rows[-part:]],
-        "early_median_sweep_seconds": statistics.median(row["elapsed_seconds"] for row in rows[:part]) if rows else None,
-        "late_median_sweep_seconds": statistics.median(row["elapsed_seconds"] for row in rows[-part:]) if rows else None,
+        "early_median_sweep_seconds":
+            statistics.median(row["elapsed_seconds"] for row in rows[:part]) if rows else None,
+        "late_median_sweep_seconds":
+            statistics.median(row["elapsed_seconds"] for row in rows[-part:]) if rows else None,
         "early_median_cpu_seconds": statistics.median(row["cpu_seconds"] for row in rows[:part]) if rows else None,
         "late_median_cpu_seconds": statistics.median(row["cpu_seconds"] for row in rows[-part:]) if rows else None,
         "interpretation": "Early/late costs describe this diagnostic only; they are not pipeline overhead acceptance.",

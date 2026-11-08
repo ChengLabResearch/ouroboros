@@ -329,11 +329,13 @@ def benchmark(args: argparse.Namespace) -> None:
                   "volume-statistics collection, report construction/printing/publication. Basic duration/progress "
                   "timers remain enabled in every mode. Output pixel hashing follows all timed boundaries."
                   if args.scope == "pipeline" else
-                  "Native CLI handler including options load, pipeline, report formatting, stdout flush, and report write; no Docker transfer."),
+                  ("Native CLI handler including options load, pipeline,"
+                   "report formatting, stdout flush, and report write; no Docker transfer.")),
         "elapsed_field": elapsed_field,
         "cache_policy": ("Warm filesystem and CloudVolume caches; one warmup of the first selected mode per operation."
                          if args.scope == "pipeline" else
-                         "Warm filesystem and CloudVolume caches; one unmeasured run of each selected mode per operation."),
+                         ("Warm filesystem and CloudVolume caches;"
+                          "one unmeasured run of each selected mode per operation.")),
         "hardware": {"platform": platform.platform(), "processor": cpu_model,
                      "logical_cpus": os.cpu_count(), "python": platform.python_version(),
                      "cpu_affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None},
@@ -583,9 +585,11 @@ def main() -> None:
     parser.add_argument("--cache-dir", type=Path,
                         help="Reuse this CloudVolume chunk cache in real-data mode.")
     parser.add_argument("--resume-real-data", action="store_true",
-                        help="Finish remaining real-data trials, preserving completed and failed attempts without retry.")
+                        help=("Finish remaining real-data trials,"
+                              "preserving completed and failed attempts without retry."))
     parser.add_argument("--scope", choices=("handler", "pipeline"), default="handler",
-                        help="Timing boundary; pipeline excludes all final reporting. Pixel hashing is outside both timers.")
+                        help=("Timing boundary; pipeline excludes all final reporting."
+                              " Pixel hashing is outside both timers."))
     parser.add_argument("--modes", nargs="+", type=LoggingMode,
                         choices=list(LoggingMode), default=[LoggingMode.STANDARD],
                         metavar="{off,standard,detailed}",

@@ -101,11 +101,6 @@ def generate_novel_neuroglancer_json(
     str
         The path to the generated file.
     """
-
-    sample_curve = generate_sample_curve_helix()
-
-    points = [{"point": point.tolist(), "type": "point"} for point in sample_curve]
-
     data = {
         "layers": [
             {"type": "image", "name": "image_layer",

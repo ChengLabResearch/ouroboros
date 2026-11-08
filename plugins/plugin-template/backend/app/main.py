@@ -36,7 +36,7 @@ async def copy_to_volume_call(file_path: str):
     return {"result": "File copied to volume!"}
 
 
-### Volume server communication ###
+# Volume server communication
 PLUGIN_NAME = "plugin-template"
 VOLUME_SERVER_URL = "http://host.docker.internal:3001"
 

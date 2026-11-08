@@ -435,7 +435,7 @@ def process_chunk(
 
 def is_big_tiff(write_shape: list[int], scaling_factors: np.ndarray[int], channels: int, output_dtype: np.dtype):
     out_shape = np.multiply(write_shape, scaling_factors) if scaling_factors is not None else write_shape
-    return calculate_gigabytes_from_dimensions((*out_shape.astype(np.uint16), channels), output_dtype) > 4
+    return calculate_gigabytes_from_dimensions((*list(np.array(out_shape).astype(np.uint16)), channels), output_dtype) > 4
 
 
 def calculate_scaling_factors(

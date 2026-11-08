@@ -435,13 +435,13 @@ def process_chunk(
 
 def is_big_tiff(write_shape: list[int], scaling_factors: np.ndarray[int], channels: int, output_dtype: np.dtype):
     out_shape = np.multiply(write_shape, scaling_factors) if scaling_factors is not None else write_shape
-    return calculate_gigabytes_from_dimensions((*out_shape, channels), output_dtype) > 4
+    return calculate_gigabytes_from_dimensions((*out_shape.astype(np.uint16), channels), output_dtype) > 4
 
 
 def calculate_scaling_factors(
     source_url: str, current_mip: int, target_mip: int, tif_shape: tuple
-) -> np.ndarray[np.uint8]:
+) -> np.ndarray[np.float64]:
     # Fetch the exact multi-image-pyramid (mip) resolutions from the source.
     mip_sizes = get_mip_volume_sizes(source_url)
 
-    return np.divide(mip_sizes[target_mip], mip_sizes[current_mip]).astype(np.uint8)
+    return np.divide(mip_sizes[target_mip], mip_sizes[current_mip])

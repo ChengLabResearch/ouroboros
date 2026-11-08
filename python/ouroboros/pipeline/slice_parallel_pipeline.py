@@ -144,7 +144,7 @@ class SliceParallelPipelineStep(PipelineStep):
 
         # Set an SharedMemoryManager key so we can pass it around later.
         authkey = secrets.token_bytes(32)
-        self.execution_resources = {
+        self.exec_config = {
             "download_processes": config.process_count // 4,
             "slice_processes": config.process_count * 3 // 4,
             "rewrite_threads": config.process_count,
@@ -156,9 +156,9 @@ class SliceParallelPipelineStep(PipelineStep):
         try:
             self.set_stage("downloading_and_slicing", determinate=True)
             with concurrent.futures.ProcessPoolExecutor(
-                max_workers=self.execution_resources["download_processes"]
+                max_workers=self.exec_config["download_processes"]
             ) as download_executor, concurrent.futures.ProcessPoolExecutor(
-                max_workers=self.execution_resources["slice_processes"]
+                max_workers=self.exec_config["slice_processes"]
             ) as process_executor, SharedNPManager(authkey=authkey) as (shm_host, ):
                 # Start fork workers before they can inherit downloaded buffers
                 # that would otherwise survive the manager's release.
@@ -186,17 +186,16 @@ class SliceParallelPipelineStep(PipelineStep):
                 # Process the data in a separate process
                 # Note: If the maximum number of processes is reached, this will enqueue the arguments
                 # and wait for a process to become available
-                partial_slice_executor = partial(
-                                process_worker_save_parallel,
-                                config=config,
-                                slice_rects=slice_rects,
-                                temporary_path=temp_file_path,
-                                shared=volume_cache.use_shared)
+                partial_slice_executor = partial(process_worker_save_parallel,
+                                                 config=config,
+                                                 slice_rects=slice_rects,
+                                                 temporary_path=temp_file_path,
+                                                 shared=volume_cache.use_shared)
 
                 partial_dl_executor = partial(download_volume,
                                               cv=volume_cache.cv,
                                               mip=volume_cache.mip,
-                                              parallel=self.execution_resources["download_threads_per_process"],
+                                              parallel=self.exec_config["download_threads_per_process"],
                                               use_shared=volume_cache.use_shared,
                                               shm_address=shm_host.address,
                                               shm_authkey=authkey)
@@ -273,7 +272,7 @@ class SliceParallelPipelineStep(PipelineStep):
                 # A callback failure also releases this waiter, and is re-raised
                 # on the owning thread so PipelineStep records the failed span.
                 with callback_lock:
-                    for _ in range(min(self.execution_resources["slice_processes"] + 1, len(vol_range))):
+                    for _ in range(min(self.exec_config["slice_processes"] + 1, len(vol_range))):
                         if failures or not vol_range:
                             break
                         index = vol_range.pop()
@@ -291,7 +290,7 @@ class SliceParallelPipelineStep(PipelineStep):
                     raise failures[0]
 
                 self.set_stage("normalizing_and_writing")
-                with multiprocessing.pool.ThreadPool(self.execution_resources["rewrite_threads"]) as pool:
+                with multiprocessing.pool.ThreadPool(self.exec_config["rewrite_threads"]) as pool:
                     start_time = time.perf_counter()
                     convert_func = partial(np_convert,
                                            target_dtype=volume_cache.get_volume_dtype(),
@@ -348,7 +347,9 @@ def process_worker_save_parallel(
 
     # Refill one coordinate plane through the shared generation facility.
     start = time.perf_counter()
-    grid_call = partial(coordinate_grid, shape=(config.slice_height, config.slice_width), floor=bounding_box.get_integer_origin())
+    grid_call = partial(coordinate_grid,
+                        shape=(config.slice_height, config.slice_width),
+                        floor=bounding_box.get_integer_origin())
     grid = np.empty((config.slice_height, config.slice_width, 3), dtype=np.float32)
     durations["generate_grid"] = [time.perf_counter() - start]
     grid_seconds = 0.0

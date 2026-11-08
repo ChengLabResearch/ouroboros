@@ -104,7 +104,7 @@ def test_planner_policy_honors_platform_cutoff_and_worker_budget(
 
     def executor(*, max_workers, mp_context):
         assert mp_context is context
-        assert max_workers == step.execution_resources["planner_processes"]
+        assert max_workers == step.exec_config["planner_processes"]
         allocations.append(max_workers)
         return _InlineExecutor(events)
 
@@ -131,7 +131,7 @@ def test_planner_policy_honors_platform_cutoff_and_worker_budget(
     assert error is None and result is data
     assert allocations == ([1] if workers else [])
     assert context.requests == (["fork"] if workers else [])
-    assert step.execution_resources == {
+    assert step.exec_config == {
         "planner_processes": workers,
         **({"planner_start_method": "fork"} if workers else {}),
     }
@@ -157,7 +157,7 @@ def test_real_planning_closes_pool_before_cache_and_next_step(tmp_path, monkeypa
     def executor(*, max_workers, mp_context):
         assert mp_context is context
         allocations.append(max_workers)
-        assert max_workers == step.execution_resources["planner_processes"]
+        assert max_workers == step.exec_config["planner_processes"]
         return _InlineExecutor(events)
 
     def cache(*args, **kwargs):
@@ -197,7 +197,7 @@ def test_real_planning_closes_pool_before_cache_and_next_step(tmp_path, monkeypa
     )
     statistics = RunStatistics(task)
     assert statistics.to_record()["execution"]["workers"] == [
-        {"step": step.step_name, **step.execution_resources},
+        {"step": step.step_name, **step.exec_config},
     ]
     # Reporting observes the owner's current record, rather than keeping an
     # independent requested budget or stale allocation snapshot.
@@ -220,7 +220,7 @@ def test_unsplittable_root_reports_zero_actual_workers(tmp_path, monkeypatch):
 
     assert error is None
     assert context.requests == []
-    assert step.execution_resources == {"planner_processes": 0}
+    assert step.exec_config == {"planner_processes": 0}
     assert len(data.volume_cache.bounding_boxes) == 1
     task = SliceTask(
         task_id="serial-allocation", options="unused", pipeline=pipeline,

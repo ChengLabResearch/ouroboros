@@ -38,18 +38,18 @@ class VolumeCachePipelineStep(PipelineStep):
             source_dtype=cloud_volume_interface.dtype,
             channels=cloud_volume_interface.num_channels,
         )
-        self.execution_resources = {"planner_processes": 0}
+        self.exec_config = {"planner_processes": 0}
 
         def planner_executor():
             # Invoked only after the tree owner finds a splittable root. This
             # owner supplies the executor allocation and the statistics record.
             context = multiprocessing.get_context("fork")
-            self.execution_resources.update(
+            self.exec_config.update(
                 planner_processes=min(1, config.process_count),
                 planner_start_method=context.get_start_method(),
             )
             return ProcessPoolExecutor(
-                max_workers=self.execution_resources["planner_processes"],
+                max_workers=self.exec_config["planner_processes"],
                 mp_context=context,
             )
 

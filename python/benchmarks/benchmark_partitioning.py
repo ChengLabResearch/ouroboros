@@ -219,7 +219,8 @@ def benchmark_specimen(name, fixture_dir, repeats=1):
         "generated_rectangles_sha256": geometry_hash,
         "matches_recorded_rectangles": geometry_hash == specimen["provenance"]["saved_rectangles_sha256"],
         "cumulative_requested_byte_cap_ratio": 1.0,
-        "requested_byte_ratio": selected["cumulative_requested_source_bytes"] / reference["cumulative_requested_source_bytes"],
+        "requested_byte_ratio":
+            selected["cumulative_requested_source_bytes"] / reference["cumulative_requested_source_bytes"],
         "max_payload_ratio": selected["max_payload_bytes"] / reference["max_payload_bytes"],
         "input_rectangles_unchanged": True, "results": results,
     }
@@ -232,7 +233,8 @@ def main():
     parser.add_argument("--fixtures", type=Path, required=True,
                         help="External directory containing manifest.json and local annotation states.")
     parser.add_argument("--specimen", action="append", help="Recorded specimen name; repeat to select several.")
-    parser.add_argument("--repeats", type=int, default=1, help="Repeat each partitioner; also check deterministic output.")
+    parser.add_argument("--repeats", type=int, default=1,
+                        help="Repeat each partitioner; also check deterministic output.")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.repeats < 1:
@@ -249,7 +251,8 @@ def main():
                  "CloudVolume internals, Python overhead, and concurrency.",
         "reference": "Unchanged count-based partitioner evaluated with the current inclusive integer download extent.",
         "payload_estimator": "ouroboros.helpers.slice.estimate_slice_task_payload",
-        "requested_byte_basis": "Allocated inclusive source extent including padding and repeated box overlap; not source-clipped bytes.",
+        "requested_byte_basis":
+            "Allocated inclusive source extent including padding and repeated box overlap; not source-clipped bytes.",
         "runtime": runtime_metadata(),
         "implementation_sha256": {
             str(path.relative_to(PYTHON_ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()

@@ -247,7 +247,7 @@ def test_slice_volume_writes_each_interpolated_plane_into_tiff_destination(
     volume = np.array(volume, order=source_order)
     path = tmp_path / "destination.tif"
     mapping = tifffile.memmap(path, shape=(4, *expected.shape[1:]), dtype=np.float32,
-                             photometric="minisblack")
+                              photometric="minisblack")
     mapping[:] = -999
     destination = mapping[1:3]
     writes, coefficients = [], []

@@ -15,9 +15,11 @@ app.add_middleware(
 
 # Visit https://0.0.0.0:8001/docs to see the API documentation and test the endpoints
 
+
 @app.get("/")
 async def read_root():
     return {"result": "Plugin Template backend is working!"}
+
 
 @app.post("/copy-to-volume")
 async def copy_to_volume_call(file_path: str):
@@ -34,9 +36,10 @@ async def copy_to_volume_call(file_path: str):
     return {"result": "File copied to volume!"}
 
 
-### Volume server communication ###
+# Volume server communication
 PLUGIN_NAME = "plugin-template"
 VOLUME_SERVER_URL = "http://host.docker.internal:3001"
+
 
 async def copy_to_volume(files):
     data = {

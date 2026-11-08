@@ -6,7 +6,6 @@ generate local CloudVolume chunks; --real-slice-options uses an existing dataset
 """
 
 from __future__ import annotations
-
 import argparse
 import hashlib
 import importlib.metadata
@@ -325,22 +324,25 @@ def benchmark(args: argparse.Namespace) -> None:
     result = {
         "schema_version": 2,
         "scope": ("External timer around Pipeline.process only: includes scientific preparation, data operations, "
-                  "worker measurement transport/aggregation, concurrent RAM sampling and scientific output; excludes options loading, "
-                  "sampler startup/shutdown, "
+                  "worker measurement transport/aggregation, concurrent RAM sampling and scientific output; "
+                  "excludes options loading, sampler startup/shutdown, "
                   "volume-statistics collection, report construction/printing/publication. Basic duration/progress "
                   "timers remain enabled in every mode. Output pixel hashing follows all timed boundaries."
                   if args.scope == "pipeline" else
-                  "Native CLI handler including options load, pipeline, report formatting, stdout flush, and report write; no Docker transfer."),
+                  ("Native CLI handler including options load, pipeline,"
+                   " report formatting, stdout flush, and report write; no Docker transfer.")),
         "elapsed_field": elapsed_field,
         "cache_policy": ("Warm filesystem and CloudVolume caches; one warmup of the first selected mode per operation."
                          if args.scope == "pipeline" else
-                         "Warm filesystem and CloudVolume caches; one unmeasured run of each selected mode per operation."),
+                         ("Warm filesystem and CloudVolume caches;"
+                          " one unmeasured run of each selected mode per operation.")),
         "hardware": {"platform": platform.platform(), "processor": cpu_model,
                      "logical_cpus": os.cpu_count(), "python": platform.python_version(),
                      "cpu_affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None},
         "production_python_sha256": production_digest(),
         "benchmark_python_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        "versions": {name: importlib.metadata.version(name) for name in ("numpy", "scipy", "tifffile", "cloud-volume", "psutil")},
+        "versions": {name: importlib.metadata.version(name)
+                     for name in ("numpy", "scipy", "tifffile", "cloud-volume", "psutil")},
         "fixture": fixture,
         "rounds": args.pairs,
         "modes": [mode.value for mode in args.modes],
@@ -441,8 +443,12 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
         os.environ["CLOUD_VOLUME_CACHE_DIR"] = str(args.cache_dir.resolve())
     result = {
         "schema_version": 2,
-        "scope": "Existing data-processing step duration; excludes preceding parsing, geometry and source/cache setup. External Pipeline.process timer retained separately. Both exclude sampler startup/shutdown and final reporting.",
-        "cache_policy": "One slicing warmup of the first selected mode per path; shared CloudVolume cache across all trials. Remote metadata requests may remain. Pixel hashing follows all timed boundaries.",
+        "scope": ("Existing data-processing step duration; excludes preceding parsing, geometry and source/cache setup."
+                  " External Pipeline.process timer retained separately."
+                  " Both exclude sampler startup/shutdown and final reporting."),
+        "cache_policy":
+            ("One slicing warmup of the first selected mode per path; shared CloudVolume cache across all trials."
+             " Remote metadata requests may remain. Pixel hashing follows all timed boundaries."),
         "cloudvolume_cache_directory": os.environ["CLOUD_VOLUME_CACHE_DIR"],
         "hardware": {"platform": platform.platform(), "processor": platform.processor(),
                      "logical_cpus": os.cpu_count(), "python": platform.python_version()},
@@ -459,12 +465,13 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
     }
     if args.resume_real_data:
         previous = json.loads((folder / "results.json").read_text())
-        for key in ("schema_version", "modes", "production_python_sha256", "annotation_sha256", "annotation_layers", "workers", "rounds",
-                    "slice_options_template", "backproject_options_template", "versions"):
+        for key in ("schema_version", "modes", "production_python_sha256", "annotation_sha256", "annotation_layers",
+                    "workers", "rounds", "slice_options_template", "backproject_options_template", "versions"):
             if previous.get(key) != result[key]:
                 raise ValueError(f"Cannot resume with changed {key}")
         previous["resumed_benchmark_python_sha256"] = result["benchmark_python_sha256"]
-        previous["resume_note"] = "Retain completed trials, record failed existing trials without retry, and finish remaining scheduled trials using the same run_once timing boundary."
+        previous["resume_note"] = ("Retain completed trials, record failed existing trials without retry,"
+                                   " and finish remaining scheduled trials using the same run_once timing boundary.")
         result = previous
 
     def remove_output(path):
@@ -522,16 +529,17 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
                     sliced_output = outputs[0] if len(outputs) == 1 and "status" not in sliced else None
                 write_json(folder / "results.json", result)
                 if sliced_output is None:
-                    path_result["runs"].append({"operation": "backproject", "label": label + "-backproject",
+                    path_result["runs"].append({
+                        "operation": "backproject", "label": label + "-backproject",
                         "mode": mode.value, "round": round_index + 1,
                         "status": "skipped", "error": "Matching slicing trial did not complete"})
                     write_json(folder / "results.json", result)
                     continue
                 bp_options = dict(backproject_options,
-                    straightened_volume_path=str(sliced_output),
-                    slice_options_path=str(folder / (label + "-slice") / "options.json"),
-                    process_count=args.workers,
-                    make_backprojection_binary=False, make_backprojection_discrete=False)
+                                  straightened_volume_path=str(sliced_output),
+                                  slice_options_path=str(folder / (label + "-slice") / "options.json"),
+                                  process_count=args.workers,
+                                  make_backprojection_binary=False, make_backprojection_discrete=False)
                 print(f"{name}: round {round_index + 1}/{args.pairs}, mode={mode.value}, backprojection", flush=True)
                 projected, projected_output = attempt("backproject", bp_options, mode, label + "-backproject")
                 path_result["runs"].append(dict(projected, operation="backproject", round=round_index + 1))
@@ -543,6 +551,7 @@ def benchmark_real_data(args: argparse.Namespace) -> None:
                     remove_output(sliced_output)
         operations = {operation: [run for run in path_result["runs"] if run["operation"] == operation]
                       for operation in ("slice", "backproject")}
+
         def measured_or_incomplete(runs, field):
             if any(field not in run for run in runs):
                 return {"status": "incomplete_rounds", "runs": runs}
@@ -576,9 +585,11 @@ def main() -> None:
     parser.add_argument("--cache-dir", type=Path,
                         help="Reuse this CloudVolume chunk cache in real-data mode.")
     parser.add_argument("--resume-real-data", action="store_true",
-                        help="Finish remaining real-data trials, preserving completed and failed attempts without retry.")
+                        help=("Finish remaining real-data trials,"
+                              " preserving completed and failed attempts without retry."))
     parser.add_argument("--scope", choices=("handler", "pipeline"), default="handler",
-                        help="Timing boundary; pipeline excludes all final reporting. Pixel hashing is outside both timers.")
+                        help=("Timing boundary; pipeline excludes all final reporting."
+                              " Pixel hashing is outside both timers."))
     parser.add_argument("--modes", nargs="+", type=LoggingMode,
                         choices=list(LoggingMode), default=[LoggingMode.STANDARD],
                         metavar="{off,standard,detailed}",

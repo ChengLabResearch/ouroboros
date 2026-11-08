@@ -20,10 +20,9 @@ def _run_backprojection(folder, shape, channels, photometric, layout, *,
     folder.mkdir()
     depth, height, width = shape
     # Every source plane identifies its own Z, independently of export order.
-    plane_values = ((np.arange(depth)[:, None] + 1)
-                    * 10 ** np.arange(channels)[None, :]).astype(np.uint16)
+    plane_values = ((np.arange(depth)[:, None] + 1) * 10 ** np.arange(channels)[None, :]).astype(np.uint16)
     source_pixels = np.broadcast_to(plane_values[:, None, None, :],
-                                   (*shape, channels)).copy()
+                                    (*shape, channels)).copy()
     if channels == 1:
         source_pixels = source_pixels[..., 0]
     options = dict(photometric=photometric, compression=compression)
@@ -113,9 +112,9 @@ def test_file_and_numeric_folder_backprojection_preserve_z_positions(
     tmp_path, source_metadata, channels, photometric,
 ):
     file_output = _run_backprojection(tmp_path / "file", (12, 3, 3),
-                                     channels, photometric, "file", chunk_size=5)
+                                      channels, photometric, "file", chunk_size=5)
     folder_output = _run_backprojection(tmp_path / "folder", (12, 3, 3),
-                                       channels, photometric, "folder", chunk_size=5)
+                                        channels, photometric, "folder", chunk_size=5)
     np.testing.assert_array_equal(folder_output, file_output)
 
 

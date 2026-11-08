@@ -324,12 +324,12 @@ def test_iter_time():
     log.write("ITER BASE")
 
     cmi_list = [val for val in XSlice.drange(start, stop, step).get_iter(
-                            partial(ContigMemIter, offset=1024, stride=stride, shape=win_shape, jump=["Theta"]))]
+        partial(ContigMemIter, offset=1024, stride=stride, shape=win_shape, jump=["Theta"]))]
 
     log.write("ITER CONTIG")
 
     contig_iter = XSlice.drange(start, stop, step).get_iter(
-                            partial(ContigMemIter, offset=1024, stride=stride, shape=win_shape, jump=["Theta"]))
+        partial(ContigMemIter, offset=1024, stride=stride, shape=win_shape, jump=["Theta"]))
 
     cmi_list = np.fromiter(contig_iter, dtype=int, count=len(contig_iter))
 

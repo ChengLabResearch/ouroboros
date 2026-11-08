@@ -14,7 +14,7 @@ import pytest
 
 from ouroboros.common import memory_managed as managed
 from ouroboros.common.memory_ipc import process_from_identity
-from ouroboros.helpers.mem import SharedNPArray, SharedNPManager, _OwnedSharedMemoryTracker
+from ouroboros.helpers.mem import SharedNPManager, _OwnedSharedMemoryTracker
 from ouroboros.helpers.shapes import ImgSlice
 
 

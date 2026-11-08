@@ -82,7 +82,7 @@ def handle_backproject(task: BackProjectTask):
 
 def handle_backproject_docker(task: BackProjectTask):
     loaded = load_options_for_backproject_docker(task.options,
-                                                on_options=lambda options: _configure(task, options))
+                                                 on_options=lambda options: _configure(task, options))
     if isinstance(loaded, str):
         return loaded
     options, slice_options, host_output_file, host_output_slices, host_output_folder = loaded
@@ -131,7 +131,8 @@ def _execute_task(task: Task, *, docker: bool = False, print_statistics: bool = 
             except (KeyboardInterrupt, SystemExit) as error:
                 task.failure_phase = task.failure_phase or task.execution_phase
                 outcome = "interrupted"
-                failure = f"{failure + '; ' if failure else ''}Cleanup interrupted: {str(error) or type(error).__name__}"
+                failure = (f"{failure + '; ' if failure else ''}"
+                           f"Cleanup interrupted: {str(error) or type(error).__name__}")
             except Exception as error:
                 task.failure_phase = task.failure_phase or task.execution_phase
                 failure = f"{failure + '; ' if failure else ''}Cleanup failed: {error}"

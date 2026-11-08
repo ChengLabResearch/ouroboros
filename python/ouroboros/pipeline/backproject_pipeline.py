@@ -190,7 +190,7 @@ class BackprojectPipelineStep(PipelineStep):
             scaling_factors = None
 
         # Allocate procs equally between BP math and writing; 1:2 if scaling.
-        self.execution_resources = {
+        self.exec_config = {
             "backproject_processes": int(config.process_count // (3 if scaling_factors is not None else 2)),
             "writer_processes": int(config.process_count // (1.5 if scaling_factors is not None else 2)),
             "intermediate_threads_per_process": 12,
@@ -199,8 +199,8 @@ class BackprojectPipelineStep(PipelineStep):
         # Process each bounding box in parallel, writing the results to the backprojected volume
         try:
             self.set_stage("backprojecting_and_writing", determinate=True)
-            with (concurrent.futures.ProcessPoolExecutor(self.execution_resources["backproject_processes"]) as executor,
-                 concurrent.futures.ProcessPoolExecutor(self.execution_resources["writer_processes"]) as write_executor):
+            with (concurrent.futures.ProcessPoolExecutor(self.exec_config["backproject_processes"]) as executor,
+                  concurrent.futures.ProcessPoolExecutor(self.exec_config["writer_processes"]) as write_executor):
                 bp_futures = []
                 write_futures = []
 
@@ -218,7 +218,7 @@ class BackprojectPipelineStep(PipelineStep):
                         chunk=chunk,
                         index=index,
                         full_bounding_box=full_bounding_box,
-                        intermediate_threads=self.execution_resources["intermediate_threads_per_process"],
+                        intermediate_threads=self.exec_config["intermediate_threads_per_process"],
                     ))
 
                 # Track what's written.
@@ -235,9 +235,9 @@ class BackprojectPipelineStep(PipelineStep):
                         pages_written += 1
                         self.update_progress(
                             (np.sum(processed) / len(chunk_range))
-                            * (self.execution_resources["backproject_processes"] / config.process_count)
+                            * (self.exec_config["backproject_processes"] / config.process_count)
                             + (pages_written / num_pages)
-                            * (self.execution_resources["writer_processes"] / config.process_count)
+                            * (self.exec_config["writer_processes"] / config.process_count)
                         )
                         for key, value in durations.items():
                             includes = tuple(name for name in durations if name != key) \
@@ -262,9 +262,9 @@ class BackprojectPipelineStep(PipelineStep):
                     processed[index] = 1
                     self.update_progress(
                         (np.sum(processed) / len(chunk_range))
-                        * (self.execution_resources["backproject_processes"] / config.process_count)
+                        * (self.exec_config["backproject_processes"] / config.process_count)
                         + (pages_written / num_pages)
-                        * (self.execution_resources["writer_processes"] / config.process_count)
+                        * (self.exec_config["writer_processes"] / config.process_count)
                     )
 
                     update_writable_rects(processed, slice_rects, min_dim, writeable, config.chunk_size)

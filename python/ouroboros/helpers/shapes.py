@@ -164,7 +164,7 @@ class DataShape(ABC):
                stop: Self | int | Sequence[int],
                step: Self | int | Sequence[int]):
         return DataRange(
-                start if isinstance(start, cls) else cls(*start) if isinstance(start, Sequence) else cls.make_with(start),     # noqa: E501
+                start if isinstance(start, cls) else cls(*start) if isinstance(start, Sequence) else cls.make_with(start),     # noqa: E501, E126
                 stop if isinstance(stop, cls) else cls(*stop) if isinstance(stop, Sequence) else cls.make_with(stop),
                 step if isinstance(step, cls) else cls(*step) if isinstance(step, Sequence) else cls.make_with(step))
 
@@ -311,6 +311,7 @@ class TFIter(ABC):
 
 class IntIter(TFIter):
     """ TODO: 1d only """
+
     def __init__(self, dr: DataRange):
         # Increment the first field by 1 to enable clean finishes.
         # increment

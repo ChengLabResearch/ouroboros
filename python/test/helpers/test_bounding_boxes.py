@@ -526,7 +526,10 @@ def test_valid_path_cut_survives_an_invalid_unrestricted_minimum(positions, indi
     rects = yz_planes(positions)
     indices = np.asarray(indices)
     box = BoundingBox.from_rects(rects)
-    model = lambda child, count, contiguous: int(child.calculate_volume()) + 20 * count
+
+    def model(child, count, contiguous):
+        return int(child.calculate_volume()) + 20 * count
+
     # Exhaustive candidates derive extents from actual corners, independently of
     # the prefix/suffix search. Observe callback arguments as well as the winner.
     expected_calls, candidates = [], []

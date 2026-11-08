@@ -120,7 +120,7 @@ class BackprojectPipelineStep(PipelineStep):
             )
 
             # Save the straightened volume to a new tif file
-            input_is_big_tiff = is_big_tiff(volume_info.shape, None, volume_info.channels, volume_info.dtype)
+            input_is_big_tiff = is_big_tiff(astuple(volume_info.shape), None, volume_info.channels, volume_info.dtype)
             # The output folder may be the input folder. Capture its members
             # before creating the temporary TIFF so it cannot read itself.
             images = get_sorted_tif_files(volume_info.path) if volume_info.path.is_dir() else None
@@ -444,4 +444,4 @@ def calculate_scaling_factors(
     # Fetch the exact multi-image-pyramid (mip) resolutions from the source.
     mip_sizes = get_mip_volume_sizes(source_url)
 
-    return np.divide(mip_sizes[target_mip], mip_sizes[current_mip], dtype=np.uint8)
+    return np.divide(mip_sizes[target_mip], mip_sizes[current_mip]).astype(np.uint8)

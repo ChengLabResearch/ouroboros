@@ -158,15 +158,25 @@ class BackprojectPipelineStep(PipelineStep):
         folder_path = Path(config.output_file_folder, pipeline_input.output_file_path)
         folder_path.mkdir(exist_ok=True, parents=True)
 
+        # Determine scaling factors, before calculating output size.
+        if pipeline_input.slice_options.output_mip_level != config.output_mip_level:
+            scaling_factors = calculate_scaling_factors(
+                pipeline_input.source_url,
+                pipeline_input.slice_options.output_mip_level,
+                config.output_mip_level,
+                write_shape
+            )
+        else:
+            scaling_factors = None
+
         # Intermediate Path
         i_path = Path(config.output_file_folder, f"{os.getpid()}_{config.output_file_name}")
 
         output_dtype = np.uint8 if config.make_backprojection_binary else np.uint16
-        page_is_big_tiff = calculate_gigabytes_from_dimensions(
-            (*write_shape[1:], volume_info.channels), output_dtype
-        ) > 4
+        out_shape = np.multiply(write_shape, scaling_factors) if scaling_factors is not None else write_shape
+        page_is_big_tiff = calculate_gigabytes_from_dimensions((*out_shape[1:], volume_info.channels), output_dtype) > 4
         is_big_tiff = calculate_gigabytes_from_dimensions(
-            (*write_shape, volume_info.channels), output_dtype
+            (*out_shape, volume_info.channels), output_dtype
         ) > 4 if config.make_single_file else page_is_big_tiff
 
         # Generate image writing function
@@ -178,16 +188,6 @@ class BackprojectPipelineStep(PipelineStep):
                             backprojection_offset=bp_offset,
                             photometric=volume_info.photometric,
                             **({"planarconfig": "contig"} if volume_info.channels > 1 else {}))
-
-        if pipeline_input.slice_options.output_mip_level != config.output_mip_level:
-            scaling_factors, _ = calculate_scaling_factors(
-                pipeline_input.source_url,
-                pipeline_input.slice_options.output_mip_level,
-                config.output_mip_level,
-                write_shape
-            )
-        else:
-            scaling_factors = None
 
         # Allocate procs equally between BP math and writing; 1:2 if scaling.
         self.exec_config = {
@@ -437,24 +437,8 @@ def process_chunk(
 
 def calculate_scaling_factors(
     source_url: str, current_mip: int, target_mip: int, tif_shape: tuple
-) -> tuple[tuple, tuple]:
-    # Determine the current and target resolutions
+) -> np.ndarray[np.uint8]:
+    # Fetch the exact multi-image-pyramid (mip) resolutions from the source.
     mip_sizes = get_mip_volume_sizes(source_url)
 
-    current_resolution = mip_sizes[current_mip]
-    target_resolution = mip_sizes[target_mip]
-
-    # Determine the scaling factor for each axis as a tuple
-    resolution_factors = tuple(
-        max(target_resolution[i] / current_resolution[i], 1)
-        for i in range(len(target_resolution))
-    )
-
-    has_color_channels, num_channels = detect_color_channels_shape(tif_shape)
-
-    # Determine the scaling factor for each axis as a tuple
-    scaling_factors = resolution_factors + (
-        (num_channels,) if has_color_channels else ()
-    )
-
-    return scaling_factors, resolution_factors
+    return np.divide(mip_sizes[target_mip], mip_sizes[current_mip], dtype=np.uint8)

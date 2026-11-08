@@ -9,7 +9,7 @@ from ouroboros.helpers.models import model_with_json
 
 @model_with_json
 class CommonOptions(BaseModel):
-    process_count: int = Field(default_factory=cpu_count, ge=4)  # Total worker budget; use multiples of four for exact allocation.
+    process_count: int = Field(default_factory=cpu_count, ge=4)  # Total worker budget.
     output_file_folder: str  # Folder to save the output file
     output_file_name: str  # Name of the output file
     flush_cache: bool = False  # Whether to flush the cache after processing

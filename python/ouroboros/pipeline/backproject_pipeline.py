@@ -191,8 +191,8 @@ class BackprojectPipelineStep(PipelineStep):
 
         # Allocate procs equally between BP math and writing; 1:2 if scaling.
         self.execution_resources = {
-            "backproject_processes": int(config.process_count // (3 if scaling factors else 2)),
-            "writer_processes": int(config.process_count // (1.5 if scaling_factors else 2)),
+            "backproject_processes": int(config.process_count // (3 if scaling_factors is not None else 2)),
+            "writer_processes": int(config.process_count // (1.5 if scaling_factors is not None else 2)),
             "intermediate_threads_per_process": 12,
         }
 

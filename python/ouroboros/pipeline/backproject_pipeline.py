@@ -120,9 +120,7 @@ class BackprojectPipelineStep(PipelineStep):
             )
 
             # Save the straightened volume to a new tif file
-            input_is_big_tiff = calculate_gigabytes_from_dimensions(
-                (*astuple(volume_info.shape), volume_info.channels), volume_info.dtype
-            ) > 4
+            input_is_big_tiff = is_big_tiff(astuple(volume_info.shape), None, volume_info.channels, volume_info.dtype)
             # The output folder may be the input folder. Capture its members
             # before creating the temporary TIFF so it cannot read itself.
             images = get_sorted_tif_files(volume_info.path) if volume_info.path.is_dir() else None
@@ -158,16 +156,26 @@ class BackprojectPipelineStep(PipelineStep):
         folder_path = Path(config.output_file_folder, pipeline_input.output_file_path)
         folder_path.mkdir(exist_ok=True, parents=True)
 
+        # Determine scaling factors, before calculating output size.
+        if pipeline_input.slice_options.output_mip_level != config.output_mip_level:
+            scaling_factors = calculate_scaling_factors(
+                pipeline_input.source_url,
+                pipeline_input.slice_options.output_mip_level,
+                config.output_mip_level,
+                write_shape
+            )
+        else:
+            scaling_factors = None
+
         # Intermediate Path
         i_path = Path(config.output_file_folder, f"{os.getpid()}_{config.output_file_name}")
 
         output_dtype = np.uint8 if config.make_backprojection_binary else np.uint16
-        page_is_big_tiff = calculate_gigabytes_from_dimensions(
-            (*write_shape[1:], volume_info.channels), output_dtype
-        ) > 4
-        is_big_tiff = calculate_gigabytes_from_dimensions(
-            (*write_shape, volume_info.channels), output_dtype
-        ) > 4 if config.make_single_file else page_is_big_tiff
+        page_is_big_tiff = is_big_tiff(write_shape[1:], scaling_factors[1:] if scaling_factors is not None else None,
+                                       volume_info.channels, output_dtype)
+        volume_is_big_tiff = is_big_tiff(
+            write_shape, scaling_factors, volume_info.channels, output_dtype
+        ) if config.make_single_file else page_is_big_tiff
 
         # Generate image writing function
         # Combining compression with binary images can cause issues.
@@ -178,16 +186,6 @@ class BackprojectPipelineStep(PipelineStep):
                             backprojection_offset=bp_offset,
                             photometric=volume_info.photometric,
                             **({"planarconfig": "contig"} if volume_info.channels > 1 else {}))
-
-        if pipeline_input.slice_options.output_mip_level != config.output_mip_level:
-            scaling_factors, _ = calculate_scaling_factors(
-                pipeline_input.source_url,
-                pipeline_input.slice_options.output_mip_level,
-                config.output_mip_level,
-                write_shape
-            )
-        else:
-            scaling_factors = None
 
         # Allocate procs equally between BP math and writing; 1:2 if scaling.
         self.exec_config = {
@@ -306,7 +304,7 @@ class BackprojectPipelineStep(PipelineStep):
         if config.make_single_file:
             self.set_stage("exporting_tiff")
             pipeline_input.output_file_path += ".tif"
-            with tifffile.TiffWriter(folder_path.with_suffix(".tif"), bigtiff=is_big_tiff) as output_tiff:
+            with tifffile.TiffWriter(folder_path.with_suffix(".tif"), bigtiff=volume_is_big_tiff) as output_tiff:
                 writer = tif_write(output_tiff.write)
                 for fname in get_sorted_tif_files(folder_path):
                     writer(tifffile.imread(folder_path.joinpath(fname)))
@@ -435,26 +433,15 @@ def process_chunk(
     return durations, intermediate_bytes, index, z_stack + offset[0]
 
 
+def is_big_tiff(write_shape: list[int], scaling_factors: np.ndarray[int], channels: int, output_dtype: np.dtype):
+    out_shape = np.multiply(write_shape, scaling_factors) if scaling_factors is not None else write_shape
+    return calculate_gigabytes_from_dimensions((*list(np.array(out_shape).astype(np.uint64)), channels), output_dtype) > 4
+
+
 def calculate_scaling_factors(
     source_url: str, current_mip: int, target_mip: int, tif_shape: tuple
-) -> tuple[tuple, tuple]:
-    # Determine the current and target resolutions
+) -> np.ndarray[np.float64]:
+    # Fetch the exact multi-image-pyramid (mip) resolutions from the source.
     mip_sizes = get_mip_volume_sizes(source_url)
 
-    current_resolution = mip_sizes[current_mip]
-    target_resolution = mip_sizes[target_mip]
-
-    # Determine the scaling factor for each axis as a tuple
-    resolution_factors = tuple(
-        max(target_resolution[i] / current_resolution[i], 1)
-        for i in range(len(target_resolution))
-    )
-
-    has_color_channels, num_channels = detect_color_channels_shape(tif_shape)
-
-    # Determine the scaling factor for each axis as a tuple
-    scaling_factors = resolution_factors + (
-        (num_channels,) if has_color_channels else ()
-    )
-
-    return scaling_factors, resolution_factors
+    return np.divide(mip_sizes[target_mip], mip_sizes[current_mip])

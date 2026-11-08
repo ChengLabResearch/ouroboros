@@ -188,24 +188,29 @@ def test_backprojection_owners_round_trip_through_pipeline_input_json(source_met
 
 
 @pytest.mark.parametrize(
-    "xyz,channels,single_file,binary,expected_bigtiff",
+    "xyz,channels,single_file,binary,expected_bigtiff,output_mip",
     [
         # The exact 617 x 2048 x 1630 output envelope reported in #218.
-        ((1630, 2048, 617), 3, True, False, True),
-        ((1630, 2048, 617), 1, True, False, False),
-        ((1630, 2048, 617), 3, True, True, True),
-        ((1630, 2048, 617), 1, True, True, False),
-        ((32768, 32768, 1), 3, False, False, True),
-        ((32768, 32768, 1), 1, False, False, False),
+        ((1630, 2048, 617), 3, True, False, True, 1),
+        ((1630, 2048, 617), 1, True, False, False, 1),
+        ((1630, 2048, 617), 3, True, True, True, 1),
+        ((1630, 2048, 617), 1, True, True, False, 1),
+        ((32768, 32768, 1), 3, False, False, True, 1),
+        ((32768, 32768, 1), 1, False, False, False, 1),
+        # Under 4 GiB at the slicing MIP; over it once upsampled to the output MIP (#231).
+        ((1024, 1024, 1024), 1, True, False, False, 1),
+        ((1024, 1024, 1024), 1, True, False, True, 0),
+        ((32768, 32768, 1), 1, False, False, True, 0),
     ],
 )
 def test_backprojection_bigtiff_reaches_the_writer(
-    tmp_path, monkeypatch, source_metadata, xyz, channels, single_file, binary, expected_bigtiff,
+    tmp_path, monkeypatch, source_metadata, xyz, channels, single_file, binary, expected_bigtiff, output_mip,
 ):
     slicing, options = _options(tmp_path)
     options.make_single_file = single_file
     options.make_backprojection_binary = binary
     options.backprojection_compression = "none"
+    options.output_mip_level = output_mip
     pixels = np.ones((2, 2, channels), dtype=np.uint16)
     tifffile.imwrite(options.straightened_volume_path, pixels,
                      photometric="rgb" if channels == 3 else "minisblack")

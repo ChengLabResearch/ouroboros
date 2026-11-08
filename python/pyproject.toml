@@ -16,7 +16,7 @@ build-server-executable = "pyinstaller:build_server_executable"
 python = ">=3.11,<3.13"
 numpy = "^1.26.4"
 scipy = "1.11.2"
-cloud-volume = { url = "https://github.com/den-sq/cloud-volume/releases/download/v12.7.0a0/cloud_volume-12.7.0a0-py3-none-any.whl", extras = ["all"] }
+cloud-volume = { url = "https://github.com/den-sq/cloud-volume/releases/download/v12.7.0a0/cloud_volume-12.7.0a0-py3-none-any.whl", extras = ["all-codecs", "all-viewers", "boss", "dask", "zarr"] }
 compresso = "^3.0.0"
 tifffile = "^2024.6.18"
 pydantic = "^2.7.4"

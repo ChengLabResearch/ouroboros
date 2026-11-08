@@ -142,9 +142,9 @@ class RunStatistics:
         else:
             source = cache.cv if cache is not None else None
             flush_requested = cache.flush_cache if cache is not None else None
-        resources = [{"step": step.step_name, **step.execution_resources}
+        resources = [{"step": step.step_name, **step.exec_config}
                      for step in (pipeline.steps if pipeline else [])
-                     if getattr(step, "execution_resources", None)]
+                     if getattr(step, "exec_config", None)]
         outcomes = {"done": "succeeded", "error": "failed", "interrupted": "interrupted"}
         return {
             "schema_version": 1,

@@ -230,7 +230,7 @@ def slice_volume_from_grids(
     """
     has_color_channels, num_channels = detect_color_channels(volume)
     if output.dtype != np.float32 or not output.flags.c_contiguous or not output.flags.writeable:
-        raise ValueError(f"output must be a writable C-contiguous float32 array.")
+        raise ValueError("Output must be a writable C-contiguous float32 array.")
     if not len(slice_indices):
         return output
 
@@ -411,11 +411,11 @@ class BackProjectIter(TFIter):
 
         # Slice rects for the chunk
         chunk_rects = (np.array(
-                        [self.__u_gap[chunk[0]] * start.U + self.__v_gap[chunk[0]] * start.V,
-                         self.__u_gap[chunk[0]] * (stop.U - 1) + self.__v_gap[chunk[0]] * start.V,
-                         self.__u_gap[chunk[0]] * (stop.U - 1) + self.__v_gap[chunk[0]] * (stop.V - 1),
-                         self.__u_gap[chunk[0]] * start.U + self.__v_gap[chunk[0]] * (stop.V - 1)])
-                       + self.__top_r[chunk[0]]).transpose(1, 0, 2)
+            [self.__u_gap[chunk[0]] * start.U + self.__v_gap[chunk[0]] * start.V,
+             self.__u_gap[chunk[0]] * (stop.U - 1) + self.__v_gap[chunk[0]] * start.V,
+             self.__u_gap[chunk[0]] * (stop.U - 1) + self.__v_gap[chunk[0]] * (stop.V - 1),
+             self.__u_gap[chunk[0]] * start.U + self.__v_gap[chunk[0]] * (stop.V - 1)])
+            + self.__top_r[chunk[0]]).transpose(1, 0, 2)
 
         # Bounding box for the specific chunk
         bbox = BoundingBox.from_rects(chunk_rects)

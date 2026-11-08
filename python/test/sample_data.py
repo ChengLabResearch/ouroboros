@@ -108,15 +108,24 @@ def generate_novel_neuroglancer_json(
 
     data = {
         "layers": [
-            {"type": "image", "source": "precomputed://http://sourcewebsite.com/image", "name": "image_layer"},
-            {"type": "image", "source": "http://sourcewebsite.com/image|neuroglancer-precomputed:", "name": "image_layer2"},
-            {"type": "image", "source": {"url": "precomputed://http://sourcewebsite.com/image2"}, "name": "other_image_layer"},
-            {"type": "image", "source": {"url": "http://sourcewebsite.com/image2|neuroglancer-precomputed:"}, "name": "other_image_layer2"},
-            {"type": "image", "source": {"url": "http://sourcewebsite.com/image2/|zarr:path/to/"}, "name": "other_image_layer3"},
-            {"type": "image", "source": {"url": "http://sourcewebsite.com/image2/|zarr2:path/to/"}, "name": "other_image_layer4"},
-            {"type": "image", "source": {"url": "http://sourcewebsite.com/image2/|zarr3:path/to/"}, "name": "other_image_layer5"},
-            {"type": "image", "source": "http://sourcewebsite.com/image/|n5:", "name": "image_layer3"},
-            {"type": "image", "source": "http://sourcewebsite.com/image/|n5:another/path/", "name": "image_layer4"},
+            {"type": "image", "name": "image_layer",
+             "source": "precomputed://http://sourcewebsite.com/image"},
+            {"type": "image", "name": "image_layer2",
+             "source": "http://sourcewebsite.com/image|neuroglancer-precomputed:"},
+            {"type": "image", "name": "other_image_layer",
+             "source": {"url": "precomputed://http://sourcewebsite.com/image2"}},
+            {"type": "image", "name": "other_image_layer2",
+             "source": {"url": "http://sourcewebsite.com/image2|neuroglancer-precomputed:"}},
+            {"type": "image", "name": "other_image_layer3",
+             "source": {"url": "http://sourcewebsite.com/image2/|zarr:path/to/"}},
+            {"type": "image", "name": "other_image_layer4",
+             "source": {"url": "http://sourcewebsite.com/image2/|zarr2:path/to/"}},
+            {"type": "image", "name": "other_image_layer5",
+             "source": {"url": "http://sourcewebsite.com/image2/|zarr3:path/to/"}},
+            {"type": "image", "name": "image_layer3",
+             "source": "http://sourcewebsite.com/image/|n5:"},
+            {"type": "image", "name": "image_layer4",
+             "source": "http://sourcewebsite.com/image/|n5:another/path/"},
         ]
     }
 

@@ -821,7 +821,8 @@ def test_writer_adapts_storage_to_geometry_channels_and_dtype(tmp_path, monkeypa
 
 @pytest.mark.parametrize("discrete", [False, True])
 @pytest.mark.parametrize("dtype, output_dtype", [(bool, np.uint8), (np.bool_, np.bool_), (np.dtype(bool), np.uint8)])
-def test_sparse_binary_conversion_preserves_dtype_truthiness_and_discrete_rounding(tmp_path, discrete, dtype, output_dtype):
+def test_sparse_binary_conversion_preserves_dtype_truthiness_and_discrete_rounding(tmp_path, discrete,
+                                                                                   dtype, output_dtype):
     source = tmp_path / "page.dat"
     _write_intermediate_file(source, [0, 1, 2, 3], [-2, 0, 1.5, 2.999], [1, 1, 1, 1])
     pages = []

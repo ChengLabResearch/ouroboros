@@ -1,26 +1,23 @@
-from ouroboros.common.memory_observer import dispatch_frozen_observer
-
-dispatch_frozen_observer()
-
-import argparse
-import json
-from multiprocessing import freeze_support
-from pathlib import Path
-import sys
-from uuid import uuid4
-
-import numpy as np
-from scipy.spatial.transform import Rotation as R
-
-from ouroboros.common.pipelines import geometry_pipeline
-from ouroboros.common.logging_mode import LoggingMode
-from ouroboros.common.server_handlers import handle_task
-from ouroboros.common.server_types import BackProjectTask, SliceTask
 from ouroboros.helpers.options import (
     DEFAULT_BACKPROJECT_OPTIONS,
     DEFAULT_SLICE_OPTIONS,
     SliceOptions,
 )
+from ouroboros.common.server_types import BackProjectTask, SliceTask
+from ouroboros.common.server_handlers import handle_task
+from ouroboros.common.logging_mode import LoggingMode
+from ouroboros.common.pipelines import geometry_pipeline
+from scipy.spatial.transform import Rotation as R
+import numpy as np
+from uuid import uuid4
+import sys
+from pathlib import Path
+from multiprocessing import freeze_support
+import json
+import argparse
+from ouroboros.common.memory_observer import dispatch_frozen_observer
+
+dispatch_frozen_observer()
 
 
 def main():

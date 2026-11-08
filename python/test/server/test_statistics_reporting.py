@@ -454,9 +454,8 @@ def test_docker_exports_science_then_cleans_before_report_delivery(run_fixture, 
     task = _task(state, operation)
     server_handlers.handle_task_docker(task)
     assert task.status == "done"
-    assert state.events == [
-        "memory-start", "scientific-output", "memory-stop", "collect-volumes", "export-main", "cleanup", "export-main-statistics",
-    ]
+    assert state.events == ["memory-start", "scientific-output", "memory-stop", "collect-volumes",
+                            "export-main", "cleanup", "export-main-statistics"]
     record = _record(task)
     assert record["outcome"] == "succeeded"
     assert record["execution"]["deployment"] == "docker"
@@ -707,6 +706,7 @@ def test_api_rejects_invalid_logging_mode_before_queueing(run_fixture, operation
 def test_api_explicit_reporting_default_off_and_publication_status(run_fixture, operation, monkeypatch):
     # sse-starlette retains a process-global event; each asyncio.run owns a new loop.
     monkeypatch.setattr(AppStatus, "should_exit_event", None)
+
     async def scenario():
         app = FastAPI()
         queued = []
@@ -865,7 +865,8 @@ def test_logging_modes_preserve_live_progress_durations_and_terminal_stream(
                 assert progress_updates == [0, 0.4, 1]
                 stream = await client.get(f"/{operation}_status_stream/", params={"task_id": task.task_id})
                 assert stream.text.count("event: done_event") == 1
-                payload, = [line.removeprefix("data: ") for line in stream.text.splitlines() if line.startswith("data: ")]
+                payload, = [line.removeprefix("data: ")
+                            for line in stream.text.splitlines() if line.startswith("data: ")]
                 assert json.loads(payload) == status
                 assert len(run_fixture.collected) == collected_before + int(enabled)
                 assert len(run_fixture.memory_events) == memory_before + 2 * int(mode.memory_enabled)
@@ -904,7 +905,7 @@ def test_disabled_reporting_keeps_failed_task_active_through_docker_cleanup(run_
         create_api(app, docker=True)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post("/slice/", params={"options": str(state.slice_path),
-                                                          "logging_mode": "off"})
+                                                            "logging_mode": "off"})
             assert response.status_code == 200
             task = queued[0]
             with ThreadPoolExecutor(1) as pool:
@@ -1046,7 +1047,7 @@ def test_docker_status_tracks_actual_input_output_cleanup_and_publication_bounda
 
 
 @pytest.mark.parametrize("failure, expected", [("input", "loading_input"), ("output", "returning_output"),
-                                              ("cleanup", "cleanup"), ("both", "processing")])
+                                               ("cleanup", "cleanup"), ("both", "processing")])
 def test_failure_phase_preserves_first_failure_across_cleanup(run_fixture, monkeypatch, failure, expected):
     state = run_fixture
     _docker_transport(state, monkeypatch)

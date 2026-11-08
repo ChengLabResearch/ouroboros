@@ -38,7 +38,7 @@ class _WindowsAPI:
         self.OpenProcess.restype = ctypes.c_void_p
         self.GetProcessMemoryInfo = psapi.GetProcessMemoryInfo
         self.GetProcessMemoryInfo.argtypes = [ctypes.c_void_p, ctypes.POINTER(_ProcessMemoryCountersEX2),
-                                             ctypes.c_uint32]
+                                              ctypes.c_uint32]
         self.GetProcessMemoryInfo.restype = ctypes.c_int32
         self.CloseHandle = kernel32.CloseHandle
         self.CloseHandle.argtypes = [ctypes.c_void_p]

@@ -373,7 +373,7 @@ def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_
     if accumulator is None or accumulator.shape != (shape.C + 1, shape.Y * shape.X):
         accumulator = np.zeros((shape.C + 1, shape.Y * shape.X), dtype=np.float32)
     vol, nz = volume_from_intermediates(source_path, shape, discrete,
-                                      accumulator=accumulator, return_indices=True)
+                                        accumulator=accumulator, return_indices=True)
     perf["Merge Volume"] = time.perf_counter() - vol_start
     start = time.perf_counter()
     converted = np_convert(dtype, vol.reshape(shape.C, -1)[:, nz].T,
@@ -384,8 +384,7 @@ def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_
     output.reshape(-1, shape.C)[nz] = converted
     if scaling is not None:
         # CV2 is only 2D but we're resizing from the 1D image anyway at the moment.
-        new_volume = cv2.resize(
-                        output, None, fx=scaling[1], fy=scaling[2], interpolation=interpolation)
+        new_volume = cv2.resize(output, None, fx=scaling[1], fy=scaling[2], interpolation=interpolation)
         perf["Zoom"] = time.perf_counter() - start
         start = time.perf_counter()
         for i in range(round(scaling[0])):

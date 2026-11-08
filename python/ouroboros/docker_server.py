@@ -1,17 +1,15 @@
-from ouroboros.common.memory_observer import dispatch_frozen_observer
-
-dispatch_frozen_observer()
-
-from multiprocessing import freeze_support
-
-import uvicorn
-
+from ouroboros.common.server_api import create_api
 from ouroboros.common.server import (
     DOCKER_HOST,
     DOCKER_PORT,
     create_server,
 )
-from ouroboros.common.server_api import create_api
+import uvicorn
+from multiprocessing import freeze_support
+from ouroboros.common.memory_observer import dispatch_frozen_observer
+
+dispatch_frozen_observer()
+
 
 app = create_server(docker=True)
 

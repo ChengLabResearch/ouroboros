@@ -33,7 +33,7 @@ def test_cli_rejects_duplicate_modes(monkeypatch):
 
 
 @pytest.mark.parametrize("modes", [list(LoggingMode), [LoggingMode.STANDARD],
-                                  [LoggingMode.DETAILED, LoggingMode.STANDARD]])
+                                   [LoggingMode.DETAILED, LoggingMode.STANDARD]])
 def test_every_round_runs_each_mode_once_and_rotates_first_mode(modes):
     rounds = [benchmark.modes_for_round(modes, index) for index in range(len(modes) * 2)]
     assert all(len(order) == len(modes) and set(order) == set(modes) for order in rounds)
@@ -70,7 +70,8 @@ def test_all_modes_compare_each_round_to_off_regardless_of_selection_order():
         comparison = result["comparisons"][mode]
         assert comparison["median_elapsed_overhead_percent"] == pytest.approx(expected)
         assert [row["round"] for row in comparison["per_round_overhead_percent"]] == [1, 2, 3]
-        assert [row["overhead_percent"] for row in comparison["per_round_overhead_percent"]] == pytest.approx([expected] * 3)
+        assert [row["overhead_percent"]
+                for row in comparison["per_round_overhead_percent"]] == pytest.approx([expected] * 3)
         assert "measured_median_at_most_one_percent" in comparison
     assert result["comparisons"]["detailed"]["measured_median_at_most_one_percent"] is False
 
@@ -177,7 +178,7 @@ def test_detailed_run_requires_ram_sample_by_default(tmp_path, child_outputs, sc
 @pytest.mark.parametrize("scope", ["handler", "pipeline"])
 def test_tolerant_detailed_run_retains_timings_memory_and_pixels(tmp_path, child_outputs, scope):
     result, output = benchmark.run_once(tmp_path, "slice", {}, LoggingMode.DETAILED,
-                                       4, "detailed", 30, scope, require_memory=False)
+                                        4, "detailed", 30, scope, require_memory=False)
     assert result["handler_elapsed_seconds"] == 1.0
     if scope == "pipeline":
         assert result["pipeline_elapsed_seconds"] == 0.8

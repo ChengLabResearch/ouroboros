@@ -15,7 +15,7 @@ from ouroboros.helpers.shapes import SinoOrder, ProjOrder, ReconOrder
 def test_alt_creation():
     po = ProjOrder(Y=12, Theta=1501, X=2048)
     with SharedNPManager(queue_mem=[(po.to(SinoOrder), np.uint16), ((po, np.uint16), (ReconOrder.of(po), np.uint16))]) \
-         as (_snm, sino_mem, proj_mem, recon_mem):
+            as (_snm, sino_mem, proj_mem, recon_mem):
         assert sino_mem.shape == SinoOrder(Y=12, Theta=1501, X=2048)
         assert proj_mem.shape == ProjOrder(Y=12, Theta=1501, X=2048)
         assert recon_mem.shape == ReconOrder(Y=12, X=2048, Z=2048)

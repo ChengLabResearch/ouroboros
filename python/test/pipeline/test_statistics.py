@@ -262,7 +262,8 @@ def test_slice_worker_payload_matches_owned_arrays_and_reports_nested_timings(
     assert index == 0
     assert set(durations) == {"initial_load", "generate_grid", "slice_volume", "memmap_write", "total_process"}
     assert all(len(samples) == 1 and samples[0] > 0 for samples in durations.values())
-    assert sum(samples[0] for key, samples in durations.items() if key != "total_process") <= durations["total_process"][0]
+    assert sum(samples[0] for key, samples in durations.items()
+               if key != "total_process") <= durations["total_process"][0]
     assert len(observed["writes"]) == len(observed["grid"]) == len(slice_indices) * channels
     assert all(grid is observed["grid"][0] for grid in observed["grid"])
     assert len(observed["coefficients"]) == channels
@@ -407,7 +408,7 @@ def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(
         assert np.all(np.isfinite(actual_world_grids))
         # Bound the existing float32 grid arithmetic separately from filtering.
         np.testing.assert_allclose(actual_world_grids, world_grids, rtol=0,
-                                   atol=3*np.spacing(np.float32(rects.max())))
+                                   atol=3 * np.spacing(np.float32(rects.max())))
         if not clipped:
             # Retain the removed partition test's stack-wide numerical and
             # TIFF assignment checks using this existing smooth-field fixture.
@@ -437,7 +438,7 @@ def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(
             np.testing.assert_allclose(totals.sum(), sampled.sum(), rtol=1e-6)
             np.testing.assert_allclose(weights @ positions / weights.sum(),
                                        (world_grid + world_origin).mean(axis=(0, 1)), rtol=0,
-                                       atol=3*np.spacing(np.float32(rect.max())))
+                                       atol=3 * np.spacing(np.float32(rect.max())))
 
     # Preserve the established middle-plane bounds for this smooth field.
     # >8 voxels is a fixture-specific residual check, not a universal cutoff.
@@ -455,7 +456,7 @@ def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(
         else:
             np.testing.assert_array_max_ulp(sampled[interior], reference[interior], maxulp=32)
     if clipped:
-        np.testing.assert_allclose(results[0][interior], results[1][interior], rtol=0, atol=2*edge_tolerance)
+        np.testing.assert_allclose(results[0][interior], results[1][interior], rtol=0, atol=2 * edge_tolerance)
     else:
         np.testing.assert_array_max_ulp(results[0][interior], results[1][interior], maxulp=16)
 
@@ -634,7 +635,8 @@ def test_writer_preserves_nested_timings_with_reusable_storage(tmp_path, monkeyp
 @pytest.mark.parametrize("workers", [4, 8, 12])
 @pytest.mark.parametrize("failed_stage", ["startup", "download", "slice"])
 @pytest.mark.parametrize("enabled", [False, True])
-def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, monkeypatch, failed_stage, enabled, workers):
+def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, monkeypatch,
+                                                                    failed_stage, enabled, workers):
     options = slice_options(tmp_path)
     options.process_count = workers
     rects = make_rects()
@@ -654,10 +656,13 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
     class InlineExecutor:
         def __init__(self, *args, **kwargs):
             dispatched.append(kwargs["max_workers"])
+
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             pass
+
         def submit(self, func, **kwargs):
             future = concurrent.futures.Future()
             if func is slice_module.os.getpid:
@@ -679,15 +684,18 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
     monkeypatch.setattr(slice_module, "SharedNPManager", manager)
     # TIFF metadata creation predates the pinned tifffile API; keep this failure
     # fixture focused on dispatch and callback propagation.
-    monkeypatch.setattr(slice_module, "build_straightened_tiff_metadata", lambda **kwargs: {"photometric": "minisblack"})
+    monkeypatch.setattr(slice_module, "build_straightened_tiff_metadata",
+                        lambda **kwargs: {"photometric": "minisblack"})
     original_event = threading.Event
     wait_results = []
 
     class ObservedEvent:
         def __init__(self):
             self.event = original_event()
+
         def set(self):
             self.event.set()
+
         def wait(self):
             result = self.event.wait(timeout=1)
             wait_results.append(result)
@@ -696,16 +704,17 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
     monkeypatch.setattr(slice_module.threading, "Event", ObservedEvent)
     step = slice_module.SliceParallelPipelineStep()
     data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
-    output, error = Pipeline([step]).set_logging_mode(LoggingMode.STANDARD if enabled else LoggingMode.OFF).process(data)
+    output, error = Pipeline([step]).set_logging_mode(
+        LoggingMode.STANDARD if enabled else LoggingMode.OFF).process(data)
     assert output is None and f"{failed_stage} failed" in error
     assert wait_results == ([] if failed_stage == "startup" else [True])
     assert step.timing["status"] == "failed"
     assert step.get_progress() < 1
     assert step.get_duration() > 0
     assert dispatched == [workers // 4, workers * 3 // 4]
-    assert step.execution_resources["rewrite_threads"] == workers
-    assert step.execution_resources["download_processes"] == workers // 4
-    assert step.execution_resources["slice_processes"] == workers * 3 // 4
+    assert step.exec_config["rewrite_threads"] == workers
+    assert step.exec_config["download_processes"] == workers // 4
+    assert step.exec_config["slice_processes"] == workers * 3 // 4
     assert step.timing["custom_times"] == ({"Download Time": [0.25]} if enabled and failed_stage == "slice" else {})
 
 
@@ -762,10 +771,13 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
     class InlineExecutor:
         def __init__(self, *args, **kwargs):
             pass
+
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             pass
+
         def submit(self, func, **kwargs):
             future = concurrent.futures.Future()
             if getattr(func, "func", None) is slice_module.download_volume:
@@ -798,7 +810,8 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
 
     monkeypatch.setattr(slice_module.concurrent.futures, "ProcessPoolExecutor", InlineExecutor)
     monkeypatch.setattr(slice_module, "SharedNPManager", manager)
-    monkeypatch.setattr(slice_module, "build_straightened_tiff_metadata", lambda **kwargs: {"photometric": "minisblack"})
+    monkeypatch.setattr(slice_module, "build_straightened_tiff_metadata",
+                        lambda **kwargs: {"photometric": "minisblack"})
     monkeypatch.setattr(slice_module, "slice_volume_from_grids", interpolate_observed)
     monkeypatch.setattr(slice_module, rewrite_name, rewrite_observed)
     data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
@@ -809,10 +822,10 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
     assert mapped_shapes == [expected.shape] * len(counts)
     assert mapped_indices == [cache.get_slice_indices(index) for index in expected_order]
     assert cache.link_rects == mapping and cache.bounding_boxes == [box] * len(counts)
-    assert step.execution_resources["box_order"] == ("alternating_slice_count" if alternate else "partition")
+    assert step.exec_config["box_order"] == ("alternating_slice_count" if alternate else "partition")
     task = SliceTask(task_id="ordering", options="unused", pipeline=pipeline, pipeline_input=data)
     record = RunStatistics(task).to_record()
-    assert record["execution"]["workers"] == [{"step": step.step_name, **step.execution_resources}]
+    assert record["execution"]["workers"] == [{"step": step.step_name, **step.exec_config}]
     assert observed[0]["stage"] == "normalizing_and_writing"
     assert observed[0]["status"] == "running" and observed[0]["progress"] is None
     if fail:
@@ -860,10 +873,13 @@ def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
     class InlineExecutor:
         def __init__(self, count):
             submitted_resources.append(count)
+
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             pass
+
         def submit(self, func, **kwargs):
             future = concurrent.futures.Future()
             if func is backproject_module.process_chunk:
@@ -886,15 +902,16 @@ def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
         step.listen_for_progress(fail_completed_progress)
     data = PipelineInput(backproject_options=options, slice_options=slice_options(tmp_path),
                          source_url="memory://source", slice_rects=rects)
-    output, error = Pipeline([step]).set_logging_mode(LoggingMode.STANDARD if enabled else LoggingMode.OFF).process(data)
+    output, error = Pipeline([step]).set_logging_mode(
+        LoggingMode.STANDARD if enabled else LoggingMode.OFF).process(data)
     message = "cannot write output" if failure_source == "writer" else "cannot publish progress"
     assert output is None and message in error
     assert step.timing["status"] == "failed"
     if failure_source == "writer":
         assert step.get_progress() < 1
     assert step.get_duration() > 0
-    assert submitted_resources == [step.execution_resources["backproject_processes"],
-                                   step.execution_resources["writer_processes"]]
+    assert submitted_resources == [step.exec_config["backproject_processes"],
+                                   step.exec_config["writer_processes"]]
     assert "exception calling callback" not in caplog.text
     step.add_byte_count.assert_called_once_with("intermediate_payload_bytes", 24)
     assert step.byte_counts == ({"intermediate_payload_bytes": 24} if enabled else {})
@@ -922,10 +939,13 @@ def test_backproject_single_tiff_export_and_cleanup_keep_step_running(tmp_path, 
     class InlineExecutor:
         def __init__(self, count):
             pass
+
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             pass
+
         def submit(self, func, **kwargs):
             assert step.get_status()["stage"] == "backprojecting_and_writing"
             future = concurrent.futures.Future()
@@ -967,7 +987,7 @@ def test_backproject_single_tiff_export_and_cleanup_keep_step_running(tmp_path, 
         _, error = pipeline.process(data)
         assert error is None and step.get_status()["status"] == "succeeded"
         assert [item["stage"] for item in observed] == ["exporting_tiff", "cleaning_intermediates",
-                                                       "cleaning_intermediates"]
+                                                        "cleaning_intermediates"]
         assert (tmp_path / data.output_file_path).is_file()
     assert observed[0]["stage"] == "exporting_tiff"
     assert all(item["status"] == "running" and item["progress"] is None for item in observed)

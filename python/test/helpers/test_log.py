@@ -74,11 +74,11 @@ def test_log(capfd, tmp_path):
 
 def test_confirm(monkeypatch, tmp_path):
     new_log = Logger(log_screen={
-                "stdout": LOG.STATUS | LOG.TIME | LOG.INFO | LOG.DEBUG,
-                "stderr": LOG.ERROR | LOG.WARN
-            }, log_files={
-                "general": (Path(tmp_path, f"imaging_log_{str(datetime.now()).replace(':', '')}.txt"), ~(LOG.INFO))
-            })
+        "stdout": LOG.STATUS | LOG.TIME | LOG.INFO | LOG.DEBUG,
+        "stderr": LOG.ERROR | LOG.WARN
+    }, log_files={
+        "general": (Path(tmp_path, f"imaging_log_{str(datetime.now()).replace(':', '')}.txt"), ~(LOG.INFO))
+    })
 
     # Attach func for testing attach calls.
     new_log.attach_func(attach_test)
@@ -99,11 +99,11 @@ def test_confirm(monkeypatch, tmp_path):
 
 def test_out_set(capfd, tmp_path):
     new_log = Logger(log_screen={
-                "stdout": None,
-                "stderr": LOG.ERROR | LOG.WARN
-            }, log_files={
-                "general": (Path(tmp_path, f"imaging_log_{str(datetime.now()).replace(':', '')}.txt"), ~(LOG.INFO))
-            })
+        "stdout": None,
+        "stderr": LOG.ERROR | LOG.WARN
+    }, log_files={
+        "general": (Path(tmp_path, f"imaging_log_{str(datetime.now()).replace(':', '')}.txt"), ~(LOG.INFO))
+    })
 
     x = io.StringIO()
     new_log.header(out=x)

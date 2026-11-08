@@ -26,9 +26,12 @@ DEFAULT_INTERVAL_SECONDS = 1.0
 _OBSERVER_MODULE = "ouroboros.common.memory_observer"
 _OBSERVER_FLAG = "--ouroboros-memory-observer"
 _METRICS = {
-    "Linux": ("process_tree_nonshmem_pss_plus_managed_resident_bytes", "smaps_rollup Pss - Pss_Shmem + managed segment mincore"),
-    "Windows": ("process_tree_private_resident_plus_managed_allocated_bytes", "PrivateWorkingSetSize + manager-owned allocation sizes"),
-    "Darwin": ("process_tree_private_plus_managed_resident_bytes", "libproc private residency + managed segment mincore"),
+    "Linux": ("process_tree_nonshmem_pss_plus_managed_resident_bytes",
+              "smaps_rollup Pss - Pss_Shmem + managed segment mincore"),
+    "Windows": ("process_tree_private_resident_plus_managed_allocated_bytes",
+                "PrivateWorkingSetSize + manager-owned allocation sizes"),
+    "Darwin": ("process_tree_private_plus_managed_resident_bytes",
+               "libproc private residency + managed segment mincore"),
 }
 
 
@@ -40,7 +43,6 @@ def unavailable(reason, *, status="unavailable"):
             "sampling": None,
             **({"reason": reason, "errors": []} if status == "disabled" else
                {"errors": [{"kind": "collector", "count": 1, "example": reason}]})}
-
 
 
 def _read_json(path):
@@ -207,7 +209,7 @@ class Samples:
             sampling={
                 "requested_interval_seconds": self.interval,
                 "observed_interval_seconds": {"min": min(intervals, default=None),
-                                               "max": max(intervals, default=None)},
+                                              "max": max(intervals, default=None)},
                 "complete_samples": len(results), "incomplete_samples": len(failures),
                 "discarded_samples": len(discarded),
                 "max_process_count": max((count for _, count in results), default=0),
@@ -278,8 +280,8 @@ class MemoryCollector:
                         reason = "; ".join(error["example"] for error in self.summary["errors"])
                     else:
                         reason = (directory / "stderr.txt").read_text(errors="replace")[-1000:]
-                    raise RuntimeError("Memory observer did not become ready: " +
-                                       reason)
+                    raise RuntimeError("Memory observer did not become ready: "
+                                       + reason)
                 time.sleep(0.01)
             _write_json(directory / "start.json", time.perf_counter())
         except BaseException:
@@ -296,8 +298,9 @@ class MemoryCollector:
             self.summary = _read_json(directory / "result.json")
             if self.manager_context is not None and self.manager_context.failure_flag.value:
                 self.summary.update(status="unavailable", sampled_peak_bytes=None, last_complete_sample_bytes=None)
-                self.summary["errors"].append({"kind": "manager_observation", "count": 1,
-                                               "example": "A manager snapshot could not be published; coverage is unknown"})
+                self.summary["errors"].append({
+                    "kind": "manager_observation", "count": 1,
+                    "example": "A manager snapshot could not be published; coverage is unknown"})
         except Exception as error:
             self.summary = unavailable(f"Memory observer failed: {type(error).__name__}: {error}")
         finally:

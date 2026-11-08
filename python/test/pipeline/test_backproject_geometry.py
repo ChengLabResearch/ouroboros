@@ -244,7 +244,7 @@ def test_backprojection_bigtiff_reaches_the_writer(
                 assert (kwargs["shape"].X, kwargs["shape"].Y) == xyz[:2]
                 kwargs["source_path"].parent.mkdir(exist_ok=True)
                 kwargs["writer"](kwargs["target_folder"] / "0.tif",
-                                  data=pixels.astype(np.uint8 if binary else np.uint16))
+                                 data=pixels.astype(np.uint8 if binary else np.uint16))
                 future.set_result({})
             return future
 

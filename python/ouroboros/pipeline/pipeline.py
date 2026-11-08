@@ -99,7 +99,7 @@ class PipelineStep(ABC):
         }
         self._timing_metadata = {}
         self.byte_counts = {}
-        self.execution_resources = {}
+        self.exec_config = {}
         self.progress = 0
         self.stage = None
         self._stage_determinate = True

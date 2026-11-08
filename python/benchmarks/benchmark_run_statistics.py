@@ -6,8 +6,6 @@ generate local CloudVolume chunks; --real-slice-options uses an existing dataset
 """
 
 from __future__ import annotations
-from ouroboros.common.logging_mode import LoggingMode
-
 import argparse
 import hashlib
 import importlib.metadata
@@ -24,6 +22,8 @@ import time
 
 PYTHON_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PYTHON_ROOT))
+
+from ouroboros.common.logging_mode import LoggingMode
 
 
 def write_json(path: Path, value: object) -> None:
@@ -330,12 +330,12 @@ def benchmark(args: argparse.Namespace) -> None:
                   "timers remain enabled in every mode. Output pixel hashing follows all timed boundaries."
                   if args.scope == "pipeline" else
                   ("Native CLI handler including options load, pipeline,"
-                   "report formatting, stdout flush, and report write; no Docker transfer.")),
+                   " report formatting, stdout flush, and report write; no Docker transfer.")),
         "elapsed_field": elapsed_field,
         "cache_policy": ("Warm filesystem and CloudVolume caches; one warmup of the first selected mode per operation."
                          if args.scope == "pipeline" else
                          ("Warm filesystem and CloudVolume caches;"
-                          "one unmeasured run of each selected mode per operation.")),
+                          " one unmeasured run of each selected mode per operation.")),
         "hardware": {"platform": platform.platform(), "processor": cpu_model,
                      "logical_cpus": os.cpu_count(), "python": platform.python_version(),
                      "cpu_affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None},
@@ -586,7 +586,7 @@ def main() -> None:
                         help="Reuse this CloudVolume chunk cache in real-data mode.")
     parser.add_argument("--resume-real-data", action="store_true",
                         help=("Finish remaining real-data trials,"
-                              "preserving completed and failed attempts without retry."))
+                              " preserving completed and failed attempts without retry."))
     parser.add_argument("--scope", choices=("handler", "pipeline"), default="handler",
                         help=("Timing boundary; pipeline excludes all final reporting."
                               " Pixel hashing is outside both timers."))

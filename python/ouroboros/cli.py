@@ -1,3 +1,7 @@
+from ouroboros.common.memory_observer import dispatch_frozen_observer
+
+dispatch_frozen_observer()
+
 from ouroboros.helpers.options import (
     DEFAULT_BACKPROJECT_OPTIONS,
     DEFAULT_SLICE_OPTIONS,
@@ -15,9 +19,6 @@ from pathlib import Path
 from multiprocessing import freeze_support
 import json
 import argparse
-from ouroboros.common.memory_observer import dispatch_frozen_observer
-
-dispatch_frozen_observer()
 
 
 def main():

@@ -1,12 +1,12 @@
+from ouroboros.common.memory_observer import dispatch_frozen_observer
+
+dispatch_frozen_observer()
+
 from ouroboros.common.server_api import create_api
 from ouroboros.common.server import HOST, PORT
 from ouroboros.common.server import create_server
 import uvicorn
 from multiprocessing import freeze_support
-from ouroboros.common.memory_observer import dispatch_frozen_observer
-
-dispatch_frozen_observer()
-
 
 app = create_server()
 

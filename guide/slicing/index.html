@@ -11,7 +11,7 @@
     
     <meta name="author" content="Weaver Goldman and David Northover"> 
     
-    <link rel="canonical" href="https://wegold.me/ouroboros/guide/slicing/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
+    <link rel="canonical" href="https://chenglabresearch.github.io/ouroboros/guide/slicing/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="../../img/android-chrome-512x512.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="../../img/apple-touch-icon.png" />
 <link rel="shortcut icon" type="image/png" sizes="48x48" href="../../img/favicon.ico" />
@@ -85,7 +85,7 @@
 <body class="terminal"><div class="container">
     <div class="terminal-nav">
         <header class="terminal-logo">
-            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://wegold.me/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
+            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://chenglabresearch.github.io/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
         </header>
         
         <nav class="terminal-menu">
@@ -404,6 +404,32 @@
     
     </li>
             
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/shared-memory-lifecycle/">Shared Memory Lifecycle</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/status-presentation/">Status Presentation</a>
+        
+    
+    </li>
+            
             
     </ul>
         
@@ -474,6 +500,8 @@
 </ul>
 </li>
 <li><code>Output Single File</code> - Whether to output one tiff stack file or a folder of files.</li>
+<li><code>Normalize Output</code> - Whether to normalize the output data.</li>
+<li><code>Zero-Guard Output</code> - Whether to fix sub-zero slice values that may cause overflow artifacts.</li>
 <li><code>Performance Logging</code> - Choose <strong>Off</strong> (the default) for no performance report, <strong>Standard</strong> to save performance reports and per-step statistics without monitoring RAM, or <strong>Detailed (with RAM)</strong> to save the full report including RAM measurements. RAM monitoring adds overhead. Progress bars and basic step timings remain available in all three modes. The choice is saved as <code>logging_mode</code> with your options. Older <code>reporting_enabled</code> values load as Off for <code>false</code> and Detailed for <code>true</code>; an explicit <code>logging_mode</code> takes precedence, and missing settings reset to Off. The saved preference applies to desktop runs; CLI runs select their mode with <code>--logging-mode off|standard|detailed</code>, defaulting to Off independently of the saved preference.</li>
 <li><code>Bounding Box Parameters</code><ul>
 <li><code>Max Depth</code> - Limits how many times a bounding box can be subdivided. Reaching this limit can leave a large task.</li>
@@ -484,13 +512,13 @@
 <h3 id="how-does-slicing-work">How Does Slicing Work?</h3>
 <p><strong>Spline Fitting</strong></p>
 <p>Ouroboros fits a spline curve to the annotation path from the Neuroglancer JSON file. This produces a smooth, differentiable curve along the length of the annotations. </p>
-<p>If the line segments between annotation points were used, then there would could be highly discontinuous slice transitions around sharp corners.</p>
+<p>If the line segments between annotation points were used, then there could be highly discontinuous slice transitions around sharp corners.</p>
 <p><strong>Slice Coordinate Frames</strong></p>
 <p>Ouroboros calculates equidistant points along the spline curve. Each point is "1" apart from the previous to match the appearance of isotropic slices taken from one of the axes of the coordinate space of the full volume (the coordinate space of the annotation points).</p>
 <p>To follow any possible path, each point must have its own coordinate frame normal to the spline. For easier segmentation, it is also important that the axes of the point coordinate frames don't flip between points. </p>
-<p>To achieve this, Ouroboros <a href="https://github.com/We-Gold/ouroboros/blob/05bac7b1a0a45d6c93e70cc3220397ebc7e11f8b/python/ouroboros/helpers/spline.py#L96">calculates rotation-minimizing frames</a> based on the change in orientation of the tangent vectors of adjacent points.</p>
+<p>To achieve this, Ouroboros <a href="https://github.com/ChengLabResearch/ouroboros/blob/05bac7b1a0a45d6c93e70cc3220397ebc7e11f8b/python/ouroboros/helpers/spline.py#L96">calculates rotation-minimizing frames</a> based on the change in orientation of the tangent vectors of adjacent points.</p>
 <p><strong>Rectangles and Grids</strong></p>
-<p>Ouroboros calculates the corners of the slice rectangle at using each point and its associated coordinate axes (as vectors).</p>
+<p>Ouroboros calculates the corners of the slice rectangle using each point and its associated coordinate axes (as vectors).</p>
 <p><em>Pseudocode</em></p>
 <pre><code class="language-python">width_vector # 'u' unit vector scaled to slice width / 2 
 height_vector # 'v' unit vector scaled to slice height / 2
@@ -506,7 +534,7 @@ bottom_left = point - width_vector - height_vector
 <p>Ouroboros groups slices into bounding boxes, using the full rectangle corners to keep every slice inside its assigned volume. It evaluates several spatial and path-order splits to reduce the largest estimated slicing-task payload. The selected partition requests no more cumulative volume than the reference partition made with the same bounding-box options. Geometry and subdivision limits can prevent further improvement; the partitioner does not measure available RAM or guarantee that a run will fit in memory. <a href="../../reference/bounding-box-partitioning/">Bounding box partitioning</a> describes the cost model and stopping rules.</p>
 <p>Ouroboros downloads each bounding box from the integer voxel at <code>floor(min)</code> through <code>ceil(max)</code>, inclusive on every axis. Slice coordinates and backprojection use this same integer origin. Regions outside the source volume remain zero-filled.</p>
 <p>For each volume, <code>scipy.ndimage.map_coordinates</code> extracts values at the slice grid coordinates using cubic interpolation with its default prefilter. Changing bounding boxes can change the prefilter's boundary effects and float32 coordinate rounding. The filtering effect decays with distance but has no fixed voxel-distance cutoff; no extra padding is downloaded to reduce it.</p>
-<p>Each of these slices are saved as local tiff images and are later combined into a single output tiff.</p>
+<p>Each slice is written into a temporary TIFF as it is completed. After all slices finish, Ouroboros normalizes them and writes the final output, either a single tiff stack or a folder of tiffs.</p>
 </section>
 
             </main>
@@ -515,7 +543,7 @@ bottom_left = point - width_vector - height_vector
     <div class="terminal-mkdocs-footer-grid">
         <div id="terminal-mkdocs-footer-copyright-info">
             
-            <p class="text-center text-muted">Copyright 2024=2025 Weaver Goldman and David Northover, All rights reserved</p>
+            <p class="text-center text-muted">Copyright 2024-2025 Weaver Goldman and David Northover, All rights reserved</p>
              Site built with <a href="http://www.mkdocs.org">MkDocs</a> and <a href="https://github.com/ntno/mkdocs-terminal">Terminal for MkDocs</a>.
         </div>
         <div id="terminal-mkdocs-footer-prev-next">

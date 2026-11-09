@@ -11,7 +11,7 @@
     
     <meta name="author" content="Weaver Goldman and David Northover"> 
     
-    <link rel="canonical" href="https://wegold.me/ouroboros/guide/backproject/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
+    <link rel="canonical" href="https://chenglabresearch.github.io/ouroboros/guide/backproject/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="../../img/android-chrome-512x512.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="../../img/apple-touch-icon.png" />
 <link rel="shortcut icon" type="image/png" sizes="48x48" href="../../img/favicon.ico" />
@@ -85,7 +85,7 @@
 <body class="terminal"><div class="container">
     <div class="terminal-nav">
         <header class="terminal-logo">
-            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://wegold.me/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
+            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://chenglabresearch.github.io/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
         </header>
         
         <nav class="terminal-menu">
@@ -404,6 +404,32 @@
     
     </li>
             
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/shared-memory-lifecycle/">Shared Memory Lifecycle</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/status-presentation/">Status Presentation</a>
+        
+    
+    </li>
+            
             
     </ul>
         
@@ -441,7 +467,7 @@
 <nav>
     <ul>
         <li><a href="#backprojection">Backprojection</a></li>
-        <li><a href="#using-the-backproject-page">Using the Backproject Page</a></li><li><a href="#slicing-options">Slicing Options</a></li><li><a href="#how-does-backprojection-work">How Does Backprojection Work?</a></li>
+        <li><a href="#using-the-backproject-page">Using the Backproject Page</a></li><li><a href="#backprojection-options">Backprojection Options</a></li><li><a href="#how-does-backprojection-work">How Does Backprojection Work?</a></li>
     </ul>
 </nav>
 </aside>
@@ -463,9 +489,8 @@
 <li><code>none</code> (no compression, not recommended)</li>
 </ul>
 <p>For more information, see <a href="https://github.com/cgohlke/tifffile/blob/166092f3e7b38cd1af430846157711f916ed5200/tifffile/tifffile.py#L13068C9-L13068C20">Tifffile</a>, the Python package responsible for the compression.</p>
-<p><strong>Output Position Offset</strong></p>
-<p>By default, the slicing output tiff image is backprojected into the space of its minimum bounding box, rather than the space of the entire source scan.</p>
-<p>The offset of the minimum bounding box is stored in the output tiff's description metadata. It is also stored in the configuration file (which is modified by the backproject step).</p>
+<p><strong>Output Position</strong></p>
+<p>Backprojection writes only the minimum bounding box of the slices, rather than the space of the entire source scan. To allow placing outputs - such as segmentations - in the correct place, the minimum corner at the output MIP level is recorded in the output name, <code>&lt;Output File Name&gt;_&lt;x&gt;_&lt;y&gt;_&lt;z&gt;</code>. These values can be negative when slices extend past the edge of the source volume; that part of the output contains no data.</p>
 <p><strong>Plugin Segmentation Inputs</strong></p>
 <p>The <code>Straightened Volume File</code> can be the segmentation TIFF produced by the autoseg plugin, as long as it was generated from the same slicing configuration selected in <code>Slice Options File</code>.</p>
 <p>Ouroboros checks the plugin output before backprojection:</p>
@@ -475,34 +500,39 @@
 <li>Compressed plugin TIFFs are accepted when tifffile can read them; Ouroboros rewrites compressed or non-memmappable inputs to an uncompressed temporary stack before processing.</li>
 </ul>
 <p>Shape mismatches, dtype mismatches, and missing slice configuration report separate errors so plugin output problems do not require manual reshaping to diagnose.</p>
-<h3 id="slicing-options">Slicing Options</h3>
+<h3 id="backprojection-options">Backprojection Options</h3>
 <p>📁 - Drag and drop files from File Explorer panel into this option.</p>
 <ul>
 <li>📁 <code>Straightened Volume File</code> - Path to the volume of slices to backproject (e.g. the output tif of the slicing step).</li>
-<li>📁 <code>Slice Options File</code> - Path to the <code>-slice-options.json</code> file which includes the information needed for backprojection.</li>
+<li>📁 <code>Slice Options File</code> - Path to the <code>-slice-options.json</code> file saved by the Slice page, which includes the information needed for backprojection.</li>
 <li>📁 <code>Output File Folder</code> - The folder to save all the resulting files into.</li>
 <li><code>Output File Name</code> - Base name for all output files.</li>
-<li><code>Output MIP Level</code> - The MIP level to output the backprojection in (essentially an upsample option). Use this if you downsampled in the slicing step; downsampling changes are currently ignored.</li>
-<li><code>Upsample Order</code> - The interpolation order Ouroboros uses to interpolate values from a lower MIP level. If you check the binary option, feel free to set this to 0.</li>
-<li><code>Backprojection Compression</code> - The compression option to use for the backprojected tiff(s). Recommended options: <code>none</code>, <code>zlib</code>, <code>zstd</code>.</li>
+<li><code>Output MIP Level</code> - The MIP level to write the backprojection at. Choose a level finer than the slicing MIP level to upsample, for example if you downsampled in the slicing step. A level coarser than the slicing MIP level is rejected with an error.</li>
+<li><code>Upsample Order</code> - The OpenCV interpolation used to resize each page when upsampling: 0 nearest, 1 linear, 2 cubic (the default), 3 area, 4 Lanczos. If you check the binary option, feel free to set this to 0.</li>
+<li><code>Backprojection Compression</code> - The compression to use for the backprojected tiff(s); the default is <code>zlib</code>. See <a href="#using-the-backproject-page">Compression Options</a>.</li>
 <li><code>Output Single File</code> - Whether to output one tiff stack file or a folder of files.</li>
 <li><code>Performance Logging</code> - Choose <strong>Off</strong> (the default) for no performance report, <strong>Standard</strong> to save performance reports and per-step statistics without monitoring RAM, or <strong>Detailed (with RAM)</strong> to save the full report including RAM measurements. RAM monitoring adds overhead. Progress bars and basic step timings remain available in all three modes. The choice is saved as <code>logging_mode</code> with your options. Older <code>reporting_enabled</code> values load as Off for <code>false</code> and Detailed for <code>true</code>; an explicit <code>logging_mode</code> takes precedence, and missing settings reset to Off. The saved preference applies to desktop runs; CLI runs select their mode with <code>--logging-mode off|standard|detailed</code>, defaulting to Off independently of the saved preference.</li>
-<li><code>Output Min Bounding Box</code> - Save only the minimum volume needed to contain the backprojected slices. The offset will be stored in the <code>-configuration.json</code> file under <code>backprojection_offset</code>. This value is the (x_min, y_min, z_min).</li>
-<li><code>Binary Backprojection</code> - Whether or not to binarize all the values of the backprojection. Enable this to backproject a segmentation.</li>
-<li><code>Offset in Filename</code> - Whether or not to include the (x_min, y_min, z_min) offset for min bounding box in the output file name. Only applies if <code>Output Min Bounding Box</code> is true.</li>
+<li><code>Binary Backprojection</code> - Whether or not to binarize all the values of the backprojection. Enable this to backproject a single-part segmentation.</li>
+<li><code>Discrete Backprojection</code> - Whether to limit backprojected values to discrete integers. Enable this to backproject a multi-part segmentation.</li>
 <li><code>Process Count</code> - Number of parallel processes to use during the backprojection process. Reducing the count trades parallel throughput for lower memory usage. Inspect memory use on the intended workload when choosing a count.</li>
 <li><code>Chunk Size</code> - Size of each dimension (x/y/z) of the processing chunk.  Increasing will increase memory usage; performance is a more complex tradeoff and making it too large will negatively affect performance.</li>
 </ul>
+<h4 id="currently-inactive-options">Currently Inactive Options</h4>
+<ul>
+<li><code>Output Min Bounding Box</code> - Not currently applied: the output always covers the minimum bounding box. See <strong>Output Position</strong> above.</li>
+<li><code>Offset in Filename</code> - Not currently applied: the output name always includes the position.</li>
+</ul>
 <h3 id="how-does-backprojection-work">How Does Backprojection Work?</h3>
-<p>A large amount of helpful data is saved in <code>*-configuration.json</code> file after the slicing process. This data contains all of the rectangle corners from slicing, and the bounding boxes the slices are associated with. With this data, Ouroboros recalculates the 2D coordinate grids of 3D points for each slice.</p>
+<p>Ouroboros reloads the Neuroglancer JSON named by the slice options and regenerates the slice rectangles with the slicing geometry, so that JSON and those options must still match the straightened volume. From the rectangles, it derives one bounding box for the output and recalculates the 2D coordinate grids of 3D points for each slice.</p>
 <p><strong>Trilinear Interpolation</strong></p>
-<p>Backprojection iterates through 3D chunks of the straightened volume, as follows following order:</p>
+<p>Backprojection iterates through 3D chunks of the straightened volume, in the following order:</p>
 <ol>
 <li>The chunks are loaded from a memory map of the straightened volume.</li>
 <li>A custom rapid trilinear interpolation implementation is used to map the slice data into a sparse representation of the backprojected volume, limited to a bounding box containing only points associated with the chunk.  </li>
 <li>These sparse representations are written to disk intermediates, with individual files for each slice of the backprojected volume they are associated with.</li>
 <li>As chunks are completed, it evaluates which slices of the backprojected volume can be fully written by completed chunks.</li>
 <li>The data for these slices are loaded from the intermediates, then written to disk in the target folder as they are completed.</li>
+<li>When upsampling, each page is resized to the output size in X and Y and written once per output Z position. X and Y follow the ratio between the two MIP levels' sizes; Z uses the whole-number ratio of their resolutions.</li>
 <li>Once all slices are completed, they are converted to a single file if this configuration option is enabled.</li>
 </ol>
 <p><strong>Why Is Interpolation Needed?</strong></p>
@@ -516,7 +546,7 @@
     <div class="terminal-mkdocs-footer-grid">
         <div id="terminal-mkdocs-footer-copyright-info">
             
-            <p class="text-center text-muted">Copyright 2024=2025 Weaver Goldman and David Northover, All rights reserved</p>
+            <p class="text-center text-muted">Copyright 2024-2025 Weaver Goldman and David Northover, All rights reserved</p>
              Site built with <a href="http://www.mkdocs.org">MkDocs</a> and <a href="https://github.com/ntno/mkdocs-terminal">Terminal for MkDocs</a>.
         </div>
         <div id="terminal-mkdocs-footer-prev-next">

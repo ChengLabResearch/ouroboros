@@ -11,7 +11,7 @@
     
     <meta name="author" content="Weaver Goldman and David Northover"> 
     
-    <link rel="canonical" href="https://wegold.me/ouroboros/reference/technical-constants/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
+    <link rel="canonical" href="https://chenglabresearch.github.io/ouroboros/reference/technical-constants/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="../../img/android-chrome-512x512.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="../../img/apple-touch-icon.png" />
 <link rel="shortcut icon" type="image/png" sizes="48x48" href="../../img/favicon.ico" />
@@ -85,7 +85,7 @@
 <body class="terminal"><div class="container">
     <div class="terminal-nav">
         <header class="terminal-logo">
-            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://wegold.me/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
+            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://chenglabresearch.github.io/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
         </header>
         
         <nav class="terminal-menu">
@@ -404,6 +404,32 @@
     
     </li>
             
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/shared-memory-lifecycle/">Shared Memory Lifecycle</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/status-presentation/">Status Presentation</a>
+        
+    
+    </li>
+            
             
     </ul>
         
@@ -467,7 +493,7 @@ so quick collapse-then-reopen costs nothing.</p>
 <ul>
 <li>Symbol: <code>FILE_EXPLORER_WATCH_LIMIT</code></li>
 <li>Value: <code>100_000</code></li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a> line 9</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a></li>
 <li>Reported inside every <code>folder-contents-error</code> payload.</li>
 </ul>
 <p><strong>Why it exists.</strong> Every watcher mirrors its discovered paths into
@@ -527,7 +553,7 @@ that re-opening a folder after a long detour repopulates it visibly.</p>
 <ul>
 <li>Symbol: <code>FILE_EXPLORER_UPDATE_BATCH_LIMIT</code></li>
 <li>Value: <code>500</code></li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a> line 10</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a></li>
 </ul>
 <p><strong>Why it exists.</strong> Batching groups events from a large initial folder scan
 into fewer IPC messages and React state updates. Five hundred events per batch
@@ -546,7 +572,7 @@ the first batch appearing in the panel.</p>
 <ul>
 <li>Symbol: <code>FILE_EXPLORER_UPDATE_INTERVAL_MS</code></li>
 <li>Value: <code>100</code> (milliseconds)</li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a> line 11</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/event-handlers/filesystem.ts"><code>src/main/event-handlers/filesystem.ts</code></a></li>
 </ul>
 <p><strong>Why it exists.</strong> The batch flush also runs on a timer so that small
 bursts of changes still reach the renderer promptly, even when the
@@ -583,7 +609,7 @@ need additional directory information, keeping the broadcast limited to context.
 <ul>
 <li>Symbol: <code>PLUGIN_FILE_SERVER_PORT</code></li>
 <li>Value: <code>3000</code> (default)</li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/file-server.ts"><code>src/main/servers/file-server.ts</code></a> line 7</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/file-server.ts"><code>src/main/servers/file-server.ts</code></a></li>
 <li>Environment override: <code>OUROBOROS_PLUGIN_FILE_SERVER_PORT</code> (integer;
   unset, empty, or non-numeric values fall back to <code>3000</code>)</li>
 </ul>
@@ -603,7 +629,7 @@ without touching any user-facing setting.</p>
 <ul>
 <li>Symbol: <code>VOLUME_SERVER_PORT</code></li>
 <li>Value: <code>3001</code> (default)</li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/volume-server.ts"><code>src/main/servers/volume-server.ts</code></a> line 7</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/volume-server.ts"><code>src/main/servers/volume-server.ts</code></a></li>
 <li>Environment override: <code>OUROBOROS_VOLUME_SERVER_PORT</code> (integer;
   unset, empty, or non-numeric values fall back to <code>3001</code>)</li>
 </ul>
@@ -628,7 +654,7 @@ independent of any host-side conflict.</p>
 <ul>
 <li>Symbol: <code>VOLUME</code></li>
 <li>Value: <code>'ouroboros-volume'</code></li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/volume-server.ts"><code>src/main/servers/volume-server.ts</code></a> line 9,
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/volume-server.ts"><code>src/main/servers/volume-server.ts</code></a>,
   matched by the <code>volumes.ouroboros-volume.name</code> entry in
   <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.yml"><code>python/compose.yml</code></a>,
   <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.dev.yml"><code>python/compose.dev.yml</code></a>, and the compose file
@@ -638,7 +664,7 @@ independent of any host-side conflict.</p>
 main process all address the same Docker named volume so that plugin
 uploads land where the pipeline can read them.</p>
 <p><strong>Invariant.</strong> The literal string <code>'ouroboros-volume'</code> is duplicated across
-four call sites: <code>src/main/servers/volume-server.ts</code>,
+five call sites: <code>src/main/servers/volume-server.ts</code>,
 <code>python/ouroboros/common/volume_server_interface.py</code>, <code>python/compose.yml</code>,
 <code>python/compose.dev.yml</code>, and the compose file written by
 <code>scripts/prepare-production-server.mjs</code>. Docker Compose YAML is required to
@@ -647,8 +673,9 @@ the team has not opted into; the invariant lives in this documentation
 and in code review discipline. If you rename this value in one place,
 every listed file must move with it in the same commit.</p>
 <p><strong>User-visible behavior.</strong> On app shutdown the volume server helper
-issues <code>docker run --rm ... rm -rf /volume/*</code> against this named volume.
-Anything else stored under the same volume name is deleted.</p>
+deletes the top-level, non-hidden entries of this named volume, keeping only
+undelivered statistics reports in <code>main-statistics</code>. Anything else stored
+under the same volume name is deleted.</p>
 <p><strong>When to reconsider.</strong> Rename it if you need to run multiple Ouroboros
 installs against the same Docker daemon without stomping each other's
 volumes. All call sites listed above must agree.</p>
@@ -661,8 +688,7 @@ volumes. All call sites listed above must agree.</p>
 <li><code>retryDelay</code> = <code>5000</code> (milliseconds)</li>
 </ul>
 </li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/ServerContext.tsx"><code>src/renderer/src/contexts/ServerContext.tsx</code></a>
-  lines 4 and 41</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/ServerContext.tsx"><code>src/renderer/src/contexts/ServerContext.tsx</code></a></li>
 </ul>
 <p><strong>Why it exists.</strong> <code>DEFAULT_SERVER_URL</code> is the base URL the renderer
 uses for all REST and SSE calls to the Python server. <code>retryDelay</code> is
@@ -680,8 +706,7 @@ Python-side <code>HOST</code>/<code>PORT</code> defaults documented below.</p>
 <ul>
 <li>Symbol: <code>allowedHostnames</code></li>
 <li>Value: <code>['localhost', '127.0.0.1', '0.0.0.0']</code></li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/IFrameContext.tsx"><code>src/renderer/src/contexts/IFrameContext.tsx</code></a>
-  line 30</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/IFrameContext.tsx"><code>src/renderer/src/contexts/IFrameContext.tsx</code></a></li>
 </ul>
 <p><strong>Why it exists.</strong> The renderer only dispatches <code>read-file</code>,
 <code>save-file</code>, and <code>register-plugin</code> messages from iframes whose
@@ -706,8 +731,7 @@ exact origin equality against a full URL, not just a hostname.</p>
 <ul>
 <li>Symbol: <code>SLICE_RENDER_PROPORTION</code></li>
 <li>Value: <code>0.008</code></li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/routes/SlicesPage/SlicesPage.tsx"><code>src/renderer/src/routes/SlicesPage/SlicesPage.tsx</code></a>
-  line 26</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/routes/SlicesPage/SlicesPage.tsx"><code>src/renderer/src/routes/SlicesPage/SlicesPage.tsx</code></a></li>
 </ul>
 <p><strong>Why it exists.</strong> The 3D slice preview draws only every <code>Nth</code> rectangle
 where <code>N = floor(rects.length * 0.008)</code>. This keeps very long paths
@@ -728,7 +752,7 @@ the cost of frame rate; lower it if the preview lags on very long paths.</p>
 <li><code>DOCKER_PORT</code> = <code>8000</code></li>
 </ul>
 </li>
-<li>Source: [<code>python/ouroboros/common/server.py</code>][py-server] lines 10-14</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/common/server.py"><code>python/ouroboros/common/server.py</code></a></li>
 <li>Environment overrides:<ul>
 <li><code>OUROBOROS_SERVER_HOST</code> -&gt; <code>HOST</code></li>
 <li><code>OUROBOROS_SERVER_PORT</code> -&gt; <code>PORT</code> (integer)</li>
@@ -757,8 +781,7 @@ compose port mapping in the same commit.</p>
 <li><code>PLUGIN_NAME</code> = <code>'main'</code></li>
 </ul>
 </li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/common/volume_server_interface.py"><code>python/ouroboros/common/volume_server_interface.py</code></a>
-  lines 3-4</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/common/volume_server_interface.py"><code>python/ouroboros/common/volume_server_interface.py</code></a></li>
 </ul>
 <p><strong>Why it exists.</strong> From inside the server container, the volume server
 running on the host is reached through the Docker special DNS name
@@ -788,30 +811,56 @@ Electron-side <code>VOLUME_SERVER_PORT</code> in
 </ul>
 </li>
 <li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/options.py"><code>python/ouroboros/helpers/options.py</code></a></li>
-<li>User override: <code>process_count</code> in either operation’s options JSON;
+<li>User override: <code>process_count</code> in either operation's options JSON;
   <code>chunk_size</code> in backprojection options. An explicit count must be at least four.
-  Use multiples of four for an exact total worker count with the existing role splits.
   Omitted counts resolve to the backend logical CPU count when options are loaded.
-  These are worker budgets, not CPU affinity or quota controls.</li>
+  The desktop Backproject page exposes <code>Process Count</code>; the Slice page does not, so
+  desktop slicing uses that default. These are worker budgets, not CPU affinity or
+  quota controls.</li>
 <li>API discovery: <code>GET /options-schema</code> returns JSON schemas directly from both
   options models, allowing clients to detect support before submitting jobs.</li>
-<li>Slicing reads its budget from <code>SliceOptions.process_count</code> during execution.
-  Callers must set that options field. Slicing uses one-quarter download
-  and three-quarters slicing workers; backprojection keeps its existing split.</li>
 </ul>
+<p>Each operation divides <code>process_count</code> (<code>P</code>) into roles, using integer division:</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Role allocation</th>
+<th>Exact total when <code>P</code> is a multiple of</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Slicing</td>
+<td><code>P // 4</code> download processes and <code>P * 3 // 4</code> slice processes; <code>P</code> threads then normalize and write the output</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Backprojection, output size unchanged</td>
+<td><code>P // 2</code> backprojection processes and <code>P // 2</code> writer processes</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Backprojection, output resized to a finer MIP</td>
+<td><code>P // 3</code> backprojection processes and <code>int(P // 1.5)</code> writer processes</td>
+<td>3</td>
+</tr>
+</tbody>
+</table>
+<p>Other values leave part of the budget unused. A report's <code>execution.workers</code> records
+the counts actually dispatched; see the
+<a href="../run-statistics/#schema-version-1">run-statistics reference</a>.</p>
 <p><strong>Why it exists.</strong> <code>chunk_size</code> is the per-dimension size of the
 processing chunk used by the backproject pipeline (see
 <code>DataRange(FPShape.make_with(0), FPShape, FPShape.make_with(config.chunk_size))</code>
 in <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/pipeline/backproject_pipeline.py"><code>python/ouroboros/pipeline/backproject_pipeline.py</code></a>).
-<code>process_count</code> sets the parallel worker pool for the same pipeline;
-executor and writer processes are derived as fractions of it
-(<code>process_count // 4 * 2</code> or <code>// 4 * 3</code>).</p>
+<code>process_count</code> sets the budget divided into the roles above.</p>
 <p><strong>Why 160 specifically.</strong> The primary purpose of the chunk sizing is to
 enable clean backprojection - specifically clean backprojection of the
 flattened xyz stack. <code>160</code> is the judgment-call result for the best
 combination of memory and speed on standard pieces of data.  Additionally,
 as for efficiency operations are performed on a flattened chunk, large
-values can cause significant slowdown and memory explsion due to change
+values can cause significant slowdown and memory explosion due to change
 in the index bit size.</p>
 <p><strong>User-visible behavior.</strong> Large <code>chunk_size</code> reduces per-chunk
 overhead but raises peak memory per worker and can cause disproportionate
@@ -825,8 +874,7 @@ to be better across typical workloads.</p>
 <ul>
 <li>Symbol: <code>FLUSH_CACHE</code></li>
 <li>Value: <code>False</code></li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/volume_cache.py"><code>python/ouroboros/helpers/volume_cache.py</code></a>
-  line 13</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/volume_cache.py"><code>python/ouroboros/helpers/volume_cache.py</code></a></li>
 <li>User override: <code>flush_cache</code> field on <code>CommonOptions</code> in
   <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/helpers/options.py"><code>python/ouroboros/helpers/options.py</code></a></li>
 </ul>
@@ -843,11 +891,10 @@ one-shot runs or when the upstream volume may have changed.</p>
 <ul>
 <li>Symbol: <code>shm_size</code></li>
 <li>Value: <code>64gb</code> (default)</li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.yml"><code>python/compose.yml</code></a> line 15,
-  <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.dev.yml"><code>python/compose.dev.yml</code></a> line 28, and the compose
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.yml"><code>python/compose.yml</code></a>,
+  <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/compose.dev.yml"><code>python/compose.dev.yml</code></a>, and the compose
   file written by
-  <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-production-server.mjs"><code>scripts/prepare-production-server.mjs</code></a>
-  (line 58)</li>
+  <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-production-server.mjs"><code>scripts/prepare-production-server.mjs</code></a></li>
 <li>Environment override (packaging time):
   <code>OUROBOROS_SERVER_SHM_SIZE</code> (read by
   <code>scripts/prepare-production-server.mjs</code> and by the
@@ -875,69 +922,20 @@ substitution in both <code>python/compose.yml</code> and <code>python/compose.de
 Lower it on constrained hosts where you know the pipelines you run stay
 well under the limit; raise it only if you routinely see shared-memory
 <code>ENOMEM</code> errors from the server.</p>
-<h3 id="server-image-reference-defaults">Server image reference defaults</h3>
+<h3 id="release-pinned-server-image-and-plugins">Release-pinned server image and plugins</h3>
 <ul>
-<li>Symbols: <code>imageRepository</code>, <code>imageTag</code></li>
-<li>Values:<ul>
-<li><code>imageRepository</code> (default) = <code>ghcr.io/chenglabresearch/ouroboros-server</code></li>
-<li><code>imageTag</code> (default) = <code>v${packageJson.version}</code> (falls back to
-  <code>GITHUB_REF_NAME</code> in CI)</li>
+<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/release/release-lock.json"><code>release/release-lock.json</code></a> (<code>serverImage</code>, <code>plugins</code>)</li>
 </ul>
-</li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-production-server.mjs"><code>scripts/prepare-production-server.mjs</code></a>
-  lines 10-14</li>
-<li>Environment overrides: <code>OUROBOROS_SERVER_IMAGE_REPOSITORY</code>,
-  <code>OUROBOROS_SERVER_IMAGE_TAG</code>, <code>OUROBOROS_SERVER_IMAGE_DIGEST</code>,
-  <code>OUROBOROS_SERVER_IMAGE</code> (fully qualified reference)</li>
-</ul>
-<p><strong>Why it exists.</strong> The prepare script writes an
-<code>extra-resources/server/compose.yml</code> that pulls the server image by
-name so packaged app installs do not need to build the container
-locally.</p>
-<p><strong>User-visible behavior.</strong> With no environment overrides, packaging
-pulls <code>ghcr.io/chenglabresearch/ouroboros-server:v&lt;appVersion&gt;</code>. A
-release that has not yet published a matching image tag will fail at
-first startup with a <code>docker pull</code> error.</p>
-<p><strong>When to reconsider.</strong> Set <code>OUROBOROS_SERVER_IMAGE_DIGEST</code> to pin a
-specific build for a release, or point <code>OUROBOROS_SERVER_IMAGE</code> at a
-private registry for internal builds.</p>
-<h3 id="preinstalled-plugin-pins">Preinstalled plugin pins</h3>
-<ul>
-<li>Symbol: <code>productionPluginPins</code></li>
-<li>Value:<ul>
-<li><code>neuroglancer.tag</code> = <code>v1.1.1</code></li>
-<li><code>neuroglancer.artifact</code> = <code>neuroglancer-plugin-v1.1.1.zip</code></li>
-<li><code>autoseg.tag</code> = <code>v0.4.0-beta.2</code></li>
-<li><code>autoseg.cpuArtifact</code> = <code>auto-segmentation-v0.4.0-beta.2-cpu.zip</code></li>
-<li><code>autoseg.cudaArtifact</code> = <code>auto-segmentation-v0.4.0-beta.2-cuda.zip</code></li>
-</ul>
-</li>
-<li>Source: <a href="https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-package-flavor.mjs"><code>scripts/prepare-package-flavor.mjs</code></a>
-  lines 7-16</li>
-<li>Environment overrides: <code>OUROBOROS_NEUROGLANCER_PLUGIN_TAG</code>,
-  <code>OUROBOROS_NEUROGLANCER_PLUGIN_ARTIFACT</code>,
-  <code>OUROBOROS_AUTOSEG_PLUGIN_TAG</code>,
-  <code>OUROBOROS_AUTOSEG_CPU_PLUGIN_ARTIFACT</code>,
-  <code>OUROBOROS_AUTOSEG_CUDA_PLUGIN_ARTIFACT</code></li>
-</ul>
-<p><strong>Why it exists.</strong> These are the exact plugin release versions that the
-<code>with-plugins-cpu</code> and <code>with-plugins-cuda</code> package flavors ship. The
-<code>core</code> flavor ships no preinstalled plugins.</p>
-<p><strong>User-visible behavior.</strong> A packaged app pins the listed plugin
-versions in <code>extra-resources/preinstalled-plugins/</code>. First launch copies
-each into the user's plugin folder if the installed version is older or
-missing.</p>
-<p><strong>Bump workflow.</strong> <code>productionPluginPins</code> and the fallback
-<code>neuroglancerArtifactForTag</code> / <code>autosegArtifactForTag</code> builders in
-<a href="https://github.com/ChengLabResearch/ouroboros/blob/main/scripts/prepare-package-flavor.mjs"><code>scripts/prepare-package-flavor.mjs</code></a> move
-together on every plugin release. The single-file edit lives in
-<code>scripts/prepare-package-flavor.mjs</code>: update the tags in
-<code>productionPluginPins</code>, and the fallback builders pick up the new
-filename shape automatically. The environment overrides above take
-precedence over both.</p>
-<p><strong>When to reconsider.</strong> Update these pins whenever a new upstream plugin
-release becomes the intended default. Bump both the tag and the artifact
-filename together, since the artifact filename embeds the tag.</p>
+<p><strong>Why it exists.</strong> Packaged apps pull the server image by digest and bundle plugin
+artifacts identified by release tag and SHA-256, so a package can be traced to the exact
+inputs it was built from. The lock is the only source of these production pins.</p>
+<p><strong>User-visible behavior.</strong> Installed apps start the server image selected by the lock.
+The <code>core</code> package flavor ships no preinstalled plugins; the plugin flavors copy their
+bundled plugins into the user's plugin folder on first launch if the installed version
+is older or missing.</p>
+<p><strong>When to reconsider.</strong> See <a href="../../development/registry-server-images/">registry server images</a>
+and <a href="../../development/production-package-flavors/">production package flavors</a> for how
+the lock is updated and consumed.</p>
 <h2 id="where-the-values-come-from">Where the values come from</h2>
 <p>Every value above was read directly from the tree at the time this page
 was written. The remaining file explorer constants live together as a
@@ -955,7 +953,7 @@ plugin authors can rely on it.</p>
     <div class="terminal-mkdocs-footer-grid">
         <div id="terminal-mkdocs-footer-copyright-info">
             
-            <p class="text-center text-muted">Copyright 2024=2025 Weaver Goldman and David Northover, All rights reserved</p>
+            <p class="text-center text-muted">Copyright 2024-2025 Weaver Goldman and David Northover, All rights reserved</p>
              Site built with <a href="http://www.mkdocs.org">MkDocs</a> and <a href="https://github.com/ntno/mkdocs-terminal">Terminal for MkDocs</a>.
         </div>
         <div id="terminal-mkdocs-footer-prev-next">

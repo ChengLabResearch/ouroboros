@@ -11,7 +11,7 @@
     
     <meta name="author" content="Weaver Goldman and David Northover"> 
     
-    <link rel="canonical" href="https://wegold.me/ouroboros/"><link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png" />
+    <link rel="canonical" href="https://chenglabresearch.github.io/ouroboros/"><link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png" />
 <link rel="shortcut icon" type="image/png" sizes="48x48" href="img/favicon.ico" />
@@ -85,7 +85,7 @@
 <body class="terminal"><div class="container">
     <div class="terminal-nav">
         <header class="terminal-logo">
-            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://wegold.me/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
+            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://chenglabresearch.github.io/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
         </header>
         
         <nav class="terminal-menu">
@@ -408,6 +408,32 @@
     
     </li>
             
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="development/shared-memory-lifecycle/">Shared Memory Lifecycle</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="development/status-presentation/">Status Presentation</a>
+        
+    
+    </li>
+            
             
     </ul>
         
@@ -457,7 +483,7 @@
 <p>Extract ROIs from cloud-hosted medical scans.</p>
 <p>Ouroboros is a desktop app (built with Electron) and a Python package (with a CLI). </p>
 <p>The desktop app uses Docker to build and run its Python server. For this reason, <strong>Docker is required</strong> to run Ouroboros.</p>
-<p>If you are interested in using the Python package for its CLI or for a custom usecase, check out the <a href="https://github.com/We-Gold/ouroboros/tree/main/python">python</a> folder in the main repository.</p>
+<p>If you are interested in using the Python package for its CLI or for a custom usecase, check out the <a href="https://github.com/ChengLabResearch/ouroboros/tree/main/python">python</a> folder in the main repository.</p>
 <p>Ouroboros also has a <a href="guide/plugins/">Plugin System</a>. Plugin servers are also run in Docker.</p>
 <h2 id="usage-guide">Usage Guide</h2>
 <p><em>It is recommended that you read these pages in order.</em></p>
@@ -470,7 +496,11 @@
 <h2 id="reference">Reference</h2>
 <ul>
 <li><a href="reference/technical-constants/">Technical Constants</a> - hardcoded
-  file explorer limits and plugin broadcast behavior.</li>
+  limits, defaults, and worker allocation.</li>
+<li><a href="reference/bounding-box-partitioning/">Bounding Box Partitioning</a> - how
+  slices are grouped into source-volume requests.</li>
+<li><a href="reference/run-statistics/">Pipeline Run Statistics</a> - logging modes and
+  performance report contents.</li>
 </ul>
 <h2 id="large-folder-behavior">Large Folder Behavior</h2>
 <p>The Ouroboros File Explorer is designed to open scan and output folders
@@ -512,7 +542,7 @@ exact values, why they were chosen, and when to adjust them.</p>
     <div class="terminal-mkdocs-footer-grid">
         <div id="terminal-mkdocs-footer-copyright-info">
             
-            <p class="text-center text-muted">Copyright 2024=2025 Weaver Goldman and David Northover, All rights reserved</p>
+            <p class="text-center text-muted">Copyright 2024-2025 Weaver Goldman and David Northover, All rights reserved</p>
              Site built with <a href="http://www.mkdocs.org">MkDocs</a> and <a href="https://github.com/ntno/mkdocs-terminal">Terminal for MkDocs</a>.
         </div>
         <div id="terminal-mkdocs-footer-prev-next">

@@ -26,9 +26,7 @@ For more information, see [Tifffile](https://github.com/cgohlke/tifffile/blob/16
 
 **Output Position**
 
-Backprojection writes only the minimum bounding box of the slices, rather than the space of the entire source scan. The box's position is recorded in the output name, `<Output File Name>_<x>_<y>_<z>`, as its minimum corner in voxels of the output MIP level. These values can be negative when slices extend past the edge of the source volume; that part of the output contains no data.
-
-The position is not currently written to the TIFF metadata or to a configuration file.
+Backprojection writes only the minimum bounding box of the slices, rather than the space of the entire source scan. To allow placing outputs - such as segmentations - in the correct place, the minimum corner at the output MIP level is recorded in the output name, `<Output File Name>_<x>_<y>_<z>`. These values can be negative when slices extend past the edge of the source volume; that part of the output contains no data.
 
 **Plugin Segmentation Inputs**
 
@@ -55,12 +53,15 @@ Shape mismatches, dtype mismatches, and missing slice configuration report separ
 - `Backprojection Compression` - The compression to use for the backprojected tiff(s); the default is `zlib`. See [Compression Options](#using-the-backproject-page).
 - `Output Single File` - Whether to output one tiff stack file or a folder of files.
 - `Performance Logging` - Choose **Off** (the default) for no performance report, **Standard** to save performance reports and per-step statistics without monitoring RAM, or **Detailed (with RAM)** to save the full report including RAM measurements. RAM monitoring adds overhead. Progress bars and basic step timings remain available in all three modes. The choice is saved as `logging_mode` with your options. Older `reporting_enabled` values load as Off for `false` and Detailed for `true`; an explicit `logging_mode` takes precedence, and missing settings reset to Off. The saved preference applies to desktop runs; CLI runs select their mode with `--logging-mode off|standard|detailed`, defaulting to Off independently of the saved preference.
-- `Output Min Bounding Box` - Not currently applied: the output always covers the minimum bounding box. See **Output Position** above.
 - `Binary Backprojection` - Whether or not to binarize all the values of the backprojection. Enable this to backproject a single-part segmentation.
 - `Discrete Backprojection` - Whether to limit backprojected values to discrete integers. Enable this to backproject a multi-part segmentation.
-- `Offset in Filename` - Not currently applied: the output name always includes the position.
 - `Process Count` - Number of parallel processes to use during the backprojection process. Reducing the count trades parallel throughput for lower memory usage. Inspect memory use on the intended workload when choosing a count.
 - `Chunk Size` - Size of each dimension (x/y/z) of the processing chunk.  Increasing will increase memory usage; performance is a more complex tradeoff and making it too large will negatively affect performance.
+
+#### Currently Inactive Options
+
+- `Output Min Bounding Box` - Not currently applied: the output always covers the minimum bounding box. See **Output Position** above.
+- `Offset in Filename` - Not currently applied: the output name always includes the position.
 
 ### How Does Backprojection Work?
 

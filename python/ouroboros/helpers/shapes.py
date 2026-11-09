@@ -224,6 +224,8 @@ class X(DataShape): X: int      # noqa: E701,E702
 class Theta(DataShape): Theta: int      # noqa: E701,E702
 @dataclass
 class Z(DataShape): Z: int      # noqa: E701,E702
+@dataclass
+class C(DataShape): C: int      # noqa: E701,E702
 
 
 # If we don't actually know the dimensions of a 3D array.

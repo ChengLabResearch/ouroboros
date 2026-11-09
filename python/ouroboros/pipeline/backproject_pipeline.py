@@ -1,6 +1,7 @@
 import concurrent.futures
 from dataclasses import astuple, replace
 from functools import partial
+from math import ceil
 from multiprocessing.pool import ThreadPool
 import os
 from pathlib import Path
@@ -21,7 +22,7 @@ from ouroboros.helpers.slice import (        # noqa: F401
     backproject_box,
     BackProjectIter
 )
-from ouroboros.helpers.volume_cache import CloudVolumeInterface, get_mip_volume_sizes, update_writable_rects
+from ouroboros.helpers.volume_cache import CloudVolumeInterface, update_writable_rects
 from ouroboros.helpers.bounding_boxes import BoundingBox
 from .pipeline import PipelineStep
 from .pipeline_input import PipelineInput
@@ -35,7 +36,7 @@ from ouroboros.helpers.files import (
     write_conv_vol,
     write_raw_intermediate
 )
-from ouroboros.helpers.shapes import DataRange, ImgSliceC
+from ouroboros.helpers.shapes import DataRange, DataShape, ImgSliceC, NGOrder, ImgSlice, Z
 
 
 class BackprojectPipelineStep(PipelineStep):
@@ -85,7 +86,7 @@ class BackprojectPipelineStep(PipelineStep):
 
         straightened_volume_path = config.straightened_volume_path
 
-        # Make sure the straightened volume exists
+        # Make sure the strai.tolist()ghtened volume exists
         if not os.path.exists(straightened_volume_path):
             return (f"The straightened volume does not exist at {straightened_volume_path}.")
 
@@ -149,48 +150,38 @@ class BackprojectPipelineStep(PipelineStep):
                                   sample_path=new_straightened_volume_path, is_compressed=False)
             owns_temporary_input = True
 
-        write_shape = np.flip(full_bounding_box.get_shape()).tolist()
+        slice_mip = pipeline_input.slice_options.output_mip_level
 
-        pipeline_input.output_file_path = (f"{config.output_file_name}_"
-                                           f"{'_'.join(map(str, full_bounding_box.get_integer_origin()))}")
+        output_origin = get_output_origin(source, slice_mip, config.output_mip_level,
+                                          full_bounding_box.get_integer_origin())
+        pipeline_input.output_file_path = (f"{config.output_file_name}_{'_'.join(map(str, output_origin))}")
         folder_path = Path(config.output_file_folder, pipeline_input.output_file_path)
         folder_path.mkdir(exist_ok=True, parents=True)
 
-        # Determine scaling factors, before calculating output size.
-        if pipeline_input.slice_options.output_mip_level != config.output_mip_level:
-            scaling_factors = calculate_scaling_factors(
-                pipeline_input.source_url,
-                pipeline_input.slice_options.output_mip_level,
-                config.output_mip_level,
-                write_shape
-            )
-        else:
-            scaling_factors = None
+        write_shape = NGOrder(*np.flip(full_bounding_box.get_shape()), volume_info.channels)
+        output_shape = get_output_shape(source, slice_mip, config.output_mip_level, write_shape)
 
         # Intermediate Path
         i_path = Path(config.output_file_folder, f"{os.getpid()}_{config.output_file_name}")
 
         output_dtype = np.uint8 if config.make_backprojection_binary else np.uint16
-        page_is_big_tiff = is_big_tiff(write_shape[1:], scaling_factors[1:] if scaling_factors is not None else None,
-                                       volume_info.channels, output_dtype)
-        volume_is_big_tiff = is_big_tiff(
-            write_shape, scaling_factors, volume_info.channels, output_dtype
-        ) if config.make_single_file else page_is_big_tiff
+        page_is_big_tiff = is_big_tiff(output_shape.extract(ImgSliceC), output_dtype)
+        volume_is_big_tiff = is_big_tiff(output_shape, output_dtype) if config.make_single_file else page_is_big_tiff
 
         # Generate image writing function
         # Combining compression with binary images can cause issues.
         bp_offset = pipeline_input.backprojection_offset if config.backproject_min_bounding_box else None
         tif_write = partial(generate_tiff_write,
                             compression=config.backprojection_compression,
-                            micron_resolution=source.get_resolution_um(pipeline_input.slice_options.output_mip_level),
+                            micron_resolution=source.get_resolution_um(config.output_mip_level),
                             backprojection_offset=bp_offset,
                             photometric=volume_info.photometric,
                             **({"planarconfig": "contig"} if volume_info.channels > 1 else {}))
 
         # Allocate procs equally between BP math and writing; 1:2 if scaling.
         self.exec_config = {
-            "backproject_processes": int(config.process_count // (3 if scaling_factors is not None else 2)),
-            "writer_processes": int(config.process_count // (1.5 if scaling_factors is not None else 2)),
+            "backproject_processes": int(config.process_count // (3 if output_shape != write_shape else 2)),
+            "writer_processes": int(config.process_count // (1.5 if output_shape != write_shape is not None else 2)),
             "intermediate_threads_per_process": 12,
         }
 
@@ -275,13 +266,14 @@ class BackprojectPipelineStep(PipelineStep):
                                 write_conv_vol,
                                 writer=tif_write(partial(tifffile.imwrite, bigtiff=page_is_big_tiff or None)),
                                 source_path=i_path.joinpath(f"i_{index:05}.dat"),
-                                shape=ImgSliceC(*write_shape[1:], volume_info.channels),
-                                dtype=bool if config.make_backprojection_binary else np.uint16,
-                                scaling=scaling_factors,
                                 target_folder=folder_path,
+                                shape=write_shape.extract(ImgSliceC()),
+                                output_shape=output_shape.extract(ImgSliceC),
+                                z_steps=round(output_shape.C / write_shape.C),
+                                dtype=bool if config.make_backprojection_binary else np.uint16,
                                 index=index,
                                 interpolation=config.upsample_order,
-                                discrete=config.make_backprojection_discrete,
+                                discrete=config.make_backprojection_discrete
                             ))
                             write_futures[-1].add_done_callback(note_written)
 
@@ -433,15 +425,27 @@ def process_chunk(
     return durations, intermediate_bytes, index, z_stack + offset[0]
 
 
-def is_big_tiff(write_shape: list[int], scaling_factors: np.ndarray[int], channels: int, output_dtype: np.dtype):
-    out_shape = np.multiply(write_shape, scaling_factors) if scaling_factors is not None else write_shape
-    return calculate_gigabytes_from_dimensions((*list(np.array(out_shape).astype(np.uint64)), channels), output_dtype) > 4
+def is_big_tiff(shape: DataShape, output_dtype: np.dtype):
+    return calculate_gigabytes_from_dimensions(astuple(shape), output_dtype) > 4
 
 
-def calculate_scaling_factors(
-    source_url: str, current_mip: int, target_mip: int, tif_shape: tuple
-) -> np.ndarray[np.float64]:
-    # Fetch the exact multi-image-pyramid (mip) resolutions from the source.
-    mip_sizes = get_mip_volume_sizes(source_url)
+def get_output_shape(source: CloudVolumeInterface, slice_mip: int, target_mip: int, write_shape: NGOrder) -> NGOrder:
+    if target_mip > slice_mip:
+        raise NotImplementedError(("Downsampling during backprojection not yet implemented;"
+                                   f" Was requested from {slice_mip} to {target_mip}"))
+    resolution_change = NGOrder(*(source.get_resolution_nm(slice_mip) // source.get_resolution_nm(target_mip)), 1)
+    shape_change = NGOrder(*(source.get_volume_shape(target_mip) / source.get_volume_shape(slice_mip)), 1)
 
-    return np.divide(mip_sizes[target_mip], mip_sizes[current_mip])
+    # As we slice sequentially, we need a hard multiplier for Z, so we use resolution for that.
+    # However, the mips map imperfectly so we use shape to situate properly in X/Y.
+    output_shape = write_shape * resolution_change.extract(Z) * shape_change.extract(ImgSlice)
+    return replace(output_shape, X=ceil(output_shape.X), Y=ceil(output_shape.Y))
+
+
+def get_output_origin(source: CloudVolumeInterface, slice_mip: int, target_mip: int, origin: tuple[int]) -> tuple[int]:
+    if target_mip > slice_mip:
+        raise NotImplementedError(("Downsampling during backprojection not yet implemented;"
+                                   f" Was requested from {slice_mip} to {target_mip}"))
+    shape_change = source.get_volume_shape(target_mip) / source.get_volume_shape(slice_mip)
+    output_origin = origin * shape_change
+    return np.ceil(output_origin).astype(np.uint64)

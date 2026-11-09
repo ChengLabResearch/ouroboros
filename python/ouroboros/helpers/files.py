@@ -1,5 +1,5 @@
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, astuple
 from functools import partial
 from io import BytesIO
 import os
@@ -13,7 +13,7 @@ import cv2
 import tifffile
 import time
 
-from .shapes import DataShape
+from .shapes import DataShape, ImgSliceC
 
 
 SUPPORTED_BACKPROJECT_INPUT_DTYPES = frozenset(
@@ -362,37 +362,43 @@ def volume_from_intermediates(path: Path, shape: DataShape, discrete: bool = Fal
 _writer_page_buffers = None
 
 
-def write_conv_vol(writer: callable, source_path, shape, dtype, scaling, target_folder, index, interpolation, discrete):
+def write_conv_vol(writer: callable, source_path: Path, target_folder: Path,
+                   shape: ImgSliceC, output_shape: ImgSliceC, z_steps: int, dtype,
+                   index: int, interpolation: int, discrete: bool):
     global _writer_page_buffers
     perf = {}
     vol_start = time.perf_counter()
+
     accumulator, output = _writer_page_buffers or (None, None)
     # Return the pair to the cache only after a successful write and reset. A
     # failed merge/write must not leave partial values for the next page.
     _writer_page_buffers = None
     if accumulator is None or accumulator.shape != (shape.C + 1, shape.Y * shape.X):
         accumulator = np.zeros((shape.C + 1, shape.Y * shape.X), dtype=np.float32)
+    if (output is None or ImgSliceC(output.shape) != shape or output.dtype != dtype):
+        output = np.zeros(astuple(shape), dtype=dtype)
+
     vol, nz = volume_from_intermediates(source_path, shape, discrete,
                                         accumulator=accumulator, return_indices=True)
     perf["Merge Volume"] = time.perf_counter() - vol_start
+
     start = time.perf_counter()
-    converted = np_convert(dtype, vol.reshape(shape.C, -1)[:, nz].T,
-                           normalize=False, safe_bool=True)
-    if (output is None or output.shape != (shape.Y, shape.X, shape.C)
-            or output.dtype != converted.dtype):
-        output = np.zeros((shape.Y, shape.X, shape.C), dtype=converted.dtype)
+    converted = np_convert(dtype, vol.reshape(shape.C, -1)[:, nz].T, normalize=False, safe_bool=True)
     output.reshape(-1, shape.C)[nz] = converted
-    if scaling is not None:
+    perf["Convert Volume"] = time.perf_counter() - vol_start
+
+    start = time.perf_counter()
+    if output_shape != shape:
         # CV2 is only 2D but we're resizing from the 1D image anyway at the moment.
-        new_volume = cv2.resize(output, None, fx=scaling[1], fy=scaling[2], interpolation=interpolation)
+        new_volume = cv2.resize(output, output_shape, interpolation=interpolation)
         perf["Zoom"] = time.perf_counter() - start
         start = time.perf_counter()
-        for i in range(round(scaling[0])):
-            writer(target_folder.joinpath(f"{(index * round(scaling[0]) + i):05}.tif"), data=new_volume)
-        perf["Write Merged"] = time.perf_counter() - start
     else:
-        writer(target_folder.joinpath(f"{index}.tif"), data=output)
-        perf["Write Merged"] = time.perf_counter() - start
+        new_volume = output
+    for i in range(z_steps):
+        writer(target_folder.joinpath(f"{(index * z_steps + i):05}.tif"), data=new_volume)
+    perf["Write Merged"] = time.perf_counter() - start
+
     accumulator[:, nz] = 0
     output.reshape(-1, shape.C)[nz] = 0
     _writer_page_buffers = accumulator, output

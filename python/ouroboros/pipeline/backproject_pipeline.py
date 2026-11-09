@@ -121,7 +121,7 @@ class BackprojectPipelineStep(PipelineStep):
             )
 
             # Save the straightened volume to a new tif file
-            input_is_big_tiff = is_big_tiff(astuple(volume_info.shape), None, volume_info.channels, volume_info.dtype)
+            input_is_big_tiff = is_big_tiff(volume_info.shape, volume_info.dtype)
             # The output folder may be the input folder. Capture its members
             # before creating the temporary TIFF so it cannot read itself.
             images = get_sorted_tif_files(volume_info.path) if volume_info.path.is_dir() else None
@@ -158,7 +158,7 @@ class BackprojectPipelineStep(PipelineStep):
         folder_path = Path(config.output_file_folder, pipeline_input.output_file_path)
         folder_path.mkdir(exist_ok=True, parents=True)
 
-        write_shape = NGOrder(*np.flip(full_bounding_box.get_shape()), volume_info.channels)
+        write_shape = NGOrder(*full_bounding_box.get_shape(), volume_info.channels)
         output_shape = get_output_shape(source, slice_mip, config.output_mip_level, write_shape)
 
         # Intermediate Path
@@ -196,7 +196,7 @@ class BackprojectPipelineStep(PipelineStep):
                 chunk_range = DataRange(FPShape.make_with(0), FPShape, FPShape.make_with(config.chunk_size))
                 chunk_iter = partial(BackProjectIter, shape=FPShape, slice_rects=np.array(slice_rects))
                 processed = np.zeros(astuple(chunk_range.length))
-                z_sources = np.zeros((write_shape[0], ) + astuple(chunk_range.length), dtype=bool)
+                z_sources = np.zeros((write_shape.Z, ) + astuple(chunk_range.length), dtype=bool)
 
                 for chunk, _, chunk_rects, _, index in chunk_range.get_iter(chunk_iter):
                     bp_futures.append(executor.submit(
@@ -267,9 +267,9 @@ class BackprojectPipelineStep(PipelineStep):
                                 writer=tif_write(partial(tifffile.imwrite, bigtiff=page_is_big_tiff or None)),
                                 source_path=i_path.joinpath(f"i_{index:05}.dat"),
                                 target_folder=folder_path,
-                                shape=write_shape.extract(ImgSliceC()),
+                                shape=write_shape.extract(ImgSliceC),
                                 output_shape=output_shape.extract(ImgSliceC),
-                                z_steps=round(output_shape.C / write_shape.C),
+                                z_steps=round(output_shape.Z / write_shape.Z),
                                 dtype=bool if config.make_backprojection_binary else np.uint16,
                                 index=index,
                                 interpolation=config.upsample_order,
@@ -448,4 +448,4 @@ def get_output_origin(source: CloudVolumeInterface, slice_mip: int, target_mip: 
                                    f" Was requested from {slice_mip} to {target_mip}"))
     shape_change = source.get_volume_shape(target_mip) / source.get_volume_shape(slice_mip)
     output_origin = origin * shape_change
-    return np.ceil(output_origin).astype(np.uint64)
+    return np.ceil(output_origin).astype(np.int64)

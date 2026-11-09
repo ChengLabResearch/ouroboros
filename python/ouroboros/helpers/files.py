@@ -375,8 +375,8 @@ def write_conv_vol(writer: callable, source_path: Path, target_folder: Path,
     _writer_page_buffers = None
     if accumulator is None or accumulator.shape != (shape.C + 1, shape.Y * shape.X):
         accumulator = np.zeros((shape.C + 1, shape.Y * shape.X), dtype=np.float32)
-    if (output is None or ImgSliceC(output.shape) != shape or output.dtype != dtype):
-        output = np.zeros(astuple(shape), dtype=dtype)
+    if (output is None or ImgSliceC(*output.shape) != shape or output.dtype != dtype):
+        output = np.zeros(astuple(shape), dtype=np.uint8 if dtype == bool else dtype)
 
     vol, nz = volume_from_intermediates(source_path, shape, discrete,
                                         accumulator=accumulator, return_indices=True)
@@ -385,12 +385,12 @@ def write_conv_vol(writer: callable, source_path: Path, target_folder: Path,
     start = time.perf_counter()
     converted = np_convert(dtype, vol.reshape(shape.C, -1)[:, nz].T, normalize=False, safe_bool=True)
     output.reshape(-1, shape.C)[nz] = converted
-    perf["Convert Volume"] = time.perf_counter() - vol_start
+    perf["Convert Volume"] = time.perf_counter() - start
 
     start = time.perf_counter()
     if output_shape != shape:
         # CV2 is only 2D but we're resizing from the 1D image anyway at the moment.
-        new_volume = cv2.resize(output, output_shape, interpolation=interpolation)
+        new_volume = cv2.resize(output, (output_shape.X, output_shape.Y), interpolation=interpolation)
         perf["Zoom"] = time.perf_counter() - start
         start = time.perf_counter()
     else:

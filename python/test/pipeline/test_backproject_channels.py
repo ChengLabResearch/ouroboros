@@ -9,10 +9,10 @@ from ouroboros.helpers.files import (
     generate_tiff_write,
     load_raw_file_intermediate,
     validate_straightened_volume_for_backprojection,
-    write_conv_vol,
 )
 from ouroboros.helpers.shapes import ImgSliceC
 from ouroboros.pipeline.backproject_pipeline import process_chunk
+from test.harness import write_page
 
 
 def _backproject_tiff(folder, data, rects, photometric, *, discrete, binary, upsample):
@@ -60,11 +60,8 @@ def _backproject_tiff(folder, data, rects, photometric, *, discrete, binary, ups
     shape = ImgSliceC(Y=y, X=x, C=channels)
     output_shape = ImgSliceC(Y=y * upsample, X=x * upsample, C=channels)
     for path in records:
-        write_conv_vol(
-            writer, path, target, shape, output_shape, upsample,
-            bool if binary else np.uint16,
-            int(path.stem.removeprefix("i_")), 0, discrete,
-        )
+        write_page(writer, path, target, shape, output_shape=output_shape, z_steps=upsample,
+                   dtype=bool if binary else np.uint16, index=int(path.stem.removeprefix("i_")), discrete=discrete)
     assert not list(intermediates.glob("*.dat"))
     return {path.name: tifffile.imread(path) for path in target.glob("*.tif")}
 

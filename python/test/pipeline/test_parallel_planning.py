@@ -74,6 +74,7 @@ class _InlineExecutor:
         self.events.append("pool_closed")
 
 
+@pytest.mark.canary("planner")
 @pytest.mark.parametrize("platform, count, depth, budget, workers", [
     ("linux", 511, 5, 4, 0),
     ("linux", 512, 5, 4, 1),

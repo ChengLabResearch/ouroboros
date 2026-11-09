@@ -2,7 +2,6 @@
 max-line-length = 120
 per-file-ignores =
 	__init__.py:F401
-	test_backproject_inputs.py:F811
 	server.py:E402
 	cli.py:E402
 	docker_server.py:E402

@@ -59,6 +59,7 @@ def _source(dtype, channels=1, download=None):
     return source, values
 
 
+@pytest.mark.canary("download")
 @pytest.mark.parametrize("dtype", SOURCE_DTYPES)
 @pytest.mark.parametrize("channels", [1, 3])
 @pytest.mark.parametrize("use_shared", [False, True])

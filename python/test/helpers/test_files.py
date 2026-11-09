@@ -4,8 +4,10 @@ import multiprocessing
 import os
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
+from numpy.testing import assert_array_equal
 import pytest
 
 from ouroboros.helpers import files as files_mod
@@ -32,56 +34,28 @@ from ouroboros.helpers.files import (
     load_raw_file_intermediate,
     validate_straightened_volume_for_backprojection,
     volume_from_intermediates,
-    write_conv_vol,
     write_raw_intermediate
 )
 from ouroboros.helpers.shapes import ImgSlice, ImgSliceC
+from test.harness import clock, write_intermediate_file, write_page
 
 
-def test_get_sorted_tif_files(tmp_path):
+@pytest.mark.parametrize("prefix", ["", "slice_"])
+def test_get_sorted_tif_files(tmp_path, prefix):
     import random
 
-    # Generate some sample tiff files
-    filenames = [Path(tmp_path, f"{i:03d}.tif") for i in range(101)]
+    filenames = [Path(tmp_path, f"{prefix}{i:03d}.tif") for i in range(101)]
 
     # Ensure both .tif and .tiff files are handled.
     for i in [random.randrange(101) for j in range(35)]:
         filenames[i] = filenames[i].with_suffix('.tiff')
 
     original_filenames = [path.name for path in filenames]
-
-    # Randomize the order
     random.shuffle(filenames)
-
-    # Create the files
     for path in filenames:
         path.touch()
 
-    sorted_files = get_sorted_tif_files(str(tmp_path))
-    assert sorted_files == original_filenames
-
-
-def test_get_sorted_tif_files_prefix(tmp_path):
-    import random
-
-    # Generate some sample tiff files
-    filenames = [Path(tmp_path, f"slice_{i:03d}.tif") for i in range(101)]
-
-    # Ensure both .tif and .tiff files are handled.
-    for i in [random.randrange(101) for j in range(35)]:
-        filenames[i] = filenames[i].with_suffix('.tiff')
-
-    original_filenames = [path.name for path in filenames]
-
-    # Randomize the order
-    random.shuffle(filenames)
-
-    # Create the files
-    for path in filenames:
-        path.touch()
-
-    sorted_files = get_sorted_tif_files(str(tmp_path))
-    assert sorted_files == original_filenames
+    assert get_sorted_tif_files(str(tmp_path)) == original_filenames
 
 
 def test_get_sorted_tif_files_unpadded_indices(tmp_path):
@@ -116,77 +90,32 @@ def test_join_path():
     assert path == os.path.join("folder", "subfolder", "file.txt")
 
 
-def test_combine_unknown_folder_posix_no_slash():
-    directory = "/path/to/directory"
-    filename = "file.txt"
-    combined = combine_unknown_folder(directory, filename)
-    assert combined == "/path/to/directory/file.txt"
+@pytest.mark.parametrize("directory, expected", [
+    ("/path/to/directory", "/path/to/directory/file.txt"),
+    ("/path/to/directory/", "/path/to/directory/file.txt"),
+    ("C:\\path\\to\\directory", "C:\\path\\to\\directory\\file.txt"),
+    ("C:\\path\\to\\directory\\", "C:\\path\\to\\directory\\file.txt"),
+])
+def test_combine_unknown_folder(directory, expected):
+    assert combine_unknown_folder(directory, "file.txt") == expected
 
 
-def test_combine_unknown_folder_posix_slash():
-    directory = "/path/to/directory/"
-    filename = "file.txt"
-    combined = combine_unknown_folder(directory, filename)
-    assert combined == "/path/to/directory/file.txt"
+@pytest.mark.parametrize("formatter", [
+    format_slice_output_file, format_slice_output_multiple, format_slice_output_config_file,
+    format_backproject_tempvolumes, format_backproject_resave_volume,
+])
+def test_name_formatters_return_strings(formatter):
+    assert isinstance(formatter("test"), str)
 
 
-def test_combine_unknown_folder_win_no_slash():
-    directory = "C:\\path\\to\\directory"
-    filename = "file.txt"
-    combined = combine_unknown_folder(directory, filename)
-    assert combined == "C:\\path\\to\\directory\\file.txt"
-
-
-def test_combine_unknown_folder_win_slash():
-    directory = "C:\\path\\to\\directory\\"
-    filename = "file.txt"
-    combined = combine_unknown_folder(directory, filename)
-    assert combined == "C:\\path\\to\\directory\\file.txt"
-
-
-def test_format_slice_output_file():
-    result = format_slice_output_file("test")
-    assert isinstance(result, str)
-
-
-def test_format_slice_output_multiple():
-    result = format_slice_output_multiple("test")
-    assert isinstance(result, str)
-
-
-def test_format_slice_output_config_file():
-    result = format_slice_output_config_file("test")
-    assert isinstance(result, str)
-
-
-def test_format_backproject_output_file():
-    result = format_backproject_output_file("test")
-    assert isinstance(result, str)
-    assert result == "test-backprojected.tif"
-
-    result = format_backproject_output_file("test", offset=(1, 2, 3))
-    assert isinstance(result, str)
-    assert result == "test-backprojected-1-2-3.tif"
-
-
-def test_format_backproject_output_multiple():
-    result = format_backproject_output_multiple("test")
-    assert isinstance(result, str)
-    assert result == "test-backprojected"
-
-    result = format_backproject_output_multiple("test", offset=(1, 2, 3))
-    assert isinstance(result, str)
-    assert result == "test-backprojected-1-2-3"
-
-
-def test_format_backproject_tempvolumes():
-    result = format_backproject_tempvolumes("test")
-    assert isinstance(result, str)
-
-
-def test_format_backproject_resave_volume():
-    result = format_backproject_resave_volume("test")
-    assert isinstance(result, str)
+@pytest.mark.parametrize("formatter, offset, expected", [
+    (format_backproject_output_file, None, "test-backprojected.tif"),
+    (format_backproject_output_file, (1, 2, 3), "test-backprojected-1-2-3.tif"),
+    (format_backproject_output_multiple, None, "test-backprojected"),
+    (format_backproject_output_multiple, (1, 2, 3), "test-backprojected-1-2-3"),
+])
+def test_backprojection_names_carry_the_offset(formatter, offset, expected):
+    assert formatter("test", offset=offset) == expected
 
 
 def test_format_tiff_name():
@@ -514,26 +443,6 @@ def test_np_convert_preset_and_zero_range_branches():
     np.testing.assert_array_equal(shifted, np.array([0, 2, 4], dtype=np.uint8))
 
 
-def _write_intermediate_file(path: Path, indexes, values, weights, source_rows=2, target_rows=2):
-    indexes = np.asarray(indexes, dtype=np.uint32)
-    values = np.asarray(values, dtype=np.float32)
-    weights = np.asarray(weights, dtype=np.float32)
-    meta = np.array(
-        [source_rows, target_rows, 0, 0, np.atleast_2d(values).shape[0], len(indexes)],
-        dtype=np.uint32,
-    )
-    type_ar = np.array([indexes.dtype.str, values.dtype.str, weights.dtype.str], dtype="S8")
-
-    write_raw_intermediate(
-        path,
-        meta.tobytes(),
-        type_ar.tobytes(),
-        indexes.tobytes(),
-        values.tobytes(),
-        weights.tobytes(),
-    )
-
-
 @pytest.mark.skipif(os.name == "nt", reason="POSIX vectored append")
 def test_raw_append_preserves_record_bytes_in_one_unlocked_writev(tmp_path, monkeypatch):
     import fcntl
@@ -640,7 +549,7 @@ def _append_intermediate_records(path, worker, start):
     weights = np.ones(len(indexes), dtype=np.float32)
     start.wait(timeout=15)
     for record in range(worker * 8, (worker + 1) * 8):
-        _write_intermediate_file(
+        write_intermediate_file(
             path, indexes, np.full(len(indexes), record, dtype=np.float32), weights,
             source_rows=64, target_rows=64,
         )
@@ -679,7 +588,7 @@ def test_concurrent_raw_appends_remain_complete_reader_records(tmp_path):
 def test_volume_from_intermediates(tmp_path):
     shape = ImgSlice(Y=2, X=3)
     single_file = tmp_path.joinpath("single.tif")
-    _write_intermediate_file(single_file, [0, 1], [4, 6], [2, 3])
+    write_intermediate_file(single_file, [0, 1], [4, 6], [2, 3])
 
     merged = volume_from_intermediates(single_file, shape)
 
@@ -688,8 +597,8 @@ def test_volume_from_intermediates(tmp_path):
     assert not single_file.exists()
 
     appended = tmp_path / "appended.dat"
-    _write_intermediate_file(appended, [0], [3], [2])
-    _write_intermediate_file(appended, [1], [4], [2])
+    write_intermediate_file(appended, [0], [3], [2])
+    write_intermediate_file(appended, [1], [4], [2])
 
     discrete = volume_from_intermediates(appended, shape, discrete=True)
 
@@ -705,8 +614,8 @@ def test_multichannel_merge_uses_shared_weights(tmp_path, discrete, dimensions):
     shape = ImgSliceC(*dimensions, C=3)
     path = tmp_path / "channels.dat"
     # Appended contributions share weights even when channel zero is empty.
-    _write_intermediate_file(path, [0], [[0], [3], [4]], [2])
-    _write_intermediate_file(path, [0], [[0], [4], [8]], [2])
+    write_intermediate_file(path, [0], [[0], [3], [4]], [2])
+    write_intermediate_file(path, [0], [[0], [4], [8]], [2])
 
     merged = volume_from_intermediates(path, shape, discrete=discrete)
 
@@ -724,23 +633,12 @@ def test_write_conv_vol(tmp_path):
     writes = []
 
     source = tmp_path / "page.dat"
-    _write_intermediate_file(source, [0, 1, 2, 3], [0, 1, 2, 3], [1, 1, 1, 1])
+    write_intermediate_file(source, [0, 1, 2, 3], [0, 1, 2, 3], [1, 1, 1, 1])
 
     def writer(path, data):
         writes.append((path.name, np.array(data)))
 
-    perf = write_conv_vol(
-        writer,
-        source,
-        target_folder,
-        shape,
-        shape,
-        1,
-        np.uint8,
-        7,
-        0,
-        False,
-    )
+    perf = write_page(writer, source, target_folder, shape, dtype=np.uint8, index=7)
 
     assert writes[0][0] == "00007.tif"
     assert writes[0][1].shape == (2, 2, 1)
@@ -748,19 +646,8 @@ def test_write_conv_vol(tmp_path):
     assert {"Merge Volume", "Write Merged", "Total Chunk Merge"} <= perf.keys()
 
     writes.clear()
-    _write_intermediate_file(source, [0, 1, 2, 3], [0, 1, 2, 3], [1, 1, 1, 1])
-    perf = write_conv_vol(
-        writer,
-        source,
-        target_folder,
-        shape,
-        shape,
-        2,
-        np.uint8,
-        3,
-        0,
-        False,
-    )
+    write_intermediate_file(source, [0, 1, 2, 3], [0, 1, 2, 3], [1, 1, 1, 1])
+    perf = write_page(writer, source, target_folder, shape, z_steps=2, dtype=np.uint8, index=3)
 
     assert [name for name, _data in writes] == ["00006.tif", "00007.tif"]
     for _, data in writes:
@@ -773,8 +660,8 @@ def test_writer_reuses_storage_and_clears_disjoint_empty_and_missing_pages(tmp_p
     monkeypatch.setattr(files_mod, "_writer_page_buffers", None)
     shape = ImgSliceC(2, 3, 2)
     first, second, empty, missing = [tmp_path / f"{name}.dat" for name in ("first", "second", "empty", "missing")]
-    _write_intermediate_file(first, [0, 2], [[0, 8], [6, 10]], [2, 2], target_rows=3, source_rows=3)
-    _write_intermediate_file(second, [5], [[14], [18]], [2], target_rows=3, source_rows=3)
+    write_intermediate_file(first, [0, 2], [[0, 8], [6, 10]], [2, 2], target_rows=3, source_rows=3)
+    write_intermediate_file(second, [5], [[14], [18]], [2], target_rows=3, source_rows=3)
     empty.touch()
     accumulators, outputs, pages = [], [], []
 
@@ -783,7 +670,7 @@ def test_writer_reuses_storage_and_clears_disjoint_empty_and_missing_pages(tmp_p
         pages.append(data.copy())
 
     for index, source in enumerate((first, second, empty, missing)):
-        write_conv_vol(writer, source, tmp_path, shape, shape, 1, np.uint16, index, 0, False)
+        write_page(writer, source, tmp_path, shape, index=index)
         accumulator, output = files_mod._writer_page_buffers
         accumulators.append(accumulator)
         assert output is outputs[-1]
@@ -808,10 +695,9 @@ def test_writer_adapts_storage_to_geometry_channels_and_dtype(tmp_path, monkeypa
         (ImgSliceC(3, 2, 2), np.bool_), (ImgSliceC(2, 3, 1), np.uint16),
     ):
         source = tmp_path / "page.dat"
-        _write_intermediate_file(source, [0], [[4]] * shape.C, [2])
+        write_intermediate_file(source, [0], [[4]] * shape.C, [2])
         pages = []
-        write_conv_vol(lambda path, data: pages.append(data.copy()), source, tmp_path, shape, shape, 1, dtype,
-                       0, 0, False)
+        write_page(lambda path, data: pages.append(data.copy()), source, tmp_path, shape, dtype=dtype)
         accumulator, output = files_mod._writer_page_buffers
         assert accumulator.shape == (shape.C + 1, shape.Y * shape.X)
         assert output.shape == (shape.Y, shape.X, shape.C)
@@ -827,10 +713,10 @@ def test_writer_adapts_storage_to_geometry_channels_and_dtype(tmp_path, monkeypa
 def test_sparse_binary_conversion_preserves_dtype_truthiness_and_discrete_rounding(tmp_path, discrete,
                                                                                    dtype, output_dtype):
     source = tmp_path / "page.dat"
-    _write_intermediate_file(source, [0, 1, 2, 3], [-2, 0, 1.5, 2.999], [1, 1, 1, 1])
+    write_intermediate_file(source, [0, 1, 2, 3], [-2, 0, 1.5, 2.999], [1, 1, 1, 1])
     pages = []
-    write_conv_vol(lambda path, data: pages.append(data.copy()), source, tmp_path, ImgSliceC(2, 2, 1),
-                   ImgSliceC(2, 2, 1), 1, dtype, 0, 0, discrete)
+    write_page(lambda path, data: pages.append(data.copy()), source, tmp_path, ImgSliceC(2, 2, 1), dtype=dtype,
+               discrete=discrete)
     assert pages[0].dtype == output_dtype
     np.testing.assert_array_equal(pages[0].ravel(), [1, 0, 0 if discrete else 1, 1])
 
@@ -839,9 +725,9 @@ def test_writer_failure_discards_storage_before_next_page(tmp_path, monkeypatch)
     monkeypatch.setattr(files_mod, "_writer_page_buffers", None)
     source = tmp_path / "page.dat"
     shape = ImgSliceC(2, 2, 1)
-    write_conv_vol(lambda path, data: None, source, tmp_path, shape, shape, 1, np.uint16, 0, 0, False)
+    write_page(lambda path, data: None, source, tmp_path, shape)
     failed_accumulator, failed_output = files_mod._writer_page_buffers
-    _write_intermediate_file(source, [0], [8], [2])
+    write_intermediate_file(source, [0], [8], [2])
 
     def fail_write(path, data):
         assert data is failed_output
@@ -849,12 +735,11 @@ def test_writer_failure_discards_storage_before_next_page(tmp_path, monkeypatch)
         raise OSError("disk full")
 
     with pytest.raises(OSError, match="disk full"):
-        write_conv_vol(fail_write, source, tmp_path, shape, shape, 1, np.uint16, 0, 0, False)
+        write_page(fail_write, source, tmp_path, shape)
     assert files_mod._writer_page_buffers is None
-    _write_intermediate_file(source, [3], [6], [2])
+    write_intermediate_file(source, [3], [6], [2])
     pages = []
-    write_conv_vol(lambda path, data: pages.append(data.copy()), source, tmp_path, shape, shape, 1, np.uint16,
-                   1, 0, False)
+    write_page(lambda path, data: pages.append(data.copy()), source, tmp_path, shape, index=1)
     accumulator, output = files_mod._writer_page_buffers
     assert accumulator is not failed_accumulator
     assert output is not failed_output
@@ -865,23 +750,99 @@ def test_partial_accumulation_failure_discards_storage(tmp_path, monkeypatch):
     monkeypatch.setattr(files_mod, "_writer_page_buffers", None)
     source = tmp_path / "page.dat"
     shape = ImgSliceC(2, 2, 2)
-    write_conv_vol(lambda path, data: None, source, tmp_path, shape, shape, 1, np.uint16, 0, 0, False)
+    write_page(lambda path, data: None, source, tmp_path, shape)
     failed_accumulator, failed_output = files_mod._writer_page_buffers
     # A one-channel record can update channel zero before failing on channel
     # one, leaving values at a pixel whose weights were never accumulated.
-    _write_intermediate_file(source, [0], [8], [2])
+    write_intermediate_file(source, [0], [8], [2])
     with pytest.raises(IndexError):
-        write_conv_vol(lambda path, data: pytest.fail("invalid record reached writer"),
-                       source, tmp_path, shape, shape, 1, np.uint16, 0, 0, False)
+        write_page(lambda path, data: pytest.fail("invalid record reached writer"), source, tmp_path, shape)
     assert failed_accumulator[0, 0] == 8
     assert not np.any(failed_accumulator[-1])
     assert files_mod._writer_page_buffers is None
     source.unlink()
-    _write_intermediate_file(source, [3], [[6], [10]], [2])
+    write_intermediate_file(source, [3], [[6], [10]], [2])
     pages = []
-    write_conv_vol(lambda path, data: pages.append(data.copy()), source, tmp_path, shape, shape, 1, np.uint16,
-                   1, 0, False)
+    write_page(lambda path, data: pages.append(data.copy()), source, tmp_path, shape, index=1)
     accumulator, output = files_mod._writer_page_buffers
     assert accumulator is not failed_accumulator
     assert output is not failed_output
     np.testing.assert_array_equal(pages[0].reshape(-1, 2), [[0, 0], [0, 0], [0, 0], [3, 5]])
+
+
+def test_writer_preserves_nested_timings_with_reusable_storage(tmp_path, monkeypatch):
+    writer = Mock()
+    shape = ImgSliceC(2, 2, 1)
+    monkeypatch.setattr(files_mod, "_writer_page_buffers", None)
+    monkeypatch.setattr(files_mod, "time", clock([0, 2, 3, 5, 6, 10, 12]))
+    timings = write_page(writer, tmp_path / "empty.dat", tmp_path, shape, dtype=np.uint8)
+    assert timings == {"Merge Volume": 2, "Convert Volume": 2, "Write Merged": 4, "Total Chunk Merge": 12}
+    assert writer.call_count == 1
+    assert writer.call_args.kwargs["data"] is files_mod._writer_page_buffers[1]
+
+
+PAGE = ImgSliceC(Y=2, X=3, C=1)
+DOUBLED_PAGE = ImgSliceC(Y=4, X=6, C=1)
+
+
+def _write_page(path):
+    """A 2 x 3 page whose pixel values are their row-major indexes."""
+    write_intermediate_file(path, np.arange(6), np.arange(6), np.ones(6), source_rows=3, target_rows=3)
+
+
+@pytest.fixture
+def writes(monkeypatch):
+    monkeypatch.setattr(files_mod, "_writer_page_buffers", None)
+    return []
+
+
+@pytest.mark.parametrize("output_shape", [
+    pytest.param(DOUBLED_PAGE, id="whole-factor"),
+    pytest.param(ImgSliceC(Y=5, X=7, C=1), id="non-integer-factor"),
+])
+def test_writer_resizes_pages_to_the_output_shape(tmp_path, writes, output_shape):
+    source = tmp_path / "page.dat"
+    _write_page(source)
+    perf = write_page(lambda path, data: writes.append((path.name, data.copy())), source, tmp_path, PAGE,
+                      output_shape=output_shape)
+    assert [name for name, _ in writes] == ["00000.tif"]
+    assert writes[0][1].shape[:2] == (output_shape.Y, output_shape.X)
+    assert writes[0][1].dtype == np.uint16
+    assert "Zoom" in perf
+
+
+def test_writer_keeps_orientation_when_resizing(tmp_path, writes):
+    source = tmp_path / "page.dat"
+    _write_page(source)
+    write_page(lambda path, data: writes.append(data.copy()), source, tmp_path, PAGE, output_shape=DOUBLED_PAGE)
+    assert_array_equal(writes[0], [[0, 0, 1, 1, 2, 2], [0, 0, 1, 1, 2, 2], [3, 3, 4, 4, 5, 5], [3, 3, 4, 4, 5, 5]])
+
+
+def test_writer_repeats_each_page_for_the_output_z_positions(tmp_path, writes):
+    source = tmp_path / "page.dat"
+    _write_page(source)
+    write_page(lambda path, data: writes.append(path.name), source, tmp_path, PAGE, output_shape=DOUBLED_PAGE,
+               z_steps=2, index=3)
+    assert writes == ["00006.tif", "00007.tif"]
+
+
+def test_writer_resizes_binary_pages_as_bytes(tmp_path, writes):
+    source = tmp_path / "page.dat"
+    _write_page(source)
+    write_page(lambda path, data: writes.append(data.copy()), source, tmp_path, PAGE, output_shape=DOUBLED_PAGE,
+               dtype=bool)
+    assert writes[0].dtype == np.uint8
+    assert writes[0].shape == (4, 6)
+
+
+def test_writer_reuses_source_storage_across_resized_pages(tmp_path, writes):
+    source = tmp_path / "page.dat"
+    outputs = []
+    for index in range(2):
+        _write_page(source)
+        write_page(lambda path, data: writes.append(data.copy()), source, tmp_path, PAGE, output_shape=DOUBLED_PAGE,
+                   index=index)
+        outputs.append(files_mod._writer_page_buffers[1])
+    assert outputs[0] is outputs[1]
+    assert outputs[0].shape == (2, 3, 1)
+    assert_array_equal(writes[0], writes[1])

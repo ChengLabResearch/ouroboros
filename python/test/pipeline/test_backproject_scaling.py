@@ -6,17 +6,12 @@ import numpy as np
 from numpy.testing import assert_array_equal
 import pytest
 
-from ouroboros.helpers import files as files_module
-from ouroboros.helpers.files import write_conv_vol
 from ouroboros.helpers.shapes import ImgSliceC, NGOrder
 from ouroboros.helpers.volume_cache import CloudVolumeInterface
 from ouroboros.pipeline.backproject_pipeline import get_output_origin, get_output_shape, is_big_tiff
-from test.helpers.test_files import _write_intermediate_file
 
 PYRAMID = [(2594, 3190, 7788), (1297, 1595, 3894), (649, 798, 1947)]
 ROUNDED_UP = [(2595, 3191, 7788), (1298, 1596, 3894)]
-PAGE = ImgSliceC(Y=2, X=3, C=1)
-DOUBLED_PAGE = ImgSliceC(Y=4, X=6, C=1)
 
 
 def _source(tmp_path, sizes):
@@ -26,11 +21,6 @@ def _source(tmp_path, sizes):
     info = {"data_type": "uint8", "num_channels": 1, "type": "image", "scales": scales}
     (tmp_path / "info").write_text(json.dumps(info), encoding="utf-8")
     return CloudVolumeInterface(f"precomputed://file://{tmp_path}")
-
-
-def _write_page(path):
-    """A 2 x 3 page whose pixel values are their row-major indexes."""
-    _write_intermediate_file(path, np.arange(6), np.arange(6), np.ones(6), source_rows=3, target_rows=3)
 
 
 @pytest.mark.parametrize("sizes,mip,write,expected", [
@@ -90,62 +80,3 @@ def test_coarser_target_is_rejected(tmp_path, resolve):
 ])
 def test_big_tiff_decision_counts_every_axis_and_sample_size(shape, dtype, expected):
     assert bool(is_big_tiff(shape, dtype)) is expected
-
-
-@pytest.fixture
-def writes(monkeypatch):
-    monkeypatch.setattr(files_module, "_writer_page_buffers", None)
-    return []
-
-
-@pytest.mark.parametrize("output_shape", [
-    pytest.param(DOUBLED_PAGE, id="whole-factor"),
-    pytest.param(ImgSliceC(Y=5, X=7, C=1), id="non-integer-factor"),
-])
-def test_writer_resizes_pages_to_the_output_shape(tmp_path, writes, output_shape):
-    source = tmp_path / "page.dat"
-    _write_page(source)
-    perf = write_conv_vol(lambda path, data: writes.append((path.name, data.copy())), source, tmp_path,
-                          PAGE, output_shape, 1, np.uint16, 0, 0, False)
-    assert [name for name, _ in writes] == ["00000.tif"]
-    assert writes[0][1].shape[:2] == (output_shape.Y, output_shape.X)
-    assert writes[0][1].dtype == np.uint16
-    assert "Zoom" in perf
-
-
-def test_writer_keeps_orientation_when_resizing(tmp_path, writes):
-    source = tmp_path / "page.dat"
-    _write_page(source)
-    write_conv_vol(lambda path, data: writes.append(data.copy()), source, tmp_path,
-                   PAGE, DOUBLED_PAGE, 1, np.uint16, 0, 0, False)
-    assert_array_equal(writes[0], [[0, 0, 1, 1, 2, 2], [0, 0, 1, 1, 2, 2], [3, 3, 4, 4, 5, 5], [3, 3, 4, 4, 5, 5]])
-
-
-def test_writer_repeats_each_page_for_the_output_z_positions(tmp_path, writes):
-    source = tmp_path / "page.dat"
-    _write_page(source)
-    write_conv_vol(lambda path, data: writes.append(path.name), source, tmp_path,
-                   PAGE, DOUBLED_PAGE, 2, np.uint16, 3, 0, False)
-    assert writes == ["00006.tif", "00007.tif"]
-
-
-def test_writer_resizes_binary_pages_as_bytes(tmp_path, writes):
-    source = tmp_path / "page.dat"
-    _write_page(source)
-    write_conv_vol(lambda path, data: writes.append(data.copy()), source, tmp_path,
-                   PAGE, DOUBLED_PAGE, 1, bool, 0, 0, False)
-    assert writes[0].dtype == np.uint8
-    assert writes[0].shape == (4, 6)
-
-
-def test_writer_reuses_source_storage_across_resized_pages(tmp_path, writes):
-    source = tmp_path / "page.dat"
-    outputs = []
-    for index in range(2):
-        _write_page(source)
-        write_conv_vol(lambda path, data: writes.append(data.copy()), source, tmp_path,
-                       PAGE, DOUBLED_PAGE, 1, np.uint16, index, 0, False)
-        outputs.append(files_module._writer_page_buffers[1])
-    assert outputs[0] is outputs[1]
-    assert outputs[0].shape == (2, 3, 1)
-    assert_array_equal(writes[0], writes[1])

@@ -11,7 +11,9 @@ from ouroboros.helpers.options import BackprojectOptions, SliceOptions
 from ouroboros.pipeline.backproject_pipeline import BackprojectPipelineStep
 from ouroboros.pipeline.pipeline import Pipeline
 from ouroboros.pipeline.pipeline_input import PipelineInput
-from test.pipeline.test_backproject_geometry import source_metadata  # noqa: F401
+
+pytestmark = pytest.mark.needs("backprojection")
+needs_resave = pytest.mark.needs("backprojection-resave")
 
 
 def _run_backprojection(folder, shape, channels, photometric, layout, *,
@@ -103,6 +105,7 @@ def _run_backprojection(folder, shape, channels, photometric, layout, *,
     return np.stack(pages)
 
 
+@needs_resave
 @pytest.mark.parametrize("channels,photometric", [
     pytest.param(1, "minisblack", id="grayscale"),
     pytest.param(3, "rgb", id="rgb"),
@@ -118,6 +121,7 @@ def test_file_and_numeric_folder_backprojection_preserve_z_positions(
     np.testing.assert_array_equal(folder_output, file_output)
 
 
+@pytest.mark.canary("backprojection")
 @pytest.mark.parametrize("shape,channels,photometric", [
     pytest.param((3, 3, 3), 1, "minisblack", id="grayscale-singleton-chunk-tails"),
     pytest.param((3, 3, 3), 3, "rgb", id="rgb-singleton-chunk-tails"),
@@ -134,6 +138,7 @@ def test_backprojection_preserves_singleton_input_and_chunk_axes(
     _run_backprojection(tmp_path / "run", shape, channels, photometric, "file")
 
 
+@pytest.mark.canary("backprojection-resave")
 @pytest.mark.parametrize("layout,channels,photometric", [
     pytest.param("file", 3, "rgb", id="compressed-rgb-file"),
     pytest.param("folder", 2, "minisblack", id="compressed-two-channel-folder"),
@@ -145,11 +150,13 @@ def test_compressed_backprojection_input_keeps_shape_and_photometric(
                         layout, compression="zlib")
 
 
+@needs_resave
 def test_backprojection_input_folder_can_also_hold_its_outputs(tmp_path, source_metadata):
     _run_backprojection(tmp_path / "run", (3, 3, 3), 3, "rgb", "folder",
                         input_is_output=True)
 
 
+@needs_resave
 @pytest.mark.parametrize("layout,compression", [("folder", None), ("file", "zlib")])
 def test_backprojection_removes_temporary_input_with_per_slice_output(
     tmp_path, source_metadata, layout, compression,
@@ -158,11 +165,13 @@ def test_backprojection_removes_temporary_input_with_per_slice_output(
                         compression=compression, single_file=False)
 
 
+@needs_resave
 def test_backprojection_retains_user_input_named_like_temporary_file(tmp_path, source_metadata):
     _run_backprojection(tmp_path / "run", (3, 3, 3), 3, "rgb", "file",
                         input_file_name=format_backproject_resave_volume("sample"))
 
 
+@needs_resave
 @pytest.mark.parametrize("layout,compression", [("file", "zlib"), ("folder", None)])
 def test_backprojection_rejects_temporary_path_over_input(
     tmp_path, source_metadata, layout, compression,
@@ -175,6 +184,7 @@ def test_backprojection_rejects_temporary_path_over_input(
     )
 
 
+@needs_resave
 def test_failed_export_retains_temporary_input(tmp_path, source_metadata, monkeypatch):
     set_stage = BackprojectPipelineStep.set_stage
 

@@ -1,6 +1,6 @@
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) ![Coverage](./coverage.svg)
+![Coverage](./coverage.svg)
 
-# Ourobors Python Package
+# Ouroboros Python Package
 
 This python package organizes all of the core functionality of the Ouroboros segmentation pipeline.
 
@@ -44,6 +44,10 @@ the [benchmark guide](../documentation/docs/development/benchmarks/index.md) for
 Export sample options files into the current folder.
 
 `ouroboros-cli sample-options`
+
+Write the slice rectangles for a slicing configuration to `<output_file_name>_rects.npy` in its output folder. `--include-ng` also writes Neuroglancer points and angles to `<output_file_name>_ng.json`.
+
+`ouroboros-cli geometry <options.json> [--include-ng]`
 
 ### Straightened TIFF Annotation Metadata
 
@@ -176,7 +180,7 @@ else:
     print("Backprojection completed successfully.")
 ```
 
-The two predefined pipelines are `backproject_pipeline` and `slice_pipeline`.
+The predefined pipelines in [pipelines.py](./ouroboros/common/pipelines.py) are `slice_pipeline`, `backproject_pipeline`, `geometry_pipeline`, and `visualization_pipeline`.
 
 For more example usage, see [Server Handlers](./ouroboros/common/server_handlers.py).
 
@@ -219,6 +223,7 @@ class CustomPipelineStep(PipelineStep):
 2. **Create and Configure the Pipeline**
 
 ```python
+from ouroboros.helpers.options import SliceOptions
 from ouroboros.pipeline import Pipeline, PipelineInput
 from . import CustomPipelineStep
 
@@ -230,7 +235,8 @@ pipeline = Pipeline(
 )
 
 # Create input data for the pipeline
-input_data = PipelineInput(json_path="./data/myjson.json")
+slice_options = SliceOptions.load_from_json("./data/slice-options.json")
+input_data = PipelineInput(slice_options=slice_options)
 
 # Process the pipeline
 output, error = pipeline.process(input_data)
@@ -245,66 +251,4 @@ else:
 
 The default pipeline input class, `PipelineInput`, is the one used for both the `slice_pipeline` and the `backproject_pipeline`.
 
-Creating a new pipeline input class for your custom pipeline is relatively simple. The default pipeline input is a good template.
-
-This is the code for the default pipeline input:
-
-```python
-from ouroboros.pipeline import BasePipelineInput
-from pydantic import field_serializer, field_validator
-
-from ouroboros.helpers.options import BackprojectOptions, SliceOptions
-from ouroboros.helpers.volume_cache import VolumeCache
-from ouroboros.helpers.models import model_with_json
-
-import numpy as np
-
-@model_with_json
-class PipelineInput(BasePipelineInput):
-    """
-    Dataclass for the input to the pipeline.
-    """
-
-    json_path: str | None = None
-    slice_options: SliceOptions | None = None
-    backproject_options: BackprojectOptions | None = None
-    source_url: str | None = None
-    sample_points: np.ndarray | None = None
-    slice_rects: np.ndarray | None = None
-    volume_cache: VolumeCache | None = None
-    output_file_path: str | None = None
-    backprojected_folder_path: str | None = None
-    config_file_path: str | None = None
-    backprojection_offset: str | None = None
-
-    # A custom serializer is needed to correctly convert 
-    # numpy arrays to a JSON-compatible form
-    @field_serializer("sample_points", "slice_rects")
-    def to_list(self, value):
-        return value.tolist() if value is not None else None
-
-    # A custom validator is needed to convert parsed lists
-    # into numpy arrays before the type is validated
-    @field_validator("sample_points", "slice_rects", mode="before")
-    @classmethod
-    def validate_list(cls, value: any):
-        if isinstance(value, list):
-            return np.array(value)
-        return value
-
-    # A custom serializer is needed to correctly convert a
-    # class with a `to_dict` method to a JSON-compatible format.
-    @field_serializer("volume_cache")
-    def to_dict(self, value):
-        return value.to_dict() if value is not None else None
-
-    # A custom validator is needed to convert a parsed dict
-    # to a class with a `from_dict` method.
-    @field_validator("volume_cache", mode="before")
-    @classmethod
-    def validate_volume_cache(cls, value: any):
-        if isinstance(value, dict):
-            return VolumeCache.from_dict(value)
-        return value
-
-```
+To create your own, subclass `BasePipelineInput` and apply `@model_with_json`, as [`PipelineInput`](./ouroboros/pipeline/pipeline_input.py) does. That class shows the two patterns a custom input usually needs: a `field_serializer` and `field_validator` pair converts fields such as NumPy arrays to and from a JSON-compatible form. Field names must match the names your steps list in `inputs`.

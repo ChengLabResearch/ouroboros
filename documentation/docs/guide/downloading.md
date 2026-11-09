@@ -2,7 +2,7 @@
 
 [Docker](https://www.docker.com/) **is required** to run Ouroboros. Make sure to install and run it before running Ouroboros.
 
-Prebuilt applications are available in [Releases](https://github.com/We-Gold/ouroboros/releases).
+Prebuilt applications are available in [Releases](https://github.com/ChengLabResearch/ouroboros/releases).
 
 - Windows: `*-setup.exe`
 - Mac: `*.dmg`

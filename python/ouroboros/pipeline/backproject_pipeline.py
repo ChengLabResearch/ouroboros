@@ -76,6 +76,11 @@ class BackprojectPipelineStep(PipelineStep):
         if not isinstance(slice_rects, np.ndarray):
             return "Input data must contain an array of slice rects."
 
+        slice_mip = pipeline_input.slice_options.output_mip_level
+        if config.output_mip_level > slice_mip:
+            raise NotImplementedError(("Downsampling during backprojection not yet implemented;"
+                                       f" Was requested from {slice_mip} to {config.output_mip_level}"))
+
         # Backprojection partitions the straightened input into its own chunks.
         # It only needs the slice envelope and source metadata, not a slice cache
         # or the download partitioner's candidate tree and planning pool.
@@ -86,7 +91,7 @@ class BackprojectPipelineStep(PipelineStep):
 
         straightened_volume_path = config.straightened_volume_path
 
-        # Make sure the strai.tolist()ghtened volume exists
+        # Make sure the straightened volume exists
         if not os.path.exists(straightened_volume_path):
             return (f"The straightened volume does not exist at {straightened_volume_path}.")
 
@@ -150,8 +155,6 @@ class BackprojectPipelineStep(PipelineStep):
                                   sample_path=new_straightened_volume_path, is_compressed=False)
             owns_temporary_input = True
 
-        slice_mip = pipeline_input.slice_options.output_mip_level
-
         output_origin = get_output_origin(source, slice_mip, config.output_mip_level,
                                           full_bounding_box.get_integer_origin())
         pipeline_input.output_file_path = (f"{config.output_file_name}_{'_'.join(map(str, output_origin))}")
@@ -181,7 +184,7 @@ class BackprojectPipelineStep(PipelineStep):
         # Allocate procs equally between BP math and writing; 1:2 if scaling.
         self.exec_config = {
             "backproject_processes": int(config.process_count // (3 if output_shape != write_shape else 2)),
-            "writer_processes": int(config.process_count // (1.5 if output_shape != write_shape is not None else 2)),
+            "writer_processes": int(config.process_count // (1.5 if output_shape != write_shape else 2)),
             "intermediate_threads_per_process": 12,
         }
 

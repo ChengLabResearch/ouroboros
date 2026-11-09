@@ -154,8 +154,11 @@ def test_generate_tiff_write(tmp_path):
         assert tif.pages[0].tags["ResolutionUnit"].value == tf.RESUNIT.CENTIMETER
         assert tif.pages[0].tags["Software"].value == "ouroboros"
         assert tif.pages[0].tags["Compression"].value == tf.COMPRESSION.ADOBE_DEFLATE
-        assert tif.pages[0].tags["XResolution"].value == (4294967295, 300648)
-        assert tif.pages[0].tags["YResolution"].value == (4294967295, 300648)
+        # TIFF stores a rational; tifffile versions choose different fractions
+        # for the same physical voxel size (newer releases round more closely).
+        for tag, voxel_size in zip(("XResolution", "YResolution"), micron_resolution):
+            numerator, denominator = tif.pages[0].tags[tag].value
+            assert 10_000 * denominator / numerator == pytest.approx(voxel_size)
         json_metadata = json.loads(tif.pages[0].tags["ImageDescription"].value)
         assert json_metadata["spacing"] == 0.7
         assert json_metadata["unit"] == "um"
@@ -441,6 +444,35 @@ def test_np_convert_preset_and_zero_range_branches():
         preset_min=-2,
     )
     np.testing.assert_array_equal(shifted, np.array([0, 2, 4], dtype=np.uint8))
+
+
+@pytest.mark.parametrize("preset", [False, True])
+@pytest.mark.parametrize("dtype,expected", [
+    (np.uint32, [0, 2140276480, 2043064576, 3025328128, 4294967040]),
+    (np.uint64, [0, 9192417485997998080, 8774895537536106496,
+                 12993685369428901888, 18446742974197923840]),
+])
+def test_np_convert_wide_unsigned_preserves_numpy1_pixels(preset, dtype, expected):
+    # Float32 samples from oblique slices of a real uint16 TIFF, including its
+    # interpolated extrema. Expected pixels were captured on NumPy 1.26.4.
+    # NumPy 2 rounded the scalar range to float32, changing pixels and wrapping
+    # the maximum to zero when converting to uint32/uint64.
+    source = np.array([8773.5576171875, 25344.5625, 24591.90234375,
+                       32197.0390625, 42027.16796875], dtype=np.float32)
+    kwargs = {"preset_min": source.min(), "preset_max": source.max()} if preset else {}
+    with np.errstate(invalid="raise", over="raise"):
+        actual = np_convert(dtype, source, **kwargs)
+    assert actual.dtype == dtype
+    np.testing.assert_array_equal(actual, np.array(expected, dtype=dtype))
+
+
+@pytest.mark.parametrize("preset", [False, True])
+def test_np_convert_preserves_large_integer_range(preset):
+    source = np.array([2**53, 2**53 + 1], dtype=np.int64)
+    kwargs = {"preset_min": source.min(), "preset_max": source.max()} if preset else {}
+    np.testing.assert_array_equal(
+        np_convert(np.float64, source, **kwargs), np.array([0.0, 1.0])
+    )
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX vectored append")

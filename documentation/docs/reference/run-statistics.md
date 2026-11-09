@@ -319,6 +319,12 @@ adjustment even while the same process is running. The host OS remains unknown
 from inside Docker; the selected metric follows the execution OS in
 `environment.os`.
 
+Ouroboros supports psutil **>=7.1.3,<7.3**, with native CI exercising 7.1.3 and 7.2.2 on
+Linux, Windows and macOS. The process identity methods used here are unchanged
+across these releases. New minor series require identity/IPC compatibility and
+clock-adjustment review before widening this range. IPC tokens carry the actual
+installed version and are accepted only by the same version and platform.
+
 In Detailed mode, memory `status` is `sampled` when all admitted sweeps succeeded, `partial` when some
 failed, `unavailable` when none completed, or `not_started` if the pipeline was
 never reached. Process or allocation changes during a sweep make that sweep

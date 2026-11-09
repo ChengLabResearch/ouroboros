@@ -1,8 +1,22 @@
-![Coverage](./coverage.svg)
+![Coverage](https://raw.githubusercontent.com/ChengLabResearch/ouroboros/main/python/coverage.svg)
 
 # Ouroboros Python Package
 
 This python package organizes all of the core functionality of the Ouroboros segmentation pipeline.
+
+The Python distribution is named `ouroboros-roi`; the import remains `ouroboros`
+and the commands remain `ouroboros-cli`, `ouroboros-server`, and
+`ouroboros-docker-server`. It supports Python 3.11 and 3.12.
+
+To install from a local checkout, run `python -m pip install ./python` from the
+repository root. To build an installable wheel, run `poetry build` from `python/`;
+the wheel is named `ouroboros_roi-<version>-py3-none-any.whl`.
+
+The unrelated `ouroboros` distribution on PyPI uses the same import name.
+Use a fresh environment for `ouroboros-roi`, including when moving from an
+earlier local installation named `ouroboros`; the distributions share module
+files and cannot coexist safely. PyPI publication of `ouroboros-roi` is tracked in
+[issue #244](https://github.com/ChengLabResearch/ouroboros/issues/244).
 
 ### CLI Usage
 
@@ -37,9 +51,9 @@ Server reporting also defaults to `off`; pass `logging_mode=standard` or
 `logging_mode=detailed` when submitting a task to enable it. Legacy API
 `reporting_enabled=false/true` maps to Off/Detailed when `logging_mode` is absent;
 an explicit mode takes precedence. Task status exposes report delivery and recovery
-information. See the [run-statistics reference](../documentation/docs/reference/run-statistics.md)
+information. See the [run-statistics reference](https://github.com/ChengLabResearch/ouroboros/blob/main/documentation/docs/reference/run-statistics.md)
 for timing boundaries, schema definitions, Docker behavior, and limitations, and
-the [benchmark guide](../documentation/docs/development/benchmarks/index.md) for reproducible overhead measurements.
+the [benchmark guide](https://github.com/ChengLabResearch/ouroboros/blob/main/documentation/docs/development/benchmarks/index.md) for reproducible overhead measurements.
 
 Export sample options files into the current folder.
 
@@ -73,19 +87,19 @@ the annotation prompts.
 
 ### Server Usage
 
-This package also comes with a FastAPI server that can be run natively with `ouroboros-server`. The desktop app does not use this entry point: it runs the server in Docker, as described in the [root README](../README.md).
+This package also comes with a FastAPI server that can be run natively with `ouroboros-server`. The desktop app does not use this entry point: it runs the server in Docker, as described in the [root README](https://github.com/ChengLabResearch/ouroboros/blob/main/README.md).
 
 The usage is very similar to the CLI. To try it out, open the server's interactive API docs once it is running, at `http://127.0.0.1:8000/docs`.
 
 ### Development
 
-This setup is for native Python development and tests. The [Electron development workflow](../README.md#development-quick-start) runs the backend in Docker and does not require a host Python environment.
+This setup is for native Python development and tests. The [Electron development workflow](https://github.com/ChengLabResearch/ouroboros/blob/main/README.md#development-quick-start) runs the backend in Docker and does not require a host Python environment.
 
 Run Poetry commands from the repository's `python/` directory, which contains `pyproject.toml`. If you use VS Code, opening that folder in a separate window keeps the Python environment separate from the Electron workspace; its integrated terminal is a convenient place to run these commands.
 
 #### 1. Install and select Python
 
-Use Python **3.11** to match the Docker backend and coverage CI. The package supports Python 3.11 and 3.12 (`>=3.11,<3.13` in [pyproject.toml](pyproject.toml)). Download Python from [python.org](https://www.python.org/downloads/), or use [pyenv](https://github.com/pyenv/pyenv#installation) on Linux/macOS after installing its build prerequisites:
+Use Python **3.11** to match the Docker backend and coverage CI. The package supports Python 3.11 and 3.12 (`>=3.11,<3.13` in [pyproject.toml](https://github.com/ChengLabResearch/ouroboros/blob/main/python/pyproject.toml)). Download Python from [python.org](https://www.python.org/downloads/), or use [pyenv](https://github.com/pyenv/pyenv#installation) on Linux/macOS after installing its build prerequisites:
 
 ```bash
 pyenv install 3.11
@@ -130,6 +144,21 @@ Setting `virtualenvs.in-project` does not move an existing Poetry environment in
 
 Poetry can reuse an already active virtual environment, including Conda. Deactivate it first if you want Poetry to create this project's `.venv`. Use `poetry env info --path` to check which environment is actually selected rather than relying only on the terminal prompt.
 
+#### Build standalone executables
+
+After `poetry install`, run PyInstaller from the checkout's `python/` directory
+with the existing build specifications:
+
+```bash
+poetry run pyinstaller cli.spec
+poetry run pyinstaller server.spec
+```
+
+These produce `dist/ouroboros-cli` and `dist/ouroboros-server` (with `.exe` on
+Windows). They replace the development aliases `build-cli-executable` and
+`build-server-executable`, which were installed by earlier wheels but could not
+run outside the checkout. PyInstaller remains a development dependency.
+
 
 ### Testing
 
@@ -140,16 +169,16 @@ To run code coverage, use the following command:
 coverage erase && coverage run -m pytest && coverage combine && coverage report -m
 ```
 
-The tests in `test/` cover the helpers, pipeline steps, server reporting, shared-memory lifecycle, and native memory readers. The coverage report and its 98% threshold measure only `ouroboros/helpers`; see `[tool.coverage.run]` and `[tool.coverage.report]` in [pyproject.toml](pyproject.toml). Coverage includes multiprocessing workers and combines their result files.
+The tests in `test/` cover the helpers, pipeline steps, server reporting, shared-memory lifecycle, and native memory readers. The coverage report and its 98% threshold measure only `ouroboros/helpers`; see `[tool.coverage.run]` and `[tool.coverage.report]` in [pyproject.toml](https://github.com/ChengLabResearch/ouroboros/blob/main/python/pyproject.toml). Coverage includes multiprocessing workers and combines their result files.
 
-Tests of a shared path use the `canary` and `needs` markers from [test/conftest.py](test/conftest.py). When a canary fails, the tests that depend on it skip and name that canary, so fix it first.
+Tests of a shared path use the `canary` and `needs` markers from [test/conftest.py](https://github.com/ChengLabResearch/ouroboros/blob/main/python/test/conftest.py). When a canary fails, the tests that depend on it skip and name that canary, so fix it first.
 
-The shared-memory and native memory tests can run on their own with a reduced set of dependencies, for example `pytest test/test_shared_memory_lifecycle.py -q`. CI runs that set on Linux, Windows, and macOS with Python 3.11 and 3.12; see [pr-coverage.yml](../.github/workflows/pr-coverage.yml) for the list.
-See the [shared-memory lifecycle contract](../documentation/docs/development/shared-memory-lifecycle.md)
+The shared-memory and native memory tests can run on their own with a reduced set of dependencies, for example `pytest test/test_shared_memory_lifecycle.py -q`. CI runs that set on Linux, Windows, and macOS with Python 3.11 and 3.12; see [pr-coverage.yml](https://github.com/ChengLabResearch/ouroboros/blob/main/.github/workflows/pr-coverage.yml) for the list.
+See the [shared-memory lifecycle contract](https://github.com/ChengLabResearch/ouroboros/blob/main/documentation/docs/development/shared-memory-lifecycle.md)
 for ownership, release semantics, and the RAM-reporting integration boundary.
 
 Commits to main and PR's should trigger coverage reports automatically on GitHub.
 
 ## Using the Python Package
 
-The CLI and server use this package for slicing and backprojecting, and it can be used directly. See [Python pipelines](../documentation/docs/development/python-pipelines.md) for predefined pipelines and writing custom ones.
+The CLI and server use this package for slicing and backprojecting, and it can be used directly. See [Python pipelines](https://github.com/ChengLabResearch/ouroboros/blob/main/documentation/docs/development/python-pipelines.md) for predefined pipelines and writing custom ones.

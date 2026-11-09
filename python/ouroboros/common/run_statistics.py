@@ -21,7 +21,7 @@ from ouroboros.pipeline.volume_statistics import collect_volume_statistics
 def runtime_metadata() -> dict:
     """Cheap process-invariant provenance, gathered outside the measured operation."""
     try:
-        version = metadata.version("ouroboros")
+        version = metadata.version("ouroboros-roi")
     except metadata.PackageNotFoundError:
         version = None
     revision = os.environ.get("OUROBOROS_BUILD_REVISION")

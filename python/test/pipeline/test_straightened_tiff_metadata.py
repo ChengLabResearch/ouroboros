@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+import tifffile
 
 from ouroboros.helpers.bounding_boxes import BoundingBox
 from ouroboros.helpers.volume_cache import CloudVolumeInterface, VolumeCache
@@ -9,7 +10,7 @@ from ouroboros.pipeline.slice_parallel_pipeline import build_straightened_tiff_m
 from test.harness import make_rects
 
 
-def test_straightened_tiff_metadata_preserves_annotations_and_physical_resolution(source_metadata):
+def test_straightened_tiff_metadata_preserves_annotations_and_physical_resolution(source_metadata, tmp_path):
     cache = VolumeCache([BoundingBox.from_rects(make_rects())], [0],
                         CloudVolumeInterface("memory://source"), mip=1)
     points = np.array([[4.5, 8.25, 0.0], [6.75, 9.5, 2.0]], dtype=np.float32)
@@ -22,12 +23,25 @@ def test_straightened_tiff_metadata_preserves_annotations_and_physical_resolutio
     assert metadata["unit"] == "um"
     assert metadata["annotation_points"] == [[4.5, 8.25, 0.0], [6.75, 9.5, 2.0]]
     # MIP 1 has 200 nm X and 400 nm Y voxels: 50,000 and 25,000 voxels/cm.
-    assert kwargs["resolution"][:2] == pytest.approx([50_000, 25_000]), (
+    assert kwargs["resolution"] == pytest.approx([50_000, 25_000]), (
         "TIFF X/Y resolution must invert voxel spacing and convert micrometers to centimeters"
     )
-    assert kwargs["resolution"][-1] == "CENTIMETER"
-    assert len(kwargs["resolution"]) == 3
-    assert "resolutionunit" not in kwargs
+    assert kwargs["resolutionunit"] == "CENTIMETER"
     assert kwargs["software"] == "ouroboros"
     assert kwargs["photometric"] == "minisblack"
     assert source_metadata.resolutions and set(source_metadata.resolutions) == {1}
+
+    # Check the actual boundary: newer tifffile ignores a third resolution
+    # tuple element and defaults to inches unless resolutionunit is explicit.
+    path = tmp_path / "straightened.tif"
+    tifffile.imwrite(path, np.zeros((2, 3), dtype=np.uint16), **kwargs)
+    with tifffile.TiffFile(path) as tif:
+        tags = tif.pages[0].tags
+        assert tags["ResolutionUnit"].value == tifffile.RESUNIT.CENTIMETER
+        for name, spacing in (("XResolution", 0.2), ("YResolution", 0.4)):
+            numerator, denominator = tags[name].value
+            # Older tifffile scales the numerator to UINT32_MAX and rounds
+            # the denominator, quantizing micron spacing by this amount.
+            assert 10_000 * denominator / numerator == pytest.approx(
+                spacing, rel=0, abs=10_000 / np.iinfo(np.uint32).max,
+            )

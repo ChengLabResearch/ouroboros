@@ -50,7 +50,8 @@ def build_straightened_tiff_metadata(
 
     return {
         "software": "ouroboros",
-        "resolution": resolution[:2] + [resolutionunit],
+        "resolution": resolution,
+        "resolutionunit": resolutionunit,
         # Source metadata has no color semantics; three channels is the only RGB convention.
         "photometric": "rgb" if has_color_channels and num_color_channels == 3 else "minisblack",
         **({"planarconfig": "contig"} if has_color_channels and num_color_channels and num_color_channels > 1 else {}),

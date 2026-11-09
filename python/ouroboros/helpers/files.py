@@ -247,8 +247,12 @@ def np_convert(target_dtype: np.dtype, source: ArrayLike,
         return source.astype(target_dtype).astype(np.uint8)
 
     if normalize:
-        source_floor = (preset_min if preset_min is not None else np.min(source)) * -1
-        source_range = (preset_max if preset_max is not None else np.max(source)) + source_floor
+        source_min = preset_min if preset_min is not None else np.min(source)
+        source_max = preset_max if preset_max is not None else np.max(source)
+        # Unbox floating bounds to retain NumPy 1's scalar precision without
+        # promoting the source array or losing precision in integer bounds.
+        source_floor = (source_min.item() if isinstance(source_min, np.floating) else source_min) * -1
+        source_range = (source_max.item() if isinstance(source_max, np.floating) else source_max) + source_floor
 
         # Avoid divide by 0, esp. as numpy segfaults when you do.
         if source_range == 0.0:

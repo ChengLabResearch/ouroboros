@@ -14,50 +14,6 @@ If you are interested in using the Python package for its CLI or for a custom us
 
 Ouroboros also has a [Plugin System](./guide/plugins.md). Plugin servers are also run in Docker.
 
-## Usage Guide
-
-_It is recommended that you read these pages in order._
-
-- [Download and Install Ouroboros](./guide/downloading.md)
-- [Slicing](./guide/slicing.md)
-- [Backprojection](./guide/backproject.md)
-- [Plugins](./guide/plugins.md)
-
-## Reference
-
-- [Technical Constants](./reference/technical-constants.md) - hardcoded
-  limits, defaults, and worker allocation.
-- [Bounding Box Partitioning](./reference/bounding-box-partitioning.md) - how
-  slices are grouped into source-volume requests.
-- [Pipeline Run Statistics](./reference/run-statistics.md) - logging modes and
-  performance report contents.
-
-## Large Folder Behavior
-
-The Ouroboros File Explorer is designed to open scan and output folders
-directly, but it is not a general-purpose file browser. It loads
-subfolders on demand: opening a folder shows only that folder's direct
-entries, and subfolder contents stream in when you expand each subfolder.
-When you point it at a folder that contains many files or deeply nested
-subfolders, the following behavior applies:
-
-- Only the root's direct entries are loaded up front. Nested subfolders
-  are loaded and watched only when you expand them.
-- Collapsing a subfolder keeps its state and watcher alive for a short
-  window (thirty seconds by default) so quickly re-expanding is free. If
-  you leave it collapsed past that window, the underlying watcher is torn
-  down and the subfolder's cached children are dropped from renderer
-  state; re-expanding later behaves like a fresh load.
-- The panel stops loading new paths after one hundred thousand visible
-  entries across all currently open watchers. When this happens,
-  Ouroboros shows a warning toast asking you to pick a smaller folder or
-  expand the folder in smaller pieces.
-- `node_modules`, `__pycache__`, `venv`, and any directory whose name
-  starts with `.` are always skipped.
-
-See [Technical Constants](./reference/technical-constants.md) for the
-exact values, why they were chosen, and when to adjust them.
-
 ## Ouroboros Explanation
 
 A user of Ouroboros may have a multi-terabyte volumetric scan, hosted with the Neuroglancer family of tools (i.e. [cloud-volume](https://github.com/seung-lab/cloud-volume)). 
@@ -72,3 +28,26 @@ Ouroboros opens this configuration file and cuts rectangular slices along the an
 _Every tenth slice in a circular annotation path, rendered in Ouroboros's Slicing Page._
 
 From there, the user segments the much smaller straightened volume with their choice of segmentation system. Then, Ouroboros [backprojects](./guide/backproject.md) the segmented slices into the original volume space (unstraightens it), producing a full segmentation.
+
+## Usage Guide
+
+_It is recommended that you read these pages in order._
+
+- [Download and Install Ouroboros](./guide/downloading.md)
+- [Slicing](./guide/slicing.md)
+- [Backprojection](./guide/backproject.md)
+- [File Explorer](./guide/file-explorer.md)
+- [Plugins](./guide/plugins.md)
+
+## Reference
+
+- [Technical Constants](./reference/technical-constants.md) - hardcoded
+  limits, defaults, and worker allocation.
+- [Bounding Box Partitioning](./reference/bounding-box-partitioning.md) - how
+  slices are grouped into source-volume requests.
+- [Pipeline Run Statistics](./reference/run-statistics.md) - logging modes and
+  performance report contents.
+
+## Releases
+
+Release notes and downloads are on the [Releases](https://github.com/ChengLabResearch/ouroboros/releases) page.

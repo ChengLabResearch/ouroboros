@@ -10,6 +10,7 @@ nav:
     - Download Ouroboros: 'guide/downloading.md'
     - Slicing: 'guide/slicing.md'
     - Backprojection: 'guide/backproject.md'
+    - File Explorer: 'guide/file-explorer.md'
     - Plugins: 'guide/plugins.md'
   - Reference:
     - Technical Constants: 'reference/technical-constants.md'

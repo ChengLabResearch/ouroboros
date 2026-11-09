@@ -1,41 +1,11 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { runInThisContext } from 'node:vm'
 import test from 'node:test'
-import ts from 'typescript'
-
-const require = createRequire(import.meta.url)
+import { loadCommonJsModule } from './helpers/load-commonjs-module.mjs'
 
 // Execute the real launcher, shared compose helper and IPC adapter with only
 // external operations stubbed. No Docker daemon or Electron window is needed.
-function loadModule(path, imports, logger) {
-	const url = new URL(`../../${path}`, import.meta.url)
-	const filename = fileURLToPath(url)
-	const { outputText } = ts.transpileModule(readFileSync(url, 'utf8'), {
-		fileName: filename,
-		compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
-	})
-	const module = { exports: {} }
-	const evaluate = runInThisContext(
-		`(function(require, module, exports, __dirname, console) { ${outputText}\n})`,
-		{ filename }
-	)
-	evaluate(
-		(name) => {
-			if (name in imports) return imports[name]
-			if (name === 'path') return require(name)
-			assert.fail(`Unexpected dependency: ${name}`)
-		},
-		module,
-		module.exports,
-		dirname(filename),
-		logger
-	)
-	return module.exports
-}
+const loadModule = (source, imports, logger) =>
+	loadCommonJsModule(source, imports, { console: logger })
 
 function fixture() {
 	const starts = []

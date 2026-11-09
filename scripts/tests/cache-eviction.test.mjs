@@ -1,41 +1,17 @@
 import assert from 'node:assert/strict'
-import { constants, readFileSync } from 'node:fs'
+import { constants } from 'node:fs'
 import * as fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import * as path from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { runInThisContext } from 'node:vm'
 import test from 'node:test'
-import ts from 'typescript'
+import { loadCommonJsModule } from './helpers/load-commonjs-module.mjs'
 
-// Match the main-process tests' TypeScript loader so only OS/Electron boundaries
-// are replaced; execute the actual helper and filesystem IPC registration.
-function loadModule(source, imports, platform, warnings) {
-	const url = new URL(`../../${source}`, import.meta.url)
-	const filename = fileURLToPath(url)
-	const { outputText } = ts.transpileModule(readFileSync(url, 'utf8'), {
-		fileName: filename,
-		compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
-	})
-	const module = { exports: {} }
-	const evaluate = runInThisContext(
-		`(function(require, module, exports, process, console) { ${outputText}\n})`,
-		{ filename }
+const loadModule = (source, imports, platform, warnings) =>
+	loadCommonJsModule(
+		source,
+		{ fs: { constants }, ...imports },
+		{ process: { platform }, console: { warn: (...args) => warnings.push(args) } }
 	)
-	evaluate(
-		(name) => {
-			if (name in imports) return imports[name]
-			if (name === 'path') return path
-			if (name === 'fs') return { constants }
-			assert.fail(`Unexpected dependency: ${name}`)
-		},
-		module,
-		module.exports,
-		{ platform },
-		{ warn: (...args) => warnings.push(args) }
-	)
-	return module.exports
-}
 
 function fixture(filesystem, platform = 'win32') {
 	const warnings = []

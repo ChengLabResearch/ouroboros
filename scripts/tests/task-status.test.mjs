@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { FakeEventSource as BaseEventSource } from './helpers/fake-event-source.mjs'
 
 const { openTaskStatusStream, emptyStreamResult } =
 	await import('../../src/renderer/src/interfaces/task-status-stream.ts')
@@ -10,21 +11,9 @@ const { parseTaskStatus } = await import('../../src/renderer/src/schemas/task-st
 const { default: ProgressPanel } =
 	await import('../../src/renderer/src/components/ProgressPanel/Progress.tsx')
 
-class FakeEventSource extends EventTarget {
-	static instances = []
-	closeCount = 0
-	constructor(url) {
-		super()
-		this.url = url
-		FakeEventSource.instances.push(this)
-	}
-	close() {
-		this.closeCount++
-	}
+class FakeEventSource extends BaseEventSource {
 	emit(type, payload, taskId = 'current-task') {
-		this.dispatchEvent(
-			new MessageEvent(type, { data: JSON.stringify(payload), lastEventId: taskId })
-		)
+		this.dispatchMessage(type, payload, taskId)
 	}
 }
 

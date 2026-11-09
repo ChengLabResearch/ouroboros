@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="generator" content="mkdocs-1.6.1, mkdocs-terminal-4.8.0">
+    
+    <meta name="description" content="Quickly extract long ROIs (e.g. blood vessels, nerves) from cloud-hosted medical scans."> 
+    
+    <meta name="author" content="Weaver Goldman and David Northover"> 
+    
+    <link rel="canonical" href="https://chenglabresearch.github.io/ouroboros/development/run-statistics-internals/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="../../img/android-chrome-512x512.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="../../img/apple-touch-icon.png" />
+<link rel="shortcut icon" type="image/png" sizes="48x48" href="../../img/favicon.ico" />
+<link rel="icon" type="image/png" sizes="16x16" href="../../img/favicon-16x16.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="../../img/favicon-32x32.png" />
+
+
+    
+ 
+<title>Run Statistics Internals - Ouroboros Documentation</title>
+
+
+<link href="../../css/fontawesome/css/fontawesome.min.css" rel="stylesheet">
+<link href="../../css/fontawesome/css/solid.min.css" rel="stylesheet">
+<link href="../../css/normalize.css" rel="stylesheet">
+<link href="../../css/terminal.css" rel="stylesheet">
+<link href="../../css/theme.css" rel="stylesheet">
+<link href="../../css/theme.tile_grid.css" rel="stylesheet">
+<link href="../../css/theme.footer.css" rel="stylesheet">
+<!-- dark color palette -->
+<link href="../../css/palettes/dark.css" rel="stylesheet">
+
+<!-- page layout -->
+<style>
+/* initially set page layout to a one column grid */
+.terminal-mkdocs-main-grid {
+    display: grid;
+    grid-column-gap: 1.4em;
+    grid-template-columns: auto;
+    grid-template-rows: auto;
+}
+
+/*  
+*   when side navigation is not hidden, use a two column grid.  
+*   if the screen is too narrow, fall back to the initial one column grid layout.
+*   in this case the main content will be placed under the navigation panel. 
+*/
+@media only screen and (min-width: 70em) {
+    .terminal-mkdocs-main-grid {
+        grid-template-columns: 4fr 9fr;
+    }
+}</style>
+
+
+
+     
+    
+    
+
+    
+    <!-- search css support -->
+<link href="../../css/search/bootstrap-modal.css" rel="stylesheet">
+<!-- search scripts -->
+<script>
+    var base_url = "../..",
+    shortcuts = "{}";
+</script>
+<script src="../../js/jquery/jquery-1.10.1.min.js" defer></script>
+<script src="../../js/bootstrap/bootstrap.min.js" defer></script>
+<script src="../../js/mkdocs/base.js" defer></script>
+    
+    
+    
+    
+    <script src="../../search/main.js"></script>
+    
+
+    
+</head>
+
+<body class="terminal"><div class="container">
+    <div class="terminal-nav">
+        <header class="terminal-logo">
+            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://chenglabresearch.github.io/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
+        </header>
+        
+        <nav class="terminal-menu">
+            
+            <ul vocab="https://schema.org/" typeof="BreadcrumbList">
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="../.." class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Home</span>
+                    </a>
+                    <meta property="position" content="0">
+                </li>
+                
+                
+                
+                
+                
+                
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="https://github.com/ChengLabResearch/ouroboros/releases" class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Releases</span>
+                    </a>
+                    <meta property="position" content="1">
+                </li>
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="https://github.com/ChengLabResearch/ouroboros" class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Repository</span>
+                    </a>
+                    <meta property="position" content="2">
+                </li>
+                
+                    
+                    
+
+
+<li property="itemListElement" typeof="ListItem">
+    <a href="#" class="menu-item" data-toggle="modal" data-target="#mkdocs_search_modal" property="item" typeof="SearchAction">
+        <i aria-hidden="true" class="fa fa-search"></i> <span property="name">Search</span>
+    </a>
+    <meta property="position" content="3">
+</li>
+                    
+            </ul>
+            
+        </nav>
+    </div>
+</div>
+        
+    <div class="container">
+        <div class="terminal-mkdocs-main-grid"><aside id="terminal-mkdocs-side-panel"><nav>
+    <ul class="terminal-mkdocs-side-nav-items">
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../..">Home</a>
+        
+    
+    
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Usage Guide</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/downloading/">Download Ouroboros</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/slicing/">Slicing</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/backproject/">Backprojection</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/file-explorer/">File Explorer</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/plugins/">Plugins</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Reference</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../reference/technical-constants/">Technical Constants</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../reference/bounding-box-partitioning/">Bounding Box Partitioning</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../reference/run-statistics/">Pipeline Run Statistics</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        <span class="
+        
+    terminal-mkdocs-side-nav-item--active terminal-mkdocs-side-nav-section-no-index">Development</span>
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/README.md">App</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/README.md">Python</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../python-pipelines/">Python Pipelines</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md">Plugins</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../docker-builds/">Docker Builds</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../registry-server-images/">Registry Server Images</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../production-package-flavors/">Production Package Flavors</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../benchmarks/">Benchmarking</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../shared-memory-lifecycle/">Shared Memory Lifecycle</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../status-presentation/">Status Presentation</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        <span class="terminal-mkdocs-side-nav-item--active">Run Statistics Internals</span>
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/releases">Releases</a>
+        
+    
+    
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros">Repository</a>
+        
+    
+    
+    
+       </li>
+        
+    </ul>
+</nav><hr>
+<nav>
+    <ul>
+        <li><a href="#run-statistics-internals">Run statistics internals</a></li>
+        <li><a href="#desktop-status-handling">Desktop status handling</a></li><li><a href="#ownership">Ownership</a></li><li><a href="#memory-collector">Memory collector</a></li>
+    </ul>
+</nav>
+</aside>
+            <main id="terminal-mkdocs-main-content">
+<section id="mkdocs-terminal-content">
+    <h1 id="run-statistics-internals">Run statistics internals</h1>
+<p>Implementation contracts behind the <a href="../../reference/run-statistics/">pipeline run statistics</a>. Report fields and metric definitions are documented there.</p>
+<h2 id="desktop-status-handling">Desktop status handling</h2>
+<p>The HTTP/SSE contract is unchanged: <code>/status/{task_id}</code> can return HTTP 500 with
+<code>status: done</code>, and a stream can emit <code>error_event</code> for successful science with a
+reporting problem. The desktop interprets the validated status and <code>statistics</code>
+descriptor, rather than treating the event name or aggregate <code>error</code> as the
+scientific outcome. For failed/interrupted science the aggregate error retains
+<code>Task.error</code> priority; publication and log-presentation errors are displayed
+separately from that descriptor. No report files are read to reconstruct status.</p>
+<p>Publication pending keeps the server status active and retains the existing
+submission/deletion guards. Terminal status closes its stream; events for other
+task IDs and events from closed/replaced streams are ignored. Connection failures
+or invalid status payloads close the stream and show a communication warning with
+the last reported progress, without declaring a scientific failure or resubmitting
+the task. Status messages remain in the progress panel until the stream is cleared
+or a new task starts, so a recovery location does not disappear with a timed alert.</p>
+<p>The existing unknown-task response (<code>status: error</code>, <code>error: Item ID Not Found</code>,
+and no <code>statistics</code> descriptor) is also treated as an outcome-unknown warning.
+The stream closes and retains the last reported progress: the backend may have
+restarted or dropped the task, which does not establish scientific failure.
+This exact legacy response is recognized at the stream boundary; other scientific
+errors retain their normal presentation and the API contract is unchanged.</p>
+<p>The short desktop regression tests run through <code>npm run test:release</code>, using the
+Node test runner and TypeScript compiler. For
+individual case output, run <code>node scripts/tests/task-status.test.mjs</code>. They feed
+HTTP-shaped status bodies and simulated SSE events through the production parser,
+stream handler, and React progress panel; they do not exercise a full Electron GUI
+or perform slicing/backprojection workloads.</p>
+<h2 id="ownership">Ownership</h2>
+<p><code>Task</code> owns operation identity, outcome, and the selected <code>LoggingMode</code>;
+pipelines and steps receive that same enum object. Report and step-statistics
+gates derive from its <code>reporting_enabled</code> property; RAM collection derives from
+<code>memory_enabled</code>. Legacy CLI/API/configuration representations are input
+adapters, not additional runtime settings. The report's <code>logging_mode</code> is a
+one-way serialization of the task selection. <code>RunStatistics</code> owns operation timing
+and report publication. It references the existing options and pipeline owners.
+<code>Pipeline</code> and <code>PipelineStep</code> own all pipeline/worker timing samples and progress.
+Summary dictionaries are one-way output adapters: they never replace or mutate
+the owner's samples. Server progress is read from that owner without a second
+cached progress state. Actual executor counts also come from dispatch-owned
+resource fields rather than a separate calculation in the reporter.</p>
+<p><code>VolumeCache</code>, <code>CloudVolumeInterface</code>, <code>BoundingBox</code>, and the native TIFF inspector
+own geometry and effective volume metadata. Downloads and reporting share
+<code>download_volume_geometry</code>. The volume reporting snapshot is a one-way
+serialization boundary before cleanup, never an input to scientific execution.
+Output naming, atomic file publication, Docker export, and recovery extend the
+existing file/volume facilities. The memory collector extends this same lifecycle.</p>
+<h2 id="memory-collector">Memory collector</h2>
+<p>A small separate interpreter performs collection, avoiding a sampler thread in
+the parent before Linux forks workers. The manager's existing <code>_segments</code>
+registry remains the sole owner of live allocation handles and release policy.
+At allocation, registration and release boundaries, it publishes a derived
+snapshot of names and sizes, plus its own mapping addresses on macOS. Overlapping
+runs share one observation session. Manager startup receives that session through
+its existing initializer seam; workers and array attachments need no observation
+context, mapping registry or TIFF wrappers.</p>
+<p>Snapshots and sampler-control files are one-way observation/IPC adapters. They
+never supply allocation or lifecycle state back to the manager. POSIX residency
+queries temporarily open a read-only mapping without faulting in the buffer or
+acquiring unlink authority. A manager started before an observation session is
+not retroactively observed. The scientific pipelines start their managers inside
+the collection window. Off and Standard create no sampler or observation
+workspace.</p>
+<p>The narrow identity adapter in <code>common/memory_ipc.py</code> serializes the validated
+private <code>Process._ident</code> value together with the psutil version and platform. It
+matches incoming identities against live <code>Process</code> objects at the IPC boundary;
+serialized values do not become a second runtime identity registry. Missing,
+unsupported, or unverified identity data makes the affected measurement
+unavailable rather than falling back to a PID or public creation timestamp, or
+treating an unverified manager as owning no segments.</p>
+<p>Psutil is pinned to <strong>7.1.3</strong> in package metadata as well as the Poetry lock,
+covering pip/wheel installations and both Docker build paths. This private-API
+dependency must be reviewed before changing that pin: Linux, Windows and macOS
+identity/IPC compatibility tests and the clock-adjustment regressions must pass
+for the proposed version. Supported runtime identity comes from psutil itself;
+Ouroboros does not maintain an alternative platform identity calculation.
+Liveness checks likewise validate a fresh psutil identity before comparing it
+with the retained <code>Process</code>: unreadable identity is unknown coverage, not proof
+that the worker exited. Discovery still uses psutil's <code>children()</code> implementation;
+in 7.1.3 a backwards clock adjustment within one enumeration can omit a previously
+unseen child because psutil itself filters by public creation timestamps. Retained
+workers are checked independently, but sampling is not a complete process census.</p>
+</section>
+
+            </main>
+        </div>
+        <hr><footer>
+    <div class="terminal-mkdocs-footer-grid">
+        <div id="terminal-mkdocs-footer-copyright-info">
+            
+            <p class="text-center text-muted">Copyright 2024-2025 Weaver Goldman and David Northover, All rights reserved</p>
+             Site built with <a href="http://www.mkdocs.org">MkDocs</a> and <a href="https://github.com/ntno/mkdocs-terminal">Terminal for MkDocs</a>.
+        </div>
+        <div id="terminal-mkdocs-footer-prev-next">
+            <nav class="btn-group">
+                <a href="../status-presentation/" title="Status Presentation">Previous</a>
+                
+            </nav>
+        </div>
+    </div>
+</footer>
+    </div>
+
+    
+    <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="searchModalLabel">
+    <div class="modal-dialog modal-lg" role="search">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="searchModalLabel">Search</h5>
+                <button type="button" class="close btn btn-default btn-ghost" data-dismiss="modal" aria-label="Close">x</button>
+            </div>
+            <div class="modal-body">
+                <p id="searchInputLabel">Type to start searching</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" aria-labelledby="searchInputLabel" placeholder="" id="mkdocs-search-query" title="Please enter search terms here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No document matches found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+    
+    
+</body>
+
+</html>

@@ -221,6 +221,19 @@
     
         
         
+            <a class="terminal-mkdocs-side-nav-item" href="guide/file-explorer/">File Explorer</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
             <a class="terminal-mkdocs-side-nav-item" href="guide/plugins/">Plugins</a>
         
     
@@ -351,6 +364,19 @@
     
         
         
+            <a class="terminal-mkdocs-side-nav-item" href="development/python-pipelines/">Python Pipelines</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
             <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md">Plugins</a>
         
     
@@ -434,6 +460,19 @@
     
     </li>
             
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="development/run-statistics-internals/">Run Statistics Internals</a>
+        
+    
+    </li>
+            
             
     </ul>
         
@@ -471,7 +510,7 @@
 <nav>
     <ul>
         <li><a href="#ouroboros">Ouroboros</a></li>
-        <li><a href="#usage-guide">Usage Guide</a></li><li><a href="#reference">Reference</a></li><li><a href="#large-folder-behavior">Large Folder Behavior</a></li><li><a href="#ouroboros-explanation">Ouroboros Explanation</a></li>
+        <li><a href="#ouroboros-explanation">Ouroboros Explanation</a></li><li><a href="#usage-guide">Usage Guide</a></li><li><a href="#reference">Reference</a></li><li><a href="#releases">Releases</a></li>
     </ul>
 </nav>
 </aside>
@@ -485,12 +524,21 @@
 <p>The desktop app uses Docker to build and run its Python server. For this reason, <strong>Docker is required</strong> to run Ouroboros.</p>
 <p>If you are interested in using the Python package for its CLI or for a custom usecase, check out the <a href="https://github.com/ChengLabResearch/ouroboros/tree/main/python">python</a> folder in the main repository.</p>
 <p>Ouroboros also has a <a href="guide/plugins/">Plugin System</a>. Plugin servers are also run in Docker.</p>
+<h2 id="ouroboros-explanation">Ouroboros Explanation</h2>
+<p>A user of Ouroboros may have a multi-terabyte volumetric scan, hosted with the Neuroglancer family of tools (i.e. <a href="https://github.com/seung-lab/cloud-volume">cloud-volume</a>). </p>
+<p>Perhaps there is a long, relatively sparse structure (ROI), like a nerve or a blood vessel that crosses the entire scan. Even with a well-equipped computer, it would be difficult to segment the entire stucture in one pass due to RAM limitations.</p>
+<p>Ouroboros provides a solution. A user first traces the structure in Neuroglancer with sequential annotation points, and then saves the JSON configuration to a file.</p>
+<p>Ouroboros opens this configuration file and cuts rectangular slices along the annotation path, producing a straightened volume with the ROI at the center of each slice (usually much smaller than the original scan).</p>
+<p><img alt="Circle of Slices" src="assets/slicing/circle-slices.png" />
+<em>Every tenth slice in a circular annotation path, rendered in Ouroboros's Slicing Page.</em></p>
+<p>From there, the user segments the much smaller straightened volume with their choice of segmentation system. Then, Ouroboros <a href="guide/backproject/">backprojects</a> the segmented slices into the original volume space (unstraightens it), producing a full segmentation.</p>
 <h2 id="usage-guide">Usage Guide</h2>
 <p><em>It is recommended that you read these pages in order.</em></p>
 <ul>
 <li><a href="guide/downloading/">Download and Install Ouroboros</a></li>
 <li><a href="guide/slicing/">Slicing</a></li>
 <li><a href="guide/backproject/">Backprojection</a></li>
+<li><a href="guide/file-explorer/">File Explorer</a></li>
 <li><a href="guide/plugins/">Plugins</a></li>
 </ul>
 <h2 id="reference">Reference</h2>
@@ -502,38 +550,8 @@
 <li><a href="reference/run-statistics/">Pipeline Run Statistics</a> - logging modes and
   performance report contents.</li>
 </ul>
-<h2 id="large-folder-behavior">Large Folder Behavior</h2>
-<p>The Ouroboros File Explorer is designed to open scan and output folders
-directly, but it is not a general-purpose file browser. It loads
-subfolders on demand: opening a folder shows only that folder's direct
-entries, and subfolder contents stream in when you expand each subfolder.
-When you point it at a folder that contains many files or deeply nested
-subfolders, the following behavior applies:</p>
-<ul>
-<li>Only the root's direct entries are loaded up front. Nested subfolders
-  are loaded and watched only when you expand them.</li>
-<li>Collapsing a subfolder keeps its state and watcher alive for a short
-  window (thirty seconds by default) so quickly re-expanding is free. If
-  you leave it collapsed past that window, the underlying watcher is torn
-  down and the subfolder's cached children are dropped from renderer
-  state; re-expanding later behaves like a fresh load.</li>
-<li>The panel stops loading new paths after one hundred thousand visible
-  entries across all currently open watchers. When this happens,
-  Ouroboros shows a warning toast asking you to pick a smaller folder or
-  expand the folder in smaller pieces.</li>
-<li><code>node_modules</code>, <code>__pycache__</code>, <code>venv</code>, and any directory whose name
-  starts with <code>.</code> are always skipped.</li>
-</ul>
-<p>See <a href="reference/technical-constants/">Technical Constants</a> for the
-exact values, why they were chosen, and when to adjust them.</p>
-<h2 id="ouroboros-explanation">Ouroboros Explanation</h2>
-<p>A user of Ouroboros may have a multi-terabyte volumetric scan, hosted with the Neuroglancer family of tools (i.e. <a href="https://github.com/seung-lab/cloud-volume">cloud-volume</a>). </p>
-<p>Perhaps there is a long, relatively sparse structure (ROI), like a nerve or a blood vessel that crosses the entire scan. Even with a well-equipped computer, it would be difficult to segment the entire stucture in one pass due to RAM limitations.</p>
-<p>Ouroboros provides a solution. A user first traces the structure in Neuroglancer with sequential annotation points, and then saves the JSON configuration to a file.</p>
-<p>Ouroboros opens this configuration file and cuts rectangular slices along the annotation path, producing a straightened volume with the ROI at the center of each slice (usually much smaller than the original scan).</p>
-<p><img alt="Circle of Slices" src="assets/slicing/circle-slices.png" />
-<em>Every tenth slice in a circular annotation path, rendered in Ouroboros's Slicing Page.</em></p>
-<p>From there, the user segments the much smaller straightened volume with their choice of segmentation system. Then, Ouroboros <a href="guide/backproject/">backprojects</a> the segmented slices into the original volume space (unstraightens it), producing a full segmentation.</p>
+<h2 id="releases">Releases</h2>
+<p>Release notes and downloads are on the <a href="https://github.com/ChengLabResearch/ouroboros/releases">Releases</a> page.</p>
 </section>
 
             </main>

@@ -223,6 +223,19 @@
     
         
         
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/file-explorer/">File Explorer</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
             <a class="terminal-mkdocs-side-nav-item" href="../../guide/plugins/">Plugins</a>
         
     
@@ -347,6 +360,19 @@
     
         
         
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/python-pipelines/">Python Pipelines</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
             <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md">Plugins</a>
         
     
@@ -430,6 +456,19 @@
     
     </li>
             
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/run-statistics-internals/">Run Statistics Internals</a>
+        
+    
+    </li>
+            
             
     </ul>
         
@@ -467,13 +506,14 @@
 <nav>
     <ul>
         <li><a href="#pipeline-run-statistics">Pipeline run statistics</a></li>
-        <li><a href="#server-and-docker">Server and Docker</a></li><li><a href="#desktop-status-presentation">Desktop status presentation</a></li><li><a href="#schema-version-1">Schema version 1</a></li><li><a href="#timing-definitions">Timing definitions</a></li><li><a href="#volume-and-storage-definitions">Volume and storage definitions</a></li><li><a href="#ownership">Ownership</a></li><li><a href="#memory-measurements">Memory measurements</a></li>
+        <li><a href="#server-and-docker">Server and Docker</a></li><li><a href="#desktop-status-presentation">Desktop status presentation</a></li><li><a href="#schema-version-1">Schema version 1</a></li><li><a href="#timing-definitions">Timing definitions</a></li><li><a href="#volume-and-storage-definitions">Volume and storage definitions</a></li><li><a href="#memory-measurements">Memory measurements</a></li>
     </ul>
 </nav>
 </aside>
             <main id="terminal-mkdocs-main-content">
 <section id="mkdocs-terminal-content">
     <h1 id="pipeline-run-statistics">Pipeline run statistics</h1>
+<p>This page covers logging modes and how to read a report. Implementation contracts for maintainers are in <a href="../../development/run-statistics-internals/">run statistics internals</a>.</p>
 <p>Choose a logging mode with either Python CLI operation. Off is the default for
 the CLI, desktop, and server API.</p>
 <table>
@@ -582,32 +622,6 @@ unpublished <code>path</code> is labeled as the intended destination. Only <code
 identifies a delivered report. Disabled reporting produces no missing-report
 warning. A scientific failure or interruption appears first, even when its
 statistics report was delivered successfully.</p>
-<p>The HTTP/SSE contract is unchanged: <code>/status/{task_id}</code> can return HTTP 500 with
-<code>status: done</code>, and a stream can emit <code>error_event</code> for successful science with a
-reporting problem. The desktop interprets the validated status and <code>statistics</code>
-descriptor, rather than treating the event name or aggregate <code>error</code> as the
-scientific outcome. For failed/interrupted science the aggregate error retains
-<code>Task.error</code> priority; publication and log-presentation errors are displayed
-separately from that descriptor. No report files are read to reconstruct status.</p>
-<p>Publication pending keeps the server status active and retains the existing
-submission/deletion guards. Terminal status closes its stream; events for other
-task IDs and events from closed/replaced streams are ignored. Connection failures
-or invalid status payloads close the stream and show a communication warning with
-the last reported progress, without declaring a scientific failure or resubmitting
-the task. Status messages remain in the progress panel until the stream is cleared
-or a new task starts, so a recovery location does not disappear with a timed alert.</p>
-<p>The existing unknown-task response (<code>status: error</code>, <code>error: Item ID Not Found</code>,
-and no <code>statistics</code> descriptor) is also treated as an outcome-unknown warning.
-The stream closes and retains the last reported progress: the backend may have
-restarted or dropped the task, which does not establish scientific failure.
-This exact legacy response is recognized at the stream boundary; other scientific
-errors retain their normal presentation and the API contract is unchanged.</p>
-<p>The short desktop regression tests run through <code>npm run test:release</code>, using the
-Node test runner and TypeScript compiler. For
-individual case output, run <code>node scripts/tests/task-status.test.mjs</code>. They feed
-HTTP-shaped status bodies and simulated SSE events through the production parser,
-stream handler, and React progress panel; they do not exercise a full Electron GUI
-or perform slicing/backprojection workloads.</p>
 <h2 id="schema-version-1">Schema version 1</h2>
 <p>The record contains these groups:</p>
 <table>
@@ -803,25 +817,6 @@ used-mip-source, and bounding-box-relative comparisons are separately named;
 they measure logical storage, not compression or equal information content.
 GB means decimal gigabytes and GiB means binary gibibytes; the structured
 measurements use bytes directly.</p>
-<h2 id="ownership">Ownership</h2>
-<p><code>Task</code> owns operation identity, outcome, and the selected <code>LoggingMode</code>;
-pipelines and steps receive that same enum object. Report and step-statistics
-gates derive from its <code>reporting_enabled</code> property; RAM collection derives from
-<code>memory_enabled</code>. Legacy CLI/API/configuration representations are input
-adapters, not additional runtime settings. The report's <code>logging_mode</code> is a
-one-way serialization of the task selection. <code>RunStatistics</code> owns operation timing
-and report publication. It references the existing options and pipeline owners.
-<code>Pipeline</code> and <code>PipelineStep</code> own all pipeline/worker timing samples and progress.
-Summary dictionaries are one-way output adapters: they never replace or mutate
-the owner's samples. Server progress is read from that owner without a second
-cached progress state. Actual executor counts also come from dispatch-owned
-resource fields rather than a separate calculation in the reporter.</p>
-<p><code>VolumeCache</code>, <code>CloudVolumeInterface</code>, <code>BoundingBox</code>, and the native TIFF inspector
-own geometry and effective volume metadata. Downloads and reporting share
-<code>download_volume_geometry</code>. The volume reporting snapshot is a one-way
-serialization boundary before cleanup, never an input to scientific execution.
-Output naming, atomic file publication, Docker export, and recovery extend the
-existing file/volume facilities. The memory collector extends this same lifecycle.</p>
 <p>The fixed-local-source benchmark and reproducible commands are documented in
 <a href="../../development/benchmarks/">the benchmark guide</a>.</p>
 <h2 id="memory-measurements">Memory measurements</h2>
@@ -896,40 +891,6 @@ identity keys. On Linux and macOS those wall-clock timestamps can change after a
 adjustment even while the same process is running. The host OS remains unknown
 from inside Docker; the selected metric follows the execution OS in
 <code>environment.os</code>.</p>
-<p>A small separate interpreter performs collection, avoiding a sampler thread in
-the parent before Linux forks workers. The manager's existing <code>_segments</code>
-registry remains the sole owner of live allocation handles and release policy.
-At allocation, registration and release boundaries, it publishes a derived
-snapshot of names and sizes, plus its own mapping addresses on macOS. Overlapping
-runs share one observation session. Manager startup receives that session through
-its existing initializer seam; workers and array attachments need no observation
-context, mapping registry or TIFF wrappers.</p>
-<p>Snapshots and sampler-control files are one-way observation/IPC adapters. They
-never supply allocation or lifecycle state back to the manager. POSIX residency
-queries temporarily open a read-only mapping without faulting in the buffer or
-acquiring unlink authority. A manager started before an observation session is
-not retroactively observed. The scientific pipelines start their managers inside
-the collection window. Off and Standard create no sampler or observation
-workspace.</p>
-<p>The narrow identity adapter in <code>common/memory_ipc.py</code> serializes the validated
-private <code>Process._ident</code> value together with the psutil version and platform. It
-matches incoming identities against live <code>Process</code> objects at the IPC boundary;
-serialized values do not become a second runtime identity registry. Missing,
-unsupported, or unverified identity data makes the affected measurement
-unavailable rather than falling back to a PID or public creation timestamp, or
-treating an unverified manager as owning no segments.</p>
-<p>Psutil is pinned to <strong>7.1.3</strong> in package metadata as well as the Poetry lock,
-covering pip/wheel installations and both Docker build paths. This private-API
-dependency must be reviewed before changing that pin: Linux, Windows and macOS
-identity/IPC compatibility tests and the clock-adjustment regressions must pass
-for the proposed version. Supported runtime identity comes from psutil itself;
-Ouroboros does not maintain an alternative platform identity calculation.
-Liveness checks likewise validate a fresh psutil identity before comparing it
-with the retained <code>Process</code>: unreadable identity is unknown coverage, not proof
-that the worker exited. Discovery still uses psutil's <code>children()</code> implementation;
-in 7.1.3 a backwards clock adjustment within one enumeration can omit a previously
-unseen child because psutil itself filters by public creation timestamps. Retained
-workers are checked independently, but sampling is not a complete process census.</p>
 <p>In Detailed mode, memory <code>status</code> is <code>sampled</code> when all admitted sweeps succeeded, <code>partial</code> when some
 failed, <code>unavailable</code> when none completed, or <code>not_started</code> if the pipeline was
 never reached. Process or allocation changes during a sweep make that sweep
@@ -971,7 +932,7 @@ delivery checks on the intended platform and workload.</p>
             <nav class="btn-group">
                 <a href="../bounding-box-partitioning/" title="Bounding Box Partitioning">Previous</a>
                 |
-                <a href="../../development/docker-builds/" title="Docker Builds">Next</a>
+                <a href="../../development/python-pipelines/" title="Python Pipelines">Next</a>
             </nav>
         </div>
     </div>

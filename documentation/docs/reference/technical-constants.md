@@ -55,11 +55,6 @@ the folder in smaller pieces.` The existing renderer alert system
 surfaces this as a warning toast. Further add events for that session are
 not attributed to the counter but already loaded paths remain visible.
 
-**When to reconsider.** Raise this only after profiling shows headroom in
-both the main watchers and the renderer heap for your typical workload.
-Lower it if you routinely work on constrained machines and want the
-warning to appear sooner.
-
 ### Watcher teardown delay after collapse
 
 - Symbol: `COLLAPSE_TEARDOWN_DELAY_MS`
@@ -83,10 +78,6 @@ Re-expanding after teardown behaves like a fresh expand: the main process
 starts a new watcher and streams the initial batch back into the
 renderer's state.
 
-**When to reconsider.** Shorten if renderer memory pressure from
-still-cached collapsed subtrees is a problem. Lengthen if users complain
-that re-opening a folder after a long detour repopulates it visibly.
-
 ### Update batch size
 
 - Symbol: `FILE_EXPLORER_UPDATE_BATCH_LIMIT`
@@ -104,11 +95,6 @@ immediately over the `folder-contents-update-batch` IPC channel instead
 of waiting for the flush interval below. The File Explorer panel then
 updates once for the whole batch.
 
-**When to reconsider.** Increase the batch size if profiling shows IPC or
-React reconciliation is still the bottleneck on very large folders.
-Decrease it if you see visible latency between file system changes and
-the first batch appearing in the panel.
-
 ### Update flush interval
 
 - Symbol: `FILE_EXPLORER_UPDATE_INTERVAL_MS`
@@ -123,11 +109,6 @@ five-hundred-event threshold above is never hit.
 most one hundred milliseconds after the first event in the queue was
 enqueued. The panel therefore feels responsive to individual file
 create/delete events while still coalescing large scans.
-
-**When to reconsider.** Shorten the interval if the panel feels laggy
-during light file activity. Lengthen it if renderer CPU during heavy
-scans is a problem and you would rather trade responsiveness for
-throughput.
 
 ## Plugin directory broadcast
 
@@ -305,9 +286,6 @@ where `N = floor(rects.length * 0.008)`. This keeps very long paths
 125 rectangles: enough to convey the shape of the sweep without freezing
 the visualization. Fewer rects than about 125 render every rect.
 
-**When to reconsider.** Raise it to see more slices in the preview at
-the cost of frame rate; lower it if the preview lags on very long paths.
-
 ## Python server
 
 ### Server host and port
@@ -418,10 +396,6 @@ overhead but raises peak memory per worker and can cause disproportionate
 increases in memory usage and slowdowns. On very small hosts,
 `process_count = cpu_count()` may over-subscribe and thrash; lowering it
 in the options JSON trades throughput for stability.
-
-**When to reconsider.** Tune per-run through the relevant operation’s options
-JSON. Edit the defaults only if a different global tuning is measured
-to be better across typical workloads.
 
 ### Volume-cache flush default
 

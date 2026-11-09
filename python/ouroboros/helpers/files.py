@@ -373,10 +373,11 @@ def write_conv_vol(writer: callable, source_path: Path, target_folder: Path,
     # Return the pair to the cache only after a successful write and reset. A
     # failed merge/write must not leave partial values for the next page.
     _writer_page_buffers = None
+    buffer_dtype = np.uint8 if dtype == bool else dtype
     if accumulator is None or accumulator.shape != (shape.C + 1, shape.Y * shape.X):
         accumulator = np.zeros((shape.C + 1, shape.Y * shape.X), dtype=np.float32)
-    if (output is None or ImgSliceC(*output.shape) != shape or output.dtype != dtype):
-        output = np.zeros(astuple(shape), dtype=np.uint8 if dtype == bool else dtype)
+    if (output is None or ImgSliceC(*output.shape) != shape or output.dtype != buffer_dtype):
+        output = np.zeros(astuple(shape), dtype=buffer_dtype)
 
     vol, nz = volume_from_intermediates(source_path, shape, discrete,
                                         accumulator=accumulator, return_indices=True)

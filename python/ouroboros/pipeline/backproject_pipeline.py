@@ -36,7 +36,7 @@ from ouroboros.helpers.files import (
     write_conv_vol,
     write_raw_intermediate
 )
-from ouroboros.helpers.shapes import DataRange, DataShape, ImgSliceC, NGOrder, ImgSlice, Z
+from ouroboros.helpers.shapes import DataRange, DataShape, ImgSliceC, NGOrder, ImgSlice, Z, C
 
 
 class BackprojectPipelineStep(PipelineStep):
@@ -121,7 +121,7 @@ class BackprojectPipelineStep(PipelineStep):
             )
 
             # Save the straightened volume to a new tif file
-            input_is_big_tiff = is_big_tiff(volume_info.shape, volume_info.dtype)
+            input_is_big_tiff = is_big_tiff(FPShape.merge(C(volume_info.channels)), volume_info.dtype)
             # The output folder may be the input folder. Capture its members
             # before creating the temporary TIFF so it cannot read itself.
             images = get_sorted_tif_files(volume_info.path) if volume_info.path.is_dir() else None

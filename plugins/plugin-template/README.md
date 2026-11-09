@@ -14,7 +14,7 @@ To get started with developing a plugin:
 
 ### Usage
 
-1. Follow the instructions in the [README](https://github.com/We-Gold/ouroboros/) to install the app in development mode.
+1. Follow the instructions in the [README](https://github.com/ChengLabResearch/ouroboros/) to install the app in development mode.
 
 2. Open a terminal and `cd` into your plugin's folder. Then run `npm install` to install your plugin's dependencies.
 
@@ -52,7 +52,7 @@ If you want to avoid reinventing the wheel (in this case the common components o
 
 The default styles from the app are already available to you in the `styles.css` file.
 
-_A possible future development is communication between the plugin and main app. For now, things like dragging files will not work since there is no communication with the iframe._
+Plugins communicate with the main app through `postMessage`, for example to read and save files or request directory contents; see the [plugin guide](https://chenglabresearch.github.io/ouroboros/guide/plugins/). Dragging files from the main app's File Explorer does not reach the plugin's `iframe`.
 
 Some contexts and components that may be useful to you:
 

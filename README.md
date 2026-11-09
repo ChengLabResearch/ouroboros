@@ -35,8 +35,7 @@ For Mac, if an error occurs when you try to run the app, find the app installati
     - Supports loading from and saving to JSON configuration files in Ouroboros's File Explorer.
     - Has additional features like fullscreen mode and screenshots.
 
-- Assisted Automatic Segmentation Plugin
-    - Coming Soon!
+- [Assisted Automatic Segmentation Plugin](https://github.com/ChengLabResearch/ouroboros_autoseg_plugin)
     - Based on Segment Anything, it attempts to automatically segment the ROI.
         - Benefits from the assumption that the desired structure is centered in each slice.
     - Supports human input via bounding boxes and positive or negative annotations.
@@ -95,7 +94,7 @@ The development Compose configuration mounts this checkout's `python/ouroboros` 
 2. Use **File → Open Folder** to open the folder containing a Neuroglancer JSON input. Drag the JSON from the app's file explorer into **Neuroglancer JSON** on the slicing page. Opening a folder is required before entering a JSON path. In Linux Electron under WSL, use `/mnt/c/...` or `/mnt/wsl/...` paths; see [file selection troubleshooting](documentation/docs/development/docker-builds.md#json-paths-and-folder-selection).
 3. Select the image and annotation layers, set a writable host output folder and output name, and use a short annotation path for a small slicing run. Follow the [slicing guide](documentation/docs/guide/slicing.md) for the remaining options.
 4. Check that the slice/bounding-box preview visibly renders and responds to interaction. A working window or file picker alone does not verify WebGL. If it fails, collect the [graphics diagnostics](documentation/docs/development/docker-builds.md#webgl-preview-failures) and use the conditional workaround there if applicable.
-5. Run slicing and confirm the TIFF output and formatted statistics JSON reach the chosen **host** folder. Server tasks report statistics by default; see [run statistics](documentation/docs/reference/run-statistics.md). Successful backend processing alone does not verify host delivery or the visual preview.
+5. Set **Performance Logging** to **Standard**, run slicing, and confirm the TIFF output and formatted statistics JSON reach the chosen **host** folder. Reporting is Off by default; see [run statistics](documentation/docs/reference/run-statistics.md). Successful backend processing alone does not verify host delivery or the visual preview.
 
 These are interactive development checks. Unit tests and headless backend tests do not exercise the Electron file picker, preview, or complete GUI-to-host workflow.
 

@@ -10,7 +10,7 @@ Ouroboros is a desktop app (built with Electron) and a Python package (with a CL
 
 The desktop app uses Docker to build and run its Python server. For this reason, **Docker is required** to run Ouroboros.
 
-If you are interested in using the Python package for its CLI or for a custom usecase, check out the [python](https://github.com/We-Gold/ouroboros/tree/main/python) folder in the main repository.
+If you are interested in using the Python package for its CLI or for a custom usecase, check out the [python](https://github.com/ChengLabResearch/ouroboros/tree/main/python) folder in the main repository.
 
 Ouroboros also has a [Plugin System](./guide/plugins.md). Plugin servers are also run in Docker.
 
@@ -26,7 +26,11 @@ _It is recommended that you read these pages in order._
 ## Reference
 
 - [Technical Constants](./reference/technical-constants.md) - hardcoded
-  file explorer limits and plugin broadcast behavior.
+  limits, defaults, and worker allocation.
+- [Bounding Box Partitioning](./reference/bounding-box-partitioning.md) - how
+  slices are grouped into source-volume requests.
+- [Pipeline Run Statistics](./reference/run-statistics.md) - logging modes and
+  performance report contents.
 
 ## Large Folder Behavior
 

@@ -33,6 +33,8 @@ Slicing is one of the primary features of Ouroboros, available in the CLI and th
     - `Use Adaptive Slicing` - Rather than just using equidistant slices, add more slices in more curved areas.
     - `Adaptive Slicing Ratio` - 1 indicates to consider distance and curvature equally, 0.5 is biased towards distance, and 2 is biased towards curvature.
 - `Output Single File` - Whether to output one tiff stack file or a folder of files.
+- `Normalize Output` - Whether to normalize the output data.
+- `Zero-Guard Output` - Whether to fix sub-zero slice values that may cause overflow artifacts.
 - `Performance Logging` - Choose **Off** (the default) for no performance report, **Standard** to save performance reports and per-step statistics without monitoring RAM, or **Detailed (with RAM)** to save the full report including RAM measurements. RAM monitoring adds overhead. Progress bars and basic step timings remain available in all three modes. The choice is saved as `logging_mode` with your options. Older `reporting_enabled` values load as Off for `false` and Detailed for `true`; an explicit `logging_mode` takes precedence, and missing settings reset to Off. The saved preference applies to desktop runs; CLI runs select their mode with `--logging-mode off|standard|detailed`, defaulting to Off independently of the saved preference.
 - `Bounding Box Parameters`
     - `Max Depth` - Limits how many times a bounding box can be subdivided. Reaching this limit can leave a large task.
@@ -44,7 +46,7 @@ Slicing is one of the primary features of Ouroboros, available in the CLI and th
 
 Ouroboros fits a spline curve to the annotation path from the Neuroglancer JSON file. This produces a smooth, differentiable curve along the length of the annotations. 
 
-If the line segments between annotation points were used, then there would could be highly discontinuous slice transitions around sharp corners.
+If the line segments between annotation points were used, then there could be highly discontinuous slice transitions around sharp corners.
 
 **Slice Coordinate Frames**
 
@@ -52,11 +54,11 @@ Ouroboros calculates equidistant points along the spline curve. Each point is "1
 
 To follow any possible path, each point must have its own coordinate frame normal to the spline. For easier segmentation, it is also important that the axes of the point coordinate frames don't flip between points. 
 
-To achieve this, Ouroboros [calculates rotation-minimizing frames](https://github.com/We-Gold/ouroboros/blob/05bac7b1a0a45d6c93e70cc3220397ebc7e11f8b/python/ouroboros/helpers/spline.py#L96) based on the change in orientation of the tangent vectors of adjacent points.
+To achieve this, Ouroboros [calculates rotation-minimizing frames](https://github.com/ChengLabResearch/ouroboros/blob/05bac7b1a0a45d6c93e70cc3220397ebc7e11f8b/python/ouroboros/helpers/spline.py#L96) based on the change in orientation of the tangent vectors of adjacent points.
 
 **Rectangles and Grids**
 
-Ouroboros calculates the corners of the slice rectangle at using each point and its associated coordinate axes (as vectors).
+Ouroboros calculates the corners of the slice rectangle using each point and its associated coordinate axes (as vectors).
 
 _Pseudocode_
 
@@ -82,4 +84,4 @@ Ouroboros downloads each bounding box from the integer voxel at `floor(min)` thr
 
 For each volume, `scipy.ndimage.map_coordinates` extracts values at the slice grid coordinates using cubic interpolation with its default prefilter. Changing bounding boxes can change the prefilter's boundary effects and float32 coordinate rounding. The filtering effect decays with distance but has no fixed voxel-distance cutoff; no extra padding is downloaded to reduce it.
 
-Each of these slices are saved as local tiff images and are later combined into a single output tiff.
+Each slice is written into a temporary TIFF as it is completed. After all slices finish, Ouroboros normalizes them and writes the final output, either a single tiff stack or a folder of tiffs.

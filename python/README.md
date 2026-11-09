@@ -1,6 +1,6 @@
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) ![Coverage](./coverage.svg)
+![Coverage](./coverage.svg)
 
-# Ourobors Python Package
+# Ouroboros Python Package
 
 This python package organizes all of the core functionality of the Ouroboros segmentation pipeline.
 
@@ -45,6 +45,10 @@ Export sample options files into the current folder.
 
 `ouroboros-cli sample-options`
 
+Write the slice rectangles for a slicing configuration to `<output_file_name>_rects.npy` in its output folder. `--include-ng` also writes Neuroglancer points and angles to `<output_file_name>_ng.json`.
+
+`ouroboros-cli geometry <options.json> [--include-ng]`
+
 ### Straightened TIFF Annotation Metadata
 
 Slice outputs embed straightened annotation prompts in the first TIFF
@@ -69,9 +73,9 @@ the annotation prompts.
 
 ### Server Usage
 
-This package also comes with a FastAPI server that can be run with `ouroboros-server`. Internally, this is compiled using PyInstaller and run in the electron app. 
+This package also comes with a FastAPI server that can be run natively with `ouroboros-server`. The desktop app does not use this entry point: it runs the server in Docker, as described in the [root README](../README.md).
 
-The usage is very similar to the cli, so to try it out, I recommend going to the `docs` website for the server once you run it. That is `http://127.0.0.1:8000/docs`.
+The usage is very similar to the CLI. To try it out, open the server's interactive API docs once it is running, at `http://127.0.0.1:8000/docs`.
 
 ### Development
 
@@ -129,19 +133,18 @@ Poetry can reuse an already active virtual environment, including Conda. Deactiv
 
 ### Testing
 
-In VSCode, use the testing tab. Otherwise, use `pytest`.
+Run tests from this directory. In VS Code, use the testing tab; otherwise, use `pytest`.
 
-To run code coverage, use the following command: 
+To run code coverage, use the following command:
 ```
 coverage erase && coverage run -m pytest && coverage combine && coverage report -m
 ```
 
-_Only `helpers` is unit tested right now, primarily because the rest of the package fundamentally depends on `helpers`._
+The tests in `test/` cover the helpers, pipeline steps, server reporting, shared-memory lifecycle, and native memory readers. The coverage report and its 98% threshold measure only `ouroboros/helpers`; see `[tool.coverage.run]` and `[tool.coverage.report]` in [pyproject.toml](pyproject.toml). Coverage includes multiprocessing workers and combines their result files.
 
-Coverage includes multiprocessing workers and combines their result files. The
-small shared-memory ownership regressions can also run independently with
-`pytest test/test_shared_memory_lifecycle.py -q`; CI runs these on Linux, Windows,
-and macOS with Python 3.11 and 3.12.
+Tests of a shared path use the `canary` and `needs` markers from [test/conftest.py](test/conftest.py). When a canary fails, the tests that depend on it skip and name that canary, so fix it first.
+
+The shared-memory and native memory tests can run on their own with a reduced set of dependencies, for example `pytest test/test_shared_memory_lifecycle.py -q`. CI runs that set on Linux, Windows, and macOS with Python 3.11 and 3.12; see [pr-coverage.yml](../.github/workflows/pr-coverage.yml) for the list.
 See the [shared-memory lifecycle contract](../documentation/docs/development/shared-memory-lifecycle.md)
 for ownership, release semantics, and the RAM-reporting integration boundary.
 
@@ -159,13 +162,14 @@ The package includes predefined pipelines for common tasks such as backprojectio
 
 ```python
 from ouroboros.common.pipelines import backproject_pipeline
-from ouroboros.helpers.options import BackprojectOptions
+from ouroboros.helpers.options import BackprojectOptions, SliceOptions
 
-# Load options from a JSON file
+# Load the backprojection options and the slice options they refer to
 backproject_options = BackprojectOptions.load_from_json('path/to/options.json')
+slice_options = SliceOptions.load_from_json(backproject_options.slice_options_path)
 
 # Create the pipeline and input data
-pipeline, input_data = backproject_pipeline(backproject_options, verbose=True)
+pipeline, input_data = backproject_pipeline(backproject_options, slice_options, verbose=True)
 
 # Process the pipeline
 output, error = pipeline.process(input_data)
@@ -176,7 +180,7 @@ else:
     print("Backprojection completed successfully.")
 ```
 
-The two predefined pipelines are `backproject_pipeline` and `slice_pipeline`.
+The predefined pipelines in [pipelines.py](./ouroboros/common/pipelines.py) are `slice_pipeline`, `backproject_pipeline`, `geometry_pipeline`, and `visualization_pipeline`.
 
 For more example usage, see [Server Handlers](./ouroboros/common/server_handlers.py).
 
@@ -219,6 +223,7 @@ class CustomPipelineStep(PipelineStep):
 2. **Create and Configure the Pipeline**
 
 ```python
+from ouroboros.helpers.options import SliceOptions
 from ouroboros.pipeline import Pipeline, PipelineInput
 from . import CustomPipelineStep
 
@@ -230,7 +235,8 @@ pipeline = Pipeline(
 )
 
 # Create input data for the pipeline
-input_data = PipelineInput(json_path="./data/myjson.json")
+slice_options = SliceOptions.load_from_json("./data/slice-options.json")
+input_data = PipelineInput(slice_options=slice_options)
 
 # Process the pipeline
 output, error = pipeline.process(input_data)
@@ -245,66 +251,4 @@ else:
 
 The default pipeline input class, `PipelineInput`, is the one used for both the `slice_pipeline` and the `backproject_pipeline`.
 
-Creating a new pipeline input class for your custom pipeline is relatively simple. The default pipeline input is a good template.
-
-This is the code for the default pipeline input:
-
-```python
-from ouroboros.pipeline import BasePipelineInput
-from pydantic import field_serializer, field_validator
-
-from ouroboros.helpers.options import BackprojectOptions, SliceOptions
-from ouroboros.helpers.volume_cache import VolumeCache
-from ouroboros.helpers.models import model_with_json
-
-import numpy as np
-
-@model_with_json
-class PipelineInput(BasePipelineInput):
-    """
-    Dataclass for the input to the pipeline.
-    """
-
-    json_path: str | None = None
-    slice_options: SliceOptions | None = None
-    backproject_options: BackprojectOptions | None = None
-    source_url: str | None = None
-    sample_points: np.ndarray | None = None
-    slice_rects: np.ndarray | None = None
-    volume_cache: VolumeCache | None = None
-    output_file_path: str | None = None
-    backprojected_folder_path: str | None = None
-    config_file_path: str | None = None
-    backprojection_offset: str | None = None
-
-    # A custom serializer is needed to correctly convert 
-    # numpy arrays to a JSON-compatible form
-    @field_serializer("sample_points", "slice_rects")
-    def to_list(self, value):
-        return value.tolist() if value is not None else None
-
-    # A custom validator is needed to convert parsed lists
-    # into numpy arrays before the type is validated
-    @field_validator("sample_points", "slice_rects", mode="before")
-    @classmethod
-    def validate_list(cls, value: any):
-        if isinstance(value, list):
-            return np.array(value)
-        return value
-
-    # A custom serializer is needed to correctly convert a
-    # class with a `to_dict` method to a JSON-compatible format.
-    @field_serializer("volume_cache")
-    def to_dict(self, value):
-        return value.to_dict() if value is not None else None
-
-    # A custom validator is needed to convert a parsed dict
-    # to a class with a `from_dict` method.
-    @field_validator("volume_cache", mode="before")
-    @classmethod
-    def validate_volume_cache(cls, value: any):
-        if isinstance(value, dict):
-            return VolumeCache.from_dict(value)
-        return value
-
-```
+To create your own, subclass `BasePipelineInput` and apply `@model_with_json`, as [`PipelineInput`](./ouroboros/pipeline/pipeline_input.py) does. That class shows the two patterns a custom input usually needs: a `field_serializer` and `field_validator` pair converts fields such as NumPy arrays to and from a JSON-compatible form. Field names must match the names your steps list in `inputs`.

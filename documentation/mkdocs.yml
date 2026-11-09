@@ -1,7 +1,7 @@
 site_name: Ouroboros Documentation
 site_description: Quickly extract long ROIs (e.g. blood vessels, nerves) from cloud-hosted medical scans.
-site_url: https://wegold.me/ouroboros
-copyright: Copyright 2024=2025 Weaver Goldman and David Northover, All rights reserved
+site_url: https://chenglabresearch.github.io/ouroboros/
+copyright: Copyright 2024-2025 Weaver Goldman and David Northover, All rights reserved
 site_author: Weaver Goldman and David Northover
 
 nav:
@@ -23,6 +23,8 @@ nav:
     - Registry Server Images: 'development/registry-server-images.md'
     - Production Package Flavors: 'development/production-package-flavors.md'
     - Benchmarking: 'development/benchmarks/index.md'
+    - Shared Memory Lifecycle: 'development/shared-memory-lifecycle.md'
+    - Status Presentation: 'development/status-presentation.md'
   - Releases: 'https://github.com/ChengLabResearch/ouroboros/releases'
   - Repository: https://github.com/ChengLabResearch/ouroboros
 

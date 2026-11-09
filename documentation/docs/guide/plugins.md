@@ -2,13 +2,12 @@
 
 ### Recommended Plugins
 
-- [Neuroglancer Plugin](https://github.com/We-Gold/neuroglancer-plugin)
+- [Neuroglancer Plugin](https://github.com/ChengLabResearch/neuroglancer-plugin)
     - Embeds Neuroglancer as a page in the app.
     - Supports loading from and saving to JSON configuration files in Ouroboros's File Explorer.
     - Has additional features like fullscreen mode and screenshots.
 
-- Assisted Automatic Segmentation Plugin
-    - Coming Soon!
+- [Assisted Automatic Segmentation Plugin](https://github.com/ChengLabResearch/ouroboros_autoseg_plugin)
     - Based on Segment Anything, it attempts to automatically segment the ROI.
         - Benefits from the assumption that the desired structure is centered in each slice.
     - Supports human input via bounding boxes and positive or negative annotations.

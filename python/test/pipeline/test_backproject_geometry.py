@@ -1,7 +1,6 @@
 """Backprojection owns one envelope without allocating slicing partitions."""
 
 from concurrent.futures import Future
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -20,6 +19,7 @@ from ouroboros.pipeline import backproject_pipeline as backproject_module
 from ouroboros.pipeline import volume_cache_pipeline as planning
 from ouroboros.pipeline.pipeline import Pipeline
 from ouroboros.pipeline.pipeline_input import PipelineInput
+from test.harness import ContextExecutor
 
 
 def _options(tmp_path):
@@ -34,30 +34,6 @@ def _options(tmp_path):
         slice_options_path="slice.json", output_mip_level=1, process_count=4,
     )
     return slicing, backprojecting
-
-
-@pytest.fixture
-def source_metadata(monkeypatch):
-    opened, resolutions = [], []
-
-    def resolution(mip):
-        resolutions.append(mip)
-        return np.array((100, 200, 300)) * 2 ** mip
-
-    native = SimpleNamespace(
-        shape=(20, 30, 40, 1), dtype=np.dtype("uint16"),
-        available_mips=[0, 1], info={"type": "image"},
-        cache=SimpleNamespace(enabled=True),
-        mip_volume_size=lambda mip: np.array((20, 30, 40)) // 2 ** mip,
-        mip_resolution=resolution,
-    )
-
-    def open_source(url, **kwargs):
-        opened.append(url)
-        return native
-
-    monkeypatch.setattr(cache_module, "CloudVolume", open_source)
-    return SimpleNamespace(opened=opened, resolutions=resolutions)
 
 
 def test_only_backprojection_omits_the_slicing_partition_step(tmp_path):
@@ -101,16 +77,7 @@ def test_backprojection_setup_and_reporting_share_the_direct_envelope(
     def forbidden(*args, **kwargs):
         pytest.fail("Backprojection and its reporting must not create slicing partitions or a cache")
 
-    class ObserveExecutor:
-        def __init__(self, count):
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            pass
-
+    class ObserveExecutor(ContextExecutor):
         def submit(self, function, **kwargs):
             assert function is backproject_module.process_chunk
             submitted.append(kwargs["full_bounding_box"])
@@ -187,6 +154,7 @@ def test_backprojection_owners_round_trip_through_pipeline_input_json(source_met
     assert restored.volume_cache is None
 
 
+@pytest.mark.needs("backprojection")
 @pytest.mark.parametrize(
     "xyz,channels,single_file,binary,expected_bigtiff,output_mip",
     [
@@ -230,16 +198,7 @@ def test_backprojection_bigtiff_reaches_the_writer(
 
     monkeypatch.setattr(backproject_module, "update_writable_rects", one_page_ready)
 
-    class TinyPayloadExecutor:
-        def __init__(self, count):
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            pass
-
+    class TinyPayloadExecutor(ContextExecutor):
         def submit(self, function, **kwargs):
             future = Future()
             if function is backproject_module.process_chunk:

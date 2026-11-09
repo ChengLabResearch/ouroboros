@@ -24,6 +24,8 @@ from ouroboros.helpers.files import format_slice_output_file, format_slice_outpu
 from ouroboros.helpers.options import BackprojectOptions, SliceOptions
 from ouroboros.pipeline import Pipeline, PipelineInput, PipelineStep
 
+pytestmark = pytest.mark.needs("reporting")
+
 
 @pytest.fixture
 def run_fixture(tmp_path, monkeypatch):
@@ -175,6 +177,7 @@ def test_memory_observation_failure_keeps_scientific_outcome(run_fixture, monkey
     assert "fixture memory API unavailable" in record["memory"]["errors"][0]["example"]
 
 
+@pytest.mark.canary("reporting", case="success-done-succeeded-native-detailed-slice")
 @pytest.mark.parametrize("operation", ["slice", "backproject"])
 @pytest.mark.parametrize("mode", list(LoggingMode))
 @pytest.mark.parametrize("docker", [False, True], ids=["native", "docker"])
@@ -239,6 +242,7 @@ def test_logging_modes_preserve_outcomes_and_derive_reports_from_the_canonical_p
     assert len(list(state.output.glob("*statistics*.json"))) == 1
 
 
+@pytest.mark.canary("cli-report", case="missing-standard-slice")
 @pytest.mark.parametrize("operation", ["slice", "backproject"])
 @pytest.mark.parametrize(
     ("flags", "mode"),
@@ -618,6 +622,7 @@ def test_cli_failed_and_interrupted_runs_publish_before_nonzero_exit(run_fixture
     assert json.loads(reports[0].read_text())["outcome"] == ("failed" if behavior == "returned" else "interrupted")
 
 
+@pytest.mark.canary("api-report", case="standard-native-slice")
 @pytest.mark.parametrize("operation", ["slice", "backproject"])
 @pytest.mark.parametrize("docker", [False, True], ids=["native", "docker"])
 @pytest.mark.parametrize(

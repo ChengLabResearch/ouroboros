@@ -2,6 +2,7 @@ import './helpers/renderer-loader.mjs'
 import assert from 'node:assert/strict'
 import { registerHooks } from 'node:module'
 import test from 'node:test'
+import { FakeEventSource as BaseEventSource } from './helpers/fake-event-source.mjs'
 
 const providerURL = new URL('../../src/renderer/src/contexts/ServerContext.tsx', import.meta.url)
 const reactURL = import.meta.resolve('react')
@@ -31,24 +32,9 @@ function deferred() {
 	return { promise, resolve }
 }
 
-class FakeEventSource extends EventTarget {
-	static instances = []
-	closeCount = 0
-	constructor(url) {
-		super()
-		this.url = url
-		FakeEventSource.instances.push(this)
-	}
-	close() {
-		this.closeCount++
-	}
+class FakeEventSource extends BaseEventSource {
 	emit(payload) {
-		this.dispatchEvent(
-			new MessageEvent('update_event', {
-				data: JSON.stringify(payload),
-				lastEventId: new URL(this.url).searchParams.get('task_id')
-			})
-		)
+		this.dispatchMessage('update_event', payload, new URL(this.url).searchParams.get('task_id'))
 	}
 }
 if (!globalThis.EventSource) globalThis.EventSource = FakeEventSource

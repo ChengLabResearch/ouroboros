@@ -27,28 +27,14 @@ def test_backproject_options_validation():
         )
 
 
-def test_common_options_to_json(tmp_path):
-    options = CommonOptions(
-        slice_width=100,
-        slice_height=100,
-        output_file_folder="./output/",
-        output_file_name="output",
-    )
-    json_path = tmp_path / "common_options.json"
-    options.save_to_json(json_path)
-    assert json_path.exists()
-
-
-def test_slice_options_to_json(tmp_path):
-    options = SliceOptions(
-        slice_width=100,
-        slice_height=100,
-        output_file_folder="./output/",
-        output_file_name="output",
-        neuroglancer_json="./neuroglancer.json",
-    )
-    json_path = tmp_path / "slice_options.json"
-    options.save_to_json(json_path)
+@pytest.mark.parametrize("model, fields", [
+    (CommonOptions, dict(slice_width=100, slice_height=100)),
+    (SliceOptions, dict(slice_width=100, slice_height=100, neuroglancer_json="./neuroglancer.json")),
+    (BackprojectOptions, dict(straightened_volume_path="./volume.tif", slice_options_path="./slice-options.json")),
+])
+def test_options_save_to_json(tmp_path, model, fields):
+    json_path = tmp_path / "options.json"
+    model(output_file_folder="./output/", output_file_name="output", **fields).save_to_json(json_path)
     assert json_path.exists()
 
 
@@ -67,18 +53,6 @@ def test_slice_options_from_json():
     assert isinstance(loaded_options.bounding_box_params, BoundingBoxParams)
     assert not isinstance(loaded_options, str)
     assert loaded_options == options
-
-
-def test_backproject_options_to_json(tmp_path):
-    options = BackprojectOptions(
-        output_file_folder="./output/",
-        output_file_name="output",
-        straightened_volume_path="./volume.tif",
-        slice_options_path="./slice-options.json",
-    )
-    json_path = tmp_path / "backproject_options.json"
-    options.save_to_json(json_path)
-    assert json_path.exists()
 
 
 @pytest.mark.parametrize("model, required", [

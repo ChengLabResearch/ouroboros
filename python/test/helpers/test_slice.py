@@ -486,25 +486,11 @@ def test_make_volume_binary():
     assert np.array_equal(binary_volume, expected_binary_volume)
 
 
-def test_detect_color_channels_no_channels():
-    data = np.random.rand(10, 10, 10)  # 3D array
-    has_color_channels, num_color_channels = detect_color_channels(data)
-    assert not has_color_channels
-    assert num_color_channels == 1
-
-
-def test_detect_color_channels_with_channels():
-    data = np.random.rand(10, 10, 10, 3)  # 4D array with 3 color channels
-    has_color_channels, num_color_channels = detect_color_channels(data)
-    assert has_color_channels
-    assert num_color_channels == 3
-
-
-def test_detect_color_channels_with_different_channels():
-    data = np.random.rand(10, 10, 10, 4)  # 4D array with 4 color channels
-    has_color_channels, num_color_channels = detect_color_channels(data)
-    assert has_color_channels
-    assert num_color_channels == 4
+@pytest.mark.parametrize("shape, has_channels, channels", [
+    ((10, 10, 10), False, 1), ((10, 10, 10, 3), True, 3), ((10, 10, 10, 4), True, 4),
+])
+def test_detect_color_channels(shape, has_channels, channels):
+    assert detect_color_channels(np.random.rand(*shape)) == (has_channels, channels)
 
 
 def test_detect_color_channels_custom_none_value():

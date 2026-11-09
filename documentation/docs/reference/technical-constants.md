@@ -381,24 +381,32 @@ Electron-side `VOLUME_SERVER_PORT` in
     - `chunk_size` = `160`
     - `process_count` = `os.cpu_count()`
 - Source: [`python/ouroboros/helpers/options.py`][options-py]
-- User override: `process_count` in either operation’s options JSON;
+- User override: `process_count` in either operation's options JSON;
   `chunk_size` in backprojection options. An explicit count must be at least four.
-  Use multiples of four for an exact total worker count with the existing role splits.
   Omitted counts resolve to the backend logical CPU count when options are loaded.
-  These are worker budgets, not CPU affinity or quota controls.
+  The desktop Backproject page exposes `Process Count`; the Slice page does not, so
+  desktop slicing uses that default. These are worker budgets, not CPU affinity or
+  quota controls.
 - API discovery: `GET /options-schema` returns JSON schemas directly from both
   options models, allowing clients to detect support before submitting jobs.
-- Slicing reads its budget from `SliceOptions.process_count` during execution.
-  Callers must set that options field. Slicing uses one-quarter download
-  and three-quarters slicing workers; backprojection keeps its existing split.
+
+Each operation divides `process_count` (`P`) into roles, using integer division:
+
+| Operation | Role allocation | Exact total when `P` is a multiple of |
+| --- | --- | --- |
+| Slicing | `P // 4` download processes and `P * 3 // 4` slice processes; `P` threads then normalize and write the output | 4 |
+| Backprojection, output size unchanged | `P // 2` backprojection processes and `P // 2` writer processes | 2 |
+| Backprojection, output resized to a finer MIP | `P // 3` backprojection processes and `int(P // 1.5)` writer processes | 3 |
+
+Other values leave part of the budget unused. A report's `execution.workers` records
+the counts actually dispatched; see the
+[run-statistics reference](run-statistics.md#schema-version-1).
 
 **Why it exists.** `chunk_size` is the per-dimension size of the
 processing chunk used by the backproject pipeline (see
 `DataRange(FPShape.make_with(0), FPShape, FPShape.make_with(config.chunk_size))`
 in [`python/ouroboros/pipeline/backproject_pipeline.py`][backproject-pipeline]).
-`process_count` sets the parallel worker pool for the same pipeline;
-executor and writer processes are derived as fractions of it
-(`process_count // 4 * 2` or `// 4 * 3`).
+`process_count` sets the budget divided into the roles above.
 
 **Why 160 specifically.** The primary purpose of the chunk sizing is to
 enable clean backprojection - specifically clean backprojection of the

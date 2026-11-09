@@ -69,9 +69,9 @@ the annotation prompts.
 
 ### Server Usage
 
-This package also comes with a FastAPI server that can be run with `ouroboros-server`. Internally, this is compiled using PyInstaller and run in the electron app. 
+This package also comes with a FastAPI server that can be run natively with `ouroboros-server`. The desktop app does not use this entry point: it runs the server in Docker, as described in the [root README](../README.md).
 
-The usage is very similar to the cli, so to try it out, I recommend going to the `docs` website for the server once you run it. That is `http://127.0.0.1:8000/docs`.
+The usage is very similar to the CLI. To try it out, open the server's interactive API docs once it is running, at `http://127.0.0.1:8000/docs`.
 
 ### Development
 
@@ -129,19 +129,18 @@ Poetry can reuse an already active virtual environment, including Conda. Deactiv
 
 ### Testing
 
-In VSCode, use the testing tab. Otherwise, use `pytest`.
+Run tests from this directory. In VS Code, use the testing tab; otherwise, use `pytest`.
 
-To run code coverage, use the following command: 
+To run code coverage, use the following command:
 ```
 coverage erase && coverage run -m pytest && coverage combine && coverage report -m
 ```
 
-_Only `helpers` is unit tested right now, primarily because the rest of the package fundamentally depends on `helpers`._
+The tests in `test/` cover the helpers, pipeline steps, server reporting, shared-memory lifecycle, and native memory readers. The coverage report and its 98% threshold measure only `ouroboros/helpers`; see `[tool.coverage.run]` and `[tool.coverage.report]` in [pyproject.toml](pyproject.toml). Coverage includes multiprocessing workers and combines their result files.
 
-Coverage includes multiprocessing workers and combines their result files. The
-small shared-memory ownership regressions can also run independently with
-`pytest test/test_shared_memory_lifecycle.py -q`; CI runs these on Linux, Windows,
-and macOS with Python 3.11 and 3.12.
+Tests of a shared path use the `canary` and `needs` markers from [test/conftest.py](test/conftest.py). When a canary fails, the tests that depend on it skip and name that canary, so fix it first.
+
+The shared-memory and native memory tests can run on their own with a reduced set of dependencies, for example `pytest test/test_shared_memory_lifecycle.py -q`. CI runs that set on Linux, Windows, and macOS with Python 3.11 and 3.12; see [pr-coverage.yml](../.github/workflows/pr-coverage.yml) for the list.
 See the [shared-memory lifecycle contract](../documentation/docs/development/shared-memory-lifecycle.md)
 for ownership, release semantics, and the RAM-reporting integration boundary.
 
@@ -159,13 +158,14 @@ The package includes predefined pipelines for common tasks such as backprojectio
 
 ```python
 from ouroboros.common.pipelines import backproject_pipeline
-from ouroboros.helpers.options import BackprojectOptions
+from ouroboros.helpers.options import BackprojectOptions, SliceOptions
 
-# Load options from a JSON file
+# Load the backprojection options and the slice options they refer to
 backproject_options = BackprojectOptions.load_from_json('path/to/options.json')
+slice_options = SliceOptions.load_from_json(backproject_options.slice_options_path)
 
 # Create the pipeline and input data
-pipeline, input_data = backproject_pipeline(backproject_options, verbose=True)
+pipeline, input_data = backproject_pipeline(backproject_options, slice_options, verbose=True)
 
 # Process the pipeline
 output, error = pipeline.process(input_data)

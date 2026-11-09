@@ -623,11 +623,11 @@ def test_writer_preserves_nested_timings_with_reusable_storage(tmp_path, monkeyp
     writer = Mock()
     shape = ImgSliceC(2, 2, 1)
     monkeypatch.setattr(files_module, "_writer_page_buffers", None)
-    monkeypatch.setattr(files_module, "time", clock([0, 2, 3, 7, 8]))
+    monkeypatch.setattr(files_module, "time", clock([0, 2, 3, 5, 6, 10, 12]))
     timings = files_module.write_conv_vol(
-        writer, tmp_path / "empty.dat", shape, np.uint8, None, tmp_path, 0, 0, False,
+        writer, tmp_path / "empty.dat", tmp_path, shape, shape, 1, np.uint8, 0, 0, False,
     )
-    assert timings == {"Merge Volume": 2, "Write Merged": 4, "Total Chunk Merge": 8}
+    assert timings == {"Merge Volume": 2, "Convert Volume": 2, "Write Merged": 4, "Total Chunk Merge": 12}
     assert writer.call_count == 1
     assert writer.call_args.kwargs["data"] is files_module._writer_page_buffers[1]
 
@@ -867,6 +867,8 @@ def test_backprojection_writer_failure_reaches_owner_without_callback_warning(
                                  straightened_volume_path=str(source), slice_options_path="unused", process_count=4)
     interface = Mock(spec=cache_module.CloudVolumeInterface)
     interface.get_resolution_um.return_value = np.ones(3)
+    interface.get_resolution_nm.return_value = np.ones(3)
+    interface.get_volume_shape.return_value = np.ones(3)
     monkeypatch.setattr(backproject_module, "CloudVolumeInterface", lambda url: interface)
     submitted_resources = []
 
@@ -932,6 +934,8 @@ def test_backproject_single_tiff_export_and_cleanup_keep_step_running(tmp_path, 
                                  process_count=4, make_single_file=True)
     interface = Mock(spec=cache_module.CloudVolumeInterface)
     interface.get_resolution_um.return_value = np.ones(3)
+    interface.get_resolution_nm.return_value = np.ones(3)
+    interface.get_volume_shape.return_value = np.ones(3)
     monkeypatch.setattr(backproject_module, "CloudVolumeInterface", lambda url: interface)
     step = backproject_module.BackprojectPipelineStep()
     observed = []

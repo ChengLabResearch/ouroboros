@@ -82,7 +82,7 @@ def _run_backprojection(folder, shape, channels, photometric, layout, *,
 
     output = folder / data.output_file_path
     pages = []
-    paths = [output] if single_file else [output / f"{z}.tif" for z in range(depth)]
+    paths = [output] if single_file else [output / f"{z:05}.tif" for z in range(depth)]
     with ExitStack() as stack:
         tiffs = [stack.enter_context(tifffile.TiffFile(path)) for path in paths]
         output_pages = [page for tif in tiffs for page in tif.pages]

@@ -19,6 +19,7 @@ nav:
   - Development:
     - App: https://github.com/ChengLabResearch/ouroboros/blob/main/README.md
     - Python: https://github.com/ChengLabResearch/ouroboros/blob/main/python/README.md
+    - Python Pipelines: 'development/python-pipelines.md'
     - Plugins: https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md
     - Docker Builds: 'development/docker-builds.md'
     - Registry Server Images: 'development/registry-server-images.md'

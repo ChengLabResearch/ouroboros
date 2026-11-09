@@ -56,9 +56,6 @@ serialization boundary before cleanup, never an input to scientific execution.
 Output naming, atomic file publication, Docker export, and recovery extend the
 existing file/volume facilities. The memory collector extends this same lifecycle.
 
-The fixed-local-source benchmark and reproducible commands are documented in
-[the benchmark guide](benchmarks/index.md).
-
 ## Memory collector
 
 A small separate interpreter performs collection, avoiding a sampler thread in

@@ -257,6 +257,9 @@ they measure logical storage, not compression or equal information content.
 GB means decimal gigabytes and GiB means binary gibibytes; the structured
 measurements use bytes directly.
 
+The fixed-local-source benchmark and reproducible commands are documented in
+[the benchmark guide](../development/benchmarks/index.md).
+
 ## Memory measurements
 
 The collector belongs to `RunStatistics` and runs only in Detailed mode around

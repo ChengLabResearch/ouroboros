@@ -24,4 +24,4 @@ subfolders, the following behavior applies:
   starts with `.` are always skipped.
 
 See [Technical Constants](../reference/technical-constants.md) for the
-exact values, why they were chosen, and when to adjust them.
+exact values and why they were chosen.

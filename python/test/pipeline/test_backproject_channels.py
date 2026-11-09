@@ -15,7 +15,7 @@ from ouroboros.helpers.shapes import ImgSliceC
 from ouroboros.pipeline.backproject_pipeline import process_chunk
 
 
-def _backproject_tiff(folder, data, rects, photometric, *, discrete, binary, scaling):
+def _backproject_tiff(folder, data, rects, photometric, *, discrete, binary, upsample):
     folder.mkdir()
     source = folder / "straightened.tif"
     channels = data.shape[-1] if data.ndim == 4 else 1
@@ -57,10 +57,12 @@ def _backproject_tiff(folder, data, rects, photometric, *, discrete, binary, sca
         photometric="rgb" if channels > 1 else "minisblack",
     )
     x, y, _ = box.get_shape()
+    shape = ImgSliceC(Y=y, X=x, C=channels)
+    output_shape = ImgSliceC(Y=y * upsample, X=x * upsample, C=channels)
     for path in records:
         write_conv_vol(
-            writer, path, ImgSliceC(Y=y, X=x, C=channels),
-            bool if binary else np.uint16, scaling, target,
+            writer, path, target, shape, output_shape, upsample,
+            bool if binary else np.uint16,
             int(path.stem.removeprefix("i_")), 0, discrete,
         )
     assert not list(intermediates.glob("*.dat"))
@@ -68,17 +70,17 @@ def _backproject_tiff(folder, data, rects, photometric, *, discrete, binary, sca
 
 
 @pytest.mark.parametrize(
-    "photometric,discrete,binary,scaling",
+    "photometric,discrete,binary,upsample",
     [
-        pytest.param("rgb", False, False, None, id="rgb"),
-        pytest.param("minisblack", False, False, None, id="minisblack"),
-        pytest.param("rgb", True, False, None, id="discrete"),
-        pytest.param("rgb", False, True, None, id="binary"),
-        pytest.param("rgb", False, False, (2, 2, 2), id="scaled"),
+        pytest.param("rgb", False, False, 1, id="rgb"),
+        pytest.param("minisblack", False, False, 1, id="minisblack"),
+        pytest.param("rgb", True, False, 1, id="discrete"),
+        pytest.param("rgb", False, True, 1, id="binary"),
+        pytest.param("rgb", False, False, 2, id="scaled"),
     ],
 )
 def test_multichannel_backprojection_matches_scalar_tiffs(
-    tmp_path, photometric, discrete, binary, scaling,
+    tmp_path, photometric, discrete, binary, upsample,
 ):
     depth, row, column = np.indices((4, 3, 4))
     data = np.stack((np.zeros_like(depth), 1 + 4 * depth + 2 * row + column,
@@ -88,7 +90,7 @@ def test_multichannel_backprojection_matches_scalar_tiffs(
          [4.25, 3.25, z], [0.25, 3.25, z]]
         for z in (0.25, 1.25, 1.75, 2.25)
     ])
-    options = dict(discrete=discrete, binary=binary, scaling=scaling)
+    options = dict(discrete=discrete, binary=binary, upsample=upsample)
     actual = _backproject_tiff(tmp_path / "channels", data, rects, photometric, **options)
     expected = [
         _backproject_tiff(tmp_path / f"scalar-{channel}", data[..., channel],

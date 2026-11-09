@@ -140,7 +140,7 @@ def test_backprojection_setup_and_reporting_share_the_direct_envelope(
     assert data.backprojection_box is envelopes[0]
     assert data.volume_cache is None
     assert source_metadata.opened == ["memory://source"]
-    assert source_metadata.resolutions == [1]
+    assert set(source_metadata.resolutions) == {1}
     assert data.output_file_path == "sample_-2_2_1"
 
     # Reporting must serialize these owners, without another geometry scan or
@@ -247,6 +247,10 @@ def test_backprojection_bigtiff_reaches_the_writer(
             else:
                 assert kwargs["shape"].C == channels
                 assert (kwargs["shape"].X, kwargs["shape"].Y) == xyz[:2]
+                scale = 2 ** (slicing.output_mip_level - output_mip)
+                assert (kwargs["output_shape"].X, kwargs["output_shape"].Y) == (xyz[0] * scale, xyz[1] * scale)
+                assert kwargs["output_shape"].C == channels
+                assert kwargs["z_steps"] == scale
                 kwargs["source_path"].parent.mkdir(exist_ok=True)
                 kwargs["writer"](kwargs["target_folder"] / "0.tif",
                                  data=pixels.astype(np.uint8 if binary else np.uint16))
@@ -263,4 +267,7 @@ def test_backprojection_bigtiff_reaches_the_writer(
         path /= "0.tif"
     with tifffile.TiffFile(path) as tif:
         assert tif.is_bigtiff is expected_bigtiff
+        numerator, denominator = tif.pages[0].tags["XResolution"].value
+        # 100 nm voxels at mip 0, written as voxels per centimeter.
+        assert numerator / denominator == pytest.approx(1e5 / 2 ** output_mip, rel=1e-3)
         assert tif.pages[0].dtype == np.dtype(np.uint8 if binary else np.uint16)

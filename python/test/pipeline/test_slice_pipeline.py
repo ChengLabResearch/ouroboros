@@ -85,7 +85,9 @@ def test_slice_worker_payload_matches_owned_arrays_and_reports_nested_timings(
         assert kwargs["output"].ctypes.data == target.ctypes.data
         assert kwargs["output"].strides == target.strides
         result = real_map(*args, **kwargs)
-        assert result is kwargs["output"]
+        # SciPy may return an ndarray view of the supplied memmap. The worker
+        # relies on writes reaching that buffer, not on the returned object.
+        assert np.shares_memory(result, kwargs["output"])
         observed["writes"].append(result)
         return result
 
@@ -495,10 +497,6 @@ def test_slice_callback_failure_releases_waiter_and_records_failure(tmp_path, mo
 
     monkeypatch.setattr(slice_module.concurrent.futures, "ProcessPoolExecutor", InlineExecutor)
     monkeypatch.setattr(slice_module, "SharedNPManager", manager)
-    # TIFF metadata creation predates the pinned tifffile API; keep this failure
-    # fixture focused on dispatch and callback propagation.
-    monkeypatch.setattr(slice_module, "build_straightened_tiff_metadata",
-                        lambda **kwargs: {"photometric": "minisblack"})
     original_event = threading.Event
     wait_results = []
 
@@ -630,8 +628,6 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
     monkeypatch.setattr(slice_module, "threading",
                         SimpleNamespace(Event=CompleteDownloadsOnWait, RLock=threading.RLock))
     monkeypatch.setattr(slice_module, "SharedNPManager", manager)
-    monkeypatch.setattr(slice_module, "build_straightened_tiff_metadata",
-                        lambda **kwargs: {"photometric": "minisblack"})
     monkeypatch.setattr(slice_module, "slice_volume_from_grids", interpolate_observed)
     monkeypatch.setattr(slice_module, rewrite_name, rewrite_observed)
     data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
@@ -735,9 +731,6 @@ def test_released_slice_volume_has_no_worker_attachments_before_pool_shutdown(tm
     monkeypatch.setattr(slice_module.concurrent.futures, 'ProcessPoolExecutor', executor)
     monkeypatch.setattr(cache, 'remove_volume', release)
     monkeypatch.setattr(slice_module.multiprocessing.pool, 'ThreadPool', inspect_before_rewrite)
-    # Existing TIFF metadata compatibility is unrelated to allocation lifetime.
-    monkeypatch.setattr(slice_module, 'build_straightened_tiff_metadata',
-                        lambda **kwargs: {'photometric': 'minisblack'})
     data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
     _, error = Pipeline([slice_module.SliceParallelPipelineStep()]).process(data)
     assert error is None, error

@@ -154,8 +154,11 @@ def test_generate_tiff_write(tmp_path):
         assert tif.pages[0].tags["ResolutionUnit"].value == tf.RESUNIT.CENTIMETER
         assert tif.pages[0].tags["Software"].value == "ouroboros"
         assert tif.pages[0].tags["Compression"].value == tf.COMPRESSION.ADOBE_DEFLATE
-        assert tif.pages[0].tags["XResolution"].value == (4294967295, 300648)
-        assert tif.pages[0].tags["YResolution"].value == (4294967295, 300648)
+        # TIFF stores a rational; tifffile versions choose different fractions
+        # for the same physical voxel size (newer releases round more closely).
+        for tag, voxel_size in zip(("XResolution", "YResolution"), micron_resolution):
+            numerator, denominator = tif.pages[0].tags[tag].value
+            assert 10_000 * denominator / numerator == pytest.approx(voxel_size)
         json_metadata = json.loads(tif.pages[0].tags["ImageDescription"].value)
         assert json_metadata["spacing"] == 0.7
         assert json_metadata["unit"] == "um"

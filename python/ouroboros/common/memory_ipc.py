@@ -7,14 +7,11 @@ import time
 import psutil
 
 
-_IDENTITY_PSUTIL_VERSION = "7.1.3"
-
-
 def _check_identity_support():
-    # _ident is private. Package installs, the lockfile and native CI pin this
-    # version; refuse an unverified override rather than reporting guessed RAM.
-    if psutil.__version__ != _IDENTITY_PSUTIL_VERSION:
-        raise RuntimeError(f"Memory identity requires psutil {_IDENTITY_PSUTIL_VERSION}; got {psutil.__version__}")
+    # _ident is private. Keep the reviewed minor series aligned with package
+    # metadata and native CI; tuple shape alone cannot prove clock stability.
+    if not (7, 1, 3) <= psutil.version_info < (7, 3):
+        raise RuntimeError(f"Memory identity requires psutil >=7.1.3,<7.3; got {psutil.__version__}")
     if sys.platform not in ("linux", "darwin", "win32"):
         raise RuntimeError(f"Memory identity is unsupported on {sys.platform}")
 
@@ -44,14 +41,14 @@ def validate_process_identity(process):
 
 
 def export_process_identity(process):
-    """One-way IPC adapter for psutil 7.1.3's equality/hash identity.
+    """One-way IPC adapter for supported psutil equality/hash identities.
 
     Linux/Darwin values are psutil's unadjusted native start values; Windows
     retains psutil's native creation value. Never reconstruct these ourselves.
     Receivers validate/discard the token and keep Process objects at runtime.
     """
     validate_process_identity(process)
-    return {"psutil_version": _IDENTITY_PSUTIL_VERSION, "platform": sys.platform,
+    return {"psutil_version": psutil.__version__, "platform": sys.platform,
             "identity": list(process._ident)}
 
 
@@ -74,7 +71,7 @@ def _read_process_identity(token):
     _check_identity_support()
     if (not isinstance(token, dict)
             or set(token) != {"psutil_version", "platform", "identity"}
-            or token["psutil_version"] != _IDENTITY_PSUTIL_VERSION
+            or token["psutil_version"] != psutil.__version__
             or token["platform"] != sys.platform):
         raise ValueError("Missing or unverified process identity token")
     _check_identity_value(token["identity"])

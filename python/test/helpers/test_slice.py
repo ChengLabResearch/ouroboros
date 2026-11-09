@@ -98,14 +98,17 @@ def test_coordinate_grid_preserves_formula_in_its_destination(flip, floor, provi
             allocations.append(result)
         return result
 
-    def observe_add(left, right, *, out):
-        writes.append(out)
-        return add(left, right, out=out)
+    def observe_add(left, right, **kwargs):
+        if kwargs.get("out") is not None:
+            writes.append(kwargs["out"])
+        return add(left, right, **kwargs)
 
-    def observe_subtract(left, right, *, out):
-        assert left is out
-        writes.append(out)
-        return subtract(left, right, out=out)
+    def observe_subtract(left, right, **kwargs):
+        # NumPy's linspace also calls subtract, without a destination.
+        if kwargs.get("out") is not None:
+            assert left is kwargs["out"]
+            writes.append(kwargs["out"])
+        return subtract(left, right, **kwargs)
 
     with monkeypatch.context() as patch:
         patch.setattr(slice_module.np, "empty", observe_empty)

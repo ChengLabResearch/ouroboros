@@ -119,8 +119,6 @@ def record_native_reads(monkeypatch, after_read=lambda: None):
 
 
 def test_native_identity_serialization_preserves_psutil_equality_and_hash():
-    # An explicit upgrade guard for the one private psutil boundary adapter.
-    assert psutil.__version__ == "7.1.3"
     original = psutil.Process()
     token = json.loads(json.dumps(ipc.export_process_identity(original)))
     assert token == {"psutil_version": psutil.__version__, "platform": sys.platform,
@@ -275,10 +273,17 @@ def test_unverified_serialized_identity_is_rejected(identity):
         ipc.process_from_identity(token)
 
 
-@pytest.mark.parametrize("field,value", [("psutil_version", "7.2.0"), ("platform", "other")])
+@pytest.mark.parametrize("field,value", [("psutil_version", "other"), ("platform", "other")])
 def test_unverified_token_contract_is_rejected(field, value):
     token = ipc.export_process_identity(psutil.Process())
     token[field] = value
+    with pytest.raises(ValueError, match="identity"):
+        ipc.process_from_identity(token)
+
+
+def test_different_supported_psutil_version_token_is_rejected():
+    token = ipc.export_process_identity(psutil.Process())
+    token["psutil_version"] = "7.2.2" if psutil.__version__ == "7.1.3" else "7.1.3"
     with pytest.raises(ValueError, match="identity"):
         ipc.process_from_identity(token)
 
@@ -322,11 +327,16 @@ def test_checked_liveness_rejects_native_pid_reuse_and_exit(monkeypatch, change)
     assert ipc.process_is_running(process)
 
 
-def test_unverified_native_identity_and_dependency_upgrade_are_explicit(monkeypatch):
+def test_unverified_native_identity_is_explicit(monkeypatch):
     process = psutil.Process()
     monkeypatch.setattr(process, "_ident", (process.pid, None))
     with pytest.raises(ValueError, match="identity"):
         ipc.export_process_identity(process)
-    monkeypatch.setattr(psutil, "__version__", "7.2.0")
+
+
+@pytest.mark.parametrize("version", [(7, 1, 2), (7, 3, 0), (8, 0, 0)])
+def test_unreviewed_dependency_version_is_explicit(monkeypatch, version):
+    monkeypatch.setattr(psutil, "version_info", version)
+    monkeypatch.setattr(psutil, "__version__", ".".join(map(str, version)))
     with pytest.raises(RuntimeError, match="requires psutil"):
         ipc.export_process_identity(psutil.Process())

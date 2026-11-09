@@ -144,6 +144,21 @@ Setting `virtualenvs.in-project` does not move an existing Poetry environment in
 
 Poetry can reuse an already active virtual environment, including Conda. Deactivate it first if you want Poetry to create this project's `.venv`. Use `poetry env info --path` to check which environment is actually selected rather than relying only on the terminal prompt.
 
+#### Build standalone executables
+
+After `poetry install`, run PyInstaller from the checkout's `python/` directory
+with the existing build specifications:
+
+```bash
+poetry run pyinstaller cli.spec
+poetry run pyinstaller server.spec
+```
+
+These produce `dist/ouroboros-cli` and `dist/ouroboros-server` (with `.exe` on
+Windows). They replace the development aliases `build-cli-executable` and
+`build-server-executable`, which were installed by earlier wheels but could not
+run outside the checkout. PyInstaller remains a development dependency.
+
 
 ### Testing
 

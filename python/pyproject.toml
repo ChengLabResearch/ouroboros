@@ -26,8 +26,6 @@ classifiers = [
 ouroboros-cli = "ouroboros.cli:main"
 ouroboros-server = "ouroboros.server:main"
 ouroboros-docker-server = "ouroboros.docker_server:main"
-build-cli-executable = "pyinstaller:build_cli_executable"
-build-server-executable = "pyinstaller:build_server_executable"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"

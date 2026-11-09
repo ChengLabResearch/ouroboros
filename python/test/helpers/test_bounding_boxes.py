@@ -272,18 +272,17 @@ def test_to_cloudvolume_bbox():
     assert cloudvolume_bbox.ndim == 3
 
 
-def test_longest_dimension():
-    rect = np.array([[0, 0, 0], [2, 1, 1]])
-    bbox = BoundingBox(rect)
-    assert bbox.longest_dimension() == 0
-
-    rect = np.array([[0, 0, 0], [1, 2, 1]])
-    bbox = BoundingBox(rect)
-    assert bbox.longest_dimension() == 1
-
-    rect = np.array([[0, 0, 0], [1, 1, 2]])
-    bbox = BoundingBox(rect)
-    assert bbox.longest_dimension() == 2
+@pytest.mark.parametrize("origin", [(0, 0, 0), (30, -20, 10), (-30, 20, -10)],
+                         ids=["at-origin", "translated", "opposite-translation"])
+@pytest.mark.parametrize("spans, expected", [((4, 2, 1), 0), ((1, 4, 2), 1), ((2, 1, 4), 2)],
+                         ids=["longest-x", "longest-y", "longest-z"])
+def test_longest_dimension(origin, spans, expected):
+    # Nonzero minima distinguish coordinate ranges from sums or maxima.
+    origin = np.asarray(origin)
+    bbox = BoundingBox(np.stack([origin, origin + spans]))
+    assert bbox.longest_dimension() == expected, (
+        f"Longest dimension must follow spans {spans}, independent of origin {origin}"
+    )
 
 
 @pytest.mark.parametrize("task_payload", [None, payload], ids=["count", "payload"])
@@ -481,8 +480,7 @@ def test_search_expands_the_lowest_payload_node_when_children_cost_more():
         _PartitionNode(right, np.array([1]), 20),
     ]
     threshold = _select_partition_threshold(nodes, reference_peak=30, reference_volume=70)
-    assert threshold is not None
-    assert threshold < nodes[0].payload
+    assert threshold == 9, "Search must cross the lowest payload (10) by one to expose its children"
     assert max(node.payload for node in nodes[1:]) == 20
     assert sum(node.box.calculate_volume() for node in nodes[1:]) == 60
 

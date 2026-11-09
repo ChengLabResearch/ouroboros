@@ -163,6 +163,7 @@ def test_slice_worker_payload_matches_owned_arrays_and_reports_nested_timings(
 
 @pytest.mark.parametrize("clipped", [False, True], ids=["inside_source", "clipped_source"])
 @pytest.mark.parametrize("comparison", ["count_extents", "payload_partition"])
+@pytest.mark.needs("slice-geometry")
 def test_downloaded_slice_agrees_across_fractional_boxes_and_full_volume(
     tmp_path, monkeypatch, clipped, comparison,
 ):
@@ -574,6 +575,7 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
             if alternate else slice_module.SliceParallelPipelineStep())
     expected_order = [1, 2, 3, 4, 0] if alternate else [0, 1, 2, 3, 4]
     observed, mapped_shapes, mapped_indices, downloaded, sliced = [], [], [], [], []
+    pending_downloads, initial_downloads = [], []
 
     def interpolate_observed(*args, output, **kwargs):
         assert isinstance(output, np.memmap), "Final pixels must come from the mapped worker path"
@@ -589,7 +591,7 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
                 index = kwargs["volume_index"]
                 downloaded.append(index)
                 assert kwargs["bounding_box"] is cache.bounding_boxes[index]
-                future.set_result((volume, box, 0.25, index))
+                pending_downloads.append((future, (volume, box, 0.25, index)))
             else:
                 if getattr(func, "func", None) is slice_module.process_worker_save_parallel:
                     index = kwargs["volume_index"]
@@ -597,6 +599,18 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
                     assert kwargs["slice_indices"] == cache.get_slice_indices(index)
                 future.set_result(func(**kwargs))
             return future
+
+    class CompleteDownloadsOnWait(threading.Event):
+        def wait(self):
+            # Immediate futures recursively drain all boxes in one loop iteration
+            # and cannot detect an incorrect initial download-window count.
+            initial_downloads.extend(downloaded)
+            assert sliced == [], "Observe the startup window before any download completes"
+            while pending_downloads:
+                future, result = pending_downloads.pop(0)
+                future.set_result(result)
+            assert self.is_set(), "Completing all queued work must release the pipeline waiter"
+            return True
 
     @contextmanager
     def manager(**kwargs):
@@ -613,6 +627,8 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
         return rewrite(*args)
 
     monkeypatch.setattr(slice_module.concurrent.futures, "ProcessPoolExecutor", InlineExecutor)
+    monkeypatch.setattr(slice_module, "threading",
+                        SimpleNamespace(Event=CompleteDownloadsOnWait, RLock=threading.RLock))
     monkeypatch.setattr(slice_module, "SharedNPManager", manager)
     monkeypatch.setattr(slice_module, "build_straightened_tiff_metadata",
                         lambda **kwargs: {"photometric": "minisblack"})
@@ -621,6 +637,9 @@ def test_slice_rewrite_reports_running_unknown_length_work_after_workers_finish(
     data = PipelineInput(slice_options=options, slice_rects=rects, volume_cache=cache)
     pipeline = Pipeline([step])
     _, error = pipeline.process(data)
+    assert initial_downloads == expected_order[:4], (
+        "Three slice workers must start with four queued downloads"
+    )
     assert len(observed) == len(rects)
     assert downloaded == sliced == expected_order
     assert mapped_shapes == [expected.shape] * len(counts)

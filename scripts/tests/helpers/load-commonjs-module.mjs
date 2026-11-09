@@ -1,4 +1,4 @@
-// Execute a real TypeScript module with only its OS, Electron and Docker boundaries replaced.
+// Execute a real TypeScript/JSX module with explicit dependency and global replacements.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import * as path from 'node:path'
@@ -11,7 +11,11 @@ export function loadCommonJsModule(source, imports, scope = {}) {
 	const filename = fileURLToPath(url)
 	const { outputText } = ts.transpileModule(readFileSync(url, 'utf8'), {
 		fileName: filename,
-		compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+		compilerOptions: {
+			module: ts.ModuleKind.CommonJS,
+			target: ts.ScriptTarget.ES2022,
+			jsx: ts.JsxEmit.ReactJSX
+		}
 	})
 	const module = { exports: {} }
 	const names = Object.keys(scope)

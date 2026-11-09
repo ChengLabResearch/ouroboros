@@ -73,6 +73,14 @@ def test_calculate_vectors_basic():
         3,
         len(times),
     ), "Binormal vectors shape should match (3, number of times)"
+    # Orthogonality alone also accepts unnormalized derivatives. Each frame
+    # axis must have unit length or slice dimensions scale with curve speed.
+    for name, vectors in (("tangent", tangent_vectors), ("normal", normal_vectors),
+                          ("binormal", binormal_vectors)):
+        np.testing.assert_allclose(
+            np.linalg.norm(vectors, axis=0), np.ones(len(times)),
+            err_msg=f"The {name} vectors must be unit length at every sample",
+        )
 
 
 def test_vectors_orthogonality():
@@ -122,6 +130,13 @@ def test_rotation_minimizing_vectors():
     tangent_vectors, normal_vectors, binormal_vectors = (
         spline.calculate_rotation_minimizing_vectors(times)
     )
+
+    for name, vectors in (("tangent", tangent_vectors), ("normal", normal_vectors),
+                          ("binormal", binormal_vectors)):
+        np.testing.assert_allclose(
+            np.linalg.norm(vectors, axis=0), np.ones(len(times)),
+            err_msg=f"The rotation-minimizing {name} vectors must be unit length",
+        )
 
     # Transpose the vectors for vector-by-vector indexing (3, n) -> (n, 3)
     tangent_vectors = tangent_vectors.T

@@ -26,6 +26,7 @@ nav:
     - Benchmarking: 'development/benchmarks/index.md'
     - Shared Memory Lifecycle: 'development/shared-memory-lifecycle.md'
     - Status Presentation: 'development/status-presentation.md'
+    - Run Statistics Internals: 'development/run-statistics-internals.md'
   - Releases: 'https://github.com/ChengLabResearch/ouroboros/releases'
   - Repository: https://github.com/ChengLabResearch/ouroboros
 

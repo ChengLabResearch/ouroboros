@@ -530,7 +530,7 @@
 <li><code>Slice Height</code> - The output height of each slice image.</li>
 <li>📁 <code>Output File Folder</code> - The folder to save all the resulting files into.</li>
 <li><code>Output File Name</code> - Base name for all output files.</li>
-<li><code>Annotation MIP Level</code> - The annotation layer's MIP level. 0 is the highest resolution.</li>
+<li><code>Annotation MIP Level</code> - The source MIP used for annotation coordinates when the annotation source has no explicit coordinate metadata. 0 is the highest resolution. Explicit annotation source scales take precedence over this setting.</li>
 <li><code>Output MIP Level</code> - The MIP level to output slices in (essentially a downsample option). 1 is a good starting point.</li>
 <li><code>Slicing Parameters</code><ul>
 <li><code>Distance Between Slices</code> - The distance between each slice along the annotation path.</li>
@@ -550,10 +550,12 @@
 </ul>
 <h3 id="how-does-slicing-work">How Does Slicing Work?</h3>
 <p><strong>Spline Fitting</strong></p>
-<p>Ouroboros fits a spline curve to the annotation path from the Neuroglancer JSON file. This produces a smooth, differentiable curve along the length of the annotations. </p>
+<p>Ouroboros first converts the annotation path from the Neuroglancer JSON file into image-source voxel coordinates at <code>Output MIP Level</code>. For local annotations with explicit <code>source.transform.outputDimensions</code>, the supported coordinate space has dimensions ordered <code>x</code>, <code>y</code>, <code>z</code>, with scales expressed in meters (<code>m</code>) and an identity transform. Each coordinate is multiplied by its annotation scale and divided by the image source's resolution at the output MIP. Unsupported coordinate transforms, including transforms on the image layer or source, report an error.</p>
+<p>Explicit annotation scales require reading image-source resolution metadata even when the annotation and output MIP settings match. This step does not download image voxels. Without explicit annotation coordinate metadata, Ouroboros uses the existing <code>Annotation MIP Level</code> conversion. The viewer-wide <code>dimensions</code> setting does not supply missing annotation metadata.</p>
+<p>Ouroboros fits a spline curve to the converted path. This produces a smooth, differentiable curve along the length of the annotations.</p>
 <p>If the line segments between annotation points were used, then there could be highly discontinuous slice transitions around sharp corners.</p>
 <p><strong>Slice Coordinate Frames</strong></p>
-<p>Ouroboros calculates equidistant points along the spline curve. Each point is "1" apart from the previous to match the appearance of isotropic slices taken from one of the axes of the coordinate space of the full volume (the coordinate space of the annotation points).</p>
+<p>Ouroboros samples the spline in output-MIP voxel coordinates. <code>Distance Between Slices</code> sets the spacing for equidistant sampling; adaptive sampling also accounts for curvature. Slice width and height use the same output-MIP voxel coordinates.</p>
 <p>To follow any possible path, each point must have its own coordinate frame normal to the spline. For easier segmentation, it is also important that the axes of the point coordinate frames don't flip between points. </p>
 <p>To achieve this, Ouroboros <a href="https://github.com/ChengLabResearch/ouroboros/blob/05bac7b1a0a45d6c93e70cc3220397ebc7e11f8b/python/ouroboros/helpers/spline.py#L96">calculates rotation-minimizing frames</a> based on the change in orientation of the tangent vectors of adjacent points.</p>
 <p><strong>Rectangles and Grids</strong></p>

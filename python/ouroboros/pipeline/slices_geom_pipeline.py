@@ -30,11 +30,15 @@ class SlicesGeometryPipelineStep(PipelineStep):
         # Use source resolution directly: volume-size ratios include rounding.
         annotation_resolution = pipeline_input.sample_points_resolution_nm
         if annotation_resolution is not None:
-            source = CloudVolumeInterface(source_url)
-            if config.output_mip_level not in source.available_mips:
-                return "The specified output mip level is not present in the volume."
+            try:
+                source = CloudVolumeInterface(source_url)
+                if config.output_mip_level not in source.available_mips:
+                    return "The specified output mip level is not present in the volume."
+                output_resolution = source.get_resolution_nm(config.output_mip_level)
+            except Exception:
+                return "Failed to get the voxel resolution from the volume."
             sample_points = sample_points * (
-                np.asarray(annotation_resolution) / source.get_resolution_nm(config.output_mip_level)
+                np.asarray(annotation_resolution) / output_resolution
             )
             pipeline_input.sample_points = sample_points
             pipeline_input.sample_points_resolution_nm = None

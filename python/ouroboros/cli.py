@@ -119,6 +119,7 @@ def handle_geometry(args):
 
     if error:
         print(f"Pipeline Error: {error}", file=sys.stderr)
+        raise SystemExit(1)
 
     rects_output = Path(slice_options.output_file_folder, f"{slice_options.output_file_name}_rects").with_suffix(".npy")
     np.save(rects_output, input_data.slice_rects)

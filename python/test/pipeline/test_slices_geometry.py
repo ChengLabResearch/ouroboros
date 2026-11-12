@@ -1,11 +1,14 @@
 """Annotation MIP coordinates must reach real spline geometry in the output MIP."""
 
 import json
+import sys
 
 import numpy as np
 import pytest
 
+from ouroboros import cli
 from ouroboros.common.pipelines import geometry_pipeline
+from ouroboros.helpers import volume_cache as cache_module
 from ouroboros.pipeline.pipeline import Pipeline
 from ouroboros.pipeline.slices_geom_pipeline import SlicesGeometryPipelineStep
 
@@ -215,29 +218,90 @@ def test_global_viewer_dimensions_do_not_change_legacy_import(
     np.testing.assert_array_equal(actual.annotation_points, expected.annotation_points)
 
 
-@pytest.mark.parametrize("failure", ["missing-output-mip", "unreadable-resolution"])
+@pytest.mark.parametrize("failure", ["missing-output-mip", "unreadable-source", "unreadable-resolution"])
 def test_physical_import_keeps_original_coordinates_when_source_metadata_fails(
-    geometry_input, annotation_document, source_metadata, tmp_path, failure,
+    geometry_input, annotation_document, source_metadata, tmp_path, monkeypatch, failure,
 ):
     original_points = geometry_input.sample_points.copy()
     pipeline, data = _import_geometry(geometry_input, annotation_document, tmp_path)
+    expected_error = "Failed to get the voxel resolution from the volume."
     if failure == "missing-output-mip":
         source_metadata.native.available_mips = [1]
-        result, error = pipeline.process(data)
-        assert result is None
-        assert error == "The specified output mip level is not present in the volume."
+        expected_error = "The specified output mip level is not present in the volume."
+    elif failure == "unreadable-source":
+        def unreadable_source(url, **kwargs):
+            source_metadata.opened.append(url)
+            raise OSError("Source metadata is unavailable")
+
+        monkeypatch.setattr(cache_module, "CloudVolume", unreadable_source)
     else:
         def unreadable_resolution(mip):
             raise OSError("Source resolution metadata is unavailable")
 
         source_metadata.native.mip_resolution = unreadable_resolution
-        with pytest.raises(OSError, match="Source resolution metadata is unavailable"):
-            pipeline.process(data)
+
+    result, error = pipeline.process(data)
+
+    assert result is None
+    assert error == expected_error
     assert source_metadata.opened == ["memory://source"]
     np.testing.assert_array_equal(data.sample_points, original_points)
     np.testing.assert_allclose(data.sample_points_resolution_nm, (700, 1100, 1300), rtol=1e-15)
     assert data.slice_rects is data.annotation_points is None
+    assert pipeline.status == "failed"
     assert pipeline.steps[1].timing["status"] == "failed"
+    assert pipeline.steps[1].get_progress() == 0
+
+
+@pytest.mark.parametrize("include_ng", [False, True])
+@pytest.mark.parametrize("failure", ["missing-output-mip", "unreadable-resolution"])
+def test_geometry_cli_reports_errors_without_writing_outputs(
+    geometry_input, annotation_document, source_metadata, tmp_path, monkeypatch, capsys,
+    include_ng, failure,
+):
+    _import_geometry(geometry_input, annotation_document, tmp_path)
+    options_path = tmp_path / "slice-options.json"
+    geometry_input.slice_options.save_to_json(options_path)
+    if failure == "missing-output-mip":
+        source_metadata.native.available_mips = [1]
+        expected_error = "The specified output mip level is not present in the volume."
+    else:
+        def unreadable_resolution(mip):
+            raise OSError("Source resolution metadata is unavailable")
+
+        source_metadata.native.mip_resolution = unreadable_resolution
+        expected_error = "Failed to get the voxel resolution from the volume."
+    argv = ["ouroboros", "geometry", str(options_path)]
+    if include_ng:
+        argv.append("--include-ng")
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main()
+
+    assert exit_info.value.code == 1
+    assert capsys.readouterr().err == f"Pipeline Error: {expected_error}\n"
+    assert source_metadata.opened == ["memory://source"]
+    assert not (tmp_path / "sample_rects.npy").exists()
+    assert not (tmp_path / "sample_ng.json").exists()
+
+
+@pytest.mark.parametrize("interruption", [KeyboardInterrupt, SystemExit])
+def test_physical_import_propagates_metadata_read_interruptions(
+    geometry_input, annotation_document, source_metadata, tmp_path, interruption,
+):
+    pipeline, data = _import_geometry(geometry_input, annotation_document, tmp_path)
+
+    def interrupted_resolution(mip):
+        raise interruption()
+
+    source_metadata.native.mip_resolution = interrupted_resolution
+
+    with pytest.raises(interruption):
+        pipeline.process(data)
+
+    assert pipeline.status == "interrupted"
+    assert pipeline.steps[1].timing["status"] == "interrupted"
 
 
 @pytest.mark.parametrize("unsupported,error", [

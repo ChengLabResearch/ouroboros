@@ -242,7 +242,10 @@ source metadata's `size`, `voxel_offset`, and `chunk_sizes`). Each entry also
 has `provenance.reduced_state_sha256` for the annotation file and
 `provenance.saved_rectangles_sha256` for the original rectangle array's bytes.
 These hashes detect changed inputs and report exact geometry reproduction.
-Annotation and output mip levels must match for offline regeneration.
+For annotation states without explicit source coordinate metadata, matching
+annotation and output MIP levels allow offline regeneration. Explicit annotation
+scales require access to image-source resolution metadata even when the MIP
+levels match; this reads metadata without downloading specimen voxels.
 
 The report includes allocation components, slice-count distributions, index
 runs, repeated chunk coverage, deterministic repeated output, and planning

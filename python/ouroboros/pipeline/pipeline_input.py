@@ -31,6 +31,9 @@ class PipelineInput(BasePipelineInput):
     backproject_options: BackprojectOptions | None = None
     source_url: str | None = None
     sample_points: np.ndarray | None = None
+    # Units of sample_points, when explicitly supplied by the annotation source.
+    # None preserves the legacy annotation_mip_level interpretation.
+    sample_points_resolution_nm: tuple[float, float, float] | None = None
     annotation_points: np.ndarray | None = None
     slice_rects: np.ndarray | None = None
     volume_cache: VolumeCache | None = None

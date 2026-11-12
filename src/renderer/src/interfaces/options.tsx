@@ -277,7 +277,7 @@ export class SliceOptionsFile extends OptionsFile {
 				'Base name for all output files.'
 			),
 			new Entry('annotation_mip_level', 'Annotation MIP Level', 0, 'number').withDescription(
-				"The annotation layer's MIP level. 0 is the highest resolution."
+				'The source MIP used for annotation coordinates when the annotation source has no explicit coordinate metadata. 0 is the highest resolution. Explicit annotation source scales take precedence.'
 			),
 			new Entry('output_mip_level', 'Output MIP Level', 0, 'number').withDescription(
 				'The MIP level to output slices in (essentially a downsample option). 1 is a good starting point.'

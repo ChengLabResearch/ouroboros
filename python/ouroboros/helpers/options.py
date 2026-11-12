@@ -41,7 +41,7 @@ class SliceOptions(CommonOptions):
     connect_start_and_end: bool = (
         False  # Whether to connect the start and end of the given annotation points
     )
-    annotation_mip_level: int = 0  # MIP level for the annotation layer
+    annotation_mip_level: int = 0  # Fallback when annotation coordinate scales are absent.
     normalize_output: bool = True
     zeroguard_output: bool = True
 

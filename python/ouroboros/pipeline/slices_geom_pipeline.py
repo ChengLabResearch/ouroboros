@@ -1,7 +1,7 @@
 from ouroboros.helpers.coordinates import convert_points_between_volumes
 from ouroboros.helpers.slice import calculate_slice_rects
 from ouroboros.helpers.spline import Spline
-from ouroboros.helpers.volume_cache import get_mip_volume_sizes
+from ouroboros.helpers.volume_cache import CloudVolumeInterface, get_mip_volume_sizes
 from .pipeline import PipelineStep
 from ouroboros.helpers.options import SliceOptions
 import numpy as np
@@ -26,8 +26,19 @@ class SlicesGeometryPipelineStep(PipelineStep):
         _, indicies = np.unique(sample_points.round(decimals=2), axis=0, return_index=True)
         sample_points = sample_points[sorted(indicies)]
 
-        # Rescale the sample points if the option is enabled
-        if config.annotation_mip_level != config.output_mip_level:
+        # Explicit physical units replace the legacy annotation-MIP assumption.
+        # Use source resolution directly: volume-size ratios include rounding.
+        annotation_resolution = pipeline_input.sample_points_resolution_nm
+        if annotation_resolution is not None:
+            source = CloudVolumeInterface(source_url)
+            if config.output_mip_level not in source.available_mips:
+                return "The specified output mip level is not present in the volume."
+            sample_points = sample_points * (
+                np.asarray(annotation_resolution) / source.get_resolution_nm(config.output_mip_level)
+            )
+            pipeline_input.sample_points = sample_points
+            pipeline_input.sample_points_resolution_nm = None
+        elif config.annotation_mip_level != config.output_mip_level:
             mip_sizes = get_mip_volume_sizes(source_url)
 
             if len(mip_sizes) == 0:
@@ -103,5 +114,6 @@ class SlicesGeometryPipelineStep(PipelineStep):
 
         # Remove sample_points from the pipeline input (it is no longer needed, and it is a large object)
         pipeline_input.clear_entry("sample_points")
+        pipeline_input.clear_entry("sample_points_resolution_nm")
 
         return None

@@ -26,7 +26,7 @@ Slicing is one of the primary features of Ouroboros, available in the CLI and th
 - `Slice Height` - The output height of each slice image.
 - 📁 `Output File Folder` - The folder to save all the resulting files into.
 - `Output File Name` - Base name for all output files.
-- `Annotation MIP Level` - The annotation layer's MIP level. 0 is the highest resolution.
+- `Annotation MIP Level` - The source MIP used for annotation coordinates when the annotation source has no explicit coordinate metadata. 0 is the highest resolution. Explicit annotation source scales take precedence over this setting.
 - `Output MIP Level` - The MIP level to output slices in (essentially a downsample option). 1 is a good starting point.
 - `Slicing Parameters`
     - `Distance Between Slices` - The distance between each slice along the annotation path.
@@ -44,13 +44,17 @@ Slicing is one of the primary features of Ouroboros, available in the CLI and th
 
 **Spline Fitting**
 
-Ouroboros fits a spline curve to the annotation path from the Neuroglancer JSON file. This produces a smooth, differentiable curve along the length of the annotations. 
+Ouroboros first converts the annotation path from the Neuroglancer JSON file into image-source voxel coordinates at `Output MIP Level`. For local annotations with explicit `source.transform.outputDimensions`, the supported coordinate space has dimensions ordered `x`, `y`, `z`, with scales expressed in meters (`m`) and an identity transform. Each coordinate is multiplied by its annotation scale and divided by the image source's resolution at the output MIP. Unsupported coordinate transforms, including transforms on the image layer or source, report an error.
+
+Explicit annotation scales require reading image-source resolution metadata even when the annotation and output MIP settings match. This step does not download image voxels. Without explicit annotation coordinate metadata, Ouroboros uses the existing `Annotation MIP Level` conversion. The viewer-wide `dimensions` setting does not supply missing annotation metadata.
+
+Ouroboros fits a spline curve to the converted path. This produces a smooth, differentiable curve along the length of the annotations.
 
 If the line segments between annotation points were used, then there could be highly discontinuous slice transitions around sharp corners.
 
 **Slice Coordinate Frames**
 
-Ouroboros calculates equidistant points along the spline curve. Each point is "1" apart from the previous to match the appearance of isotropic slices taken from one of the axes of the coordinate space of the full volume (the coordinate space of the annotation points).
+Ouroboros samples the spline in output-MIP voxel coordinates. `Distance Between Slices` sets the spacing for equidistant sampling; adaptive sampling also accounts for curvature. Slice width and height use the same output-MIP voxel coordinates.
 
 To follow any possible path, each point must have its own coordinate frame normal to the spline. For easier segmentation, it is also important that the axes of the point coordinate frames don't flip between points. 
 

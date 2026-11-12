@@ -68,6 +68,14 @@ class CustomPipelineStep(PipelineStep):
         return None
 ```
 
+When supplying `sample_points` to `SlicesGeometryPipelineStep`, leave
+`sample_points_resolution_nm` as `None` for coordinates in
+`SliceOptions.annotation_mip_level`. For points with explicit physical units,
+set it to the three XYZ scales in nanometers. The geometry step converts those
+points directly to output-MIP voxels, ignoring the annotation MIP setting, and
+releases both fields after creating the slice rectangles. The built-in parser
+sets these fields together from its `AnnotationCoordinates` input adapter.
+
 2. **Create and Configure the Pipeline**
 
 ```python

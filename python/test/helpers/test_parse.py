@@ -1,3 +1,6 @@
+import json
+
+import numpy as np
 import pytest
 
 from ouroboros.helpers.parse import (
@@ -43,9 +46,10 @@ def test_parse_neuroglancer_json(tmp_path):
     # Assert that there is no error
     assert error is None
 
-    # Assert that the annotations are a numpy array
+    # The parsed coordinates retain ordered points and optional physical units.
     assert annotations is not None
-    assert annotations.shape == (100, 3)
+    assert annotations.points.shape == (100, 3)
+    assert annotations.resolution_nm is None
 
     # Extract the image layer
     source, error = neuroglancer_config_to_source(parsed_data, "image_layer")
@@ -131,3 +135,86 @@ def test_parse_newv_image_layers(tmp_path):
     assert parsed_data.layers[2].source.url == "precomputed://http://sourcewebsite.com/image2"
 
     assert parsed_data.layers[1].source == "precomputed://http://sourcewebsite.com/image"
+
+
+@pytest.fixture
+def coordinate_document(tmp_path):
+    with open(generate_sample_neuroglancer_json(tmp_path), encoding="utf-8") as handle:
+        document = json.load(handle)
+    document["layers"][0]["source"] = {
+        "url": "local://annotations",
+        "transform": {"outputDimensions": {axis: [scale, "m"] for axis, scale in
+                                           zip("xyz", (7e-7, 1.1e-6, 1.3e-6))}},
+    }
+    return document
+
+
+@pytest.mark.parametrize("explicit_identity", [False, True])
+def test_selected_annotation_preserves_order_and_physical_units(coordinate_document, explicit_identity):
+    layer = coordinate_document["layers"][0]
+    transform = layer["source"]["transform"]
+    if explicit_identity:
+        transform["matrix"] = np.eye(3, 4).tolist()
+        transform["inputDimensions"] = transform["outputDimensions"]
+    # The viewer's coordinate units must not override this layer's own units.
+    coordinate_document["dimensions"] = {axis: [2e-6, "m"] for axis in "xyz"}
+    parsed = NeuroglancerJSONModel.model_validate(coordinate_document)
+
+    coordinates, error = neuroglancer_config_to_annotation(parsed, "annotations")
+
+    assert error is None
+    np.testing.assert_array_equal(coordinates.points, [entry["point"] for entry in layer["annotations"]])
+    np.testing.assert_allclose(coordinates.resolution_nm, (700, 1100, 1300), rtol=1e-15)
+
+
+@pytest.mark.parametrize("transform,error", [
+    pytest.param("invalid", "Only local XYZ", id="malformed-transform"),
+    pytest.param({"outputDimensions": {"z": [7e-7, "m"], "y": [7e-7, "m"], "x": [7e-7, "m"]}},
+                 "ordered x, y, z", id="axis-order"),
+    pytest.param({"outputDimensions": {axis: [7e-7, "m"] for axis in "xyz"},
+                  "inputDimensions": {axis: [7e-7, "m"] for axis in "zyx"}},
+                 "Different annotation inputDimensions", id="input-axis-order"),
+    pytest.param({"outputDimensions": {axis: [700, "nm"] for axis in "xyz"}},
+                 "must use meters", id="unsupported-units"),
+    pytest.param({"outputDimensions": {axis: [0, "m"] for axis in "xyz"}},
+                 "finite and positive", id="zero-scale"),
+    pytest.param({"outputDimensions": {axis: [float("nan"), "m"] for axis in "xyz"}},
+                 "finite and positive", id="nonfinite-scale"),
+])
+def test_invalid_explicit_coordinate_metadata_is_not_treated_as_legacy(coordinate_document, transform, error):
+    # Each case would otherwise silently use a different coordinate frame.
+    coordinate_document["layers"][0]["source"]["transform"] = transform
+    parsed = NeuroglancerJSONModel.model_validate(coordinate_document)
+
+    coordinates, actual_error = neuroglancer_config_to_annotation(parsed, "annotations")
+
+    assert coordinates is None
+    assert error in actual_error
+
+
+def test_image_url_normalization_retains_transform_for_coordinate_validation(coordinate_document):
+    transform = {"matrix": [[1, 0, 0, 10], [0, 1, 0, 0], [0, 0, 1, 0]]}
+    coordinate_document["layers"][1]["source"] = {
+        "url": "http://sourcewebsite.com/image|neuroglancer-precomputed:",
+        "transform": transform,
+    }
+    parsed = NeuroglancerJSONModel.model_validate(coordinate_document)
+
+    assert parsed.layers[1].source.transform == transform
+    source, error = neuroglancer_config_to_source(parsed, "image_layer", require_untransformed=True)
+    assert source is None
+    assert "Image source transforms are not supported" in error
+    source, error = neuroglancer_config_to_source(parsed, "image_layer")
+    assert error is None
+    assert source == "precomputed://http://sourcewebsite.com/image"
+
+
+def test_annotation_source_array_does_not_hide_explicit_coordinate_metadata(coordinate_document):
+    layer = coordinate_document["layers"][0]
+    layer["source"] = [layer["source"]]
+    parsed = NeuroglancerJSONModel.model_validate(coordinate_document)
+
+    coordinates, error = neuroglancer_config_to_annotation(parsed, "annotations")
+
+    assert coordinates is None
+    assert "Annotation coordinate transforms in source arrays are not supported" in error

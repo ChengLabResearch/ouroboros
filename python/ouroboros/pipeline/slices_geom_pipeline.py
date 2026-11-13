@@ -35,8 +35,8 @@ class SlicesGeometryPipelineStep(PipelineStep):
                 if config.output_mip_level not in source.available_mips:
                     return "The specified output mip level is not present in the volume."
                 output_resolution = source.get_resolution_nm(config.output_mip_level)
-            except Exception:
-                return "Failed to get the voxel resolution from the volume."
+            except Exception as error:
+                return f"Failed to get the voxel resolution from the volume: {str(error) or type(error).__name__}"
             sample_points = sample_points * (
                 np.asarray(annotation_resolution) / output_resolution
             )

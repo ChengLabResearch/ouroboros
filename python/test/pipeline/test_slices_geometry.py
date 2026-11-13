@@ -1,14 +1,21 @@
 """Annotation MIP coordinates must reach real spline geometry in the output MIP."""
 
+import asyncio
 import json
 import sys
 
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
 import numpy as np
 import pytest
 
 from ouroboros import cli
 from ouroboros.common.pipelines import geometry_pipeline
+from ouroboros.common.server_api import create_api
+from ouroboros.common.server_handlers import handle_task
+from ouroboros.common.server_types import BackProjectTask, SliceTask
 from ouroboros.helpers import volume_cache as cache_module
+from ouroboros.helpers.options import BackprojectOptions
 from ouroboros.pipeline.pipeline import Pipeline
 from ouroboros.pipeline.slices_geom_pipeline import SlicesGeometryPipelineStep
 
@@ -218,32 +225,39 @@ def test_global_viewer_dimensions_do_not_change_legacy_import(
     np.testing.assert_array_equal(actual.annotation_points, expected.annotation_points)
 
 
-@pytest.mark.parametrize("failure", ["missing-output-mip", "unreadable-source", "unreadable-resolution"])
-def test_physical_import_keeps_original_coordinates_when_source_metadata_fails(
-    geometry_input, annotation_document, source_metadata, tmp_path, monkeypatch, failure,
-):
-    original_points = geometry_input.sample_points.copy()
-    pipeline, data = _import_geometry(geometry_input, annotation_document, tmp_path)
-    expected_error = "Failed to get the voxel resolution from the volume."
-    if failure == "missing-output-mip":
+@pytest.fixture(params=["missing-output-mip", "unreadable-source", "unreadable-resolution", "empty-resolution-error"])
+def source_metadata_failure(request, source_metadata, monkeypatch):
+    if request.param == "missing-output-mip":
         source_metadata.native.available_mips = [1]
-        expected_error = "The specified output mip level is not present in the volume."
-    elif failure == "unreadable-source":
+        return "The specified output mip level is not present in the volume."
+    if request.param == "unreadable-source":
+        detail = "No info file found at https://example.invalid/vol/info (HTTP 403)"
+
         def unreadable_source(url, **kwargs):
             source_metadata.opened.append(url)
-            raise OSError("Source metadata is unavailable")
+            raise OSError(detail)
 
         monkeypatch.setattr(cache_module, "CloudVolume", unreadable_source)
     else:
+        detail = "" if request.param == "empty-resolution-error" else "mip 0 resolution missing from info"
+
         def unreadable_resolution(mip):
-            raise OSError("Source resolution metadata is unavailable")
+            raise OSError(detail)
 
         source_metadata.native.mip_resolution = unreadable_resolution
+    return f"Failed to get the voxel resolution from the volume: {detail or 'OSError'}"
+
+
+def test_physical_import_keeps_original_coordinates_when_source_metadata_fails(
+    geometry_input, annotation_document, source_metadata, source_metadata_failure, tmp_path,
+):
+    original_points = geometry_input.sample_points.copy()
+    pipeline, data = _import_geometry(geometry_input, annotation_document, tmp_path)
 
     result, error = pipeline.process(data)
 
     assert result is None
-    assert error == expected_error
+    assert error == source_metadata_failure
     assert source_metadata.opened == ["memory://source"]
     np.testing.assert_array_equal(data.sample_points, original_points)
     np.testing.assert_allclose(data.sample_points_resolution_nm, (700, 1100, 1300), rtol=1e-15)
@@ -254,23 +268,13 @@ def test_physical_import_keeps_original_coordinates_when_source_metadata_fails(
 
 
 @pytest.mark.parametrize("include_ng", [False, True])
-@pytest.mark.parametrize("failure", ["missing-output-mip", "unreadable-resolution"])
 def test_geometry_cli_reports_errors_without_writing_outputs(
-    geometry_input, annotation_document, source_metadata, tmp_path, monkeypatch, capsys,
-    include_ng, failure,
+    geometry_input, annotation_document, source_metadata, source_metadata_failure,
+    tmp_path, monkeypatch, capsys, include_ng,
 ):
     _import_geometry(geometry_input, annotation_document, tmp_path)
     options_path = tmp_path / "slice-options.json"
     geometry_input.slice_options.save_to_json(options_path)
-    if failure == "missing-output-mip":
-        source_metadata.native.available_mips = [1]
-        expected_error = "The specified output mip level is not present in the volume."
-    else:
-        def unreadable_resolution(mip):
-            raise OSError("Source resolution metadata is unavailable")
-
-        source_metadata.native.mip_resolution = unreadable_resolution
-        expected_error = "Failed to get the voxel resolution from the volume."
     argv = ["ouroboros", "geometry", str(options_path)]
     if include_ng:
         argv.append("--include-ng")
@@ -280,10 +284,58 @@ def test_geometry_cli_reports_errors_without_writing_outputs(
         cli.main()
 
     assert exit_info.value.code == 1
-    assert capsys.readouterr().err == f"Pipeline Error: {expected_error}\n"
+    assert capsys.readouterr().err == f"Pipeline Error: {source_metadata_failure}\n"
     assert source_metadata.opened == ["memory://source"]
     assert not (tmp_path / "sample_rects.npy").exists()
     assert not (tmp_path / "sample_ng.json").exists()
+
+
+def test_preview_reports_source_metadata_failure(
+    geometry_input, annotation_document, source_metadata, source_metadata_failure, tmp_path,
+):
+    _import_geometry(geometry_input, annotation_document, tmp_path)
+    options_path = tmp_path / "slice-options.json"
+    geometry_input.slice_options.save_to_json(options_path)
+    app = FastAPI()
+    create_api(app)
+
+    async def request_preview():
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            return await client.get("/create_slice_visualization/", params={"options": str(options_path)})
+
+    response = asyncio.run(request_preview())
+
+    assert response.status_code == 400
+    assert response.json() == {"data": None, "error": source_metadata_failure}
+    assert source_metadata.opened == ["memory://source"]
+
+
+@pytest.mark.parametrize("task_type", [SliceTask, BackProjectTask])
+def test_tasks_report_source_metadata_failure(
+    geometry_input, annotation_document, source_metadata, source_metadata_failure, tmp_path, task_type,
+):
+    _import_geometry(geometry_input, annotation_document, tmp_path)
+    options_path = tmp_path / "slice-options.json"
+    geometry_input.slice_options.save_to_json(options_path)
+    if task_type is BackProjectTask:
+        options = BackprojectOptions(
+            slice_options_path=str(options_path), straightened_volume_path=str(tmp_path / "unused.tif"),
+            output_file_folder=str(tmp_path), output_file_name="backproject",
+        )
+        options_path = tmp_path / "backproject-options.json"
+        options.save_to_json(options_path)
+    task = task_type(task_id="metadata-failure", options=str(options_path))
+
+    assert handle_task(task) is task
+
+    assert task.status == "error"
+    assert task.error == source_metadata_failure
+    assert task.failure_phase == "processing"
+    assert task.pipeline.status == "failed"
+    assert task.pipeline.steps[0].timing["status"] == "succeeded"
+    assert task.pipeline.steps[1].timing["status"] == "failed"
+    assert task.pipeline_input.slice_rects is task.pipeline_input.annotation_points is None
+    assert source_metadata.opened == ["memory://source"]
 
 
 @pytest.mark.parametrize("interruption", [KeyboardInterrupt, SystemExit])

@@ -43,16 +43,16 @@ class ParseJSONPipelineStep(PipelineStep):
         if config.connect_start_and_end:
             sample_points = np.concatenate((sample_points, sample_points[0:1]), axis=0)
 
-        source_url, error = neuroglancer_config_to_source(
+        source, error = neuroglancer_config_to_source(
             ng_config, config.neuroglancer_image_layer,
-            require_untransformed=annotation.resolution_nm is not None,
         )
 
         if error:
             return error
 
         # Store the source url in pipeline input for later use
-        pipeline_input.source_url = source_url
+        pipeline_input.source_url = source.url
+        pipeline_input.image_source_transform = source.transform
 
         # Update the pipeline input with the sample points
         pipeline_input.sample_points = sample_points

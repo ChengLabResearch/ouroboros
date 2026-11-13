@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 from ouroboros.helpers.models import model_with_json
 from ouroboros.helpers.options import BackprojectOptions, SliceOptions
 from ouroboros.helpers.bounding_boxes import BoundingBox
+from ouroboros.helpers.coordinates import ImageSourceTransform
 from ouroboros.helpers.volume_cache import CloudVolumeInterface, VolumeCache
 
 
@@ -30,6 +31,8 @@ class PipelineInput(BasePipelineInput):
     slice_options: SliceOptions | None = None
     backproject_options: BackprojectOptions | None = None
     source_url: str | None = None
+    # Selected image placement; geometry consumes it when normalizing points.
+    image_source_transform: ImageSourceTransform | None = None
     sample_points: np.ndarray | None = None
     # Units of sample_points, when explicitly supplied by the annotation source.
     # None preserves the legacy annotation_mip_level interpretation.

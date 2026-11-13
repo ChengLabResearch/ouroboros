@@ -48,3 +48,18 @@ def geometry_input(tmp_path):
     options = slice_options(tmp_path).model_copy(update={"slice_width": 5, "slice_height": 7})
     points = generate_sample_curve_helix(start_z=-1, end_z=1, radius=2, num_points=16) + 10
     return PipelineInput(slice_options=options, sample_points=points, source_url="memory://source")
+
+
+@pytest.fixture
+def annotation_document(geometry_input):
+    return {
+        "layers": [
+            {"type": "annotation", "name": "annotations",
+             "source": {"url": "local://annotations", "transform": {
+                 "outputDimensions": {axis: [scale, "m"] for axis, scale in
+                                      zip("xyz", (7e-7, 1.1e-6, 1.3e-6))}}},
+             "annotations": [{"type": "point", "point": point.tolist()}
+                             for point in geometry_input.sample_points]},
+            {"type": "image", "name": "image", "source": "memory://source"},
+        ],
+    }

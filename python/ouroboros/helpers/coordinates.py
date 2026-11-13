@@ -1,4 +1,23 @@
+from dataclasses import dataclass
+
 import numpy as np
+
+
+@dataclass(frozen=True)
+class ImageSourceTransform:
+    """Image placement in physical XYZ coordinates, normalized at import.
+
+    The linear map acts on physical input coordinates; translation uses nm.
+    Absent input scales use the image source's native MIP-0 resolution.
+    """
+
+    linear: tuple[
+        tuple[float, float, float],
+        tuple[float, float, float],
+        tuple[float, float, float],
+    ]
+    translation_nm: tuple[float, float, float]
+    input_resolution_nm: tuple[float, float, float] | None = None
 
 
 def convert_axes(data: np.ndarray, current_axes: str, target_axes: str) -> np.ndarray:

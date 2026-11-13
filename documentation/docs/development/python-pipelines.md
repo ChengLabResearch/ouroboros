@@ -72,9 +72,34 @@ When supplying `sample_points` to `SlicesGeometryPipelineStep`, leave
 `sample_points_resolution_nm` as `None` for coordinates in
 `SliceOptions.annotation_mip_level`. For points with explicit physical units,
 set it to the three XYZ scales in nanometers. The geometry step converts those
-points directly to output-MIP voxels, ignoring the annotation MIP setting, and
-releases both fields after creating the slice rectangles. The built-in parser
-sets these fields together from its `AnnotationCoordinates` input adapter.
+points to output-MIP voxels, ignoring the annotation MIP setting. The built-in
+parser sets these fields together from its `AnnotationCoordinates` input adapter.
+
+Selected image placement is owned by `PipelineInput.image_source_transform`, an
+`ImageSourceTransform` containing a dimensionless linear map, translation in
+nanometers, and optional input scales in nanometers. The parser transfers it
+and the URL from its `ImageSourceCoordinates` adapter; raw Neuroglancer transform
+JSON does not persist in the pipeline. A nontrivial placement without explicit
+annotation scales is rejected before accessing the source.
+
+For annotation points `p` with scales `a`, geometry computes
+`u = solve(linear, p * a - translation_nm)` in physical coordinates. With absent
+image input scales, output voxel coordinates are `u / output_resolution_nm`.
+With explicit input scales `i`, they are
+`(u / i) * (native_resolution_nm / output_resolution_nm)`.
+`CloudVolumeInterface` supplies native and output resolutions. The resulting
+coordinates are absolute source voxels; source voxel offsets are not added or
+subtracted again. The linear map acts in physical units, while Neuroglancer's
+serialized translation uses image `outputDimensions` units.
+
+For transformed inputs, the existing duplicate-point filter runs after conversion
+to output voxels, so image scaling cannot collapse distinct points in the global
+frame before inverse placement. Untransformed inputs retain their existing
+filtering order.
+
+The geometry step consumes the units and placement when it publishes normalized
+points, then releases the input points after creating slice rectangles. The
+untransformed metadata-free path retains its existing volume-size MIP conversion.
 
 2. **Create and Configure the Pipeline**
 

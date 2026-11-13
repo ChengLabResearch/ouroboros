@@ -67,7 +67,7 @@ Shape mismatches, dtype mismatches, and missing slice configuration report separ
 
 Ouroboros reloads the Neuroglancer JSON named by the slice options and regenerates the slice rectangles with the slicing geometry, so that JSON and those options must still match the straightened volume. From the rectangles, it derives one bounding box for the output and recalculates the 2D coordinate grids of 3D points for each slice.
 
-Older slicing runs ignored explicit annotation source scales. If an annotation/source scale mismatch affected an existing straightened volume, regenerate that volume and its derived segmentations before backprojection. Backprojection now regenerates the corrected geometry described in [Spline Fitting](./slicing.md#how-does-slicing-work), which can change slice positions and count.
+Older slicing runs could ignore explicit annotation source scales or image-source placement. If either affected an existing straightened volume, regenerate that volume and its derived segmentations before backprojection. Backprojection uses the same inverse image placement and coordinate conversion described in [Spline Fitting](./slicing.md#how-does-slicing-work), which can change slice positions and count. Transformed images require explicit annotation scales when regenerating geometry.
 
 **Trilinear Interpolation**
 

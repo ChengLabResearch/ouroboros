@@ -44,9 +44,11 @@ Slicing is one of the primary features of Ouroboros, available in the CLI and th
 
 **Spline Fitting**
 
-Ouroboros first converts the annotation path from the Neuroglancer JSON file into image-source voxel coordinates at `Output MIP Level`. For local annotations with explicit `source.transform.outputDimensions`, the supported coordinate space has dimensions ordered `x`, `y`, `z`, with scales expressed in meters (`m`) and an identity transform. Each coordinate is multiplied by its annotation scale and divided by the image source's resolution at the output MIP. Unsupported coordinate transforms, including transforms on the image layer or source, report an error.
+Ouroboros first converts the annotation path from the Neuroglancer JSON file into image-source voxel coordinates at `Output MIP Level`. For local annotations with explicit `source.transform.outputDimensions`, the supported coordinate space has dimensions ordered `x`, `y`, `z`, with scales expressed in meters (`m`) and an identity annotation transform. For an untransformed image, each coordinate is multiplied by its annotation scale and divided by the image source's resolution at the output MIP.
 
-Explicit annotation scales require reading image-source resolution metadata even when the annotation and output MIP settings match. This step does not download image voxels. Without explicit annotation coordinate metadata, Ouroboros uses the existing `Annotation MIP Level` conversion. The viewer-wide `dimensions` setting does not supply missing annotation metadata.
+Image placement in the selected image layer's `source.transform` is supported for ordered XYZ meter dimensions and finite, invertible 3 × 4 affine matrices, including translations, rotations, and scaling. Ouroboros applies the inverse placement before fitting the path. Image `inputDimensions`, when supplied, can use different scales from `outputDimensions`; when omitted, they use the image source's native MIP-0 resolution. Unsupported dimensions, singular matrices, and legacy layer-level transforms report an error.
+
+Explicit annotation scales require reading image-source resolution metadata even when the annotation and output MIP settings match. This step does not download image voxels. Without explicit annotation coordinate metadata, Ouroboros retains the existing `Annotation MIP Level` conversion for untransformed images. A nontrivial image placement requires explicit annotation scales and otherwise reports an error, because the annotation's global coordinate units are unknown. The viewer-wide `dimensions` setting does not supply missing annotation metadata.
 
 Ouroboros fits a spline curve to the converted path. This produces a smooth, differentiable curve along the length of the annotations.
 

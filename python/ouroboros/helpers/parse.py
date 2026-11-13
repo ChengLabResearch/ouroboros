@@ -5,6 +5,7 @@ from typing import Any
 import numpy as np
 from pydantic import BaseModel, ValidatorFunctionWrapHandler, field_validator
 
+from ouroboros.helpers.coordinates import ImageSourceTransform
 from ouroboros.helpers.models import model_with_json
 
 
@@ -35,6 +36,22 @@ class AnnotationModel(BaseModel):
     type: str
 
 
+def _xyz_resolution_nm(dimensions: Any, owner: str, field_name: str) -> tuple[float, float, float]:
+    """Interpret the supported physical coordinate dimensions at the JSON boundary."""
+    if not isinstance(dimensions, dict) or list(dimensions) != ["x", "y", "z"]:
+        raise ValueError(f"{owner} {field_name} must be ordered x, y, z length dimensions.")
+    resolution = []
+    for scale_unit in dimensions.values():
+        if (not isinstance(scale_unit, list) or len(scale_unit) != 2
+                or scale_unit[1] != "m"):
+            raise ValueError(f"{owner} coordinate dimensions must use meters (m).")
+        scale = float(scale_unit[0]) * 1e9
+        if not np.isfinite(scale) or scale <= 0:
+            raise ValueError(f"{owner} coordinate scales must be finite and positive.")
+        resolution.append(scale)
+    return tuple(resolution)
+
+
 class AnnotationLayerModel(LayerModel):
     annotations: list[AnnotationModel]
     type: str
@@ -57,28 +74,57 @@ class AnnotationLayerModel(LayerModel):
         if not isinstance(transform, dict) or self.source.get("url") != "local://annotations":
             raise ValueError("Only local XYZ annotation coordinate scales are supported.")
         dimensions = transform.get("outputDimensions")
-        if not isinstance(dimensions, dict) or list(dimensions) != ["x", "y", "z"]:
-            raise ValueError("Annotation outputDimensions must be ordered x, y, z length dimensions.")
+        resolution = _xyz_resolution_nm(dimensions, "Annotation", "outputDimensions")
         input_dimensions = transform.get("inputDimensions", dimensions)
         if input_dimensions != dimensions or list(input_dimensions) != list(dimensions):
             raise ValueError("Different annotation inputDimensions and outputDimensions are not supported.")
         if "matrix" in transform and not np.array_equal(transform["matrix"], np.eye(3, 4)):
             raise ValueError("Only identity annotation transform matrices are supported.")
-        resolution = []
-        for scale_unit in dimensions.values():
-            if (not isinstance(scale_unit, list) or len(scale_unit) != 2
-                    or scale_unit[1] != "m"):
-                raise ValueError("Annotation coordinate dimensions must use meters (m).")
-            scale = float(scale_unit[0]) * 1e9
-            if not np.isfinite(scale) or scale <= 0:
-                raise ValueError("Annotation coordinate scales must be finite and positive.")
-            resolution.append(scale)
-        return tuple(resolution)
+        return resolution
 
 
 class SourceModel(BaseModel):
     url: str
     transform: Any = None
+
+    def image_transform(self) -> ImageSourceTransform | None:
+        """Normalize source placement without retaining a second runtime transform."""
+        transform = self.transform
+        if transform is None or transform == {}:
+            return None
+        if not isinstance(transform, dict):
+            raise ValueError("Image source transform must be an object with XYZ outputDimensions.")
+        output_resolution = _xyz_resolution_nm(transform.get("outputDimensions"), "Image", "outputDimensions")
+        input_resolution = (
+            _xyz_resolution_nm(transform["inputDimensions"], "Image", "inputDimensions")
+            if "inputDimensions" in transform else None
+        )
+        if transform.get("sourceRank", 3) != 3:
+            raise ValueError("Image source transforms must have sourceRank 3.")
+        try:
+            matrix = np.asarray(transform.get("matrix", np.eye(3, 4)), dtype=np.float64)
+        except (TypeError, ValueError) as error:
+            raise ValueError("Image source transform matrix must be a finite 3 x 4 array.") from error
+        if matrix.shape != (3, 4) or not np.isfinite(matrix).all():
+            raise ValueError("Image source transform matrix must be a finite 3 x 4 array.")
+        linear = matrix[:, :3]
+        if np.linalg.slogdet(linear)[0] == 0:
+            raise ValueError("Image source transform matrix must have an invertible linear component.")
+        # Neuroglancer's linear coefficients act in physical space. Only the
+        # translation column uses output-dimension units. Omitted image input
+        # scales come from the native source, never from outputDimensions.
+        with np.errstate(over="raise", invalid="raise"):
+            try:
+                translation = matrix[:, 3] * output_resolution
+            except FloatingPointError as error:
+                raise ValueError("Image source transform translation must be finite in nanometers.") from error
+        if input_resolution is None and np.array_equal(matrix, np.eye(3, 4)):
+            return None
+        return ImageSourceTransform(
+            linear=tuple(tuple(float(value) for value in row) for row in linear),
+            translation_nm=tuple(float(value) for value in translation),
+            input_resolution_nm=input_resolution,
+        )
 
 
 class ImageLayerModel(LayerModel):
@@ -116,6 +162,14 @@ class AnnotationCoordinates:
 
     points: np.ndarray
     resolution_nm: tuple[float, float, float] | None
+
+
+@dataclass(frozen=True)
+class ImageSourceCoordinates:
+    """Parsed source adapter; its normalized transform transfers to the pipeline."""
+
+    url: str
+    transform: ImageSourceTransform | None
 
 
 def parse_neuroglancer_json(json_path: str) -> ParseResult:
@@ -183,11 +237,10 @@ def neuroglancer_config_to_annotation(
 
 
 def neuroglancer_config_to_source(
-    config: NeuroglancerJSONModel, neuroglancer_image_layer: str, *,
-    require_untransformed: bool = False,
+    config: NeuroglancerJSONModel, neuroglancer_image_layer: str,
 ) -> Result:
     """
-    Extract the source URL from a neuroglancer state JSON dictionary.
+    Extract the source URL and normalized placement from the selected image layer.
 
     Parameters
     ----------
@@ -199,7 +252,7 @@ def neuroglancer_config_to_source(
     Returns
     -------
     Result
-        A tuple containing the source URL and an error if one occurred.
+        A tuple containing the source coordinates and an error if one occurred.
     """
 
     valid_layer_name = neuroglancer_image_layer != ""
@@ -209,16 +262,12 @@ def neuroglancer_config_to_source(
             if layer.type == "image" and (
                 layer.name == neuroglancer_image_layer or not valid_layer_name
             ):
-                if require_untransformed and layer.transform:
-                    return None, "Image layer transforms are not supported with physical annotation coordinates."
+                if layer.transform:
+                    return None, "Legacy image layer transforms are not supported; use source.transform."
                 if isinstance(layer.source, str):
-                    return layer.source, None
+                    return ImageSourceCoordinates(layer.source, None), None
                 elif isinstance(layer.source, SourceModel):
-                    if require_untransformed and layer.source.transform:
-                        return None, (
-                            "Image source transforms are not supported with physical annotation coordinates."
-                        )
-                    return layer.source.url, None
+                    return ImageSourceCoordinates(layer.source.url, layer.source.image_transform()), None
                 else:  # pragma: no cover - ImageLayerModel constrains source to str or SourceModel.
                     # Don't think you can hit this as image layer types only build
                     # from str or SourceModel

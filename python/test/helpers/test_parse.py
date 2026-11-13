@@ -5,6 +5,7 @@ import pytest
 
 from ouroboros.helpers.parse import (
     CV_FORMAT,
+    ImageSourceCoordinates,
     NeuroglancerJSONModel,
     parse_neuroglancer_json,
     neuroglancer_config_to_annotation,
@@ -57,9 +58,11 @@ def test_parse_neuroglancer_json(tmp_path):
     # Assert that there is no error
     assert error is None
 
-    # Assert that the source is a string
+    # Both source forms expose one normalized boundary adapter.
     assert source is not None
-    assert isinstance(source, str)
+    assert isinstance(source, ImageSourceCoordinates)
+    assert source.url == "precomputed://http://sourcewebsite.com/image"
+    assert source.transform is None
 
     # Extract the source model layer
     source, error = neuroglancer_config_to_source(parsed_data, "other_image_layer")
@@ -67,9 +70,10 @@ def test_parse_neuroglancer_json(tmp_path):
     # Assert that there is no error
     assert error is None
 
-    # Assert that the source returned is a string even from source model.
     assert source is not None
-    assert isinstance(source, str)
+    assert isinstance(source, ImageSourceCoordinates)
+    assert source.url == "precomputed://http://sourcewebsite.com/image2"
+    assert source.transform is None
 
 
 def test_parse_annotation_errors(tmp_path):
@@ -192,8 +196,12 @@ def test_invalid_explicit_coordinate_metadata_is_not_treated_as_legacy(coordinat
     assert error in actual_error
 
 
-def test_image_url_normalization_retains_transform_for_coordinate_validation(coordinate_document):
-    transform = {"matrix": [[1, 0, 0, 10], [0, 1, 0, 0], [0, 0, 1, 0]]}
+def test_image_url_normalization_preserves_placement_in_physical_units(coordinate_document):
+    transform = {
+        "outputDimensions": {axis: [scale, "m"] for axis, scale in zip("xyz", (7e-7, 1.1e-6, 1.3e-6))},
+        "inputDimensions": {axis: [scale, "m"] for axis, scale in zip("xyz", (6.37e-7, 8e-7, 1.1e-6))},
+        "matrix": [[0, -2, 0, 10], [1, 0, 0, -20], [0, 0, 0.5, 30]],
+    }
     coordinate_document["layers"][1]["source"] = {
         "url": "http://sourcewebsite.com/image|neuroglancer-precomputed:",
         "transform": transform,
@@ -201,12 +209,14 @@ def test_image_url_normalization_retains_transform_for_coordinate_validation(coo
     parsed = NeuroglancerJSONModel.model_validate(coordinate_document)
 
     assert parsed.layers[1].source.transform == transform
-    source, error = neuroglancer_config_to_source(parsed, "image_layer", require_untransformed=True)
-    assert source is None
-    assert "Image source transforms are not supported" in error
     source, error = neuroglancer_config_to_source(parsed, "image_layer")
     assert error is None
-    assert source == "precomputed://http://sourcewebsite.com/image"
+    assert source.url == "precomputed://http://sourcewebsite.com/image"
+    np.testing.assert_array_equal(source.transform.linear, [[0, -2, 0], [1, 0, 0], [0, 0, 0.5]])
+    np.testing.assert_allclose(source.transform.translation_nm, (7000, -22000, 39000), rtol=1e-15)
+    np.testing.assert_allclose(source.transform.input_resolution_nm, (637, 800, 1100), rtol=1e-15)
+    parsed.layers[1].source.transform["matrix"][0][3] = -100
+    assert source.transform.translation_nm[0] == pytest.approx(7000), "Raw JSON must not own the imported placement"
 
 
 def test_annotation_source_array_does_not_hide_explicit_coordinate_metadata(coordinate_document):
@@ -218,3 +228,119 @@ def test_annotation_source_array_does_not_hide_explicit_coordinate_metadata(coor
 
     assert coordinates is None
     assert "Annotation coordinate transforms in source arrays are not supported" in error
+
+
+@pytest.fixture
+def image_transform_document(coordinate_document):
+    coordinate_document["layers"][1]["source"] = {
+        "url": "precomputed://http://sourcewebsite.com/image",
+        "transform": {"outputDimensions": {axis: [7e-7, "m"] for axis in "xyz"}},
+    }
+    return coordinate_document
+
+
+@pytest.mark.parametrize("matrix", [None, np.eye(3, 4).tolist()])
+@pytest.mark.parametrize("explicit_input", [False, True])
+def test_image_identity_only_collapses_when_native_input_scales_are_implied(
+    image_transform_document, matrix, explicit_input,
+):
+    transform = image_transform_document["layers"][1]["source"]["transform"]
+    if matrix is not None:
+        transform["matrix"] = matrix
+    if explicit_input:
+        transform["inputDimensions"] = {axis: [7e-7, "m"] for axis in "xyz"}
+
+    source, error = neuroglancer_config_to_source(NeuroglancerJSONModel.model_validate(image_transform_document), "")
+
+    assert error is None
+    if explicit_input:
+        assert source.transform.input_resolution_nm == (700, 700, 700)
+        assert source.transform.translation_nm == (0, 0, 0)
+        np.testing.assert_array_equal(source.transform.linear, np.eye(3))
+    else:
+        assert source.transform is None, "Output units alone do not reposition the image"
+
+
+def test_omitted_image_input_dimensions_remain_native_source_dependent(image_transform_document):
+    image_transform_document["layers"][1]["source"]["transform"]["matrix"] = [
+        [1, 0, 0, 10], [0, 1, 0, 0], [0, 0, 1, 0],
+    ]
+
+    source, error = neuroglancer_config_to_source(NeuroglancerJSONModel.model_validate(image_transform_document), "")
+
+    assert error is None
+    assert source.transform.input_resolution_nm is None, "Image inputs must not inherit the 700-nm output units"
+    assert source.transform.translation_nm == (7000, 0, 0)
+
+
+@pytest.mark.parametrize("matrix", [
+    pytest.param([[1, 0, 0], [0, 1, 0], [0, 0, 1]], id="missing-translation-column"),
+    pytest.param([[1, 0, 0, 0], [0, 1], [0, 0, 1, 0]], id="ragged"),
+    pytest.param([[1, 0, 0, float("inf")], [0, 1, 0, 0], [0, 0, 1, 0]], id="nonfinite"),
+])
+def test_invalid_image_matrix_cannot_be_imported_as_identity(image_transform_document, matrix):
+    image_transform_document["layers"][1]["source"]["transform"]["matrix"] = matrix
+
+    source, error = neuroglancer_config_to_source(NeuroglancerJSONModel.model_validate(image_transform_document), "")
+
+    assert source is None
+    assert "matrix must be a finite 3 x 4 array" in error
+
+
+@pytest.mark.parametrize("x_scale,valid", [(0, False), (1e-20, True)])
+def test_image_linear_component_requires_invertibility_without_an_arbitrary_threshold(
+    image_transform_document, x_scale, valid,
+):
+    image_transform_document["layers"][1]["source"]["transform"]["matrix"] = [
+        [x_scale, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0],
+    ]
+
+    source, error = neuroglancer_config_to_source(NeuroglancerJSONModel.model_validate(image_transform_document), "")
+
+    if valid:
+        assert error is None
+        assert source.transform.linear[0][0] == x_scale
+    else:
+        assert source is None
+        assert "matrix must have an invertible linear component" in error
+
+
+@pytest.mark.parametrize("replacement,error", [
+    pytest.param("invalid", "Image source transform must be an object", id="non-object"),
+    pytest.param({"matrix": np.eye(3, 4).tolist()}, "Image outputDimensions", id="missing-output-units"),
+    pytest.param({"outputDimensions": {axis: [7e-7, "m"] for axis in "zyx"}},
+                 "Image outputDimensions", id="output-axis-order"),
+    pytest.param({"outputDimensions": {axis: [700, "nm"] for axis in "xyz"}},
+                 "must use meters", id="unsupported-units"),
+    pytest.param({"outputDimensions": {axis: [-7e-7, "m"] for axis in "xyz"}},
+                 "finite and positive", id="negative-scale"),
+    pytest.param({"outputDimensions": {axis: [7e-7, "m"] for axis in "xyz"},
+                  "inputDimensions": {axis: [7e-7, "m"] for axis in "zyx"}},
+                 "Image inputDimensions", id="input-axis-order"),
+    pytest.param({"outputDimensions": {axis: [7e-7, "m"] for axis in "xyz"}, "sourceRank": 2},
+                 "must have sourceRank 3", id="synthetic-dimension"),
+    pytest.param({"outputDimensions": {axis: [1, "m"] for axis in "xyz"},
+                  "matrix": [[1, 0, 0, 1e308], [0, 1, 0, 0], [0, 0, 1, 0]]},
+                 "translation must be finite in nanometers", id="physical-translation-overflow"),
+])
+def test_unsupported_image_coordinates_report_errors_for_the_selected_source(
+    image_transform_document, replacement, error,
+):
+    image_transform_document["layers"][1]["source"]["transform"] = replacement
+    parsed = NeuroglancerJSONModel.model_validate(image_transform_document)
+
+    other_source, other_error = neuroglancer_config_to_source(parsed, "other_image_layer")
+    assert other_error is None, "An unselected placement must not block another image layer"
+    assert other_source.transform is None
+    source, actual_error = neuroglancer_config_to_source(parsed, "image_layer")
+    assert source is None
+    assert error in actual_error
+
+
+def test_legacy_image_layer_transform_is_not_silently_ignored(coordinate_document):
+    coordinate_document["layers"][1]["transform"] = {"translation": [10, 0, 0]}
+
+    source, error = neuroglancer_config_to_source(NeuroglancerJSONModel.model_validate(coordinate_document), "image_layer")
+
+    assert source is None
+    assert error == "Legacy image layer transforms are not supported; use source.transform."

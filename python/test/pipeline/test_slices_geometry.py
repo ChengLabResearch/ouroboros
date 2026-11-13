@@ -130,21 +130,6 @@ def test_rescaling_reports_unusable_source_pyramids_without_publishing_geometry(
     assert step.get_progress() == 0
 
 
-@pytest.fixture
-def annotation_document(geometry_input):
-    return {
-        "layers": [
-            {"type": "annotation", "name": "annotations",
-             "source": {"url": "local://annotations", "transform": {
-                 "outputDimensions": {axis: [scale, "m"] for axis, scale in
-                                      zip("xyz", (7e-7, 1.1e-6, 1.3e-6))}}},
-             "annotations": [{"type": "point", "point": point.tolist()}
-                             for point in geometry_input.sample_points]},
-            {"type": "image", "name": "image", "source": "memory://source"},
-        ],
-    }
-
-
 def _import_geometry(geometry_input, annotation_document, tmp_path):
     path = tmp_path / "annotation-coordinates.json"
     path.write_text(json.dumps(annotation_document), encoding="utf-8")
@@ -360,8 +345,9 @@ def test_physical_import_propagates_metadata_read_interruptions(
     pytest.param("annotation-matrix", "Only identity annotation transform matrices", id="translated-annotation"),
     pytest.param("annotation-input-units", "Different annotation inputDimensions", id="different-input-units"),
     pytest.param("annotation-source", "Only local XYZ", id="nonlocal-annotation"),
-    pytest.param("image-transform", "Image source transforms are not supported", id="transformed-image"),
-    pytest.param("image-layer-transform", "Image layer transforms are not supported", id="transformed-image-layer"),
+    pytest.param("image-transform", "Image source transform matrix must have an invertible linear component",
+                 id="singular-image-transform"),
+    pytest.param("image-layer-transform", "image layer transforms are not supported", id="transformed-image-layer"),
 ])
 def test_unsupported_coordinate_frames_stop_before_source_access(
     geometry_input, annotation_document, source_metadata, tmp_path, unsupported, error,
@@ -378,7 +364,10 @@ def test_unsupported_coordinate_frames_stop_before_source_access(
         annotation_document["layers"][1]["transform"] = {"translation": [10, 0, 0]}
     else:
         annotation_document["layers"][1]["source"] = {
-            "url": "memory://source", "transform": {"matrix": [[1, 0, 0, 10], [0, 1, 0, 0], [0, 0, 1, 0]]},
+            "url": "memory://source", "transform": {
+                "matrix": [[1, 0, 0, 10], [0, 0, 0, 0], [0, 0, 1, 0]],
+                "outputDimensions": {axis: [7e-7, "m"] for axis in "xyz"},
+            },
         }
     pipeline, data = _import_geometry(geometry_input, annotation_document, tmp_path)
 

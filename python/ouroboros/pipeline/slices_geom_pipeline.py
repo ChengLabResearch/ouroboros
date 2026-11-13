@@ -7,6 +7,11 @@ from ouroboros.helpers.options import SliceOptions
 import numpy as np
 
 
+def _remove_duplicate_points(sample_points: np.ndarray) -> np.ndarray:
+    _, indices = np.unique(sample_points.round(decimals=2), axis=0, return_index=True)
+    return sample_points[sorted(indices)]
+
+
 class SlicesGeometryPipelineStep(PipelineStep):
     def __init__(self) -> None:
         super().__init__(inputs=("slice_options", "sample_points", "source_url"))
@@ -22,26 +27,54 @@ class SlicesGeometryPipelineStep(PipelineStep):
         if not isinstance(sample_points, np.ndarray):
             return "Input data must contain an array of sample points."
 
-        # Remove duplicates from sample points.
-        _, indicies = np.unique(sample_points.round(decimals=2), axis=0, return_index=True)
-        sample_points = sample_points[sorted(indicies)]
+        image_transform = pipeline_input.image_source_transform
+        if image_transform is None:
+            # Preserve the established filtering frame for untransformed inputs.
+            sample_points = _remove_duplicate_points(sample_points)
 
         # Explicit physical units replace the legacy annotation-MIP assumption.
         # Use source resolution directly: volume-size ratios include rounding.
         annotation_resolution = pipeline_input.sample_points_resolution_nm
+        if image_transform is not None and annotation_resolution is None:
+            return "Image source transforms require explicit annotation coordinate scales."
         if annotation_resolution is not None:
             try:
                 source = CloudVolumeInterface(source_url)
                 if config.output_mip_level not in source.available_mips:
                     return "The specified output mip level is not present in the volume."
                 output_resolution = source.get_resolution_nm(config.output_mip_level)
+                if image_transform is not None and image_transform.input_resolution_nm is not None:
+                    native_resolution = (
+                        output_resolution if config.output_mip_level == 0 else source.get_resolution_nm(0)
+                    )
             except Exception as error:
                 return f"Failed to get the voxel resolution from the volume: {str(error) or type(error).__name__}"
-            sample_points = sample_points * (
-                np.asarray(annotation_resolution) / output_resolution
-            )
+            if image_transform is None:
+                sample_points = sample_points * (
+                    np.asarray(annotation_resolution) / output_resolution
+                )
+            else:
+                # Neuroglancer's linear map acts in physical units, while its
+                # translation was converted from outputDimensions to nm at import.
+                physical_points = sample_points * np.asarray(annotation_resolution)
+                image_points_nm = np.linalg.solve(
+                    image_transform.linear,
+                    (physical_points - image_transform.translation_nm).T,
+                ).T
+                if image_transform.input_resolution_nm is None:
+                    sample_points = image_points_nm / output_resolution
+                else:
+                    sample_points = (image_points_nm / image_transform.input_resolution_nm) * (
+                        np.asarray(native_resolution) / output_resolution
+                    )
+                # These are absolute source voxels; voxel offsets already define
+                # source bounds and must not be added or subtracted here.
+                # Filter after inverse placement: image scaling can compress
+                # distinct source voxels below the global rounding precision.
+                sample_points = _remove_duplicate_points(sample_points)
             pipeline_input.sample_points = sample_points
             pipeline_input.sample_points_resolution_nm = None
+            pipeline_input.image_source_transform = None
         elif config.annotation_mip_level != config.output_mip_level:
             mip_sizes = get_mip_volume_sizes(source_url)
 
@@ -119,5 +152,6 @@ class SlicesGeometryPipelineStep(PipelineStep):
         # Remove sample_points from the pipeline input (it is no longer needed, and it is a large object)
         pipeline_input.clear_entry("sample_points")
         pipeline_input.clear_entry("sample_points_resolution_nm")
+        pipeline_input.clear_entry("image_source_transform")
 
         return None

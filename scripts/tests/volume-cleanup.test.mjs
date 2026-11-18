@@ -9,6 +9,14 @@ import { deleteFilesFromVolumeFolder } from '../../resources/processes/volume-cl
 
 const run = promisify(execFile)
 
+test('whole-volume cleanup excludes only hidden entries, main-statistics, and persist', () => {
+	const command = deleteFilesFromVolumeFolder('fixture-volume', '/')
+	assert.deepEqual(
+		[...command[7].matchAll(/! -name '([^']+)'/g)].map((match) => match[1]),
+		['.*', 'main-statistics', 'persist']
+	)
+})
+
 async function cleanupFixture(runTest) {
 	const root = await mkdtemp(join(tmpdir(), 'ouroboros-volume-cleanup-'))
 	const volume = join(root, 'mounted-files')
@@ -64,12 +72,14 @@ execFile('/bin/sh', ['-c', script, args[8], ...parameters], { env: process.env, 
 }
 
 test(
-	'whole-volume shutdown cleanup retains failed reports and existing hidden entries',
+	'whole-volume shutdown cleanup retains persistent plugin data, failed reports, and hidden entries',
 	{
 		skip: process.platform === 'win32'
 	},
 	async () => {
 		await cleanupFixture(async (volume, clear) => {
+			await mkdir(join(volume, 'persist', 'example-plugin'), { recursive: true })
+			await writeFile(join(volume, 'persist', 'example-plugin', 'checkpoint.pt'), 'model')
 			await mkdir(join(volume, 'main-statistics'))
 			await writeFile(
 				join(volume, 'main-statistics', 'failed-run.json'),
@@ -83,6 +93,10 @@ test(
 			await writeFile(join(volume, '.hidden-file'), 'hidden file')
 			await clear('/')
 			assert.equal(
+				await readFile(join(volume, 'persist', 'example-plugin', 'checkpoint.pt'), 'utf8'),
+				'model'
+			)
+			assert.equal(
 				await readFile(join(volume, 'main-statistics', 'failed-run.json'), 'utf8'),
 				'{"outcome":"failed"}'
 			)
@@ -90,8 +104,12 @@ test(
 			assert.equal(await readFile(join(volume, '.hidden-file'), 'utf8'), 'hidden file')
 			await assert.rejects(access(join(volume, 'main')))
 			await assert.rejects(access(join(volume, 'another plugin output')))
-			// Repeated shutdown is safe when only retained reports/hidden entries remain.
+			// Repeated shutdown is safe when only retained entries remain.
 			await clear('/')
+			assert.equal(
+				await readFile(join(volume, 'persist', 'example-plugin', 'checkpoint.pt'), 'utf8'),
+				'model'
+			)
 		})
 	}
 )
@@ -104,6 +122,8 @@ test(
 	async () => {
 		await cleanupFixture(async (volume, clear) => {
 			const plugin = 'plugin \' " $HOME `printf EXPANDED` $(printf EXPANDED)  folder'
+			await mkdir(join(volume, 'persist', plugin), { recursive: true })
+			await writeFile(join(volume, 'persist', plugin, 'checkpoint.pt'), 'model')
 			await mkdir(join(volume, plugin))
 			await writeFile(join(volume, plugin, 'output.tif'), 'scratch')
 			await writeFile(join(volume, plugin, '.hidden'), 'preserved')
@@ -111,6 +131,10 @@ test(
 			await writeFile(join(volume, 'main-statistics', 'report.json'), '{}')
 			await clear(plugin)
 			await assert.rejects(access(join(volume, plugin, 'output.tif')))
+			assert.equal(
+				await readFile(join(volume, 'persist', plugin, 'checkpoint.pt'), 'utf8'),
+				'model'
+			)
 			assert.equal(await readFile(join(volume, plugin, '.hidden'), 'utf8'), 'preserved')
 			assert.equal(
 				await readFile(join(volume, 'main-statistics', 'report.json'), 'utf8'),

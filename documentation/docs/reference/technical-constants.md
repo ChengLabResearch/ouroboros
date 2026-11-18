@@ -210,9 +210,15 @@ and in code review discipline. If you rename this value in one place,
 every listed file must move with it in the same commit.
 
 **User-visible behavior.** On app shutdown the volume server helper
-deletes the top-level, non-hidden entries of this named volume, keeping only
-undelivered statistics reports in `main-statistics`. Anything else stored
-under the same volume name is deleted.
+deletes the top-level, non-hidden entries of this named volume, except
+`main-statistics` (undelivered statistics reports) and `persist` (persistent
+plugin data). The exclusion list is owned by
+[`resources/processes/volume-cleanup.mjs`][volume-cleanup]. Plugins store data
+that must survive restarts under `persist/<plugin>/`, or
+`/ouroboros-volume/persist/<plugin>/` when mounted at `/ouroboros-volume`.
+The ordinary `<plugin>/` folder remains scratch storage; `clear-plugin-folder`
+clears it without touching `persist/<plugin>/`. See the
+[plugin storage contract](../guide/plugins.md#shared-volume-scratch-and-persistent-data).
 
 **When to reconsider.** Rename it if you need to run multiple Ouroboros
 installs against the same Docker daemon without stomping each other's
@@ -493,6 +499,7 @@ plugin authors can rely on it.
 [file-server-script]: https://github.com/ChengLabResearch/ouroboros/blob/main/resources/processes/file-server-script.mjs
 [volume-server-ts]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/main/servers/volume-server.ts
 [volume-server-script]: https://github.com/ChengLabResearch/ouroboros/blob/main/resources/processes/volume-server-script.mjs
+[volume-cleanup]: https://github.com/ChengLabResearch/ouroboros/blob/main/resources/processes/volume-cleanup.mjs
 [server-context]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/contexts/ServerContext.tsx
 [slices-page]: https://github.com/ChengLabResearch/ouroboros/blob/main/src/renderer/src/routes/SlicesPage/SlicesPage.tsx
 [volume-server-interface-py]: https://github.com/ChengLabResearch/ouroboros/blob/main/python/ouroboros/common/volume_server_interface.py

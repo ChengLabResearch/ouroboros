@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="generator" content="mkdocs-1.6.1, mkdocs-terminal-4.8.0">
+    
+    <meta name="description" content="Quickly extract long ROIs (e.g. blood vessels, nerves) from cloud-hosted medical scans."> 
+    
+    <meta name="author" content="Weaver Goldman and David Northover"> 
+    
+    <link rel="canonical" href="https://chenglabresearch.github.io/ouroboros/reference/round-trip-accuracy/"><link rel="icon" type="image/png" sizes="192x192" href="../../img/android-chrome-192x192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="../../img/android-chrome-512x512.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="../../img/apple-touch-icon.png" />
+<link rel="shortcut icon" type="image/png" sizes="48x48" href="../../img/favicon.ico" />
+<link rel="icon" type="image/png" sizes="16x16" href="../../img/favicon-16x16.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="../../img/favicon-32x32.png" />
+
+
+    
+ 
+<title>Round-trip Accuracy - Ouroboros Documentation</title>
+
+
+<link href="../../css/fontawesome/css/fontawesome.min.css" rel="stylesheet">
+<link href="../../css/fontawesome/css/solid.min.css" rel="stylesheet">
+<link href="../../css/normalize.css" rel="stylesheet">
+<link href="../../css/terminal.css" rel="stylesheet">
+<link href="../../css/theme.css" rel="stylesheet">
+<link href="../../css/theme.tile_grid.css" rel="stylesheet">
+<link href="../../css/theme.footer.css" rel="stylesheet">
+<!-- dark color palette -->
+<link href="../../css/palettes/dark.css" rel="stylesheet">
+
+<!-- page layout -->
+<style>
+/* initially set page layout to a one column grid */
+.terminal-mkdocs-main-grid {
+    display: grid;
+    grid-column-gap: 1.4em;
+    grid-template-columns: auto;
+    grid-template-rows: auto;
+}
+
+/*  
+*   when side navigation is not hidden, use a two column grid.  
+*   if the screen is too narrow, fall back to the initial one column grid layout.
+*   in this case the main content will be placed under the navigation panel. 
+*/
+@media only screen and (min-width: 70em) {
+    .terminal-mkdocs-main-grid {
+        grid-template-columns: 4fr 9fr;
+    }
+}</style>
+
+
+
+     
+    
+    
+
+    
+    <!-- search css support -->
+<link href="../../css/search/bootstrap-modal.css" rel="stylesheet">
+<!-- search scripts -->
+<script>
+    var base_url = "../..",
+    shortcuts = "{}";
+</script>
+<script src="../../js/jquery/jquery-1.10.1.min.js" defer></script>
+<script src="../../js/bootstrap/bootstrap.min.js" defer></script>
+<script src="../../js/mkdocs/base.js" defer></script>
+    
+    
+    
+    
+    <script src="../../search/main.js"></script>
+    
+
+    
+</head>
+
+<body class="terminal"><div class="container">
+    <div class="terminal-nav">
+        <header class="terminal-logo">
+            <div id="mkdocs-terminal-site-name" class="logo terminal-prompt"><a href="https://chenglabresearch.github.io/ouroboros/" class="no-style">Ouroboros Documentation</a></div>
+        </header>
+        
+        <nav class="terminal-menu">
+            
+            <ul vocab="https://schema.org/" typeof="BreadcrumbList">
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="../.." class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Home</span>
+                    </a>
+                    <meta property="position" content="0">
+                </li>
+                
+                
+                
+                
+                
+                
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="https://github.com/ChengLabResearch/ouroboros/releases" class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Releases</span>
+                    </a>
+                    <meta property="position" content="1">
+                </li>
+                
+                
+                <li property="itemListElement" typeof="ListItem">
+                    <a href="https://github.com/ChengLabResearch/ouroboros" class="menu-item " property="item" typeof="WebPage">
+                        <span property="name">Repository</span>
+                    </a>
+                    <meta property="position" content="2">
+                </li>
+                
+                    
+                    
+
+
+<li property="itemListElement" typeof="ListItem">
+    <a href="#" class="menu-item" data-toggle="modal" data-target="#mkdocs_search_modal" property="item" typeof="SearchAction">
+        <i aria-hidden="true" class="fa fa-search"></i> <span property="name">Search</span>
+    </a>
+    <meta property="position" content="3">
+</li>
+                    
+            </ul>
+            
+        </nav>
+    </div>
+</div>
+        
+    <div class="container">
+        <div class="terminal-mkdocs-main-grid"><aside id="terminal-mkdocs-side-panel"><nav>
+    <ul class="terminal-mkdocs-side-nav-items">
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../..">Home</a>
+        
+    
+    
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Usage Guide</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/downloading/">Download Ouroboros</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/slicing/">Slicing</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/backproject/">Backprojection</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/file-explorer/">File Explorer</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../guide/plugins/">Plugins</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        <span class="
+        
+    terminal-mkdocs-side-nav-item--active terminal-mkdocs-side-nav-section-no-index">Reference</span>
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../technical-constants/">Technical Constants</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../bounding-box-partitioning/">Bounding Box Partitioning</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../run-statistics/">Pipeline Run Statistics</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        <span class="terminal-mkdocs-side-nav-item--active">Round-trip Accuracy</span>
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+        
+        
+        
+            
+    
+        
+        
+            
+            
+            <span class="
+        
+    terminal-mkdocs-side-nav-item terminal-mkdocs-side-nav-section-no-index">Development</span>
+        
+    
+    
+        
+        
+            <ul class="terminal-mkdocs-side-nav-li-ul">
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/README.md">App</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/python/README.md">Python</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/python-pipelines/">Python Pipelines</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md">Plugins</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/docker-builds/">Docker Builds</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/registry-server-images/">Registry Server Images</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/production-package-flavors/">Production Package Flavors</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/benchmarks/">Benchmarking</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/shared-memory-lifecycle/">Shared Memory Lifecycle</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/status-presentation/">Status Presentation</a>
+        
+    
+    </li>
+            
+        
+            
+            
+             
+                <li class="terminal-mkdocs-side-nav-li-ul-li">
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="../../development/run-statistics-internals/">Run Statistics Internals</a>
+        
+    
+    </li>
+            
+            
+    </ul>
+        
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros/releases">Releases</a>
+        
+    
+    
+    
+       </li>
+        
+          <li class="terminal-mkdocs-side-nav-li">
+    
+    
+    
+        
+        
+            <a class="terminal-mkdocs-side-nav-item" href="https://github.com/ChengLabResearch/ouroboros">Repository</a>
+        
+    
+    
+    
+       </li>
+        
+    </ul>
+</nav><hr>
+<nav>
+    <ul>
+        <li><a href="#round-trip-accuracy">Round-trip accuracy</a></li>
+        <li><a href="#returned-measurements">Returned measurements</a></li><li><a href="#expected-losses-and-scope">Expected losses and scope</a></li>
+    </ul>
+</nav>
+</aside>
+            <main id="terminal-mkdocs-main-content">
+<section id="mkdocs-terminal-content">
+    <h1 id="round-trip-accuracy">Round-trip accuracy</h1>
+<p><code>ouroboros.metrics.round_trip_accuracy</code> measures how closely a source volume
+survives slicing and backprojection. It is an offline measurement; normal runs
+do not retain an extra weight volume or calculate these metrics automatically.</p>
+<pre><code class="language-python">from ouroboros.metrics import round_trip_accuracy
+
+scores = round_trip_accuracy(
+    source_xyz, backprojected_xyz, accumulated_weights_xyz,
+    source_mask=source_mask_xyz,
+    backprojected_mask=weighted_mask_xyz,
+    slice_rects=rects_xyz - source_box.get_integer_origin(),
+    slice_shape=(slice_height, slice_width),
+)
+</code></pre>
+<p>All volumes must have the same nonempty <strong>XYZ</strong> shape, source voxel spacing,
+origin, and bounding box: crop the source to the backprojected output's box.
+Transpose TIFF <strong>ZYX</strong> data with <code>.transpose(2, 1, 0)</code> at input. Alignment and
+origin are the caller's responsibility; the function does not register images.
+Evaluate scalar channels separately. Supply the already averaged reconstruction
+and the <strong>raw accumulated weights</strong>, before any output-MIP upsampling. A binary
+coverage mask loses the information needed to distinguish interior and boundary.</p>
+<p>The existing <code>backproject_box</code> returns sparse indices, weighted sums, and raw
+weights in flattened ZYX order. Production <code>process_chunk</code> stores these in its
+intermediate records; <code>volume_from_intermediates(..., accumulator=...)</code> merges
+and divides the values, leaving the accumulator's last row as the raw weights.
+An offline benchmark can capture those weights before the writer resets its
+buffers. The pipeline regression test demonstrates this without introducing a
+second weighted-merge implementation.</p>
+<p>Masks are optional and must be supplied together. Use a separate 0/1 source mask
+and its averaged reconstruction before thresholding. The fixed weighted
+threshold of 0.5 requires a reconstruction calibrated to the source mask's
+0/1 foreground convention. Do not interpret a normalized integer segmentation
+(such as 0–254) as a probability mask.</p>
+<p>For a supported application round trip, slice a <strong>uint8 0/1</strong> source mask with
+<code>normalize_output=False</code> and the default <code>zeroguard_output=True</code>. The slice
+writer passes the global sample minimum and maximum to <code>np_convert</code>, which
+converts the cubic samples back to uint8. Load that TIFF through the validated
+backprojection loader, then capture the weighted merge from
+<code>volume_from_intermediates</code> after <code>process_chunk</code> writes its records. Compare
+the metric's binary mask with the TIFF produced by <code>make_backprojection_binary</code>.
+The pipeline regression follows this path. It includes quantization and the
+zero-guard shift; inspect the resulting mask values before interpreting the
+0.5 threshold. The loader accepts bool/uint8/uint16 TIFFs, not floating-point
+TIFFs, so directly backprojecting floating samples would measure a different
+path. Record the source dtype and normalization settings with benchmark results.</p>
+<h2 id="returned-measurements">Returned measurements</h2>
+<table>
+<thead>
+<tr>
+<th>Result</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coverage</code></td>
+<td>Counts and fractions of all bounding-box voxels with weight &gt; 0 and weight ≥ 1.</td>
+</tr>
+<tr>
+<td><code>intensity.covered</code></td>
+<td>Intensity scores where weight &gt; 0.</td>
+</tr>
+<tr>
+<td><code>intensity.interior</code></td>
+<td>Scores where weight ≥ 1. This is the requested weight criterion, not a guarantee of geometric completeness.</td>
+</tr>
+<tr>
+<td><code>intensity.boundary</code></td>
+<td>Scores where 0 &lt; weight &lt; 1.</td>
+</tr>
+<tr>
+<td><code>masks.weighted</code></td>
+<td>Full-box mask scores after thresholding the weighted mask at ≥ 0.5.</td>
+</tr>
+<tr>
+<td><code>masks.binary</code></td>
+<td>Full-box mask scores using the same nonzero conversion as <code>make_backprojection_binary</code>.</td>
+</tr>
+<tr>
+<td><code>geometry</code></td>
+<td>Supplied rectangle corners and raster shape, so coverage can be interpreted with the swept geometry.</td>
+</tr>
+</tbody>
+</table>
+<p>Each intensity region reports a count, Pearson correlation, raw RMSE and PSNR,
+and a least-squares fit <code>source = fit_scale * backprojected + fit_offset</code>.
+<code>nrmse</code> is the fitted RMSE divided by that region's source peak-to-peak range.
+<code>fitted_psnr</code> uses fitted RMSE; <code>psnr</code> uses raw RMSE. Both use the same source
+range. A separate fit per region accounts for rescaling while the raw scores
+retain evidence of absolute intensity changes. Compare regions with their
+different ranges and fits in mind.</p>
+<p>Each mask result reports Dice, IoU, precision, recall, HD95, the XYZ centroid
+offset (reconstruction minus source), and its Euclidean length in voxels.
+Scores include uncovered source foreground as false negatives. HD95 is the
+larger of the two directed 95th-percentile nearest-surface distances, measured
+between six-connected foreground boundary voxel centers; outside the box is
+background. Distances are in voxel units, not physical units.</p>
+<p>With rectangle geometry, each mask result also reports centroid offsets and
+lengths for every slice, in trace order. These compare the source and final
+reconstructed masks re-sliced on the supplied rectangles using Ouroboros's
+cubic sampler, then thresholded at 0.5. This additional diagnostic interpolation
+can affect per-slice results. Rectangles must be local to the supplied box, and
+the raster shape must match the original sampling; no trace is inferred from
+array axes.</p>
+<p>Empty intensity regions return <code>None</code> for scores. Constant regions have no
+Pearson correlation or range-normalized scores. Zero error with nonzero range
+gives infinite PSNR. Two empty masks have Dice/IoU 1 and HD95 0; one empty mask
+has infinite HD95. Precision/recall with a zero denominator and centroid offsets
+with an empty mask/plane are <code>None</code>. The result contains Python dictionaries,
+lists, and scalars; callers exporting strict JSON must encode infinities.</p>
+<h2 id="expected-losses-and-scope">Expected losses and scope</h2>
+<ul>
+<li>Cubic forward interpolation and trilinear backprojection blur boundaries.</li>
+<li>Coverage is limited to voxels reached by the swept rectangles, within the
+  reported bounding box. Changing rectangle size, raster resolution, slice
+  spacing, or curvature changes coverage.</li>
+<li>Overlapping rectangles average multiple samples, especially inside bends.</li>
+<li>Default <code>normalize_output</code> rescales intensities and dtype conversion can
+  quantize them. Affine fitting compensates for rescaling, not clipping or blur.</li>
+<li>Binary output includes any nonzero weighted value, including negative values.
+  With the default <code>normalize_output=True</code>, cubic undershoot can make the
+  global minimum negative. Normalization can then shift zero background to a
+  nonzero integer. Binary backprojection can consequently fill the swept
+  envelope instead of preserving the segmented object. This is existing
+  production behavior; the metric does not change it.</li>
+<li>With <code>normalize_output=False</code>, the default <code>zeroguard_output=True</code> still
+  shifts samples by the negative global minimum before conversion. In the
+  uint8 0/1 regression, truncation leaves background zero, while trilinear
+  splatting spreads foreground to neighboring voxels, giving roughly one-voxel
+  binary dilation. Conversion also removes some foreground samples, reducing
+  recall at the weighted 0.5 threshold. Neither outcome is a universal bound:
+  sample extrema, conversion, and geometry determine the result.</li>
+<li>Upsampling to another MIP introduces another interpolation. Compare arrays
+  on one common grid; this metric does not convert MIPs or weights for you.</li>
+</ul>
+<p>The synthetic sinusoidal-tube regression runs in the existing pipeline test
+suite and uses production interpolation, TIFF conversion, accumulation, and
+merge code. It is a regression check, not evidence for real-data accuracy.
+The Octo9/pass-7/Regions manual-label benchmark, its figure and table, belong
+with the paper, importing this function from a pinned package version. This
+function works in memory and is intended for bounded regions of interest.</p>
+</section>
+
+            </main>
+        </div>
+        <hr><footer>
+    <div class="terminal-mkdocs-footer-grid">
+        <div id="terminal-mkdocs-footer-copyright-info">
+            
+            <p class="text-center text-muted">Copyright 2024-2025 Weaver Goldman and David Northover, All rights reserved</p>
+             Site built with <a href="http://www.mkdocs.org">MkDocs</a> and <a href="https://github.com/ntno/mkdocs-terminal">Terminal for MkDocs</a>.
+        </div>
+        <div id="terminal-mkdocs-footer-prev-next">
+            <nav class="btn-group">
+                <a href="../run-statistics/" title="Pipeline Run Statistics">Previous</a>
+                |
+                <a href="../../development/python-pipelines/" title="Python Pipelines">Next</a>
+            </nav>
+        </div>
+    </div>
+</footer>
+    </div>
+
+    
+    <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="searchModalLabel">
+    <div class="modal-dialog modal-lg" role="search">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="searchModalLabel">Search</h5>
+                <button type="button" class="close btn btn-default btn-ghost" data-dismiss="modal" aria-label="Close">x</button>
+            </div>
+            <div class="modal-body">
+                <p id="searchInputLabel">Type to start searching</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" aria-labelledby="searchInputLabel" placeholder="" id="mkdocs-search-query" title="Please enter search terms here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No document matches found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+    
+    
+</body>
+
+</html>

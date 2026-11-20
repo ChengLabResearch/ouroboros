@@ -710,9 +710,15 @@ the team has not opted into; the invariant lives in this documentation
 and in code review discipline. If you rename this value in one place,
 every listed file must move with it in the same commit.</p>
 <p><strong>User-visible behavior.</strong> On app shutdown the volume server helper
-deletes the top-level, non-hidden entries of this named volume, keeping only
-undelivered statistics reports in <code>main-statistics</code>. Anything else stored
-under the same volume name is deleted.</p>
+deletes the top-level, non-hidden entries of this named volume, except
+<code>main-statistics</code> (undelivered statistics reports) and <code>persist</code> (persistent
+plugin data). The exclusion list is owned by
+<a href="https://github.com/ChengLabResearch/ouroboros/blob/main/resources/processes/volume-cleanup.mjs"><code>resources/processes/volume-cleanup.mjs</code></a>. Plugins store data
+that must survive restarts under <code>persist/&lt;plugin&gt;/</code>, or
+<code>/ouroboros-volume/persist/&lt;plugin&gt;/</code> when mounted at <code>/ouroboros-volume</code>.
+The ordinary <code>&lt;plugin&gt;/</code> folder remains scratch storage; <code>clear-plugin-folder</code>
+clears it without touching <code>persist/&lt;plugin&gt;/</code>. See the
+<a href="../../guide/plugins/#shared-volume-scratch-and-persistent-data">plugin storage contract</a>.</p>
 <p><strong>When to reconsider.</strong> Rename it if you need to run multiple Ouroboros
 installs against the same Docker daemon without stomping each other's
 volumes. All call sites listed above must agree.</p>

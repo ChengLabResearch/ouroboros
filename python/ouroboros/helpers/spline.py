@@ -306,7 +306,7 @@ def calculate_spline_curvature(spline: Spline, t: np.ndarray) -> np.ndarray:
 
     # Calculate the curvature
     numerator = np.linalg.norm(np.cross(first_derivative, second_derivative), axis=1)
-    denominator = np.linalg.norm(first_derivative) ** 3
+    denominator = np.linalg.norm(first_derivative, axis=1) ** 3
     curvature = numerator / denominator
 
     return curvature
@@ -331,9 +331,9 @@ def calculate_curvature_parameterization(spline: Spline, t: np.ndarray) -> np.nd
     # Calculate the curvature
     curvature = calculate_spline_curvature(spline, t)
 
-    # Calculate the first derivative of the curvature
+    # Calculate speed at each parameter to accumulate curvature along the curve.
     first_derivative = spline(t, derivative=1).T
-    len_term = np.linalg.norm(first_derivative)
+    len_term = np.linalg.norm(first_derivative, axis=1)
 
     # Calculate the cumulative sum of the curvature
     curvature_sum = np.cumsum(curvature * len_term)

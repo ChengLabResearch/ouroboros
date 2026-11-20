@@ -2,6 +2,14 @@
 
 [`release-lock.json`](release-lock.json) is the production source of truth for the server image, bundled plugin assets, and package flavors. The packaging scripts and workflows do not carry fallback production pins.
 
+## Unreleased notes
+
+- Fixed adaptive slicing's curvature weighting to use the spline speed at
+  each point instead of one norm for the whole curve ([#258](https://github.com/ChengLabResearch/ouroboros/issues/258)).
+  Adaptive slice positions, and therefore straightened output, can change
+  for the same trace and options compared with earlier versions. Equidistant
+  slicing is unchanged.
+
 ## Prepare an application release
 
 Make release changes either as direct commits to `main` or through a single PR containing all release commits. Separate commits do not mean separate PRs; do not create a PR for each preparation commit.

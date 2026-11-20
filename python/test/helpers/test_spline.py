@@ -1,6 +1,75 @@
 import numpy as np
-from ouroboros.helpers.spline import Spline
+from ouroboros.helpers.spline import (
+    Spline,
+    calculate_curvature_parameterization,
+    calculate_spline_curvature,
+)
 from test.sample_data import generate_sample_curve_helix
+
+
+class VariableSpeedCircle(Spline):
+    """Exact radius-two circle with angle t + t**2 and positive, varying speed."""
+
+    def __init__(self):
+        self.u = np.linspace(0, 1, 1001)
+
+    def __call__(self, times, derivative=0):
+        angle = times + times**2
+        angular_speed = 1 + 2 * times
+        zeros = np.zeros_like(times)
+
+        if derivative == 0:
+            return 2 * np.array([np.cos(angle), np.sin(angle), zeros])
+        if derivative == 1:
+            return 2 * np.array([
+                -np.sin(angle) * angular_speed,
+                np.cos(angle) * angular_speed,
+                zeros,
+            ])
+        if derivative == 2:
+            return 2 * np.array([
+                -np.cos(angle) * angular_speed**2 - 2 * np.sin(angle),
+                -np.sin(angle) * angular_speed**2 + 2 * np.cos(angle),
+                zeros,
+            ])
+        raise ValueError("Only derivatives up to order two are used in these tests.")
+
+
+def test_spline_curvature_is_independent_of_speed_and_batch():
+    circle = VariableSpeedCircle()
+    times = np.linspace(0, 1, 9)
+
+    # The curvature of a circle is 1 / radius under any regular parameterization.
+    np.testing.assert_allclose(calculate_spline_curvature(circle, times), 0.5)
+    np.testing.assert_allclose(calculate_spline_curvature(circle, times[::2]), 0.5)
+
+
+def test_curvature_parameterization_weights_each_sample_by_its_speed():
+    circle = VariableSpeedCircle()
+    times = np.linspace(0, 1, 9)
+
+    cumulative_curvature = calculate_curvature_parameterization(circle, times)
+
+    # Integrated curvature on a circle is its turning angle. The existing
+    # unscaled cumulative sum therefore adds the angular speed at each sample.
+    contributions = np.diff(cumulative_curvature, prepend=0)
+    np.testing.assert_allclose(contributions, 1 + 2 * times)
+
+
+def test_adaptive_parameters_follow_physical_progress_at_variable_speed():
+    circle = VariableSpeedCircle()
+
+    parameters = circle.calculate_adaptive_parameters(
+        distance_between_points=0.1, ratio=1, calculation_params_ratio=100
+    )
+
+    # Constant curvature gives equal turning-angle and arc-length progress.
+    # The tolerance allows the existing cumulative-sum quadrature on the
+    # uniform calculation grid; no exact continuous integral is assumed.
+    angle = parameters + parameters**2
+    np.testing.assert_allclose(
+        angle, np.linspace(0, 2, len(parameters)), atol=1e-3
+    )
 
 
 def test_evaluate_spline():

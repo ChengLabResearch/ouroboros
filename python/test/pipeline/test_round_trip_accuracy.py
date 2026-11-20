@@ -146,7 +146,8 @@ def test_sinusoidal_tube_round_trip_accuracy(tmp_path):
     assert masks["binary"]["recall"] > 0.98
     assert masks["binary"]["precision"] > 0.73
     assert masks["binary"]["hd95"] < 2
-    assert masks["binary"]["centroid_distance"] < 0.1
+    # Calibrated on adaptive geometry using per-point spline speed.
+    assert masks["binary"]["centroid_distance"] < 0.15
     assert masks["binary"]["precision"] < masks["weighted"]["precision"]
     assert masks["binary"]["dice"] < masks["weighted"]["dice"]
     for name, mode in masks.items():

@@ -16,17 +16,17 @@ from ouroboros.helpers.files import (
 )
 from ouroboros.helpers.options import SliceOptions
 from ouroboros.helpers.shapes import ImgSliceC
-from ouroboros.helpers.slice import backproject_box, coordinate_grid, slice_volume_from_grids
+from ouroboros.helpers.slice import coordinate_grid, slice_volume_from_grids
 from ouroboros.metrics import round_trip_accuracy
 from ouroboros.pipeline.backproject_pipeline import process_chunk
 from ouroboros.pipeline.pipeline import Pipeline
 from ouroboros.pipeline.pipeline_input import PipelineInput
 from ouroboros.pipeline.slices_geom_pipeline import SlicesGeometryPipelineStep
-from test.harness import write_intermediate_file, write_page
+from test.harness import write_page
 
 
-def _round_trip(folder, source, rects, slice_shape, box, *, segmentation=False):
-    """Reconstruct intensity TIFFs or a float mask diagnostic through production helpers."""
+def _round_trip(folder, source, rects, slice_shape, box, *, normalize=True, binary=False):
+    """Reconstruct supported intensity and mask TIFFs through the same production path."""
     folder.mkdir()
     sliced = slice_volume_from_grids(
         source, lambda index: coordinate_grid(rects[index], slice_shape),
@@ -35,31 +35,21 @@ def _round_trip(folder, source, rects, slice_shape, box, *, segmentation=False):
     )
     intermediates = folder / "intermediates"
     x, y, z = box.get_shape()
-    if segmentation:
-        # A helper-level diagnostic retains cubic ringing and calibrated 0/1
-        # units. Float TIFFs are not supported backprojection inputs; enter at
-        # the canonical splat and adapt its sparse result to raw intermediates.
-        lookup, values, raw_weights = backproject_box(box, rects, sliced)
-        pages, indices = np.divmod(lookup, x * y)
-        intermediates.mkdir()
-        for page in np.unique(pages):
-            selected = pages == page
-            write_intermediate_file(intermediates / f"i_{page:05}.dat", indices[selected],
-                                    values[selected], raw_weights[selected],
-                                    source_rows=x, target_rows=x)
-    else:
-        # Slicing normally applies one global normalization to the saved stack.
-        converted = np_convert(source.dtype, sliced, preset_min=sliced.min(), preset_max=sliced.max())
-        straightened = folder / "straightened.tif"
-        tifffile.imwrite(straightened, converted, photometric="minisblack")
-        info = validate_straightened_volume_for_backprojection(str(straightened), rects)
-        # Several chunks contribute to the same output pages, exercising the
-        # production merge rather than a test copy of weighted division.
-        for index, start in enumerate(range(0, len(rects), 17)):
-            stop = min(start + 17, len(rects))
-            process_chunk(intermediates, info, rects[start:stop],
-                          (slice(start, stop), slice(None), slice(None)),
-                          (index, 0, 0), box, intermediate_threads=1)
+    # Use the slicing pipeline's global bounds and default zero guard for
+    # both paths. Disabling normalization keeps the uint8 label units; the
+    # zero-guard shift and integer truncation still affect mask fidelity.
+    converted = np_convert(source.dtype, sliced, preset_min=sliced.min(), preset_max=sliced.max(),
+                           normalize=normalize)
+    straightened = folder / "straightened.tif"
+    tifffile.imwrite(straightened, converted, photometric="minisblack")
+    info = validate_straightened_volume_for_backprojection(str(straightened), rects)
+    # Several chunks contribute to the same output pages, exercising the
+    # production merge rather than a test copy of weighted division.
+    for index, start in enumerate(range(0, len(rects), 17)):
+        stop = min(start + 17, len(rects))
+        process_chunk(intermediates, info, rects[start:stop],
+                      (slice(start, stop), slice(None), slice(None)),
+                      (index, 0, 0), box, intermediate_threads=1)
 
     target = folder / "backprojected"
     target.mkdir()
@@ -68,7 +58,7 @@ def _round_trip(folder, source, rects, slice_shape, box, *, segmentation=False):
     page_shape = ImgSliceC(Y=y, X=x, C=1)
     averaged = np.zeros((x, y, z), dtype=np.float32)
     weights = np.zeros_like(averaged)
-    written = np.zeros((x, y, z), dtype=np.uint8 if segmentation else source.dtype)
+    written = np.zeros((x, y, z), dtype=np.uint8 if binary else source.dtype)
     for index in range(z):
         path = intermediates / f"i_{index:05}.dat"
         # Both canonical consumers delete intermediates. Copy their boundary
@@ -81,7 +71,7 @@ def _round_trip(folder, source, rects, slice_shape, box, *, segmentation=False):
         averaged[:, :, index] = values.reshape(y, x).T
         weights[:, :, index] = accumulator[-1].reshape(y, x).T
         write_page(writer, writer_path, target, page_shape,
-                   dtype=bool if segmentation else source.dtype, index=index)
+                   dtype=bool if binary else source.dtype, index=index)
         written[:, :, index] = tifffile.imread(target / f"{index:05}.tif").reshape(y, x).T
     return averaged, weights, written
 
@@ -101,7 +91,7 @@ def test_sinusoidal_tube_round_trip_accuracy(tmp_path):
     center_x, center_y = centerline(z)
     radius = 5  # Known radius in the source XY sections along the sinusoidal trace.
     mask = (((x - center_x) ** 2 + (y - center_y) ** 2 <= radius ** 2)
-            & (z >= 10) & (z <= 61)).astype(np.float32)
+            & (z >= 10) & (z <= 61)).astype(np.uint8)
     trace_z = np.linspace(10, 61, 40)
     trace_x, trace_y = centerline(trace_z)
     options = SliceOptions(output_file_folder=str(tmp_path), output_file_name="tube",
@@ -116,11 +106,10 @@ def test_sinusoidal_tube_round_trip_accuracy(tmp_path):
     slice_shape = (options.slice_height, options.slice_width)
     _, weights, reconstructed = _round_trip(tmp_path / "intensity", source, rects, slice_shape, box)
     weighted_mask, mask_weights, binary_mask = _round_trip(
-        tmp_path / "mask", mask, rects, slice_shape, box, segmentation=True,
+        tmp_path / "mask", mask, rects, slice_shape, box, normalize=False, binary=True,
     )
-    # The whole-envelope diagnostic and chunked TIFF path use the same
-    # geometry; local float32 coordinate subtraction has small rounding error.
-    np.testing.assert_allclose(weights, mask_weights, atol=2e-5, rtol=1e-5)
+    # Both validated TIFFs now use exactly the same geometry and chunk path.
+    np.testing.assert_array_equal(weights, mask_weights)
     np.testing.assert_array_equal(
         binary_mask, np_convert(bool, weighted_mask, normalize=False, safe_bool=True),
     )
@@ -146,22 +135,24 @@ def test_sinusoidal_tube_round_trip_accuracy(tmp_path):
     assert intensity["covered"]["nrmse"] < 0.03
     assert intensity["boundary"]["nrmse"] > intensity["interior"]["nrmse"]
     masks = measurements["masks"]
-    assert masks["weighted"]["dice"] > 0.98
-    assert masks["weighted"]["iou"] > 0.96
+    assert masks["weighted"]["dice"] > 0.95
+    assert masks["weighted"]["iou"] > 0.9
     assert masks["weighted"]["precision"] > 0.98
-    assert masks["weighted"]["recall"] > 0.98
+    assert masks["weighted"]["recall"] > 0.91
     assert masks["weighted"]["hd95"] <= 1
-    assert masks["weighted"]["centroid_distance"] < 0.05
+    assert masks["weighted"]["centroid_distance"] < 0.08
+    assert masks["binary"]["dice"] > 0.84
+    assert masks["binary"]["iou"] > 0.73
     assert masks["binary"]["recall"] > 0.98
-    assert 0.1 < masks["binary"]["precision"] < 0.2
-    assert masks["binary"]["hd95"] < 12
-    assert masks["binary"]["centroid_distance"] < 1
+    assert masks["binary"]["precision"] > 0.73
+    assert masks["binary"]["hd95"] < 2
+    assert masks["binary"]["centroid_distance"] < 0.1
     assert masks["binary"]["precision"] < masks["weighted"]["precision"]
     assert masks["binary"]["dice"] < masks["weighted"]["dice"]
     for name, mode in masks.items():
         distances = mode["per_slice_centroid_distance"]
         assert len(distances) == len(rects)
         assert all(distance is not None for distance in distances)
-        assert max(distances) < (0.15 if name == "weighted" else 1.5)
+        assert max(distances) < (0.4 if name == "weighted" else 0.65)
     assert measurements["geometry"]["slice_shape"] == list(slice_shape)
     np.testing.assert_array_equal(measurements["geometry"]["slice_rects"], rects - origin)

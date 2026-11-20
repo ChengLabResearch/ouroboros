@@ -129,9 +129,12 @@ def round_trip_accuracy(
 
     Supply both mask arguments to measure a separate binary-source round
     trip. ``source_mask`` must be 0/1; ``backprojected_mask`` is its averaged
-    reconstruction, before thresholding. Weighted mode uses >= 0.5; binary
+    reconstruction, before thresholding. Weighted mode uses >= 0.5, which
+    requires values calibrated to the source mask's 0/1 convention. Binary
     mode uses the production writer's nonzero conversion, including negative
-    values. Scores use the entire bounding box, including uncovered voxels.
+    values. Production accuracy claims require inputs from the supported TIFF
+    path, with dtype and normalization settings recorded. Scores use the
+    entire bounding box, including uncovered voxels.
     HD95 is the maximum of the two directed 95th-percentile Euclidean surface
     distances on six-connected boundaries, in voxels. Both empty masks have
     Dice/IoU 1 and HD95 0; one empty mask gives infinite HD95. Undefined

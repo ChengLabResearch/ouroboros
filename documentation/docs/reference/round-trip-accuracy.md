@@ -33,15 +33,23 @@ buffers. The pipeline regression test demonstrates this without introducing a
 second weighted-merge implementation.
 
 Masks are optional and must be supplied together. Use a separate 0/1 source mask
-and its weighted round trip before thresholding. Preserve the mask's 0–1 units
-so the 0.5 threshold remains meaningful. For this diagnostic, retain the floating
-samples from `slice_volume_from_grids` and pass them directly to `backproject_box`,
-then merge its records with `volume_from_intermediates`. This measures the
-interpolation/weighted path without normalizing or quantizing the mask. It is
-an in-memory diagnostic: the application TIFF backprojection loader accepts
-only bool/uint8/uint16, not floating-point TIFFs. The intensity round trip can
-use the normal default normalization and supported TIFF path. Do not pass a
-normalized integer segmentation (such as 0–254) as a probability mask.
+and its averaged reconstruction before thresholding. The fixed weighted
+threshold of 0.5 requires a reconstruction calibrated to the source mask's
+0/1 foreground convention. Do not interpret a normalized integer segmentation
+(such as 0–254) as a probability mask.
+
+For a supported application round trip, slice a **uint8 0/1** source mask with
+`normalize_output=False` and the default `zeroguard_output=True`. The slice
+writer passes the global sample minimum and maximum to `np_convert`, which
+converts the cubic samples back to uint8. Load that TIFF through the validated
+backprojection loader, then capture the weighted merge from
+`volume_from_intermediates` after `process_chunk` writes its records. Compare
+the metric's binary mask with the TIFF produced by `make_backprojection_binary`.
+The pipeline regression follows this path. It includes quantization and the
+zero-guard shift; inspect the resulting mask values before interpreting the
+0.5 threshold. The loader accepts bool/uint8/uint16 TIFFs, not floating-point
+TIFFs, so directly backprojecting floating samples would measure a different
+path. Record the source dtype and normalization settings with benchmark results.
 
 ## Returned measurements
 
@@ -94,11 +102,19 @@ lists, and scalars; callers exporting strict JSON must encode infinities.
 - Overlapping rectangles average multiple samples, especially inside bends.
 - Default `normalize_output` rescales intensities and dtype conversion can
   quantize them. Affine fitting compensates for rescaling, not clipping or blur.
-- Binary output includes any nonzero weighted value. Trilinear splatting can
-  spread a nonnegative segmented sample to adjacent voxels, producing roughly
-  one-voxel dilation. This is **not a strict bound for a cubic round trip**:
-  ringing, normalization, and the production writer's inclusion of negative
-  nonzero values can enlarge the mask further. Precision exposes that loss.
+- Binary output includes any nonzero weighted value, including negative values.
+  With the default `normalize_output=True`, cubic undershoot can make the
+  global minimum negative. Normalization can then shift zero background to a
+  nonzero integer. Binary backprojection can consequently fill the swept
+  envelope instead of preserving the segmented object. This is existing
+  production behavior; the metric does not change it.
+- With `normalize_output=False`, the default `zeroguard_output=True` still
+  shifts samples by the negative global minimum before conversion. In the
+  uint8 0/1 regression, truncation leaves background zero, while trilinear
+  splatting spreads foreground to neighboring voxels, giving roughly one-voxel
+  binary dilation. Conversion also removes some foreground samples, reducing
+  recall at the weighted 0.5 threshold. Neither outcome is a universal bound:
+  sample extrema, conversion, and geometry determine the result.
 - Upsampling to another MIP introduces another interpolation. Compare arrays
   on one common grid; this metric does not convert MIPs or weights for you.
 

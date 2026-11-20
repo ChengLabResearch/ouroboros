@@ -37,6 +37,27 @@ skips existing installs that are current, newer, or not safely comparable.
 
 See the [template README](https://github.com/ChengLabResearch/ouroboros/blob/main/plugins/plugin-template/README.md) for more information.
 
+### Shared Volume: Scratch and Persistent Data
+
+The Docker named volume `ouroboros-volume` is shared by the main server and
+plugin backends. Each plugin's top-level `<plugin>/` folder is scratch storage:
+Ouroboros removes it when the app closes. The `clear-plugin-folder` route also
+clears that plugin's scratch files.
+
+Store data that must survive app restarts, such as downloaded model checkpoints,
+under the reserved `persist/<plugin>/` directory instead. For a backend mounting
+the volume at `/ouroboros-volume`, this is
+`/ouroboros-volume/persist/<plugin>/`; the plugin template mounts it at `/volume`,
+so its equivalent path is `/volume/persist/<plugin>/`. Use your plugin ID for
+`<plugin>` and create the directory when needed. Whole-volume shutdown cleanup
+and clearing the plugin's scratch folder leave persistent data in place.
+Plugins own the removal of their persistent data; deleting the Docker volume
+also removes it. Ouroboros does not migrate existing scratch data automatically.
+
+`main-statistics` is separately reserved for undelivered run reports and is
+also retained. Top-level hidden entries currently survive cleanup for
+compatibility, but plugins should use `persist/<plugin>/` for persistent storage.
+
 ### Directory Context in Plugin Iframes
 
 When Ouroboros posts a `send-directory-contents` message to plugin

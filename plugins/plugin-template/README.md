@@ -92,4 +92,4 @@ It is recommended to read the sample `main.py` in `backend`. This goes over a ba
 
 Since plugins need to access files from the host file system (plugin frontends usually sends absolute file paths in the host file system), the `Docker Volume Server` provides functionality to copy files to and from a Docker volume (shared between all plugins and the main server). 
 
-Each plugin has its own folder in the volume, and files can easily be copied to or from that folder. Additionally, when an operation is done, you can easily clear out the folder.
+Each plugin has its own scratch folder in the volume, and files can easily be copied to or from that folder. Additionally, when an operation is done, you can easily clear out the folder. Ouroboros removes this scratch folder when the app closes. Store data that must survive restarts in `/volume/persist/<plugin>/` with the template's volume mount; see the [scratch and persistent data contract](https://chenglabresearch.github.io/ouroboros/guide/plugins/#shared-volume-scratch-and-persistent-data).
